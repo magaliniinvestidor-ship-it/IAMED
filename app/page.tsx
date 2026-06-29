@@ -452,7 +452,7 @@ function HomeContent() {
   // ──────────────────────────────────────────────
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+      <div className="min-h-screen flex items-center justify-center bg-slate-50" suppressHydrationWarning>
         <div className="flex flex-col items-center gap-4">
           <div className="relative w-14 h-14 bg-[#00a884] rounded-2xl flex items-center justify-center shadow-lg">
             <div className="absolute w-8 h-2.5 bg-white rounded-full" />
@@ -471,7 +471,7 @@ function HomeContent() {
   // ──────────────────────────────────────────────
   if (!session) {
     return (
-      <div className="relative min-h-screen w-full flex items-center justify-center overflow-hidden bg-gradient-to-br from-slate-100 via-slate-200 to-teal-50/50 font-sans">
+      <div className="relative min-h-screen w-full flex items-center justify-center overflow-hidden bg-gradient-to-br from-slate-100 via-slate-200 to-teal-50/50 font-sans" suppressHydrationWarning>
         {/* Hospital backdrop hidden */}
 
         {/* Floating Language Selector Dropdown */}
@@ -483,34 +483,53 @@ function HomeContent() {
             >
               <Globe className="w-4 h-4 text-teal-600 animate-pulse" />
               <span>{currentLang.flag} {currentLang.name}</span>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+              <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${langDropdownOpen ? 'rotate-180' : ''}`} />
             </button>
             
             {langDropdownOpen && (
-              <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden font-sans z-35">
-                <div className="p-2.5 bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                  {t('language_label')}
+              <>
+                <div className="fixed inset-0 z-29" onClick={() => setLangDropdownOpen(false)} />
+                <div className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden font-sans z-30">
+                  <div className="p-3 bg-gradient-to-r from-teal-50 to-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
+                    <Globe className="w-3.5 h-3.5 text-teal-600" />
+                    {t('language_label')}
+                  </div>
+                  <div className="py-1.5">
+                    {LANGUAGES.map(lang => {
+                      const isSelected = locale === lang.code;
+                      return (
+                        <button
+                          key={lang.code}
+                          onClick={() => {
+                            setLocale(lang.code as any);
+                            setLangDropdownOpen(false);
+                            addAuditLog('Alterou Idioma', lang.code);
+                          }}
+                          className={`w-full px-4 py-2.5 text-left transition text-xs font-semibold flex items-center justify-between group
+                            ${isSelected
+                              ? 'bg-teal-50 text-teal-800 border-l-3 border-teal-600'
+                              : 'hover:bg-slate-50 text-slate-700 border-l-3 border-transparent'
+                            }`}
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <span className="text-base">{lang.flag}</span>
+                            <span className={isSelected ? 'font-bold' : 'font-medium'}>{lang.name}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {isSelected && (
+                              <span className="w-4 h-4 rounded-full bg-teal-600 flex items-center justify-center">
+                                <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-                <div className="py-1">
-                  {LANGUAGES.map(lang => (
-                    <button
-                      key={lang.code}
-                      onClick={() => {
-                        setLocale(lang.code as any);
-                        setLangDropdownOpen(false);
-                        addAuditLog('Alterou Idioma', lang.code);
-                      }}
-                      className={`w-full px-4 py-2.5 text-left hover:bg-teal-50 transition text-xs font-semibold flex items-center justify-between ${locale === lang.code ? 'bg-teal-50/60 text-teal-800 font-bold' : 'text-slate-700'}`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm">{lang.flag}</span>
-                        <span>{lang.name}</span>
-                      </div>
-                      <span className="text-[9px] text-slate-400 font-normal">{lang.term}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
+              </>
             )}
           </div>
         </div>
@@ -604,20 +623,6 @@ function HomeContent() {
               </Button>
             </form>
 
-            {/* i18n Regional Demonstration Box */}
-            <div className="p-3 bg-slate-50 border border-slate-200/60 rounded-xl text-left text-[11px] text-slate-500 font-sans space-y-1.5">
-              <p className="font-bold text-slate-700 flex items-center gap-1">
-                <Info className="w-3.5 h-3.5 text-teal-600" />
-                i18n Regional Terms Demo:
-              </p>
-              <div className="grid grid-cols-2 gap-1.5 font-medium">
-                <div>📱 {t('mobile_label', 'app')}: <span className="font-bold text-teal-700">{t('mobile', 'terms')}</span></div>
-                <div>🖥️ {t('screen_label', 'app')}: <span className="font-bold text-teal-700">{t('screen', 'terms')}</span></div>
-                <div>📄 Doc: <span className="font-bold text-teal-700">{t('id_document', 'terms')}</span></div>
-                <div>🩺 Reg: <span className="font-bold text-teal-700">{t('medical_record', 'terms')}</span></div>
-              </div>
-            </div>
-
             <div className="text-center pt-1">
               <p className="text-[10px] text-slate-400 font-medium">
                 {t('restricted_access')}
@@ -633,7 +638,7 @@ function HomeContent() {
   // RENDER: Main App (authenticated)
   // ──────────────────────────────────────────────
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="flex flex-col min-h-screen" suppressHydrationWarning>
       {/* Header */}
       <header className="bg-white border-b border-slate-200 py-3.5 px-6 shrink-0 flex justify-between items-center z-20 shadow-xs">
         <div className="flex items-center gap-3 cursor-pointer" onClick={() => setActiveSubmodule(null)}>
@@ -662,33 +667,53 @@ function HomeContent() {
             >
               <span>{currentLang.flag}</span>
               <span className="hidden sm:inline text-[11px] text-slate-600 font-semibold">{currentLang.name.split(' ')[0]}</span>
-              <ChevronDown className="w-3 h-3 text-slate-400" />
+              <ChevronDown className={`w-3 h-3 text-slate-400 transition-transform ${langDropdownOpen ? 'rotate-180' : ''}`} />
             </button>
             
             {langDropdownOpen && (
-              <div className="absolute right-0 mt-2 w-60 bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden font-sans z-35">
-                <div className="p-2 bg-slate-50 border-b border-slate-100 text-[9px] font-bold text-slate-400 uppercase tracking-widest">
-                  {t('language_label')}
+              <>
+                <div className="fixed inset-0 z-29" onClick={() => setLangDropdownOpen(false)} />
+                <div className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden font-sans z-30">
+                  <div className="p-3 bg-gradient-to-r from-teal-50 to-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
+                    <Globe className="w-3.5 h-3.5 text-teal-600" />
+                    {t('language_label')}
+                  </div>
+                  <div className="py-1.5">
+                    {LANGUAGES.map(lang => {
+                      const isSelected = locale === lang.code;
+                      return (
+                        <button
+                          key={lang.code}
+                          onClick={() => {
+                            setLocale(lang.code as any);
+                            setLangDropdownOpen(false);
+                            addAuditLog('Alterou Idioma', lang.code);
+                          }}
+                          className={`w-full px-4 py-2.5 text-left transition text-xs font-semibold flex items-center justify-between group
+                            ${isSelected
+                              ? 'bg-teal-50 text-teal-800 border-l-3 border-teal-600'
+                              : 'hover:bg-slate-50 text-slate-700 border-l-3 border-transparent'
+                            }`}
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <span className="text-base">{lang.flag}</span>
+                            <span className={isSelected ? 'font-bold' : 'font-medium'}>{lang.name}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {isSelected && (
+                              <span className="w-4 h-4 rounded-full bg-teal-600 flex items-center justify-center">
+                                <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-                <div className="py-1">
-                  {LANGUAGES.map(lang => (
-                    <button
-                      key={lang.code}
-                      onClick={() => {
-                        setLocale(lang.code as any);
-                        setLangDropdownOpen(false);
-                        addAuditLog('Alterou Idioma', lang.code);
-                      }}
-                      className={`w-full px-3 py-2 text-left hover:bg-teal-50 transition text-xs font-semibold flex items-center justify-between ${locale === lang.code ? 'bg-teal-50 text-teal-800 font-bold' : 'text-slate-700'}`}
-                    >
-                      <span className="flex items-center gap-1.5">
-                        <span>{lang.flag}</span>
-                        <span>{lang.name}</span>
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
+              </>
             )}
           </div>
 

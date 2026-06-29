@@ -120,7 +120,34 @@ CREATE TABLE aso_exams (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
 
--- 10. Profissionais de Saúde
+-- 10. Documentos Tributários Eletrônicos (DTE/SIFEN)
+CREATE TABLE dtes (
+  id TEXT PRIMARY KEY,
+  cdc TEXT NOT NULL,
+  type TEXT NOT NULL CHECK (type IN ('Fatura Eletrônica', 'Nota de Crédito', 'Nota de Débito', 'Nota de Remessa', 'Autofatura')),
+  number TEXT NOT NULL,
+  timbrado TEXT NOT NULL,
+  establishment TEXT NOT NULL,
+  expedition_point TEXT NOT NULL,
+  patient_name TEXT NOT NULL,
+  patient_email TEXT,
+  patient_phone TEXT,
+  ruc TEXT,
+  date DATE NOT NULL,
+  amount NUMERIC(12,0) NOT NULL,
+  iva_5 NUMERIC(12,0) DEFAULT 0,
+  iva_10 NUMERIC(12,0) DEFAULT 0,
+  environment TEXT NOT NULL CHECK (environment IN ('homologacao', 'producao')),
+  status TEXT NOT NULL CHECK (status IN ('Gerado', 'Pendente de Envio', 'Enviado', 'Aprovado', 'Rejeitado', 'Cancelado', 'Inutilizado')),
+  payment_gateway TEXT CHECK (payment_gateway IN ('Bancard', 'Pagopar', 'Tigo Money', 'Personal Pay', 'Eko Network', 'Transferência') OR payment_gateway IS NULL),
+  payment_status TEXT NOT NULL CHECK (payment_status IN ('pendente', 'pago', 'conciliado', 'cancelado')),
+  xml_content TEXT,
+  rejection_reason TEXT,
+  items JSONB DEFAULT '[]'::JSONB,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+-- 11. Profissionais de Saúde
 CREATE TABLE professionals (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
@@ -208,6 +235,12 @@ INSERT INTO audit_logs (id, operator, role, action, target, timestamp, ip) VALUE
 INSERT INTO aso_exams (id, patient_name, type, risks, status, date, doctor) VALUES
 ('aso_1', 'Roberto de Oliveira Cruz', 'Periódico', ARRAY['Ruído Contínuo', 'Ergonômico', 'Trabalho em Altura'], 'apto', '2026-06-21', 'Dr. Bruno Castro'),
 ('aso_2', 'Cláudio Siqueira', 'Admissional', ARRAY['Postura Física', 'Poeira Mineral'], 'apto', '2026-06-20', 'Dr. Bruno Castro');
+
+-- DTEs (Documentos Tributários Eletrônicos - SIFEN)
+INSERT INTO dtes (id, cdc, type, number, timbrado, establishment, expedition_point, patient_name, patient_email, patient_phone, date, amount, iva_5, iva_10, environment, status, payment_gateway, payment_status, items) VALUES
+('dte_1', '01800695631001001000000012026062800191234567', 'Fatura Eletrônica', '001-001-0000001', '12345678', '001', '001', 'Carlos Eduardo Almeida', 'carlos.almeida@gmail.com', '+595981234567', '2026-06-21', 750000, 0, 68182, 'producao', 'Aprovado', 'Bancard', 'conciliado', '[{"code":"10101012","description":"Consulta Médica Cardiológica","quantity":1,"unit_price":750000,"iva_rate":10,"total":750000}]'::JSONB),
+('dte_2', '01800695631001001000000022026062800292345678', 'Fatura Eletrônica', '001-001-0000002', '12345678', '001', '001', 'Mariana Rosa Santos', 'mariana.santos@yahoo.com.br', '+595991234567', '2026-06-21', 1100000, 0, 100000, 'producao', 'Enviado', 'Tigo Money', 'pendente', '[{"code":"40201011","description":"Ultrassonografia Obstétrica","quantity":1,"unit_price":1100000,"iva_rate":10,"total":1100000}]'::JSONB),
+('dte_3', '01800695631001001000000032026062200393456789', 'Nota de Crédito', '001-001-0000003', '12345678', '001', '001', 'Joaquim Bento Pereira', NULL, NULL, '2026-06-22', 200000, 0, 18182, 'producao', 'Aprovado', NULL, 'conciliado', '[{"code":"10101012","description":"Consulta Ortopédica - Estorno","quantity":1,"unit_price":200000,"iva_rate":10,"total":200000}]'::JSONB);
 
 -- Profissionais de Saúde
 INSERT INTO professionals (id, name, role, specialty, council, council_number, shift, email, phone, status, admission_date, color, permissions) VALUES

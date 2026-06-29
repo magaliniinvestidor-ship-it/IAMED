@@ -2,6 +2,7 @@ import type {Metadata} from 'next';
 import { Inter, JetBrains_Mono, Geist } from 'next/font/google';
 import './globals.css';
 import { cn } from "@/lib/utils";
+import HydrationFix from '@/components/HydrationFix';
 
 const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
@@ -17,30 +18,9 @@ export const metadata: Metadata = {
 
 export default function RootLayout({children}: {children: React.ReactNode}) {
   return (
-    <html lang="pt-BR" className={cn(jetbrainsMono.variable, "font-sans", geist.variable)}>
-      <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              (function() {
-                try {
-                  var originalFetch = window.fetch;
-                  var currentFetch = originalFetch;
-                  Object.defineProperty(window, 'fetch', {
-                    get: function() { return currentFetch; },
-                    set: function(val) { currentFetch = val; },
-                    configurable: true,
-                    enumerable: true
-                  });
-                } catch (e) {
-                  console.warn("Failed to patch window.fetch getter/setter pattern:", e);
-                }
-              })();
-            `
-          }}
-        />
-      </head>
+    <html lang="pt-BR" className={cn(jetbrainsMono.variable, "font-sans", geist.variable)} suppressHydrationWarning>
       <body className="font-sans antialiased text-slate-800 bg-slate-50 min-h-screen" suppressHydrationWarning>
+        <HydrationFix />
         {children}
       </body>
     </html>
