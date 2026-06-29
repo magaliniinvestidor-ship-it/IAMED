@@ -4,9 +4,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import type { Session } from '@supabase/supabase-js';
 import {
-  Patient, Appointment, Bed, AuditLog, FinancialPosting, StockItem, AsoExam, Dte,
+  Patient, Appointment, Bed, AuditLog, FinancialPosting, StockItem, AsoExam, Dte, Professional,
   initialPatients, initialAppointments, initialBeds, initialLogs,
-  initialFinance, initialStock, initialAsos, initialDtes
+  initialFinance, initialStock, initialAsos, initialDtes, initialProfessionals
 } from '@/lib/mockData';
 
 // Modular Component Screens
@@ -83,6 +83,7 @@ function HomeContent() {
   const [stock, setStock] = useState<StockItem[]>([]);
   const [asos, setAsos] = useState<AsoExam[]>([]);
   const [dtes, setDtes] = useState<Dte[]>([]);
+  const [professionals, setProfessionals] = useState<Professional[]>([]);
   const [isDbConnected, setIsDbConnected] = useState<boolean | null>(null);
   const [dataLoading, setDataLoading] = useState(false);
 
@@ -279,6 +280,9 @@ function HomeContent() {
         setDtes(initialDtes);
       }
 
+      // Professionals — always use initial data (no Supabase table yet)
+      setProfessionals(initialProfessionals);
+
       setIsDbConnected(!hasError);
     } catch (err) {
       console.warn("Failing to load from Supabase database. Falling back to mock data.", err);
@@ -291,6 +295,7 @@ function HomeContent() {
       setStock(initialStock);
       setAsos(initialAsos);
       setDtes(initialDtes);
+      setProfessionals(initialProfessionals);
     } finally {
       setDataLoading(false);
     }
@@ -819,6 +824,7 @@ function HomeContent() {
                     setAppointments={setAppointments}
                     activeSubmodule={activeSubmodule}
                     addAuditLog={addAuditLog}
+                    professionals={professionals}
                   />
                 )}
                 {(activeSubmodule === 3 || activeSubmodule === 4 || activeSubmodule === 8 || activeSubmodule === 9) && (
@@ -843,6 +849,8 @@ function HomeContent() {
                     dtes={dtes}
                     setDtes={setDtes}
                     patients={patients}
+                    professionals={professionals}
+                    setProfessionals={setProfessionals}
                   />
                 )}
                 {(activeSubmodule === 10 || activeSubmodule === 11 || activeSubmodule === 12 || activeSubmodule === 13) && (

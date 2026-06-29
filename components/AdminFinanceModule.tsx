@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { FinancialPosting, StockItem, AuditLog, Dte, DteItem, Patient } from '@/lib/mockData';
+import { FinancialPosting, StockItem, AuditLog, Dte, DteItem, Patient, Professional, ProfessionalRole, ProfessionalCouncil, ProfessionalShift } from '@/lib/mockData';
 import { supabase } from '@/lib/supabaseClient';
 import { useI18n } from '@/lib/i18n/I18nContext';
 import {
@@ -10,7 +10,8 @@ import {
   QrCode, Stamp, Wifi, WifiOff, CreditCard, Smartphone,
   ChevronDown, ChevronRight, RefreshCw, Send, Ban, Eye,
   Building2, Hash, Globe, CheckCircle2, XCircle, Clock,
-  AlertCircle, Banknote, Zap, Shield, FileCheck, Printer
+  AlertCircle, Banknote, Zap, Shield, FileCheck, Printer,
+  Stethoscope, UserPlus, UserCheck, UserX, Mail, Phone, Briefcase, Calendar, Edit2, Users
 } from 'lucide-react';
 
 interface AdminFinanceModuleProps {
@@ -24,6 +25,8 @@ interface AdminFinanceModuleProps {
   dtes?: Dte[];
   setDtes?: React.Dispatch<React.SetStateAction<Dte[]>>;
   patients?: Patient[];
+  professionals?: Professional[];
+  setProfessionals?: React.Dispatch<React.SetStateAction<Professional[]>>;
 }
 
 const GS = (v: number) => `Gs. ${v.toLocaleString('es-PY')}`;
@@ -385,8 +388,98 @@ export default function AdminFinanceModule({
   dtes = [],
   setDtes,
   patients = [],
+  professionals = [],
+  setProfessionals,
 }: AdminFinanceModuleProps) {
   const { t } = useI18n();
+
+  // ── Admin tab (submodule 14) ────────────────────────────────────────────────────────
+  const [adminTab, setAdminTab] = useState<'security' | 'professionals'>('security');
+
+  // ── Professional Form States ────────────────────────────────────────────────────────
+  const [profFormOpen, setProfFormOpen] = useState(false);
+  const [editingProfId, setEditingProfId] = useState<string | null>(null);
+  const [profName, setProfName] = useState('');
+  const [profRole, setProfRole] = useState<ProfessionalRole>('Médico(a)');
+  const [profSpecialty, setProfSpecialty] = useState('');
+  const [profCouncil, setProfCouncil] = useState<ProfessionalCouncil>('CRM');
+  const [profCouncilNumber, setProfCouncilNumber] = useState('');
+  const [profShift, setProfShift] = useState<ProfessionalShift>('Manhã');
+  const [profEmail, setProfEmail] = useState('');
+  const [profPhone, setProfPhone] = useState('');
+  const [profAdmission, setProfAdmission] = useState('');
+  const [profStatus, setProfStatus] = useState<'ativo' | 'inativo' | 'férias'>('ativo');
+
+  const profColors = ['bg-teal-500', 'bg-indigo-500', 'bg-rose-500', 'bg-sky-500', 'bg-violet-500', 'bg-amber-500', 'bg-emerald-500', 'bg-pink-500'];
+
+  const resetProfForm = () => {
+    setEditingProfId(null);
+    setProfName('');
+    setProfRole('Médico(a)');
+    setProfSpecialty('');
+    setProfCouncil('CRM');
+    setProfCouncilNumber('');
+    setProfShift('Manhã');
+    setProfEmail('');
+    setProfPhone('');
+    setProfAdmission('');
+    setProfStatus('ativo');
+  };
+
+  const handleSaveProfessional = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!profName.trim() || !profSpecialty.trim()) return;
+    if (!setProfessionals) return;
+    if (editingProfId) {
+      setProfessionals(prev => prev.map(p => p.id === editingProfId ? {
+        ...p,
+        name: profName, role: profRole, specialty: profSpecialty,
+        council: profCouncil, councilNumber: profCouncilNumber,
+        shift: profShift, email: profEmail, phone: profPhone,
+        admissionDate: profAdmission, status: profStatus,
+      } : p));
+      addAuditLog('Editou Profissional', profName);
+    } else {
+      const newProf: Professional = {
+        id: `prof_${Date.now()}`,
+        name: profName, role: profRole, specialty: profSpecialty,
+        council: profCouncil, councilNumber: profCouncilNumber,
+        shift: profShift, email: profEmail, phone: profPhone,
+        admissionDate: profAdmission || new Date().toISOString().split('T')[0],
+        status: profStatus,
+        color: profColors[professionals.length % profColors.length],
+      };
+      setProfessionals(prev => [...prev, newProf]);
+      addAuditLog('Cadastrou Profissional', profName);
+    }
+    resetProfForm();
+    setProfFormOpen(false);
+  };
+
+  const handleEditProf = (prof: Professional) => {
+    setEditingProfId(prof.id);
+    setProfName(prof.name);
+    setProfRole(prof.role);
+    setProfSpecialty(prof.specialty);
+    setProfCouncil(prof.council);
+    setProfCouncilNumber(prof.councilNumber);
+    setProfShift(prof.shift);
+    setProfEmail(prof.email);
+    setProfPhone(prof.phone);
+    setProfAdmission(prof.admissionDate);
+    setProfStatus(prof.status);
+    setProfFormOpen(true);
+  };
+
+  const handleToggleProfStatus = (profId: string) => {
+    if (!setProfessionals) return;
+    setProfessionals(prev => prev.map(p => {
+      if (p.id !== profId) return p;
+      const nextStatus = p.status === 'ativo' ? 'inativo' : 'ativo';
+      addAuditLog('Alterou Status', `${p.name} → ${nextStatus}`);
+      return { ...p, status: nextStatus };
+    }));
+  };
 
   // ── 5. SIFEN/DTE States ──────────────────────────────────────────────────────
   const [timbrado, setTimbrado] = useState('12345678');
@@ -1117,50 +1210,351 @@ export default function AdminFinanceModule({
 
       {/* ─── 14. Administração e Segurança ──────────────────────────────────── */}
       {activeSubmodule === 14 && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs lg:col-span-1 space-y-4">
-            <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-              <Settings className="w-5 h-5 text-teal-600" />
-              <h3 className="font-semibold text-slate-800 text-base">Controle de Segurança &amp; RBAC</h3>
-            </div>
-
-            <div className="space-y-4 text-xs font-sans">
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Perfil de Operador Ativo</label>
-                <select
-                  value={currentSelectedUser}
-                  onChange={e => setCurrentSelectedUser(e.target.value)}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 font-bold"
-                >
-                  <option value="Marcela Ramos - Recepcionista">Marcela Ramos (Recepcionista Principal)</option>
-                  <option value="Dra. Amanda Silva - Cardiologista">Dra. Amanda Silva (Diretora Médica)</option>
-                  <option value="Dr. Adriano Lima - Gestor">Dr. Adriano Lima (Gestão Administrador)</option>
-                </select>
-              </div>
-
-              <div className="p-4 bg-teal-50 border border-teal-200 rounded-xl space-y-2 text-teal-900 leading-relaxed">
-                <span className="flex items-center gap-1.5 font-bold"><ShieldCheck className="w-4 h-4 text-teal-700" /> Encriptação de Logs Ativada</span>
-                <p className="text-xs text-teal-800">
-                  Todo acesso à base de dados clínica, alterações em prontuários eletrônicos (HCE) ou emissões de faturamentos suspensos em lote são auditados com IP e operadora de acordo com as leis LGPD vigentes.
-                </p>
-              </div>
-            </div>
+        <div className="space-y-6">
+          {/* Tab Selector */}
+          <div className="flex gap-2 border-b border-slate-200/80 pb-px">
+            <button
+              onClick={() => setAdminTab('security')}
+              className={`pb-2.5 px-4 text-sm font-semibold transition-all border-b-2 flex items-center gap-2 cursor-pointer ${
+                adminTab === 'security'
+                  ? 'border-teal-600 text-teal-600 font-bold'
+                  : 'border-transparent text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              <Shield className="w-4 h-4" /> {t('prof_tab_security', 'app')}
+            </button>
+            <button
+              onClick={() => setAdminTab('professionals')}
+              className={`pb-2.5 px-4 text-sm font-semibold transition-all border-b-2 flex items-center gap-2 cursor-pointer ${
+                adminTab === 'professionals'
+                  ? 'border-teal-600 text-teal-600 font-bold'
+                  : 'border-transparent text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              <Users className="w-4 h-4" /> {t('prof_tab_professionals', 'app')}
+            </button>
           </div>
 
-          <div className="bg-slate-950 border border-slate-900 rounded-xl p-5 text-slate-100 lg:col-span-2 flex flex-col font-mono text-xs shadow-md">
-            <div className="flex items-center gap-2 font-bold text-teal-400 border-b border-slate-800 pb-3 mb-3 shrink-0">
-              <span className="w-2.5 h-2.5 bg-green-500 rounded-full animate-ping" />
-              TERMINAL DE AUDITORIA DE SEGURANÇA GERAL (LGPD)
-            </div>
-
-            <div className="space-y-2 max-h-[300px] overflow-y-auto flex-1 pr-1">
-              {logs.map((log, idx) => (
-                <div key={idx} className="p-2 bg-slate-900 border border-slate-800/80 rounded text-[11px] text-slate-300 leading-relaxed">
-                  <span className="text-teal-400 font-black">[{log.timestamp}]</span> Op: <span className="font-black text-white">{log.operator}</span> (<i>{log.role}</i>) | <b className="text-yellow-400 font-bold uppercase">{log.action}:</b> <span className="text-slate-400 font-medium">{log.target}</span> | <span className="text-slate-500">IP: {log.ip}</span>
+          {adminTab === 'security' && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs lg:col-span-1 space-y-4">
+                <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                  <Settings className="w-5 h-5 text-teal-600" />
+                  <h3 className="font-semibold text-slate-800 text-base">Controle de Segurança &amp; RBAC</h3>
                 </div>
-              ))}
+
+                <div className="space-y-4 text-xs font-sans">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Perfil de Operador Ativo</label>
+                    <select
+                      value={currentSelectedUser}
+                      onChange={e => setCurrentSelectedUser(e.target.value)}
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 font-bold"
+                    >
+                      <option value="Marcela Ramos - Recepcionista">Marcela Ramos (Recepcionista Principal)</option>
+                      <option value="Dra. Amanda Silva - Cardiologista">Dra. Amanda Silva (Diretora Médica)</option>
+                      <option value="Dr. Adriano Lima - Gestor">Dr. Adriano Lima (Gestão Administrador)</option>
+                    </select>
+                  </div>
+
+                  <div className="p-4 bg-teal-50 border border-teal-200 rounded-xl space-y-2 text-teal-900 leading-relaxed">
+                    <span className="flex items-center gap-1.5 font-bold"><ShieldCheck className="w-4 h-4 text-teal-700" /> Encriptação de Logs Ativada</span>
+                    <p className="text-xs text-teal-800">
+                      Todo acesso à base de dados clínica, alterações em prontuários eletrônicos (HCE) ou emissões de faturamentos suspensos em lote são auditados com IP e operadora de acordo com as leis LGPD vigentes.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-slate-950 border border-slate-900 rounded-xl p-5 text-slate-100 lg:col-span-2 flex flex-col font-mono text-xs shadow-md">
+                <div className="flex items-center gap-2 font-bold text-teal-400 border-b border-slate-800 pb-3 mb-3 shrink-0">
+                  <span className="w-2.5 h-2.5 bg-green-500 rounded-full animate-ping" />
+                  TERMINAL DE AUDITORIA DE SEGURANÇA GERAL (LGPD)
+                </div>
+
+                <div className="space-y-2 max-h-[300px] overflow-y-auto flex-1 pr-1">
+                  {logs.map((log, idx) => (
+                    <div key={idx} className="p-2 bg-slate-900 border border-slate-800/80 rounded text-[11px] text-slate-300 leading-relaxed">
+                      <span className="text-teal-400 font-black">[{log.timestamp}]</span> Op: <span className="font-black text-white">{log.operator}</span> (<i>{log.role}</i>) | <b className="text-yellow-400 font-bold uppercase">{log.action}:</b> <span className="text-slate-400 font-medium">{log.target}</span> | <span className="text-slate-500">IP: {log.ip}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
-          </div>
+          )}
+
+          {adminTab === 'professionals' && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Form de Cadastro */}
+              <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs lg:col-span-1 space-y-4">
+                <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                  <UserPlus className="w-5 h-5 text-teal-600" />
+                  <h3 className="font-semibold text-slate-800 text-base">
+                    {editingProfId ? t('save_professional', 'app') : t('register_professional', 'app')}
+                  </h3>
+                </div>
+
+                <form onSubmit={handleSaveProfessional} className="space-y-4 text-xs font-sans">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">{t('professional_name', 'app')} *</label>
+                    <input
+                      type="text"
+                      value={profName}
+                      onChange={e => setProfName(e.target.value)}
+                      placeholder="Ex: Dra. Amanda Silva"
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
+                      required
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">{t('professional_role', 'app')}</label>
+                      <select
+                        value={profRole}
+                        onChange={e => {
+                          const role = e.target.value as ProfessionalRole;
+                          setProfRole(role);
+                          // Auto set council based on role
+                          if (role === 'Médico(a)') setProfCouncil('CRM');
+                          else if (role === 'Enfermeiro(a)' || role === 'Técnico(a) de Enfermagem') setProfCouncil('COREN');
+                          else if (role === 'Fisioterapeuta') setProfCouncil('CREFITO');
+                          else if (role === 'Psicólogo(a)') setProfCouncil('CFP');
+                          else if (role === 'Nutricionista') setProfCouncil('CFN');
+                          else setProfCouncil('N/A');
+                        }}
+                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg font-medium"
+                      >
+                        <option value="Médico(a)">Médico(a)</option>
+                        <option value="Enfermeiro(a)">Enfermeiro(a)</option>
+                        <option value="Fisioterapeuta">Fisioterapeuta</option>
+                        <option value="Psicólogo(a)">Psicólogo(a)</option>
+                        <option value="Nutricionista">Nutricionista</option>
+                        <option value="Técnico(a) de Enfermagem">Técnico(a) de Enfermagem</option>
+                        <option value="Administrador(a)">Administrador(a)</option>
+                        <option value="Recepcionista">Recepcionista</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">{t('professional_specialty', 'app')} *</label>
+                      <input
+                        type="text"
+                        value={profSpecialty}
+                        onChange={e => setProfSpecialty(e.target.value)}
+                        placeholder="Ex: Cardiologia"
+                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">{t('professional_council', 'app')}</label>
+                      <select
+                        value={profCouncil}
+                        onChange={e => setProfCouncil(e.target.value as ProfessionalCouncil)}
+                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg font-medium"
+                      >
+                        <option value="CRM">CRM</option>
+                        <option value="COREN">COREN</option>
+                        <option value="CREFITO">CREFITO</option>
+                        <option value="CFP">CFP</option>
+                        <option value="CFN">CFN</option>
+                        <option value="CRO">CRO</option>
+                        <option value="N/A">N/A</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">{t('professional_council_number', 'app')}</label>
+                      <input
+                        type="text"
+                        value={profCouncilNumber}
+                        onChange={e => setProfCouncilNumber(e.target.value)}
+                        placeholder="Ex: CRM-SP 12345"
+                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">{t('professional_shift', 'app')}</label>
+                      <select
+                        value={profShift}
+                        onChange={e => setProfShift(e.target.value as ProfessionalShift)}
+                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg font-sans"
+                      >
+                        <option value="Manhã">Manhã</option>
+                        <option value="Tarde">Tarde</option>
+                        <option value="Noite">Noite</option>
+                        <option value="Integral">Integral</option>
+                        <option value="Plantão 12h">Plantão 12h</option>
+                        <option value="Plantão 24h">Plantão 24h</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">{t('professional_admission', 'app')}</label>
+                      <input
+                        type="date"
+                        value={profAdmission}
+                        onChange={e => setProfAdmission(e.target.value)}
+                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">{t('professional_email', 'app')}</label>
+                      <input
+                        type="email"
+                        value={profEmail}
+                        onChange={e => setProfEmail(e.target.value)}
+                        placeholder="email@iamed.com.br"
+                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">{t('professional_phone', 'app')}</label>
+                      <input
+                        type="text"
+                        value={profPhone}
+                        onChange={e => setProfPhone(e.target.value)}
+                        placeholder="+55 11 99999-9999"
+                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">{t('professional_status', 'app')}</label>
+                    <select
+                      value={profStatus}
+                      onChange={e => setProfStatus(e.target.value as any)}
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg font-semibold"
+                    >
+                      <option value="ativo">🟢 {t('prof_status_active', 'app')}</option>
+                      <option value="inativo">🔴 {t('prof_status_inactive', 'app')}</option>
+                      <option value="férias">🟡 {t('prof_status_vacation', 'app')}</option>
+                    </select>
+                  </div>
+
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      type="submit"
+                      className="flex-1 py-3 px-4 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-lg shadow-sm text-xs cursor-pointer transition text-center"
+                    >
+                      {t('save_professional', 'app')}
+                    </button>
+                    {editingProfId && (
+                      <button
+                        type="button"
+                        onClick={resetProfForm}
+                        className="py-3 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg text-xs cursor-pointer transition"
+                      >
+                        {t('btn_cancel', 'app')}
+                      </button>
+                    )}
+                  </div>
+                </form>
+              </div>
+
+              {/* Lista de Profissionais */}
+              <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs lg:col-span-2 space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div className="flex items-center gap-2">
+                    <Users className="w-5 h-5 text-teal-600" />
+                    <h3 className="font-semibold text-slate-800 text-base">{t('professionals_list', 'app')}</h3>
+                  </div>
+                  <span className="text-xs font-bold px-2.5 py-1 bg-teal-50 text-teal-700 border border-teal-200 rounded-full">
+                    {professionals.length}
+                  </span>
+                </div>
+
+                <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+                  {professionals.map(prof => (
+                    <div
+                      key={prof.id}
+                      className={`p-4 bg-slate-50 hover:bg-slate-100/70 border border-slate-200/80 rounded-xl flex flex-col md:flex-row md:items-center md:justify-between gap-3 text-xs transition-all ${
+                        prof.status === 'inativo' ? 'opacity-65' : ''
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className={`w-10 h-10 rounded-full shrink-0 flex items-center justify-center text-white font-bold text-sm ${prof.color || 'bg-slate-500'}`}>
+                          {prof.name.split(' ').map(n => n[0]).filter((_, i) => i < 2).join('').toUpperCase()}
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="font-black text-slate-800 text-sm">{prof.name}</p>
+                            <span className={`text-[10px] py-0.5 px-2 rounded-full border font-bold ${
+                              prof.role === 'Médico(a)'
+                                ? 'bg-teal-50 text-teal-700 border-teal-100'
+                                : 'bg-slate-100 text-slate-700 border-slate-200'
+                            }`}>
+                              {prof.role} — {prof.specialty}
+                            </span>
+                            {prof.councilNumber && (
+                              <span className="text-[9px] bg-slate-200 text-slate-600 py-0.5 px-1.5 rounded font-mono font-bold">
+                                {prof.council}: {prof.councilNumber}
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-4 text-slate-500 font-medium flex-wrap">
+                            <span className="flex items-center gap-1"><Briefcase className="w-3.5 h-3.5" /> {prof.shift}</span>
+                            {prof.email && <span className="flex items-center gap-1"><Mail className="w-3.5 h-3.5" /> {prof.email}</span>}
+                            {prof.phone && <span className="flex items-center gap-1"><Phone className="w-3.5 h-3.5" /> {prof.phone}</span>}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 self-end md:self-auto">
+                        <span className={`px-2 py-0.5 text-[10px] font-bold rounded border ${
+                          prof.status === 'ativo'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : prof.status === 'férias'
+                            ? 'bg-amber-50 text-amber-700 border-amber-200'
+                            : 'bg-rose-50 text-rose-700 border-rose-200'
+                        }`}>
+                          {prof.status === 'ativo' ? t('prof_status_active', 'app') : prof.status === 'férias' ? t('prof_status_vacation', 'app') : t('prof_status_inactive', 'app')}
+                        </span>
+                        
+                        <button
+                          onClick={() => handleEditProf(prof)}
+                          className="p-2 rounded-lg hover:bg-slate-200 text-slate-600 hover:text-slate-800 transition cursor-pointer"
+                          title="Editar"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+
+                        <button
+                          onClick={() => handleToggleProfStatus(prof.id)}
+                          className={`p-2 rounded-lg transition cursor-pointer ${
+                            prof.status === 'ativo'
+                              ? 'hover:bg-rose-50 text-rose-500'
+                              : 'hover:bg-emerald-50 text-emerald-500'
+                          }`}
+                          title={prof.status === 'ativo' ? 'Inativar' : 'Ativar'}
+                        >
+                          {prof.status === 'ativo' ? <UserX className="w-3.5 h-3.5" /> : <UserCheck className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  {professionals.length === 0 && (
+                    <div className="text-center py-10 text-slate-400 font-semibold">
+                      {t('no_professionals', 'app')}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

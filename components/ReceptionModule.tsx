@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Patient, Appointment } from '@/lib/mockData';
+import { Patient, Appointment, Professional } from '@/lib/mockData';
 import { supabase } from '@/lib/supabaseClient';
 import { useI18n } from '@/lib/i18n/I18nContext';
 import { 
@@ -20,6 +20,7 @@ interface ReceptionModuleProps {
   setAppointments: React.Dispatch<React.SetStateAction<Appointment[]>>;
   activeSubmodule: number; // 1 = Recepção, 2 = Agenda
   addAuditLog: (action: string, target: string) => void;
+  professionals?: Professional[];
 }
 
 export default function ReceptionModule({
@@ -29,6 +30,7 @@ export default function ReceptionModule({
   setAppointments,
   activeSubmodule,
   addAuditLog,
+  professionals = [],
 }: ReceptionModuleProps) {
   const { t } = useI18n();
   // Tab control inside Admission Form
@@ -1603,12 +1605,12 @@ export default function ReceptionModule({
           <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-md lg:col-span-1">
             <div className="flex items-center gap-2 pb-4 mb-4 border-b border-slate-100">
               <CalendarDays className="w-5 h-5 text-teal-600 animate-pulse" />
-              <h3 className="font-bold text-slate-800 text-base">Novo Agendamento Med</h3>
+              <h3 className="font-bold text-slate-800 text-base">{t('agenda_new', 'app')}</h3>
             </div>
 
             <form onSubmit={handleCreateAppointment} className="space-y-4 text-sm">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Selecionar Paciente *</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">{t('select_patient', 'app')} *</label>
                 <select 
                   value={selectedPatientId} 
                   onChange={e => {
@@ -1617,7 +1619,7 @@ export default function ReceptionModule({
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans text-xs"
                   required
                 >
-                  <option value="">Selecione um paciente...</option>
+                  <option value="">{t('select_patient_placeholder', 'app')}</option>
                   {patients.map(p => (
                     <option key={p.id} value={p.id}>{p.name}</option>
                   ))}
@@ -1625,14 +1627,19 @@ export default function ReceptionModule({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Médico Responsável</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">{t('responsible_doctor', 'app')}</label>
                 <select 
                   value={selectedDoctor} 
                   onChange={e => {
-                    setSelectedDoctor(e.target.value);
-                    if (e.target.value === 'Dr. Adriano Lima') {
+                    const val = e.target.value;
+                    setSelectedDoctor(val);
+                    // Try to auto-fill specialty from professionals list
+                    const prof = professionals.find(p => p.name === val);
+                    if (prof) {
+                      setSelectedSpecialty(prof.specialty);
+                    } else if (val === 'Dr. Adriano Lima') {
                       setSelectedSpecialty('Ortopedia');
-                    } else if (e.target.value === 'Dra. Amanda Silva') {
+                    } else if (val === 'Dra. Amanda Silva') {
                       setSelectedSpecialty('Cardiologia');
                     } else {
                       setSelectedSpecialty('Clínico Geral');
@@ -1640,14 +1647,22 @@ export default function ReceptionModule({
                   }}
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans"
                 >
-                  <option value="Dra. Amanda Silva">Dra. Amanda Silva (Cardiologista)</option>
-                  <option value="Dr. Adriano Lima">Dr. Adriano Lima (Ortopedista)</option>
-                  <option value="Dr. Bruno Castro">Dr. Bruno Castro (Médico do Trabalho)</option>
+                  {professionals.filter(p => p.role === 'Médico(a)' && p.status === 'ativo').map(prof => (
+                    <option key={prof.id} value={prof.name}>{prof.name} ({prof.specialty})</option>
+                  ))}
+                  {/* Fallback if no professionals loaded */}
+                  {professionals.filter(p => p.role === 'Médico(a)' && p.status === 'ativo').length === 0 && (
+                    <>
+                      <option value="Dra. Amanda Silva">Dra. Amanda Silva (Cardiologista)</option>
+                      <option value="Dr. Adriano Lima">Dr. Adriano Lima (Ortopedista)</option>
+                      <option value="Dr. Bruno Castro">Dr. Bruno Castro (Médico do Trabalho)</option>
+                    </>
+                  )}
                 </select>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Especialidade Clínica</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">{t('clinical_specialty', 'app')}</label>
                 <input 
                   type="text" 
                   value={selectedSpecialty} 
@@ -1658,7 +1673,7 @@ export default function ReceptionModule({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Data</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">{t('date', 'app')}</label>
                   <input 
                     type="date" 
                     value={selectedDate} 
@@ -1667,7 +1682,7 @@ export default function ReceptionModule({
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Horário</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">{t('time', 'app')}</label>
                   <input 
                     type="time" 
                     value={selectedTime} 
@@ -1682,7 +1697,7 @@ export default function ReceptionModule({
                 className="w-full mt-2 py-3 px-4 bg-teal-600 hover:bg-teal-700 text-white font-medium rounded-lg shadow-sm flex items-center justify-center gap-2 cursor-pointer transition"
               >
                 <Plus className="w-4 h-4" />
-                Criar Agendamento
+                {t('create_appointment', 'app')}
               </button>
             </form>
           </div>
@@ -1692,10 +1707,10 @@ export default function ReceptionModule({
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <CalendarDays className="w-5 h-5 text-teal-600 animate-pulse" />
-                <h3 className="font-bold text-slate-800 text-base">Agenda Médica Consolidada</h3>
+                <h3 className="font-bold text-slate-800 text-base">{t('agenda_medical', 'app')}</h3>
               </div>
               <span className="text-xs font-bold px-2.5 py-1 bg-teal-50 text-teal-700 border border-teal-200 rounded-full">
-                Consultas Hoje: {appointments.length}
+                {t('appointments_today', 'app')}: {appointments.length}
               </span>
             </div>
 
@@ -1721,19 +1736,19 @@ export default function ReceptionModule({
                     {app.status === 'confirmado' && (
                       <>
                         <span className="text-xs font-bold px-2.5 py-1 bg-green-50 text-green-700 border border-green-200 rounded-full flex items-center gap-1">
-                          🟢 Confirmado
+                          🟢 {t('status_confirmed', 'app')}
                         </span>
                         <button
                           onClick={() => handleUpdateAppStatus(app.id, 'atendido')}
                           className="bg-teal-600 hover:bg-teal-700 text-white text-xs px-3 py-1.5 rounded-lg font-bold transition cursor-pointer"
                         >
-                          Concluir Visita
+                          {t('btn_complete_visit', 'app')}
                         </button>
                         <button
                           onClick={() => handleUpdateAppStatus(app.id, 'cancelado')}
                           className="bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs px-3 py-1.5 rounded-lg font-bold transition cursor-pointer"
                         >
-                          Cancelar
+                          {t('btn_cancel', 'app')}
                         </button>
                       </>
                     )}
@@ -1741,26 +1756,26 @@ export default function ReceptionModule({
                     {app.status === 'pendente' && (
                       <>
                         <span className="text-xs font-bold px-2.5 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-full">
-                          🟡 Pendente
+                          🟡 {t('status_pending', 'app')}
                         </span>
                         <button
                           onClick={() => handleUpdateAppStatus(app.id, 'confirmado')}
                           className="bg-green-600 hover:bg-green-700 text-white text-xs px-3 py-1.5 rounded-lg font-bold transition cursor-pointer"
                         >
-                          Confirmar
+                          {t('btn_confirm', 'app')}
                         </button>
                       </>
                     )}
 
                     {app.status === 'cancelado' && (
                       <span className="text-xs font-bold px-2.5 py-1 bg-rose-50 text-rose-700 border border-rose-200 rounded-full">
-                        🔴 Cancelada
+                        🔴 {t('status_cancelled', 'app')}
                       </span>
                     )}
 
                     {app.status === 'atendido' && (
                       <span className="text-xs font-bold px-2.5 py-1 bg-slate-100 text-slate-600 border border-slate-200 rounded-full">
-                        🔵 Consulta Realizada
+                        🔵 {t('status_done', 'app')}
                       </span>
                     )}
                   </div>

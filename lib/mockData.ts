@@ -107,6 +107,25 @@ export interface AsoExam {
   doctor: string;
 }
 
+export type ProfessionalRole = 'Médico(a)' | 'Enfermeiro(a)' | 'Fisioterapeuta' | 'Psicólogo(a)' | 'Nutricionista' | 'Técnico(a) de Enfermagem' | 'Administrador(a)' | 'Recepcionista';
+export type ProfessionalCouncil = 'CRM' | 'COREN' | 'CREFITO' | 'CFP' | 'CFN' | 'CRO' | 'N/A';
+export type ProfessionalShift = 'Manhã' | 'Tarde' | 'Noite' | 'Integral' | 'Plantão 12h' | 'Plantão 24h';
+
+export interface Professional {
+  id: string;
+  name: string;
+  role: ProfessionalRole;
+  specialty: string;
+  council: ProfessionalCouncil;
+  councilNumber: string;
+  shift: ProfessionalShift;
+  email: string;
+  phone: string;
+  status: 'ativo' | 'inativo' | 'férias';
+  admissionDate: string;
+  color?: string; // for UI avatar
+}
+
 export interface Dte {
   id: string;
   cdc: string;               // Código de Control (44 dígitos) - código único SIFEN
@@ -430,3 +449,77 @@ export const mockNps = [
   { patientName: "Filipe Antunes", score: 9, comment: "Fiquei impressionado com o portal do paciente, pude acessar minhas imagens direto pelo aplicativo!" },
   { patientName: "Paula Gomes", score: 8, comment: "Muito prático. A recepção foi rápida e a triagem funcionou muito bem." }
 ];
+
+export const initialProfessionals: Professional[] = [
+  {
+    id: "prof_1",
+    name: "Dra. Amanda Silva",
+    role: "Médico(a)",
+    specialty: "Cardiologia",
+    council: "CRM",
+    councilNumber: "CRM-SP 112345",
+    shift: "Manhã",
+    email: "amanda.silva@iamed.med.br",
+    phone: "+55 11 99876-5432",
+    status: "ativo",
+    admissionDate: "2022-03-01",
+    color: "bg-teal-500"
+  },
+  {
+    id: "prof_2",
+    name: "Dr. Adriano Lima",
+    role: "Médico(a)",
+    specialty: "Ortopedia",
+    council: "CRM",
+    councilNumber: "CRM-SP 234567",
+    shift: "Tarde",
+    email: "adriano.lima@iamed.med.br",
+    phone: "+55 11 99765-4321",
+    status: "ativo",
+    admissionDate: "2021-07-15",
+    color: "bg-indigo-500"
+  },
+  {
+    id: "prof_3",
+    name: "Dr. Bruno Castro",
+    role: "Médico(a)",
+    specialty: "Medicina do Trabalho",
+    council: "CRM",
+    councilNumber: "CRM-SP 345678",
+    shift: "Integral",
+    email: "bruno.castro@iamed.med.br",
+    phone: "+55 11 98654-3210",
+    status: "ativo",
+    admissionDate: "2020-01-10",
+    color: "bg-rose-500"
+  },
+  {
+    id: "prof_4",
+    name: "Enf. Marcela Ramos",
+    role: "Enfermeiro(a)",
+    specialty: "Enfermagem Clínica",
+    council: "COREN",
+    councilNumber: "COREN-SP 456789",
+    shift: "Plantão 12h",
+    email: "marcela.ramos@iamed.med.br",
+    phone: "+55 11 97543-2109",
+    status: "ativo",
+    admissionDate: "2023-02-20",
+    color: "bg-sky-500"
+  },
+  {
+    id: "prof_5",
+    name: "Fis. Camila Torres",
+    role: "Fisioterapeuta",
+    specialty: "Fisioterapia Ortopédica",
+    council: "CREFITO",
+    councilNumber: "CREFITO-3 567890",
+    shift: "Manhã",
+    email: "camila.torres@iamed.med.br",
+    phone: "+55 11 96432-1098",
+    status: "férias",
+    admissionDate: "2023-08-05",
+    color: "bg-violet-500"
+  }
+];
+
