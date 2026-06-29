@@ -426,7 +426,7 @@ export default function AdminFinanceModule({
     setProfStatus('ativo');
   };
 
-  const handleSaveProfessional = (e: React.FormEvent) => {
+  const handleSaveProfessional = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!profName.trim() || !profSpecialty.trim()) return;
     if (!setProfessionals) return;
@@ -439,6 +439,19 @@ export default function AdminFinanceModule({
         admissionDate: profAdmission, status: profStatus,
       } : p));
       addAuditLog('Editou Profissional', profName);
+
+      await supabase.from('professionals').update({
+        name: profName,
+        role: profRole,
+        specialty: profSpecialty,
+        council: profCouncil,
+        council_number: profCouncilNumber,
+        shift: profShift,
+        email: profEmail,
+        phone: profPhone,
+        admission_date: profAdmission,
+        status: profStatus,
+      }).eq('id', editingProfId);
     } else {
       const newProf: Professional = {
         id: `prof_${Date.now()}`,
@@ -451,6 +464,21 @@ export default function AdminFinanceModule({
       };
       setProfessionals(prev => [...prev, newProf]);
       addAuditLog('Cadastrou Profissional', profName);
+
+      await supabase.from('professionals').insert({
+        id: newProf.id,
+        name: newProf.name,
+        role: newProf.role,
+        specialty: newProf.specialty,
+        council: newProf.council,
+        council_number: newProf.councilNumber,
+        shift: newProf.shift,
+        email: newProf.email,
+        phone: newProf.phone,
+        status: newProf.status,
+        admission_date: newProf.admissionDate,
+        color: newProf.color,
+      });
     }
     resetProfForm();
     setProfFormOpen(false);
@@ -471,14 +499,16 @@ export default function AdminFinanceModule({
     setProfFormOpen(true);
   };
 
-  const handleToggleProfStatus = (profId: string) => {
+  const handleToggleProfStatus = async (profId: string) => {
     if (!setProfessionals) return;
+    let nextStatus: 'ativo' | 'inativo' | 'férias' = 'ativo';
     setProfessionals(prev => prev.map(p => {
       if (p.id !== profId) return p;
-      const nextStatus = p.status === 'ativo' ? 'inativo' : 'ativo';
+      nextStatus = p.status === 'ativo' ? 'inativo' : 'ativo';
       addAuditLog('Alterou Status', `${p.name} → ${nextStatus}`);
       return { ...p, status: nextStatus };
     }));
+    await supabase.from('professionals').update({ status: nextStatus }).eq('id', profId);
   };
 
   // ── 5. SIFEN/DTE States ──────────────────────────────────────────────────────

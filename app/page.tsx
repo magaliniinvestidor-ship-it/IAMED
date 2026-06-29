@@ -156,7 +156,7 @@ function HomeContent() {
   const loadAllData = useCallback(async () => {
     setDataLoading(true);
     try {
-      const [patientsRes, appointmentsRes, bedsRes, logsRes, financeRes, stockRes, asosRes, dtesRes] = await Promise.all([
+      const [patientsRes, appointmentsRes, bedsRes, logsRes, financeRes, stockRes, asosRes, dtesRes, professionalsRes] = await Promise.all([
         supabase.from('patients').select('*, clinical_history(*)').order('created_at', { ascending: false }),
         supabase.from('appointments').select('*').order('date', { ascending: true }),
         supabase.from('beds').select('*').order('name'),
@@ -165,11 +165,13 @@ function HomeContent() {
         supabase.from('stock_items').select('*').order('name', { ascending: true }),
         supabase.from('aso_exams').select('*').order('date', { ascending: false }),
         supabase.from('dtes').select('*').order('created_at', { ascending: false }),
+        supabase.from('professionals').select('*').order('name', { ascending: true }),
       ]);
 
       const hasError = !!(
         patientsRes.error || appointmentsRes.error || bedsRes.error ||
-        logsRes.error || financeRes.error || stockRes.error || asosRes.error
+        logsRes.error || financeRes.error || stockRes.error || asosRes.error ||
+        dtesRes.error || professionalsRes.error
       );
 
       if (patientsRes.data && !patientsRes.error) {
@@ -280,8 +282,26 @@ function HomeContent() {
         setDtes(initialDtes);
       }
 
-      // Professionals — always use initial data (no Supabase table yet)
-      setProfessionals(initialProfessionals);
+      // Load professionals from Supabase
+      if (professionalsRes.data && !professionalsRes.error) {
+        const mapped = professionalsRes.data.map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          role: p.role,
+          specialty: p.specialty,
+          council: p.council,
+          councilNumber: p.council_number,
+          shift: p.shift,
+          email: p.email,
+          phone: p.phone,
+          status: p.status,
+          admissionDate: p.admission_date,
+          color: p.color,
+        }));
+        setProfessionals(mapped);
+      } else {
+        setProfessionals(initialProfessionals);
+      }
 
       setIsDbConnected(!hasError);
     } catch (err) {

@@ -4,6 +4,7 @@
 -- ==========================================
 
 -- Limpeza preventiva de tabelas
+DROP TABLE IF EXISTS professionals CASCADE;
 DROP TABLE IF EXISTS aso_exams CASCADE;
 DROP TABLE IF EXISTS audit_logs CASCADE;
 DROP TABLE IF EXISTS beds CASCADE;
@@ -119,6 +120,30 @@ CREATE TABLE aso_exams (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
 
+-- 10. Profissionais de Saúde
+CREATE TABLE professionals (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  role TEXT NOT NULL CHECK (role IN ('Médico(a)', 'Enfermeiro(a)', 'Fisioterapeuta', 'Psicólogo(a)', 'Nutricionista', 'Técnico(a) de Enfermagem', 'Administrador(a)', 'Recepcionista')),
+  specialty TEXT NOT NULL,
+  council TEXT NOT NULL CHECK (council IN ('CRM', 'COREN', 'CREFITO', 'CFP', 'CFN', 'CRO', 'N/A')),
+  council_number TEXT NOT NULL,
+  shift TEXT NOT NULL CHECK (shift IN ('Manhã', 'Tarde', 'Noite', 'Integral', 'Plantão 12h', 'Plantão 24h')),
+  email TEXT NOT NULL,
+  phone TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('ativo', 'inativo', 'férias')),
+  admission_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  color TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+-- Habilitar RLS para profissionais
+ALTER TABLE professionals ENABLE ROW LEVEL SECURITY;
+
+-- Políticas de Acesso
+CREATE POLICY "Allow public read access" ON professionals FOR SELECT USING (true);
+CREATE POLICY "Allow authenticated changes" ON professionals FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
 
 -- ==========================================
 -- SEED DATA - INSERÇÃO DE DADOS INICIAIS
@@ -182,3 +207,11 @@ INSERT INTO audit_logs (id, operator, role, action, target, timestamp, ip) VALUE
 INSERT INTO aso_exams (id, patient_name, type, risks, status, date, doctor) VALUES
 ('aso_1', 'Roberto de Oliveira Cruz', 'Periódico', ARRAY['Ruído Contínuo', 'Ergonômico', 'Trabalho em Altura'], 'apto', '2026-06-21', 'Dr. Bruno Castro'),
 ('aso_2', 'Cláudio Siqueira', 'Admissional', ARRAY['Postura Física', 'Poeira Mineral'], 'apto', '2026-06-20', 'Dr. Bruno Castro');
+
+-- Profissionais de Saúde
+INSERT INTO professionals (id, name, role, specialty, council, council_number, shift, email, phone, status, admission_date, color) VALUES
+('prof_1', 'Dra. Amanda Silva', 'Médico(a)', 'Cardiologia', 'CRM', 'CRM-SP 112345', 'Manhã', 'amanda.silva@iamed.med.br', '+55 11 99876-5432', 'ativo', '2022-03-01', 'bg-teal-500'),
+('prof_2', 'Dr. Adriano Lima', 'Médico(a)', 'Ortopedia', 'CRM', 'CRM-SP 234567', 'Tarde', 'adriano.lima@iamed.med.br', '+55 11 99765-4321', 'ativo', '2021-07-15', 'bg-indigo-500'),
+('prof_3', 'Dr. Bruno Castro', 'Médico(a)', 'Medicina do Trabalho', 'CRM', 'CRM-SP 345678', 'Integral', 'bruno.castro@iamed.med.br', '+55 11 98654-3210', 'ativo', '2020-01-10', 'bg-rose-500'),
+('prof_4', 'Enf. Marcela Ramos', 'Enfermeiro(a)', 'Enfermagem Clínica', 'COREN', 'COREN-SP 456789', 'Plantão 12h', 'marcela.ramos@iamed.med.br', '+55 11 97543-2109', 'ativo', '2023-02-20', 'bg-sky-500'),
+('prof_5', 'Fis. Camila Torres', 'Fisioterapeuta', 'Fisioterapia Ortopédica', 'CREFITO', 'CREFITO-3 567890', 'Manhã', 'camila.torres@iamed.med.br', '+55 11 96432-1098', 'férias', '2023-08-05', 'bg-violet-500');
