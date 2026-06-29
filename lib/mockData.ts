@@ -7,6 +7,25 @@ export interface ClinicalHistoryEntry {
   prescriptions: string[];
   notes: string;
   doctor: string;
+  vital_signs?: {
+    weight?: string;
+    height?: string;
+    bp?: string;
+    temp?: string;
+    spo2?: string;
+    hr?: string;
+    rr?: string;
+    imc?: string;
+  };
+  triage_priority?: 'normal' | 'preferencial' | 'emergência';
+  triage_color?: 'blue' | 'green' | 'yellow' | 'orange' | 'red';
+  preliminary_procedures?: string[];
+  attached_files?: {
+    name: string;
+    size: string;
+    type: string;
+    url?: string;
+  }[];
 }
 
 export interface Patient {
@@ -58,6 +77,14 @@ export interface Appointment {
   date: string;
   time: string;
   status: 'confirmado' | 'pendente' | 'cancelado' | 'atendido';
+  branch?: string;
+  room?: string;
+  resource?: string;
+  type?: string;
+  modality?: 'Presencial' | 'Virtual';
+  is_overturn?: boolean;
+  overturn_reason?: string;
+  insurance?: string;
 }
 
 export interface FinancialPosting {

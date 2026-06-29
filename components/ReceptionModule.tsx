@@ -9,7 +9,8 @@ import {
   Clock, AlertTriangle, UserPlus, Filter, Camera, 
   Upload, ShieldCheck, Mail, MapPin, Phone, User, 
   AlertCircle, ChevronRight, ChevronLeft, Languages, 
-  HeartPulse, Shield, KeyRound, Sparkles
+  HeartPulse, Shield, KeyRound, Sparkles,
+  Sliders, Smartphone, Trash2, FileText, Scan, CheckCircle2, XCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -100,6 +101,90 @@ export default function ReceptionModule({
   const [selectedSpecialty, setSelectedSpecialty] = useState('Cardiologia');
   const [selectedDate, setSelectedDate] = useState('2026-06-22');
   const [selectedTime, setSelectedTime] = useState('14:00');
+  
+  const [selectedBranch, setSelectedBranch] = useState('Sede Central');
+  const [selectedRoom, setSelectedRoom] = useState('Consultório 101');
+  const [selectedResource, setSelectedResource] = useState('Nenhum');
+  const [selectedConsultationType, setSelectedConsultationType] = useState('consulta de primeira vez');
+  const [selectedModality, setSelectedModality] = useState<'Presencial' | 'Virtual'>('Presencial');
+  const [selectedInsurance, setSelectedInsurance] = useState('Particular');
+
+  // Configurable rules parameters
+  const [minMinutesBetween, setMinMinutesBetween] = useState<number>(30);
+  const [telemedQuota, setTelemedQuota] = useState<number>(3);
+  const [totalQuota, setTotalQuota] = useState<number>(10);
+  const [enableOverlapBlocking, setEnableOverlapBlocking] = useState<boolean>(true);
+
+  // Encaixe / Overbooking workflow states
+  const [showOverturnModal, setShowOverturnModal] = useState(false);
+  const [overturnReason, setOverturnReason] = useState('');
+  const [overturnPin, setOverturnPin] = useState('');
+  const [overturnPinError, setOverturnPinError] = useState('');
+  const [pendingAppointmentData, setPendingAppointmentData] = useState<any>(null);
+
+  // Online Reservation patient portal simulation
+  const [onlinePatientId, setOnlinePatientId] = useState('');
+  const [onlineSpecialty, setOnlineSpecialty] = useState('Cardiologia');
+  const [onlineDoctor, setOnlineDoctor] = useState('Dra. Amanda Silva');
+  const [onlineModality, setOnlineModality] = useState<'Presencial' | 'Virtual'>('Presencial');
+  const [onlineDate, setOnlineDate] = useState('2026-06-22');
+  const [onlineTime, setOnlineTime] = useState('15:00');
+  const [onlineType, setOnlineType] = useState('consulta de primeira vez');
+  const [onlineSuccessMessage, setOnlineSuccessMessage] = useState('');
+  const [onlineErrorMessage, setOnlineErrorMessage] = useState('');
+
+  // Triage & Vital Signs Modal states
+  const [showTriageModal, setShowTriageModal] = useState(false);
+  const [triagePatient, setTriagePatient] = useState<Patient | null>(null);
+  const [triageReason, setTriageReason] = useState('');
+  const [triageWeight, setTriageWeight] = useState('');
+  const [triageHeight, setTriageHeight] = useState('');
+  const [triageBP, setTriageBP] = useState('');
+  const [triageTemp, setTriageTemp] = useState('');
+  const [triageSpo2, setTriageSpo2] = useState('');
+  const [triageHR, setTriageHR] = useState('');
+  const [triageRR, setTriageRR] = useState('');
+  const [triagePriorityLevel, setTriagePriorityLevel] = useState<'blue' | 'green' | 'yellow' | 'orange' | 'red'>('green');
+  const [triageProcedures, setTriageProcedures] = useState<string[]>([]);
+  const [triageNursingNotes, setTriageNursingNotes] = useState('');
+  
+  // Document attachments in Triage
+  const [attachedFiles, setAttachedFiles] = useState<{name: string, size: string, type: string, url: string}[]>([]);
+  const [maxFileSizeMB, setMaxFileSizeMB] = useState<number>(10);
+  const [isVirusScanning, setIsVirusScanning] = useState(false);
+  const [virusScanStatus, setVirusScanStatus] = useState<'pending' | 'scanning' | 'passed' | 'failed'>('pending');
+  const [fileToUploadName, setFileToUploadName] = useState('');
+  const [fileToUploadSize, setFileToUploadSize] = useState('');
+  const [fileToUploadType, setFileToUploadType] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Sync health insurance type when selecting a patient for scheduling
+  useEffect(() => {
+    if (selectedPatientId) {
+      const patient = patients.find(p => p.id === selectedPatientId);
+      if (patient && patient.health_insurance_type) {
+        setSelectedInsurance(patient.health_insurance_type);
+      }
+    }
+  }, [selectedPatientId, patients]);
+
+  // Telemedicine auto virtual modality
+  useEffect(() => {
+    if (selectedConsultationType === 'telemedicina') {
+      setSelectedModality('Virtual');
+    } else {
+      setSelectedModality('Presencial');
+    }
+  }, [selectedConsultationType]);
+
+  useEffect(() => {
+    if (onlineType === 'telemedicina') {
+      setOnlineModality('Virtual');
+    } else {
+      setOnlineModality('Presencial');
+    }
+  }, [onlineType]);
+
 
   // --- Real-time Calculators & Validations ---
   
@@ -480,6 +565,75 @@ export default function ReceptionModule({
     setDuplicatePatient(null);
   };
 
+  // Helper function to validate appointment rules
+  const validateAppointment = (appData: {
+    doctorName: string;
+    date: string;
+    time: string;
+    modality: 'Presencial' | 'Virtual';
+    type: string;
+    insurance: string;
+  }) => {
+    const conflicts: string[] = [];
+
+    // Parse minutes from midnight for the new time
+    const [h, m] = appData.time.split(':').map(Number);
+    const newMinutes = h * 60 + m;
+
+    // Filter appointments of the same doctor on the same date
+    const doctorApps = appointments.filter(
+      a => a.doctorName === appData.doctorName && a.date === appData.date && a.status !== 'cancelado'
+    );
+
+    // 1. Check strict overlap
+    const exactOverlap = doctorApps.find(a => a.time === appData.time);
+    if (exactOverlap && enableOverlapBlocking) {
+      conflicts.push(`Conflito: Já existe consulta agendada exatamente às ${appData.time} para o(a) ${appData.doctorName}.`);
+    }
+
+    // 2. Check minimum time between appointments
+    doctorApps.forEach(a => {
+      const [ah, am] = a.time.split(':').map(Number);
+      const appMinutes = ah * 60 + am;
+      const diff = Math.abs(newMinutes - appMinutes);
+      if (diff < minMinutesBetween) {
+        conflicts.push(
+          `Intervalo Insuficiente: Consulta das ${appData.time} viola o tempo mínimo configurado de ${minMinutesBetween} minutos em relação ao agendamento das ${a.time} (diferença de ${diff}m).`
+        );
+      }
+    });
+
+    // 3. Check modality quotas
+    if (appData.modality === 'Virtual') {
+      const virtualCount = doctorApps.filter(a => a.modality === 'Virtual').length;
+      if (virtualCount >= telemedQuota) {
+        conflicts.push(`Cota de Telemedicina Excedida: Limite diário de ${telemedQuota} consultas virtuais atingido para o(a) ${appData.doctorName}.`);
+      }
+    }
+
+    const totalCount = doctorApps.length;
+    if (totalCount >= totalQuota) {
+      conflicts.push(`Cota Total Excedida: Limite de ${totalQuota} atendimentos diários atingido para o(a) ${appData.doctorName}.`);
+    }
+
+    // 4. Insurance rules (agenda diferenciada)
+    // IPS Rule: IPS only allows consultations Mon-Fri, 07:00-12:00
+    if (appData.insurance === 'IPS') {
+      const dayOfWeek = new Date(appData.date).getDay(); // 0 = Sunday, 6 = Saturday
+      if (dayOfWeek === 0 || dayOfWeek === 6) {
+        conflicts.push("Restrição de Convênio: O convênio IPS não permite agendamentos aos finais de semana.");
+      }
+      if (h < 7 || h >= 12) {
+        conflicts.push("Restrição de Horário: A agenda preferencial para o convênio IPS limita-se ao turno da manhã (07:00 às 12:00).");
+      }
+      if (appData.type === 'procedimento' || appData.type === 'exame diagnóstico') {
+        conflicts.push(`Restrição de Procedimento: O convênio IPS exige autorização prévia por escrito para a modalidade "${appData.type}".`);
+      }
+    }
+
+    return conflicts.length > 0 ? conflicts : null;
+  };
+
   const handleCreateAppointment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedPatientId) return;
@@ -487,7 +641,7 @@ export default function ReceptionModule({
     const patient = patients.find(p => p.id === selectedPatientId);
     if (!patient) return;
 
-    const newApp: Appointment = {
+    const appData = {
       id: `app_${Date.now()}`,
       patientId: selectedPatientId,
       patientName: patient.name,
@@ -495,12 +649,38 @@ export default function ReceptionModule({
       specialty: selectedSpecialty,
       date: selectedDate,
       time: selectedTime,
-      status: 'confirmado'
+      status: 'confirmado' as const,
+      branch: selectedBranch,
+      room: selectedRoom,
+      resource: selectedResource,
+      type: selectedConsultationType,
+      modality: selectedModality,
+      insurance: selectedInsurance,
     };
 
-    // Optimistic UI update
+    const conflicts = validateAppointment(appData);
+
+    if (conflicts) {
+      // If there are conflicts, open the Encaixe (Overbooking) dialog
+      setPendingAppointmentData(appData);
+      setOverturnReason('');
+      setOverturnPin('');
+      setOverturnPinError('');
+      setShowOverturnModal(true);
+      return;
+    }
+
+    // Direct booking (no conflicts)
+    await saveAppointmentToStateAndDb(appData);
+  };
+
+  const saveAppointmentToStateAndDb = async (newApp: Appointment) => {
+    // Add to UI State
     setAppointments(prev => [...prev, newApp]);
-    addAuditLog('Agendou Consulta', `${patient.name} com ${selectedDoctor}`);
+    addAuditLog(
+      newApp.is_overturn ? 'Encaixe de Consulta Autorizado' : 'Agendou Consulta',
+      `${newApp.patientName} com ${newApp.doctorName} às ${newApp.time} (${newApp.branch})`
+    );
 
     // Persist to Supabase
     try {
@@ -513,10 +693,102 @@ export default function ReceptionModule({
         date: newApp.date,
         time: newApp.time,
         status: newApp.status,
+        branch: newApp.branch,
+        room: newApp.room,
+        resource: newApp.resource,
+        type: newApp.type,
+        modality: newApp.modality,
+        is_overturn: newApp.is_overturn || false,
+        overturn_reason: newApp.overturn_reason || null,
+        insurance: newApp.insurance
       });
     } catch (err) {
       console.warn("Failed to persist appointment:", err);
     }
+
+    // Reset patient select
+    setSelectedPatientId('');
+  };
+
+  // Handler for authorizing Encaixe (Overbooking)
+  const handleConfirmOverturn = async () => {
+    if (overturnPin !== '1234') {
+      setOverturnPinError('PIN de Autorização Inválido!');
+      return;
+    }
+
+    if (!overturnReason.trim()) {
+      setOverturnPinError('Descreva o motivo do encaixe!');
+      return;
+    }
+
+    if (!pendingAppointmentData) return;
+
+    const authorizedApp: Appointment = {
+      ...pendingAppointmentData,
+      is_overturn: true,
+      overturn_reason: overturnReason,
+    };
+
+    await saveAppointmentToStateAndDb(authorizedApp);
+
+    // Close Modal
+    setShowOverturnModal(false);
+    setPendingAppointmentData(null);
+    setOverturnReason('');
+    setOverturnPin('');
+  };
+
+  // Handler for Patient Online Booking Simulation
+  const handleOnlineBooking = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setOnlineSuccessMessage('');
+    setOnlineErrorMessage('');
+
+    if (!onlinePatientId) {
+      setOnlineErrorMessage('Selecione um paciente para simular a reserva online.');
+      return;
+    }
+
+    const patient = patients.find(p => p.id === onlinePatientId);
+    if (!patient) return;
+
+    const appData = {
+      id: `app_online_${Date.now()}`,
+      patientId: onlinePatientId,
+      patientName: patient.name,
+      doctorName: onlineDoctor,
+      specialty: onlineSpecialty,
+      date: onlineDate,
+      time: onlineTime,
+      status: 'confirmado' as const,
+      branch: 'Sede Central', // Online bookings default to main branch
+      room: 'Consultório Virtual / Telemedicina',
+      resource: 'Nenhum',
+      type: onlineType,
+      modality: onlineModality,
+      insurance: patient.health_insurance_type || 'Particular',
+    };
+
+    // Check availability (patients have no bypass/overbooking options!)
+    const conflicts = validateAppointment(appData);
+
+    if (conflicts) {
+      setOnlineErrorMessage(
+        `Reserva Recusada por Indisponibilidade: ${conflicts.join(' | ')}`
+      );
+      addAuditLog('Reserva Online Recusada (Indisponível)', `${patient.name} - ${onlineDoctor} às ${onlineTime}`);
+      return;
+    }
+
+    // Direct booking (success)
+    await saveAppointmentToStateAndDb({
+      ...appData,
+      status: 'confirmado',
+    });
+
+    setOnlineSuccessMessage('Reserva realizada com sucesso via Portal do Paciente!');
+    setOnlinePatientId('');
   };
 
   const handleUpdatePatientStatus = async (id: string, status: Patient['status']) => {
@@ -1324,10 +1596,32 @@ export default function ReceptionModule({
                               <Clock className="w-3" /> Aguardando Triagem
                             </span>
                             <button
-                              onClick={() => handleUpdatePatientStatus(p.id, 'atendimento')}
-                              className="bg-teal-600 hover:bg-teal-700 text-white text-xs px-3 py-1.5 rounded-lg font-semibold shadow-xs transition cursor-pointer"
+                              onClick={() => {
+                                setTriagePatient(p);
+                                setTriageReason('');
+                                setTriageWeight('');
+                                setTriageHeight('');
+                                setTriageBP('');
+                                setTriageTemp('');
+                                setTriageSpo2('');
+                                setTriageHR('');
+                                setTriageRR('');
+                                setTriagePriorityLevel(
+                                  p.priority === 'emergência' ? 'red' : p.priority === 'preferencial' ? 'orange' : 'green'
+                                );
+                                setTriageProcedures([]);
+                                setTriageNursingNotes('');
+                                setAttachedFiles([]);
+                                setFileToUploadName('');
+                                setFileToUploadSize('');
+                                setFileToUploadType('');
+                                setVirusScanStatus('pending');
+                                setShowTriageModal(true);
+                              }}
+                              className="bg-teal-600 hover:bg-teal-700 text-white text-xs px-3 py-1.5 rounded-lg font-bold shadow-xs transition cursor-pointer flex items-center gap-1"
                             >
-                              Iniciar Atendimento
+                              <HeartPulse className="w-3.5 h-3.5 text-white animate-pulse" />
+                              Realizar Triagem
                             </button>
                           </>
                         )}
@@ -1598,190 +1892,1113 @@ export default function ReceptionModule({
         )}
       </AnimatePresence>
 
-      {/* --- AGENDA SUBMODULE --- */}
-      {activeSubmodule === 2 && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Agendar Consulta */}
-          <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-md lg:col-span-1">
-            <div className="flex items-center gap-2 pb-4 mb-4 border-b border-slate-100">
-              <CalendarDays className="w-5 h-5 text-teal-600 animate-pulse" />
-              <h3 className="font-bold text-slate-800 text-base">{t('agenda_new', 'app')}</h3>
-            </div>
-
-            <form onSubmit={handleCreateAppointment} className="space-y-4 text-sm">
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">{t('select_patient', 'app')} *</label>
-                <select 
-                  value={selectedPatientId} 
-                  onChange={e => {
-                    setSelectedPatientId(e.target.value);
-                  }}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans text-xs"
-                  required
-                >
-                  <option value="">{t('select_patient_placeholder', 'app')}</option>
-                  {patients.map(p => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">{t('responsible_doctor', 'app')}</label>
-                <select 
-                  value={selectedDoctor} 
-                  onChange={e => {
-                    const val = e.target.value;
-                    setSelectedDoctor(val);
-                    // Try to auto-fill specialty from professionals list
-                    const prof = professionals.find(p => p.name === val);
-                    if (prof) {
-                      setSelectedSpecialty(prof.specialty);
-                    } else if (val === 'Dr. Adriano Lima') {
-                      setSelectedSpecialty('Ortopedia');
-                    } else if (val === 'Dra. Amanda Silva') {
-                      setSelectedSpecialty('Cardiologia');
-                    } else {
-                      setSelectedSpecialty('Clínico Geral');
-                    }
-                  }}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans"
-                >
-                  {professionals.filter(p => p.role === 'Médico(a)' && p.status === 'ativo').map(prof => (
-                    <option key={prof.id} value={prof.name}>{prof.name} ({prof.specialty})</option>
-                  ))}
-                  {/* Fallback if no professionals loaded */}
-                  {professionals.filter(p => p.role === 'Médico(a)' && p.status === 'ativo').length === 0 && (
-                    <>
-                      <option value="Dra. Amanda Silva">Dra. Amanda Silva (Cardiologista)</option>
-                      <option value="Dr. Adriano Lima">Dr. Adriano Lima (Ortopedista)</option>
-                      <option value="Dr. Bruno Castro">Dr. Bruno Castro (Médico do Trabalho)</option>
-                    </>
-                  )}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">{t('clinical_specialty', 'app')}</label>
-                <input 
-                  type="text" 
-                  value={selectedSpecialty} 
-                  readOnly 
-                  className="w-full p-2.5 bg-slate-100 text-slate-600 border border-slate-200 rounded-lg font-sans font-medium"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">{t('date', 'app')}</label>
-                  <input 
-                    type="date" 
-                    value={selectedDate} 
-                    onChange={e => setSelectedDate(e.target.value)}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans text-xs"
-                  />
+      {/* --- ENCAIXE AUTHORIZATION MODAL --- */}
+      <AnimatePresence>
+        {showOverturnModal && pendingAppointmentData && (
+          <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-2xl border border-amber-200 shadow-2xl max-w-lg w-full p-6 space-y-5 font-sans"
+            >
+              <div className="flex items-center gap-3 border-b border-amber-100 pb-3">
+                <div className="p-2.5 bg-amber-100 rounded-xl">
+                  <AlertTriangle className="w-6 h-6 text-amber-600 animate-pulse" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">{t('time', 'app')}</label>
-                  <input 
-                    type="time" 
-                    value={selectedTime} 
-                    onChange={e => setSelectedTime(e.target.value)}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans"
-                  />
+                  <h3 className="font-extrabold text-slate-800 text-base">Conflito de Agenda — Encaixe Requerido</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">O agendamento violou uma ou mais regras clínicas configuradas.</p>
                 </div>
               </div>
 
-              <button 
-                type="submit" 
-                className="w-full mt-2 py-3 px-4 bg-teal-600 hover:bg-teal-700 text-white font-medium rounded-lg shadow-sm flex items-center justify-center gap-2 cursor-pointer transition"
-              >
-                <Plus className="w-4 h-4" />
-                {t('create_appointment', 'app')}
-              </button>
-            </form>
+              {/* Conflict details */}
+              {pendingAppointmentData && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs space-y-1.5">
+                  <p className="font-bold text-amber-800 mb-1">⚠️ Motivos da restrição:</p>
+                  {validateAppointment({
+                    doctorName: pendingAppointmentData.doctorName,
+                    date: pendingAppointmentData.date,
+                    time: pendingAppointmentData.time,
+                    modality: pendingAppointmentData.modality,
+                    type: pendingAppointmentData.type,
+                    insurance: pendingAppointmentData.insurance,
+                  })?.map((conflict: string, i: number) => (
+                    <p key={i} className="text-amber-700 font-medium flex items-start gap-1.5">
+                      <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0 text-amber-500" />
+                      {conflict}
+                    </p>
+                  ))}
+                </div>
+              )}
+
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Motivo do Encaixe *</label>
+                  <textarea
+                    value={overturnReason}
+                    onChange={e => { setOverturnReason(e.target.value); setOverturnPinError(''); }}
+                    placeholder="Descreva a justificativa clínica para o encaixe (ex.: urgência médica, retorno pós-cirúrgico urgente)..."
+                    rows={3}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-amber-500 font-sans"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">PIN de Autorização do Supervisor *</label>
+                  <input
+                    type="password"
+                    maxLength={4}
+                    value={overturnPin}
+                    onChange={e => { setOverturnPin(e.target.value); setOverturnPinError(''); }}
+                    placeholder="••••   (Tente: 1234)"
+                    className="w-32 p-2.5 bg-white border border-slate-300 rounded-lg text-sm text-center font-mono tracking-widest focus:outline-amber-500"
+                  />
+                </div>
+                {overturnPinError && (
+                  <p className="text-xs text-rose-600 font-bold flex items-center gap-1.5">
+                    <XCircle className="w-4 h-4" /> {overturnPinError}
+                  </p>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => { setShowOverturnModal(false); setPendingAppointmentData(null); }}
+                  className="py-2.5 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs rounded-lg transition cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmOverturn}
+                  className="py-2.5 px-5 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-lg shadow-sm flex items-center gap-1.5 cursor-pointer transition"
+                >
+                  <KeyRound className="w-4 h-4" />
+                  Autorizar Encaixe
+                </button>
+              </div>
+            </motion.div>
           </div>
+        )}
+      </AnimatePresence>
 
-          {/* Agenda de Atendimentos */}
-          <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-md lg:col-span-2 space-y-4">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <CalendarDays className="w-5 h-5 text-teal-600 animate-pulse" />
-                <h3 className="font-bold text-slate-800 text-base">{t('agenda_medical', 'app')}</h3>
+      {/* --- TRIAGE / VITAL SIGNS MODAL --- */}
+      <AnimatePresence>
+        {showTriageModal && triagePatient && (
+          <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-4xl w-full p-6 space-y-5 font-sans my-4"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between border-b border-slate-200 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-teal-100 rounded-xl">
+                    <HeartPulse className="w-6 h-6 text-teal-600 animate-pulse" />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-slate-800 text-base">Triagem Inicial de Enfermagem</h3>
+                    <p className="text-xs text-slate-500 font-medium">
+                      Paciente: <b className="text-teal-700">{triagePatient.name}</b> — {triagePatient.health_insurance_type || 'Particular'} | {triagePatient.birthdate}
+                    </p>
+                  </div>
+                </div>
+                <button onClick={() => setShowTriageModal(false)} className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition cursor-pointer">
+                  <XCircle className="w-5 h-5" />
+                </button>
               </div>
-              <span className="text-xs font-bold px-2.5 py-1 bg-teal-50 text-teal-700 border border-teal-200 rounded-full">
-                {t('appointments_today', 'app')}: {appointments.length}
-              </span>
-            </div>
 
-            {/* List */}
-            <div className="space-y-3">
-              {appointments.map(app => (
-                <div key={app.id} className="p-4 bg-slate-50 hover:bg-slate-100/70 border border-slate-200/80 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-4 transition text-sm">
-                  <div className="flex items-start gap-3">
-                    <span className="p-2.5 bg-teal-50 text-teal-600 rounded-lg font-bold text-center block min-w-[55px] border border-teal-100">
-                      <p className="text-xs uppercase font-semibold">Hora</p>
-                      <p className="text-sm font-black">{app.time}</p>
-                    </span>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
 
-                    <div className="space-y-1">
-                      <div className="font-bold text-slate-800 text-base">{app.patientName}</div>
-                      <div className="text-xs text-slate-500">
-                        🩺 Médicos: <span className="font-semibold text-slate-700">{app.doctorName} ({app.specialty})</span> | 📅 {app.date}
+                {/* LEFT COLUMN: Vital Signs */}
+                <div className="lg:col-span-2 space-y-5">
+
+                  {/* Motivo da Consulta */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Motivo Principal da Consulta / Queixa *</label>
+                    <textarea
+                      value={triageReason}
+                      onChange={e => setTriageReason(e.target.value)}
+                      placeholder="Descreva brevemente o motivo do atendimento de hoje..."
+                      rows={2}
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans"
+                    />
+                  </div>
+
+                  {/* Sinais Vitais */}
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                    <div className="flex items-center gap-2 text-xs font-bold text-slate-700 pb-1 border-b border-slate-200">
+                      <HeartPulse className="w-4 h-4 text-rose-500" />
+                      <span>Sinais Vitais</span>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      {/* Weight */}
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Peso (kg)</label>
+                        <input
+                          type="number"
+                          value={triageWeight}
+                          onChange={e => setTriageWeight(e.target.value)}
+                          placeholder="Ex: 72.5"
+                          className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans font-bold"
+                        />
                       </div>
+                      {/* Height */}
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Altura (cm)</label>
+                        <input
+                          type="number"
+                          value={triageHeight}
+                          onChange={e => setTriageHeight(e.target.value)}
+                          placeholder="Ex: 170"
+                          className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans font-bold"
+                        />
+                      </div>
+                      {/* BMI (auto-calculated) */}
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">IMC (Calculado)</label>
+                        <div className={`w-full p-2 rounded-lg text-xs font-black text-center border ${
+                          triageWeight && triageHeight
+                            ? (() => {
+                                const bmi = parseFloat(triageWeight) / Math.pow(parseFloat(triageHeight) / 100, 2);
+                                if (bmi < 18.5) return 'bg-blue-50 border-blue-200 text-blue-700';
+                                if (bmi < 25) return 'bg-green-50 border-green-200 text-green-700';
+                                if (bmi < 30) return 'bg-amber-50 border-amber-200 text-amber-700';
+                                return 'bg-rose-50 border-rose-200 text-rose-700';
+                              })()
+                            : 'bg-slate-100 border-slate-200 text-slate-400'
+                        }`}>
+                          {triageWeight && triageHeight
+                            ? (() => {
+                                const bmi = parseFloat(triageWeight) / Math.pow(parseFloat(triageHeight) / 100, 2);
+                                const label = bmi < 18.5 ? 'Abaixo do Peso' : bmi < 25 ? 'Normal' : bmi < 30 ? 'Sobrepeso' : 'Obeso';
+                                return `${bmi.toFixed(1)} — ${label}`;
+                              })()
+                            : 'Informe peso/altura'
+                          }
+                        </div>
+                      </div>
+                      {/* Blood pressure */}
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Pressão Arterial</label>
+                        <input
+                          type="text"
+                          value={triageBP}
+                          onChange={e => setTriageBP(e.target.value)}
+                          placeholder="Ex: 120/80"
+                          className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans"
+                        />
+                      </div>
+                      {/* Temperature */}
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Temperatura (°C)</label>
+                        <input
+                          type="number"
+                          value={triageTemp}
+                          onChange={e => setTriageTemp(e.target.value)}
+                          placeholder="Ex: 36.8"
+                          step="0.1"
+                          className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans"
+                        />
+                      </div>
+                      {/* SpO2 */}
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Saturação O₂ (%)</label>
+                        <input
+                          type="number"
+                          value={triageSpo2}
+                          onChange={e => setTriageSpo2(e.target.value)}
+                          placeholder="Ex: 98"
+                          min={60}
+                          max={100}
+                          className={`w-full p-2 bg-white border rounded-lg text-xs focus:outline-teal-500 font-sans font-bold ${
+                            triageSpo2 && Number(triageSpo2) < 95
+                              ? 'border-rose-400 bg-rose-50 text-rose-700'
+                              : 'border-slate-200'
+                          }`}
+                        />
+                      </div>
+                      {/* Heart rate */}
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Freq. Cardíaca (bpm)</label>
+                        <input
+                          type="number"
+                          value={triageHR}
+                          onChange={e => setTriageHR(e.target.value)}
+                          placeholder="Ex: 78"
+                          className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans"
+                        />
+                      </div>
+                      {/* Respiratory rate */}
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Freq. Respiratória (irpm)</label>
+                        <input
+                          type="number"
+                          value={triageRR}
+                          onChange={e => setTriageRR(e.target.value)}
+                          placeholder="Ex: 16"
+                          className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans"
+                        />
+                      </div>
+                    </div>
+
+                    {/* SpO2 Alert */}
+                    {triageSpo2 && Number(triageSpo2) < 95 && (
+                      <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-700 font-bold flex items-center gap-2 animate-pulse">
+                        <AlertCircle className="w-4 h-4 shrink-0" />
+                        ⚠️ Saturação crítica! ({triageSpo2}%) — Protocolo de oxigenoterapia pode ser necessário.
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Procedimentos Preliminares */}
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                    <p className="text-xs font-bold text-slate-700 pb-1 border-b border-slate-200">Procedimentos Preliminares de Enfermagem</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        'Glicemia Capilar (HGT)',
+                        'Eletrocardiograma (ECG)',
+                        'Coleta de Sangue (Hemograma)',
+                        'Coleta de Urina (EAS)',
+                        'Pesagem e Antropometria',
+                        'Pré-medicação / Analgesia',
+                        'Inalação / Nebulização',
+                        'Curativo / Ferida',
+                      ].map(proc => (
+                        <label key={proc} className="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer group">
+                          <input
+                            type="checkbox"
+                            checked={triageProcedures.includes(proc)}
+                            onChange={e => {
+                              setTriageProcedures(prev =>
+                                e.target.checked ? [...prev, proc] : prev.filter(p => p !== proc)
+                              );
+                            }}
+                            className="w-4 h-4 text-teal-600 border-slate-300 rounded focus:ring-teal-500 cursor-pointer"
+                          />
+                          <span className="group-hover:text-teal-700 transition">{proc}</span>
+                        </label>
+                      ))}
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 self-end md:self-auto">
-                    {app.status === 'confirmado' && (
-                      <>
-                        <span className="text-xs font-bold px-2.5 py-1 bg-green-50 text-green-700 border border-green-200 rounded-full flex items-center gap-1">
-                          🟢 {t('status_confirmed', 'app')}
-                        </span>
-                        <button
-                          onClick={() => handleUpdateAppStatus(app.id, 'atendido')}
-                          className="bg-teal-600 hover:bg-teal-700 text-white text-xs px-3 py-1.5 rounded-lg font-bold transition cursor-pointer"
+                  {/* Observações de Enfermagem */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Observações de Enfermagem</label>
+                    <textarea
+                      value={triageNursingNotes}
+                      onChange={e => setTriageNursingNotes(e.target.value)}
+                      placeholder="Registre aqui as observações clínicas iniciais, comportamento do paciente, informações adicionais relevantes..."
+                      rows={3}
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans"
+                    />
+                  </div>
+                </div>
+
+                {/* RIGHT COLUMN: Priority + File Upload */}
+                <div className="space-y-5">
+
+                  {/* Manchester Triage Priority */}
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                    <p className="text-xs font-bold text-slate-700 pb-1 border-b border-slate-200">Classificação de Risco (Manchester)</p>
+                    <div className="space-y-2">
+                      {[
+                        { color: 'red', label: '🔴 Vermelho — Emergência', desc: 'Atendimento imediato' },
+                        { color: 'orange', label: '🟠 Laranja — Muito Urgente', desc: '≤ 10 min' },
+                        { color: 'yellow', label: '🟡 Amarelo — Urgente', desc: '≤ 60 min' },
+                        { color: 'green', label: '🟢 Verde — Pouco Urgente', desc: '≤ 120 min' },
+                        { color: 'blue', label: '🔵 Azul — Não Urgente', desc: '≤ 240 min' },
+                      ].map(item => (
+                        <label
+                          key={item.color}
+                          className={`flex items-center gap-2.5 p-2.5 rounded-lg border cursor-pointer transition ${
+                            triagePriorityLevel === item.color
+                              ? item.color === 'red' ? 'bg-rose-100 border-rose-300' :
+                                item.color === 'orange' ? 'bg-orange-100 border-orange-300' :
+                                item.color === 'yellow' ? 'bg-amber-100 border-amber-300' :
+                                item.color === 'green' ? 'bg-green-100 border-green-300' :
+                                'bg-blue-100 border-blue-300'
+                              : 'bg-white border-slate-200 hover:bg-slate-50'
+                          }`}
                         >
-                          {t('btn_complete_visit', 'app')}
-                        </button>
-                        <button
-                          onClick={() => handleUpdateAppStatus(app.id, 'cancelado')}
-                          className="bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs px-3 py-1.5 rounded-lg font-bold transition cursor-pointer"
-                        >
-                          {t('btn_cancel', 'app')}
-                        </button>
-                      </>
+                          <input
+                            type="radio"
+                            name="triage-priority"
+                            value={item.color}
+                            checked={triagePriorityLevel === item.color}
+                            onChange={() => setTriagePriorityLevel(item.color as any)}
+                            className="shrink-0"
+                          />
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-slate-800 leading-tight">{item.label}</p>
+                            <p className="text-[10px] text-slate-500">{item.desc}</p>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Attachment + Antivirus Simulator */}
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                    <div className="flex items-center justify-between pb-1 border-b border-slate-200">
+                      <p className="text-xs font-bold text-slate-700">Documentos Anexos</p>
+                      <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500">
+                        Limite:
+                        <input
+                          type="number"
+                          value={maxFileSizeMB}
+                          onChange={e => setMaxFileSizeMB(Number(e.target.value))}
+                          min={1}
+                          max={100}
+                          className="w-12 px-1 py-0.5 bg-white border border-slate-200 rounded text-center text-xs"
+                        />
+                        MB/arq.
+                      </div>
+                    </div>
+
+                    {/* File chooser */}
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      accept=".pdf,.jpg,.jpeg,.png,.tiff,.tif,.dcm,.mp3,.wav,.ogg"
+                      className="hidden"
+                      onChange={e => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const sizeMB = file.size / (1024 * 1024);
+                        if (sizeMB > maxFileSizeMB) {
+                          setVirusScanStatus('failed');
+                          setFileToUploadName(file.name);
+                          setFileToUploadSize(`${sizeMB.toFixed(2)} MB`);
+                          setFileToUploadType('Arquivo muito grande');
+                          return;
+                        }
+                        setFileToUploadName(file.name);
+                        setFileToUploadSize(`${sizeMB.toFixed(2)} MB`);
+                        setFileToUploadType(file.type || 'application/octet-stream');
+                        setVirusScanStatus('scanning');
+                        setIsVirusScanning(true);
+                        // Simulate antivirus scan
+                        setTimeout(() => {
+                          const hasThreat = file.name.toLowerCase().includes('virus');
+                          setVirusScanStatus(hasThreat ? 'failed' : 'passed');
+                          setIsVirusScanning(false);
+                          if (!hasThreat) {
+                            const url = URL.createObjectURL(file);
+                            setAttachedFiles(prev => [...prev, {
+                              name: file.name,
+                              size: `${sizeMB.toFixed(2)} MB`,
+                              type: file.type || 'document',
+                              url,
+                            }]);
+                            setFileToUploadName('');
+                            setFileToUploadSize('');
+                            setFileToUploadType('');
+                            setVirusScanStatus('pending');
+                          }
+                        }, 2200);
+                        if (fileInputRef.current) fileInputRef.current.value = '';
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isVirusScanning}
+                      className="w-full py-2.5 px-3 bg-white border border-dashed border-slate-300 hover:border-teal-400 hover:bg-teal-50/30 text-slate-600 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Upload className="w-4 h-4" />
+                      Anexar: PDF, Imagem (JPG/PNG/TIFF), DICOM, Áudio
+                    </button>
+
+                    {/* Antivirus scan feedback */}
+                    {(isVirusScanning || virusScanStatus === 'failed') && fileToUploadName && (
+                      <div className={`p-2.5 rounded-lg border text-xs space-y-1.5 ${
+                        virusScanStatus === 'scanning' ? 'bg-indigo-50 border-indigo-200' :
+                        virusScanStatus === 'failed' ? 'bg-rose-50 border-rose-200' :
+                        'bg-green-50 border-green-200'
+                      }`}>
+                        <div className="flex items-center gap-2 font-bold">
+                          {virusScanStatus === 'scanning' && (
+                            <><Scan className="w-4 h-4 text-indigo-500 animate-pulse" />
+                            <span className="text-indigo-700">Verificando vírus em: {fileToUploadName}...</span></>
+                          )}
+                          {virusScanStatus === 'failed' && (
+                            <><XCircle className="w-4 h-4 text-rose-500" />
+                            <span className="text-rose-700">
+                              {fileToUploadType === 'Arquivo muito grande'
+                                ? `Arquivo muito grande: ${fileToUploadName} (${fileToUploadSize}). Máximo: ${maxFileSizeMB}MB.`
+                                : `AMEAÇA DETECTADA: ${fileToUploadName} — Arquivo bloqueado pelo antivírus.`
+                              }
+                            </span></>
+                          )}
+                        </div>
+                        {virusScanStatus === 'scanning' && (
+                          <div className="w-full bg-indigo-100 rounded-full h-1.5">
+                            <div className="bg-indigo-500 h-1.5 rounded-full animate-pulse w-3/4" />
+                          </div>
+                        )}
+                      </div>
                     )}
 
-                    {app.status === 'pendente' && (
-                      <>
-                        <span className="text-xs font-bold px-2.5 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-full">
-                          🟡 {t('status_pending', 'app')}
-                        </span>
-                        <button
-                          onClick={() => handleUpdateAppStatus(app.id, 'confirmado')}
-                          className="bg-green-600 hover:bg-green-700 text-white text-xs px-3 py-1.5 rounded-lg font-bold transition cursor-pointer"
-                        >
-                          {t('btn_confirm', 'app')}
-                        </button>
-                      </>
-                    )}
-
-                    {app.status === 'cancelado' && (
-                      <span className="text-xs font-bold px-2.5 py-1 bg-rose-50 text-rose-700 border border-rose-200 rounded-full">
-                        🔴 {t('status_cancelled', 'app')}
-                      </span>
-                    )}
-
-                    {app.status === 'atendido' && (
-                      <span className="text-xs font-bold px-2.5 py-1 bg-slate-100 text-slate-600 border border-slate-200 rounded-full">
-                        🔵 {t('status_done', 'app')}
-                      </span>
+                    {/* Attached files list */}
+                    {attachedFiles.length > 0 && (
+                      <div className="space-y-1.5">
+                        {attachedFiles.map((f, idx) => (
+                          <div key={idx} className="flex items-center gap-2 p-2 bg-white border border-slate-200 rounded-lg text-xs">
+                            <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <p className="font-semibold text-slate-700 truncate">{f.name}</p>
+                              <p className="text-slate-400">{f.size}</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setAttachedFiles(prev => prev.filter((_, i) => i !== idx))}
+                              className="text-slate-400 hover:text-rose-500 transition cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
                     )}
                   </div>
                 </div>
-              ))}
+              </div>
+
+              {/* Actions */}
+              <div className="flex justify-end gap-3 border-t border-slate-200 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowTriageModal(false)}
+                  className="py-2.5 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs rounded-lg transition cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!triagePatient || !triageReason.trim()) return;
+                    const bmi = triageWeight && triageHeight
+                      ? (parseFloat(triageWeight) / Math.pow(parseFloat(triageHeight) / 100, 2)).toFixed(1)
+                      : undefined;
+
+                    const triageEntry = {
+                      id: `his_triage_${Date.now()}`,
+                      date: new Date().toISOString().split('T')[0],
+                      type: 'Triagem Inicial de Enfermagem',
+                      diagnosis: triageReason,
+                      cid10: 'Z00.0',
+                      prescriptions: triageProcedures.length > 0 ? triageProcedures : ['Nenhum procedimento preliminar'],
+                      notes: triageNursingNotes || 'Triagem realizada sem observações adicionais.',
+                      doctor: 'Enf. de Triagem',
+                      vital_signs: {
+                        weight: triageWeight,
+                        height: triageHeight,
+                        bp: triageBP,
+                        temp: triageTemp,
+                        spo2: triageSpo2,
+                        hr: triageHR,
+                        rr: triageRR,
+                        imc: bmi,
+                      },
+                      triage_priority: triagePriorityLevel === 'red' || triagePriorityLevel === 'orange'
+                        ? 'emergência' as const
+                        : triagePriorityLevel === 'yellow'
+                        ? 'preferencial' as const
+                        : 'normal' as const,
+                      triage_color: triagePriorityLevel,
+                      preliminary_procedures: triageProcedures,
+                      attached_files: attachedFiles.map(f => ({ name: f.name, size: f.size, type: f.type })),
+                    };
+
+                    const newPriority: Patient['priority'] = triageEntry.triage_priority;
+
+                    // Optimistic UI update
+                    setPatients(prev => prev.map(p => {
+                      if (p.id === triagePatient.id) {
+                        return {
+                          ...p,
+                          status: 'atendimento' as const,
+                          priority: newPriority,
+                          clinicalHistory: [triageEntry, ...p.clinicalHistory],
+                        };
+                      }
+                      return p;
+                    }));
+
+                    addAuditLog(
+                      `Triagem Realizada (${triagePriorityLevel.toUpperCase()})`,
+                      `${triagePatient.name} — ${triageReason.slice(0, 60)}`
+                    );
+
+                    // Persist to Supabase
+                    try {
+                      await supabase.from('clinical_history').insert({
+                        id: triageEntry.id,
+                        patient_id: triagePatient.id,
+                        date: triageEntry.date,
+                        type: triageEntry.type,
+                        diagnosis: triageEntry.diagnosis,
+                        cid10: triageEntry.cid10,
+                        prescriptions: triageEntry.prescriptions,
+                        notes: triageEntry.notes,
+                        doctor: triageEntry.doctor,
+                      });
+                      await supabase.from('patients').update({
+                        status: 'atendimento',
+                        priority: newPriority,
+                      }).eq('id', triagePatient.id);
+                    } catch (err) {
+                      console.warn('Triage persist error:', err);
+                    }
+
+                    setShowTriageModal(false);
+                    setTriagePatient(null);
+                  }}
+                  disabled={!triageReason.trim()}
+                  className={`py-2.5 px-5 text-white font-bold text-xs rounded-lg shadow-sm flex items-center gap-1.5 cursor-pointer transition ${
+                    triageReason.trim() ? 'bg-teal-600 hover:bg-teal-700' : 'bg-slate-400 cursor-not-allowed'
+                  }`}
+                >
+                  <HeartPulse className="w-4 h-4" />
+                  Salvar Triagem & Encaminhar para Atendimento
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* --- AGENDA SUBMODULE --- */}
+      {activeSubmodule === 2 && (
+        <div className="space-y-6">
+          
+          {/* PAINEL DE CONFIGURAÇÕES DE REGRAS (PARAMS) */}
+          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/80 shadow-xs flex flex-wrap gap-4 items-center justify-between text-xs">
+            <div className="flex items-center gap-2">
+              <Sliders className="w-5 h-5 text-teal-600 animate-spin-slow" />
+              <div>
+                <h4 className="font-bold text-slate-800">Parâmetros Clínicos da Agenda</h4>
+                <p className="text-[10px] text-slate-500 font-medium">Configure as regras de negócio em tempo real para validação e bloqueios.</p>
+              </div>
             </div>
+            
+            <div className="flex flex-wrap gap-3 items-center">
+              {/* Tempo Mínimo */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase">Tempo Mín. (Minutos)</label>
+                <select
+                  value={minMinutesBetween}
+                  onChange={e => setMinMinutesBetween(Number(e.target.value))}
+                  className="bg-white border border-slate-200 py-1.5 px-2.5 rounded-lg text-slate-700 font-bold focus:outline-teal-500 font-sans"
+                >
+                  <option value="15">15 min</option>
+                  <option value="20">20 min</option>
+                  <option value="30">30 min</option>
+                  <option value="45">45 min</option>
+                  <option value="60">60 min</option>
+                </select>
+              </div>
+
+              {/* Cota Telemedicina */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase">Cota Virtual/Médico/Dia</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={20}
+                  value={telemedQuota}
+                  onChange={e => setTelemedQuota(Number(e.target.value))}
+                  className="w-20 bg-white border border-slate-200 py-1.5 px-2.5 rounded-lg text-slate-700 font-bold text-center focus:outline-teal-500 font-sans"
+                />
+              </div>
+
+              {/* Cota Total */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase">Cota Total/Médico/Dia</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={50}
+                  value={totalQuota}
+                  onChange={e => setTotalQuota(Number(e.target.value))}
+                  className="w-20 bg-white border border-slate-200 py-1.5 px-2.5 rounded-lg text-slate-700 font-bold text-center focus:outline-teal-500 font-sans"
+                />
+              </div>
+
+              {/* Bloqueio de sobreposição */}
+              <div className="flex items-center gap-2 bg-white px-3 py-2 border border-slate-200 rounded-lg h-[38px] mt-4">
+                <input
+                  type="checkbox"
+                  id="toggle-overlap"
+                  checked={enableOverlapBlocking}
+                  onChange={e => setEnableOverlapBlocking(e.target.checked)}
+                  className="w-4 h-4 text-teal-600 focus:ring-teal-500 border-slate-300 rounded cursor-pointer"
+                />
+                <label htmlFor="toggle-overlap" className="font-bold text-slate-700 cursor-pointer">
+                  Bloquear Choque de Horário
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+            
+            {/* AGENDAR CONSULTA (RECEPCIONISTA / PAINEL INTERNO) */}
+            <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-md xl:col-span-1 space-y-4">
+              <div className="flex items-center gap-2 pb-3 mb-1 border-b border-slate-100">
+                <CalendarDays className="w-5 h-5 text-teal-600" />
+                <h3 className="font-bold text-slate-800 text-base">{t('agenda_new', 'app')}</h3>
+              </div>
+
+              <form onSubmit={handleCreateAppointment} className="space-y-3.5 text-sm">
+                
+                {/* Seleção do Paciente */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">{t('select_patient', 'app')} *</label>
+                  <select 
+                    value={selectedPatientId} 
+                    onChange={e => setSelectedPatientId(e.target.value)}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans text-xs"
+                    required
+                  >
+                    <option value="">{t('select_patient_placeholder', 'app')}</option>
+                    {patients.map(p => (
+                      <option key={p.id} value={p.id}>{p.name} ({p.health_insurance_type || 'Particular'})</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Seleção do Médico */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">{t('responsible_doctor', 'app')}</label>
+                  <select 
+                    value={selectedDoctor} 
+                    onChange={e => {
+                      const val = e.target.value;
+                      setSelectedDoctor(val);
+                      const prof = professionals.find(p => p.name === val);
+                      if (prof) {
+                        setSelectedSpecialty(prof.specialty);
+                      } else if (val === 'Dr. Adriano Lima') {
+                        setSelectedSpecialty('Ortopedia');
+                      } else if (val === 'Dra. Amanda Silva') {
+                        setSelectedSpecialty('Cardiologia');
+                      } else {
+                        setSelectedSpecialty('Clínico Geral');
+                      }
+                    }}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans"
+                  >
+                    {professionals.filter(p => p.role === 'Médico(a)' && p.status === 'ativo').map(prof => (
+                      <option key={prof.id} value={prof.name}>{prof.name} ({prof.specialty})</option>
+                    ))}
+                    {professionals.filter(p => p.role === 'Médico(a)' && p.status === 'ativo').length === 0 && (
+                      <>
+                        <option value="Dra. Amanda Silva">Dra. Amanda Silva (Cardiologista)</option>
+                        <option value="Dr. Adriano Lima">Dr. Adriano Lima (Ortopedista)</option>
+                        <option value="Dr. Bruno Castro">Dr. Bruno Castro (Médico do Trabalho)</option>
+                      </>
+                    )}
+                  </select>
+                </div>
+
+                {/* Especialidade Clínica */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">{t('clinical_specialty', 'app')}</label>
+                  <input 
+                    type="text" 
+                    value={selectedSpecialty} 
+                    readOnly 
+                    className="w-full p-2.5 bg-slate-100 text-slate-600 border border-slate-200 rounded-lg font-sans font-medium"
+                  />
+                </div>
+
+                {/* Filial / Sede */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Filial / Sede de Atendimento</label>
+                  <select
+                    value={selectedBranch}
+                    onChange={e => setSelectedBranch(e.target.value)}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans"
+                  >
+                    <option value="Sede Central">Sede Central (Asunción)</option>
+                    <option value="Filial Ciudad del Este">Filial Ciudad del Este</option>
+                    <option value="Filial Encarnación">Filial Encarnación</option>
+                  </select>
+                </div>
+
+                {/* Consultório e Recursos */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Sala / Consultório</label>
+                    <select
+                      value={selectedRoom}
+                      onChange={e => setSelectedRoom(e.target.value)}
+                      className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans"
+                    >
+                      <option value="Consultório 101">Consultório 101</option>
+                      <option value="Consultório 102">Consultório 102</option>
+                      <option value="Sala de Exames 1">Sala de Exames 1</option>
+                      <option value="Sala de Procedimentos A">Procedimentos A</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Recurso/Equipamento</label>
+                    <select
+                      value={selectedResource}
+                      onChange={e => setSelectedResource(e.target.value)}
+                      className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans"
+                    >
+                      <option value="Nenhum">Nenhum</option>
+                      <option value="Eletrocardiógrafo">Eletrocardiógrafo</option>
+                      <option value="Ultrassom 4D">Ultrassom 4D</option>
+                      <option value="Espirômetro">Espirômetro</option>
+                      <option value="Dermatoscópio">Dermatoscópio</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Tipo de Consulta e Modalidade */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Tipo de Consulta</label>
+                    <select
+                      value={selectedConsultationType}
+                      onChange={e => setSelectedConsultationType(e.target.value)}
+                      className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans"
+                    >
+                      <option value="consulta de primeira vez">Primeira vez</option>
+                      <option value="consulta de retorno/controle">Retorno/Controle</option>
+                      <option value="exame diagnóstico">Exame Diagnóstico</option>
+                      <option value="procedimento">Procedimento</option>
+                      <option value="telemedicina">Telemedicina</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Modalidade</label>
+                    <select
+                      value={selectedModality}
+                      onChange={e => setSelectedModality(e.target.value as any)}
+                      className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans"
+                      disabled={selectedConsultationType === 'telemedicina'}
+                    >
+                      <option value="Presencial">Presencial</option>
+                      <option value="Virtual">Virtual</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Convênio Aplicado */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Convênio / Cobertura Financeira</label>
+                  <select
+                    value={selectedInsurance}
+                    onChange={e => setSelectedInsurance(e.target.value)}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans"
+                  >
+                    <option value="Particular">Particular</option>
+                    <option value="IPS">IPS (Previdência Social)</option>
+                    <option value="Pré-paga">Pré-paga / Privado</option>
+                    <option value="Sanidade Militar">Sanidade Militar</option>
+                    <option value="Sanidade Policial">Sanidade Policial</option>
+                    <option value="Seguro Privado">Seguro Internacional</option>
+                  </select>
+                </div>
+
+                {/* Data e Hora */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">{t('date', 'app')}</label>
+                    <input 
+                      type="date" 
+                      value={selectedDate} 
+                      onChange={e => setSelectedDate(e.target.value)}
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans text-xs"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">{t('time', 'app')}</label>
+                    <input 
+                      type="time" 
+                      value={selectedTime} 
+                      onChange={e => setSelectedTime(e.target.value)}
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <button 
+                  type="submit" 
+                  className="w-full mt-2 py-3 px-4 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-lg shadow-sm flex items-center justify-center gap-2 cursor-pointer transition"
+                >
+                  <Plus className="w-4 h-4" />
+                  {t('create_appointment', 'app')}
+                </button>
+              </form>
+            </div>
+
+            {/* LISTA DE AGENDAMENTOS E SIMULADOR DE RESERVA PATIENT PORTAL */}
+            <div className="xl:col-span-2 space-y-6">
+              
+              {/* Agenda de Atendimentos */}
+              <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-md space-y-4">
+                <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+                  <div className="flex items-center gap-2">
+                    <CalendarDays className="w-5 h-5 text-teal-600 animate-pulse" />
+                    <h3 className="font-bold text-slate-800 text-base">{t('agenda_medical', 'app')}</h3>
+                  </div>
+                  <span className="text-xs font-bold px-2.5 py-1 bg-teal-50 text-teal-700 border border-teal-200 rounded-full">
+                    {t('appointments_today', 'app')}: {appointments.length}
+                  </span>
+                </div>
+
+                {/* List */}
+                <div className="space-y-3 max-h-[380px] overflow-y-auto pr-1">
+                  {appointments.length === 0 ? (
+                    <div className="text-center py-10 text-slate-400 text-xs font-medium">
+                      Nenhuma consulta agendada nesta data. Use o formulário à esquerda!
+                    </div>
+                  ) : (
+                    appointments.map(app => (
+                      <div key={app.id} className="p-4 bg-slate-50 hover:bg-slate-100/70 border border-slate-200/80 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-4 transition text-sm relative overflow-hidden">
+                        {app.is_overturn && (
+                          <div className="absolute top-0 right-0 bg-amber-500 text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-bl shadow-xs">
+                            Encaixe
+                          </div>
+                        )}
+                        <div className="flex items-start gap-3">
+                          <span className={`p-2 bg-teal-50 rounded-lg font-bold text-center block min-w-[65px] border border-teal-100 ${app.is_overturn ? 'border-amber-200 bg-amber-50/50 text-amber-800' : 'text-teal-600'}`}>
+                            <p className="text-[10px] uppercase font-bold tracking-tight">Hora</p>
+                            <p className="text-base font-black">{app.time}</p>
+                          </span>
+
+                          <div className="space-y-1">
+                            <div className="flex items-center flex-wrap gap-2">
+                              <span className="font-bold text-slate-800 text-base leading-tight">{app.patientName}</span>
+                              <span className="px-1.5 py-0.5 bg-slate-200 text-slate-700 text-[9px] font-semibold rounded">
+                                {app.insurance || 'Particular'}
+                              </span>
+                              {app.modality === 'Virtual' ? (
+                                <span className="px-1.5 py-0.5 bg-indigo-50 text-indigo-700 text-[9px] font-bold rounded border border-indigo-100 animate-pulse">
+                                  💻 Telemedicina
+                                </span>
+                              ) : (
+                                <span className="px-1.5 py-0.5 bg-teal-50 text-teal-700 text-[9px] font-bold rounded border border-teal-100">
+                                  📍 Presencial
+                                </span>
+                              )}
+                              <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-100 text-[9px] font-semibold rounded capitalize">
+                                {app.type || 'consulta'}
+                              </span>
+                            </div>
+                            
+                            <div className="text-xs text-slate-500 flex flex-wrap gap-x-3 gap-y-0.5 font-medium">
+                              <span>🩺 Profissional: <b className="text-slate-700">{app.doctorName} ({app.specialty})</b></span>
+                              <span>🏢 Local: <b>{app.branch || 'Sede Central'}</b></span>
+                              <span>🚪 Sala: <b>{app.room || 'N/A'}</b></span>
+                              {app.resource && app.resource !== 'Nenhum' && (
+                                <span>🛠️ Equipamento: <b className="text-indigo-600">{app.resource}</b></span>
+                              )}
+                            </div>
+                            {app.is_overturn && app.overturn_reason && (
+                              <p className="text-[10px] text-amber-800 font-bold bg-amber-50 border border-amber-100/60 rounded px-2 py-0.5 mt-1 w-fit">
+                                ⚠️ Motivo do Encaixe: {app.overturn_reason}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 self-end md:self-auto shrink-0">
+                          {app.status === 'confirmado' && (
+                            <>
+                              <span className="text-xs font-bold px-2.5 py-1 bg-green-50 text-green-700 border border-green-200 rounded-full flex items-center gap-1">
+                                🟢 {t('status_confirmed', 'app')}
+                              </span>
+                              <button
+                                onClick={() => handleUpdateAppStatus(app.id, 'atendido')}
+                                className="bg-teal-600 hover:bg-teal-700 text-white text-xs px-2.5 py-1.5 rounded-lg font-bold transition cursor-pointer"
+                              >
+                                {t('btn_complete_visit', 'app')}
+                              </button>
+                              <button
+                                onClick={() => handleUpdateAppStatus(app.id, 'cancelado')}
+                                className="bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs px-2.5 py-1.5 rounded-lg font-bold transition cursor-pointer"
+                              >
+                                {t('btn_cancel', 'app')}
+                              </button>
+                            </>
+                          )}
+
+                          {app.status === 'pendente' && (
+                            <>
+                              <span className="text-xs font-bold px-2.5 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-full">
+                                🟡 {t('status_pending', 'app')}
+                              </span>
+                              <button
+                                onClick={() => handleUpdateAppStatus(app.id, 'confirmado')}
+                                className="bg-green-600 hover:bg-green-700 text-white text-xs px-2.5 py-1.5 rounded-lg font-bold transition cursor-pointer"
+                              >
+                                {t('btn_confirm', 'app')}
+                              </button>
+                            </>
+                          )}
+
+                          {app.status === 'cancelado' && (
+                            <span className="text-xs font-bold px-2.5 py-1 bg-rose-50 text-rose-700 border border-rose-200 rounded-full">
+                              🔴 {t('status_cancelled', 'app')}
+                            </span>
+                          )}
+
+                          {app.status === 'atendido' && (
+                            <span className="text-xs font-bold px-2.5 py-1 bg-slate-100 text-slate-600 border border-slate-200 rounded-full">
+                              🔵 {t('status_done', 'app')}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* SIMULADOR DE RESERVA PATIENTE PORTAL / APLICATIVO MÓVEL */}
+              <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-md space-y-4">
+                <div className="flex items-center gap-2 pb-3 mb-1 border-b border-slate-100">
+                  <Smartphone className="w-5 h-5 text-indigo-600" />
+                  <div>
+                    <h3 className="font-bold text-slate-800 text-base">Portal do Paciente — Reserva de Consulta Online</h3>
+                    <p className="text-[10px] text-slate-500 font-medium">Portal autosserviço do paciente. Restrito estritamente a slots disponíveis sem bypass de encaixes.</p>
+                  </div>
+                </div>
+
+                {onlineSuccessMessage && (
+                  <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold text-xs rounded-lg animate-pulse">
+                    ✔️ {onlineSuccessMessage}
+                  </div>
+                )}
+                {onlineErrorMessage && (
+                  <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 font-bold text-xs rounded-lg">
+                    ❌ {onlineErrorMessage}
+                  </div>
+                )}
+
+                <form onSubmit={handleOnlineBooking} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5 text-xs font-medium">
+                  {/* Paciente Online */}
+                  <div className="col-span-1 sm:col-span-2 md:col-span-1">
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Selecione o Paciente</label>
+                    <select
+                      value={onlinePatientId}
+                      onChange={e => setOnlinePatientId(e.target.value)}
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-indigo-500 font-sans"
+                      required
+                    >
+                      <option value="">Selecione o seu perfil...</option>
+                      {patients.map(p => (
+                        <option key={p.id} value={p.id}>{p.name} ({p.health_insurance_type || 'Particular'})</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Especialidade */}
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Especialidade Desejada</label>
+                    <select
+                      value={onlineSpecialty}
+                      onChange={e => {
+                        const spec = e.target.value;
+                        setOnlineSpecialty(spec);
+                        // Auto select first doctor of that specialty
+                        const doc = professionals.find(p => p.specialty === spec && p.role === 'Médico(a)' && p.status === 'ativo');
+                        if (doc) setOnlineDoctor(doc.name);
+                      }}
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-indigo-500 font-sans"
+                    >
+                      <option value="Cardiologia">Cardiologia</option>
+                      <option value="Ortopedia">Ortopedia</option>
+                      <option value="Medicina do Trabalho">Medicina do Trabalho</option>
+                      <option value="Clínico Geral">Clínico Geral</option>
+                    </select>
+                  </div>
+
+                  {/* Médico */}
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Médico Responsável</label>
+                    <select
+                      value={onlineDoctor}
+                      onChange={e => setOnlineDoctor(e.target.value)}
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-indigo-500 font-sans"
+                    >
+                      {professionals.filter(p => p.specialty === onlineSpecialty && p.role === 'Médico(a)' && p.status === 'ativo').map(prof => (
+                        <option key={prof.id} value={prof.name}>{prof.name}</option>
+                      ))}
+                      {professionals.filter(p => p.specialty === onlineSpecialty && p.role === 'Médico(a)' && p.status === 'ativo').length === 0 && (
+                        <>
+                          {onlineSpecialty === 'Cardiologia' && <option value="Dra. Amanda Silva">Dra. Amanda Silva</option>}
+                          {onlineSpecialty === 'Ortopedia' && <option value="Dr. Adriano Lima">Dr. Adriano Lima</option>}
+                          {onlineSpecialty === 'Medicina do Trabalho' && <option value="Dr. Bruno Castro">Dr. Bruno Castro</option>}
+                          <option value="Médico de Plantão">Médico Geral de Plantão</option>
+                        </>
+                      )}
+                    </select>
+                  </div>
+
+                  {/* Tipo / Modalidade */}
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Modalidade / Tipo</label>
+                    <select
+                      value={onlineType}
+                      onChange={e => setOnlineType(e.target.value)}
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-indigo-500 font-sans"
+                    >
+                      <option value="consulta de primeira vez">Consulta 1ª Vez (Presencial)</option>
+                      <option value="consulta de retorno/controle">Consulta de Retorno (Presencial)</option>
+                      <option value="telemedicina">Telemedicina (Vídeo-Consulta)</option>
+                    </select>
+                  </div>
+
+                  {/* Data */}
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Data da Reserva</label>
+                    <input
+                      type="date"
+                      value={onlineDate}
+                      onChange={e => setOnlineDate(e.target.value)}
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-indigo-500 font-sans text-xs"
+                      required
+                    />
+                  </div>
+
+                  {/* Hora */}
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Horário</label>
+                    <input
+                      type="time"
+                      value={onlineTime}
+                      onChange={e => setOnlineTime(e.target.value)}
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-indigo-500 font-sans text-xs"
+                      required
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="col-span-1 sm:col-span-2 md:col-span-3 w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg shadow-sm transition flex items-center justify-center gap-1.5 cursor-pointer mt-1"
+                  >
+                    <Smartphone className="w-4 h-4" />
+                    Reservar Consulta no Portal
+                  </button>
+                </form>
+              </div>
+
+            </div>
+
           </div>
         </div>
       )}
