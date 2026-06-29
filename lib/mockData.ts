@@ -76,7 +76,7 @@ export interface Appointment {
   specialty: string;
   date: string;
   time: string;
-  status: 'confirmado' | 'pendente' | 'cancelado' | 'atendido';
+  status: 'agendado' | 'confirmado' | 'pendente' | 'cancelado' | 'atendido' | 'remarcado' | 'em sala de espera' | 'em atendimento' | 'finalizado' | 'ausente';
   branch?: string;
   room?: string;
   resource?: string;
@@ -151,6 +151,7 @@ export interface Professional {
   status: 'ativo' | 'inativo' | 'férias';
   admissionDate: string;
   color?: string; // for UI avatar
+  permissions?: string[];
 }
 
 export interface Dte {
@@ -490,7 +491,8 @@ export const initialProfessionals: Professional[] = [
     phone: "+55 11 99876-5432",
     status: "ativo",
     admissionDate: "2022-03-01",
-    color: "bg-teal-500"
+    color: "bg-teal-500",
+    permissions: ["view_reception", "view_agenda", "view_hce", "view_diagnostic", "view_med_work", "perform_prescribe"]
   },
   {
     id: "prof_2",
@@ -504,7 +506,8 @@ export const initialProfessionals: Professional[] = [
     phone: "+55 11 99765-4321",
     status: "ativo",
     admissionDate: "2021-07-15",
-    color: "bg-indigo-500"
+    color: "bg-indigo-500",
+    permissions: ["view_reception", "view_agenda", "view_hce", "view_diagnostic", "view_finance", "view_stock", "view_med_work", "view_crm", "view_security", "perform_admit", "perform_prescribe", "perform_sifen", "perform_post_finance", "perform_stock", "perform_beds", "perform_rbac"]
   },
   {
     id: "prof_3",
@@ -518,7 +521,8 @@ export const initialProfessionals: Professional[] = [
     phone: "+55 11 98654-3210",
     status: "ativo",
     admissionDate: "2020-01-10",
-    color: "bg-rose-500"
+    color: "bg-rose-500",
+    permissions: ["view_agenda", "view_hce", "view_diagnostic", "view_med_work", "perform_prescribe"]
   },
   {
     id: "prof_4",
@@ -532,7 +536,8 @@ export const initialProfessionals: Professional[] = [
     phone: "+55 11 97543-2109",
     status: "ativo",
     admissionDate: "2023-02-20",
-    color: "bg-sky-500"
+    color: "bg-sky-500",
+    permissions: ["view_reception", "view_agenda", "view_diagnostic", "perform_admit", "perform_beds"]
   },
   {
     id: "prof_5",
@@ -546,7 +551,8 @@ export const initialProfessionals: Professional[] = [
     phone: "+55 11 96432-1098",
     status: "férias",
     admissionDate: "2023-08-05",
-    color: "bg-violet-500"
+    color: "bg-violet-500",
+    permissions: ["view_agenda", "view_hce"]
   }
 ];
 

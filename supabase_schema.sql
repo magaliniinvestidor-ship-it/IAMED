@@ -134,6 +134,7 @@ CREATE TABLE professionals (
   status TEXT NOT NULL CHECK (status IN ('ativo', 'inativo', 'férias')),
   admission_date DATE NOT NULL DEFAULT CURRENT_DATE,
   color TEXT,
+  permissions TEXT[] DEFAULT '{}',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
 
@@ -209,9 +210,9 @@ INSERT INTO aso_exams (id, patient_name, type, risks, status, date, doctor) VALU
 ('aso_2', 'Cláudio Siqueira', 'Admissional', ARRAY['Postura Física', 'Poeira Mineral'], 'apto', '2026-06-20', 'Dr. Bruno Castro');
 
 -- Profissionais de Saúde
-INSERT INTO professionals (id, name, role, specialty, council, council_number, shift, email, phone, status, admission_date, color) VALUES
-('prof_1', 'Dra. Amanda Silva', 'Médico(a)', 'Cardiologia', 'CRM', 'CRM-SP 112345', 'Manhã', 'amanda.silva@iamed.med.br', '+55 11 99876-5432', 'ativo', '2022-03-01', 'bg-teal-500'),
-('prof_2', 'Dr. Adriano Lima', 'Médico(a)', 'Ortopedia', 'CRM', 'CRM-SP 234567', 'Tarde', 'adriano.lima@iamed.med.br', '+55 11 99765-4321', 'ativo', '2021-07-15', 'bg-indigo-500'),
-('prof_3', 'Dr. Bruno Castro', 'Médico(a)', 'Medicina do Trabalho', 'CRM', 'CRM-SP 345678', 'Integral', 'bruno.castro@iamed.med.br', '+55 11 98654-3210', 'ativo', '2020-01-10', 'bg-rose-500'),
-('prof_4', 'Enf. Marcela Ramos', 'Enfermeiro(a)', 'Enfermagem Clínica', 'COREN', 'COREN-SP 456789', 'Plantão 12h', 'marcela.ramos@iamed.med.br', '+55 11 97543-2109', 'ativo', '2023-02-20', 'bg-sky-500'),
-('prof_5', 'Fis. Camila Torres', 'Fisioterapeuta', 'Fisioterapia Ortopédica', 'CREFITO', 'CREFITO-3 567890', 'Manhã', 'camila.torres@iamed.med.br', '+55 11 96432-1098', 'férias', '2023-08-05', 'bg-violet-500');
+INSERT INTO professionals (id, name, role, specialty, council, council_number, shift, email, phone, status, admission_date, color, permissions) VALUES
+('prof_1', 'Dra. Amanda Silva', 'Médico(a)', 'Cardiologia', 'CRM', 'CRM-SP 112345', 'Manhã', 'amanda.silva@iamed.med.br', '+55 11 99876-5432', 'ativo', '2022-03-01', 'bg-teal-500', ARRAY['view_reception', 'view_agenda', 'view_hce', 'view_diagnostic', 'view_med_work', 'perform_prescribe']),
+('prof_2', 'Dr. Adriano Lima', 'Médico(a)', 'Ortopedia', 'CRM', 'CRM-SP 234567', 'Tarde', 'adriano.lima@iamed.med.br', '+55 11 99765-4321', 'ativo', '2021-07-15', 'bg-indigo-500', ARRAY['view_reception', 'view_agenda', 'view_hce', 'view_diagnostic', 'view_finance', 'view_stock', 'view_med_work', 'view_crm', 'view_security', 'perform_admit', 'perform_prescribe', 'perform_sifen', 'perform_post_finance', 'perform_stock', 'perform_beds', 'perform_rbac']),
+('prof_3', 'Dr. Bruno Castro', 'Médico(a)', 'Medicina do Trabalho', 'CRM', 'CRM-SP 345678', 'Integral', 'bruno.castro@iamed.med.br', '+55 11 98654-3210', 'ativo', '2020-01-10', 'bg-rose-500', ARRAY['view_agenda', 'view_hce', 'view_diagnostic', 'view_med_work', 'perform_prescribe']),
+('prof_4', 'Enf. Marcela Ramos', 'Enfermeiro(a)', 'Enfermagem Clínica', 'COREN', 'COREN-SP 456789', 'Plantão 12h', 'marcela.ramos@iamed.med.br', '+55 11 97543-2109', 'ativo', '2023-02-20', 'bg-sky-500', ARRAY['view_reception', 'view_agenda', 'view_diagnostic', 'perform_admit', 'perform_beds']),
+('prof_5', 'Fis. Camila Torres', 'Fisioterapeuta', 'Fisioterapia Ortopédica', 'CREFITO', 'CREFITO-3 567890', 'Manhã', 'camila.torres@iamed.med.br', '+55 11 96432-1098', 'férias', '2023-08-05', 'bg-violet-500', ARRAY['view_agenda', 'view_hce']);

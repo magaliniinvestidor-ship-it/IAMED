@@ -453,14 +453,23 @@ export default function AdminFinanceModule({
         status: profStatus,
       }).eq('id', editingProfId);
     } else {
+      // Calculate sequential ID: prof_1, prof_2, etc.
+      const numericIds = professionals.map(p => {
+        const match = p.id.match(/^prof_(\d+)$/);
+        return match ? parseInt(match[1], 10) : 0;
+      });
+      const nextIdNum = Math.max(...numericIds, 0) + 1;
+      const newProfId = `prof_${nextIdNum}`;
+
       const newProf: Professional = {
-        id: `prof_${Date.now()}`,
+        id: newProfId,
         name: profName, role: profRole, specialty: profSpecialty,
         council: profCouncil, councilNumber: profCouncilNumber,
         shift: profShift, email: profEmail, phone: profPhone,
         admissionDate: profAdmission || new Date().toISOString().split('T')[0],
         status: profStatus,
         color: profColors[professionals.length % profColors.length],
+        permissions: [],
       };
       setProfessionals(prev => [...prev, newProf]);
       addAuditLog('Cadastrou Profissional', profName);
@@ -695,6 +704,7 @@ export default function AdminFinanceModule({
 
   // ── 14. Admin State ─────────────────────────────────────────────────────────
   const [currentSelectedUser, setCurrentSelectedUser] = useState('Marcela Ramos - Recepcionista');
+  const [rbacSelectedProfId, setRbacSelectedProfId] = useState<string>('');
 
   // Finance calculations
   const totalIncome = financePostings.filter(p => p.type === 'receita').reduce((sum, p) => sum + p.amount, 0);
@@ -1266,43 +1276,278 @@ export default function AdminFinanceModule({
           </div>
 
           {adminTab === 'security' && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs lg:col-span-1 space-y-4">
-                <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-                  <Settings className="w-5 h-5 text-teal-600" />
-                  <h3 className="font-semibold text-slate-800 text-base">Controle de Segurança &amp; RBAC</h3>
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Coluna 1: Seleção de Profissional e Operador */}
+                <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs lg:col-span-1 space-y-4">
+                  <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                    <Shield className="w-5 h-5 text-teal-600" />
+                    <h3 className="font-semibold text-slate-800 text-base">Controle de Acesso &amp; RBAC</h3>
+                  </div>
+
+                  <div className="space-y-4 text-xs font-sans">
+                    {/* Selecionar profissional */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">
+                        Selecionar Profissional para Editar Permissões
+                      </label>
+                      <select
+                        value={rbacSelectedProfId || (professionals.length > 0 ? professionals[0].id : '')}
+                        onChange={e => setRbacSelectedProfId(e.target.value)}
+                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 font-bold"
+                      >
+                        {professionals.length === 0 && <option value="">Sem profissionais cadastrados</option>}
+                        {professionals.map(p => (
+                          <option key={p.id} value={p.id}>
+                            {p.name} ({p.role})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Perfil de Operador Ativo simulador */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Perfil de Operador Ativo</label>
+                      <select
+                        value={currentSelectedUser}
+                        onChange={e => setCurrentSelectedUser(e.target.value)}
+                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 font-bold"
+                      >
+                        <option value="Marcela Ramos - Recepcionista">Marcela Ramos (Recepcionista Principal)</option>
+                        <option value="Dra. Amanda Silva - Cardiologista">Dra. Amanda Silva (Diretora Médica)</option>
+                        <option value="Dr. Adriano Lima - Gestor">Dr. Adriano Lima (Gestão Administrador)</option>
+                      </select>
+                    </div>
+
+                    <div className="p-4 bg-teal-50/50 border border-teal-200 rounded-xl space-y-2 text-teal-900 leading-relaxed">
+                      <span className="flex items-center gap-1.5 font-bold"><ShieldCheck className="w-4 h-4 text-teal-700" /> Encriptação de Logs Ativada</span>
+                      <p className="text-[11px] text-teal-800 font-medium">
+                        Todo acesso à base de dados clínica, alterações em prontuários eletrônicos (HCE) ou emissão de faturamentos são auditados com IP e operador de acordo com as leis LGPD vigentes.
+                      </p>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="space-y-4 text-xs font-sans">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Perfil de Operador Ativo</label>
-                    <select
-                      value={currentSelectedUser}
-                      onChange={e => setCurrentSelectedUser(e.target.value)}
-                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 font-bold"
-                    >
-                      <option value="Marcela Ramos - Recepcionista">Marcela Ramos (Recepcionista Principal)</option>
-                      <option value="Dra. Amanda Silva - Cardiologista">Dra. Amanda Silva (Diretora Médica)</option>
-                      <option value="Dr. Adriano Lima - Gestor">Dr. Adriano Lima (Gestão Administrador)</option>
-                    </select>
-                  </div>
+                {/* Coluna 2: Configuração de Permissões */}
+                <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs lg:col-span-2 space-y-4">
+                  {(() => {
+                    const activeRbacProfId = rbacSelectedProfId || (professionals.length > 0 ? professionals[0].id : '');
+                    const rbacProf = professionals.find(p => p.id === activeRbacProfId);
+                    
+                    if (!rbacProf) {
+                      return (
+                        <div className="text-center py-10 text-slate-400 font-semibold text-xs">
+                          Selecione ou cadastre um profissional para gerenciar suas permissões no sistema.
+                        </div>
+                      );
+                    }
 
-                  <div className="p-4 bg-teal-50 border border-teal-200 rounded-xl space-y-2 text-teal-900 leading-relaxed">
-                    <span className="flex items-center gap-1.5 font-bold"><ShieldCheck className="w-4 h-4 text-teal-700" /> Encriptação de Logs Ativada</span>
-                    <p className="text-xs text-teal-800">
-                      Todo acesso à base de dados clínica, alterações em prontuários eletrônicos (HCE) ou emissões de faturamentos suspensos em lote são auditados com IP e operadora de acordo com as leis LGPD vigentes.
-                    </p>
-                  </div>
+                    const currentPerms = rbacProf.permissions || [];
+
+                    const handleTogglePermission = async (permKey: string) => {
+                      if (!setProfessionals) return;
+                      const updatedPerms = currentPerms.includes(permKey)
+                        ? currentPerms.filter(k => k !== permKey)
+                        : [...currentPerms, permKey];
+
+                      setProfessionals(prev => prev.map(p => p.id === rbacProf.id ? { ...p, permissions: updatedPerms } : p));
+                      addAuditLog('Alterou Permissões RBAC', `${rbacProf.name}: ${permKey} → ${!currentPerms.includes(permKey) ? 'ATIVADO' : 'DESATIVADO'}`);
+
+                      try {
+                        await supabase
+                          .from('professionals')
+                          .update({ permissions: updatedPerms })
+                          .eq('id', rbacProf.id);
+                      } catch (e) {
+                        console.warn('Database permissions update failed, operating in memory-only mode:', e);
+                      }
+                    };
+
+                    const handleSelectAll = async (type: 'view' | 'perform' | 'all') => {
+                      if (!setProfessionals) return;
+                      
+                      const viewKeys = ['view_reception', 'view_agenda', 'view_hce', 'view_diagnostic', 'view_finance', 'view_stock', 'view_med_work', 'view_crm', 'view_security'];
+                      const performKeys = ['perform_admit', 'perform_prescribe', 'perform_sifen', 'perform_post_finance', 'perform_stock', 'perform_beds', 'perform_rbac'];
+                      
+                      let targetKeys: string[] = [];
+                      if (type === 'view') targetKeys = viewKeys;
+                      else if (type === 'perform') targetKeys = performKeys;
+                      else targetKeys = [...viewKeys, ...performKeys];
+
+                      const updatedPerms = Array.from(new Set([...currentPerms, ...targetKeys]));
+
+                      setProfessionals(prev => prev.map(p => p.id === rbacProf.id ? { ...p, permissions: updatedPerms } : p));
+                      addAuditLog('Alterou Permissões RBAC (Lote)', `${rbacProf.name}: Ativou todas as permissões de ${type}`);
+
+                      try {
+                        await supabase
+                          .from('professionals')
+                          .update({ permissions: updatedPerms })
+                          .eq('id', rbacProf.id);
+                      } catch (e) {
+                        console.warn('Database permissions update failed:', e);
+                      }
+                    };
+
+                    const handleClearAll = async () => {
+                      if (!setProfessionals) return;
+                      
+                      setProfessionals(prev => prev.map(p => p.id === rbacProf.id ? { ...p, permissions: [] } : p));
+                      addAuditLog('Alterou Permissões RBAC (Lote)', `${rbacProf.name}: Limpou todas as permissões`);
+
+                      try {
+                        await supabase
+                          .from('professionals')
+                          .update({ permissions: [] })
+                          .eq('id', rbacProf.id);
+                      } catch (e) {
+                        console.warn('Database permissions update failed:', e);
+                      }
+                    };
+
+                    const permsList = {
+                      visualize: [
+                        { key: 'view_reception', label: 'Recepção e Triagem', desc: 'Visualizar fila de pacientes, prioridades e leitos' },
+                        { key: 'view_agenda', label: 'Agenda e Consultas', desc: 'Visualizar horários de consultas e agendas médicas' },
+                        { key: 'view_hce', label: 'Histórico Clínico (HCE)', desc: 'Acessar fichas de evolução, anamneses e prontuários' },
+                        { key: 'view_diagnostic', label: 'Diagnósticos e PACS', desc: 'Visualizar exames de imagens radiológicas e laudos' },
+                        { key: 'view_finance', label: 'Financeiro e Contas', desc: 'Visualizar lançamentos de caixa, receitas e despesas' },
+                        { key: 'view_stock', label: 'Medicamentos e Insumos', desc: 'Acompanhar nível de estoque e alertas de reposição' },
+                        { key: 'view_med_work', label: 'Saúde Ocupacional', desc: 'Acessar exames ASO e dados de medicina do trabalho' },
+                        { key: 'view_crm', label: 'Marketing e CRM', desc: 'Visualizar dashboards de inteligência, NPS e campanhas' },
+                        { key: 'view_security', label: 'Auditoria de Logs', desc: 'Visualizar logs de segurança e acessos de operador' }
+                      ],
+                      perform: [
+                        { key: 'perform_admit', label: 'Internar / Admitir Paciente', desc: 'Registrar e priorizar pacientes na fila de triagem' },
+                        { key: 'perform_prescribe', label: 'Prescrever / Evoluir HCE', desc: 'Evoluir anamneses clínicas e receitar remédios' },
+                        { key: 'perform_sifen', label: 'Faturar e Emitir SIFEN', desc: 'Emitir XMLs de faturamento eletrônico integrado à DNIT' },
+                        { key: 'perform_post_finance', label: 'Lançar Receitas / Despesas', desc: 'Adicionar movimentações financeiras ao caixa geral' },
+                        { key: 'perform_stock', label: 'Dispensar Insumos / Droga', desc: 'Dispensar produtos e gerenciar baixa de estoque' },
+                        { key: 'perform_beds', label: 'Gerenciar Leitos / UTI', desc: 'Internar pacientes e alterar status dos leitos' },
+                        { key: 'perform_rbac', label: 'Configurar Regras RBAC', desc: 'Gerenciar níveis de acesso de outros profissionais' }
+                      ]
+                    };
+
+                    return (
+                      <div className="space-y-4 text-xs font-sans">
+                        <div className="flex justify-between items-center border-b border-slate-100 pb-3 flex-wrap gap-2">
+                          <div>
+                            <h4 className="font-bold text-slate-800 text-sm flex items-center gap-1.5">
+                              <span className={`w-3 h-3 rounded-full ${rbacProf.color || 'bg-slate-400'}`} />
+                              Configurar Permissões: <span className="text-teal-700">{rbacProf.name}</span>
+                            </h4>
+                            <p className="text-[10px] text-slate-500 font-medium mt-0.5">Cargo: {rbacProf.role} | Especialidade: {rbacProf.specialty}</p>
+                          </div>
+                          
+                          <div className="flex gap-1.5">
+                            <button
+                              onClick={() => handleSelectAll('all')}
+                              className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded text-[10px] transition cursor-pointer"
+                            >
+                              Selecionar Tudo
+                            </button>
+                            <button
+                              onClick={handleClearAll}
+                              className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded text-[10px] transition cursor-pointer"
+                            >
+                              Limpar Tudo
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {/* Bloco de Visualização */}
+                          <div className="space-y-3 bg-slate-50 p-4 rounded-xl border border-slate-200/60">
+                            <div className="flex justify-between items-center border-b border-slate-200 pb-1.5">
+                              <span className="font-extrabold text-slate-700 text-xs uppercase tracking-wider">Pode Visualizar / Acessar</span>
+                              <button
+                                onClick={() => handleSelectAll('view')}
+                                className="text-[9px] font-bold text-teal-600 hover:text-teal-800"
+                              >
+                                Todos
+                              </button>
+                            </div>
+                            <div className="space-y-2.5 max-h-[340px] overflow-y-auto pr-1">
+                              {permsList.visualize.map(item => {
+                                const isChecked = currentPerms.includes(item.key);
+                                return (
+                                  <label
+                                    key={item.key}
+                                    className={`flex items-start gap-2.5 p-2 rounded-lg border transition cursor-pointer select-none ${
+                                      isChecked
+                                        ? 'border-teal-500 bg-teal-50/40 text-teal-900 font-bold'
+                                        : 'border-slate-200 hover:border-slate-300 text-slate-600'
+                                    }`}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={isChecked}
+                                      onChange={() => handleTogglePermission(item.key)}
+                                      className="mt-0.5 rounded border-slate-300 text-teal-600 focus:ring-teal-500 shrink-0"
+                                    />
+                                    <div>
+                                      <p className="font-semibold text-xs">{item.label}</p>
+                                      <p className="text-[9.5px] text-slate-400 font-medium leading-tight mt-0.5">{item.desc}</p>
+                                    </div>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {/* Bloco de Realização */}
+                          <div className="space-y-3 bg-slate-50 p-4 rounded-xl border border-slate-200/60">
+                            <div className="flex justify-between items-center border-b border-slate-200 pb-1.5">
+                              <span className="font-extrabold text-slate-700 text-xs uppercase tracking-wider">Pode Realizar / Alterar</span>
+                              <button
+                                onClick={() => handleSelectAll('perform')}
+                                className="text-[9px] font-bold text-teal-600 hover:text-teal-800"
+                              >
+                                Todos
+                              </button>
+                            </div>
+                            <div className="space-y-2.5 max-h-[340px] overflow-y-auto pr-1">
+                              {permsList.perform.map(item => {
+                                const isChecked = currentPerms.includes(item.key);
+                                return (
+                                  <label
+                                    key={item.key}
+                                    className={`flex items-start gap-2.5 p-2 rounded-lg border transition cursor-pointer select-none ${
+                                      isChecked
+                                        ? 'border-teal-500 bg-teal-50/40 text-teal-900 font-bold'
+                                        : 'border-slate-200 hover:border-slate-300 text-slate-600'
+                                    }`}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={isChecked}
+                                      onChange={() => handleTogglePermission(item.key)}
+                                      className="mt-0.5 rounded border-slate-300 text-teal-600 focus:ring-teal-500 shrink-0"
+                                    />
+                                    <div>
+                                      <p className="font-semibold text-xs">{item.label}</p>
+                                      <p className="text-[9.5px] text-slate-400 font-medium leading-tight mt-0.5">{item.desc}</p>
+                                    </div>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
 
-              <div className="bg-slate-950 border border-slate-900 rounded-xl p-5 text-slate-100 lg:col-span-2 flex flex-col font-mono text-xs shadow-md">
+              {/* Linha Inferior: Terminal de Auditoria */}
+              <div className="bg-slate-950 border border-slate-900 rounded-xl p-5 text-slate-100 flex flex-col font-mono text-xs shadow-md">
                 <div className="flex items-center gap-2 font-bold text-teal-400 border-b border-slate-800 pb-3 mb-3 shrink-0">
                   <span className="w-2.5 h-2.5 bg-green-500 rounded-full animate-ping" />
                   TERMINAL DE AUDITORIA DE SEGURANÇA GERAL (LGPD)
                 </div>
 
-                <div className="space-y-2 max-h-[300px] overflow-y-auto flex-1 pr-1">
+                <div className="space-y-2 max-h-[220px] overflow-y-auto flex-1 pr-1">
                   {logs.map((log, idx) => (
                     <div key={idx} className="p-2 bg-slate-900 border border-slate-800/80 rounded text-[11px] text-slate-300 leading-relaxed">
                       <span className="text-teal-400 font-black">[{log.timestamp}]</span> Op: <span className="font-black text-white">{log.operator}</span> (<i>{log.role}</i>) | <b className="text-yellow-400 font-bold uppercase">{log.action}:</b> <span className="text-slate-400 font-medium">{log.target}</span> | <span className="text-slate-500">IP: {log.ip}</span>

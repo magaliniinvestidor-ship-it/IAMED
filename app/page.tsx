@@ -297,6 +297,7 @@ function HomeContent() {
           status: p.status,
           admissionDate: p.admission_date,
           color: p.color,
+          permissions: p.permissions || [],
         }));
         setProfessionals(mapped);
       } else {
@@ -470,12 +471,8 @@ function HomeContent() {
   // ──────────────────────────────────────────────
   if (!session) {
     return (
-      <div className="relative min-h-screen w-full flex items-center justify-center overflow-hidden bg-slate-100 font-sans">
-        {/* Hospital backdrop */}
-        <div
-          className="absolute inset-0 z-0 bg-[url('https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&q=80&w=1200')] bg-cover bg-center filter blur-xs brightness-[0.92]"
-          style={{ transform: 'scale(1.05)' }}
-        />
+      <div className="relative min-h-screen w-full flex items-center justify-center overflow-hidden bg-gradient-to-br from-slate-100 via-slate-200 to-teal-50/50 font-sans">
+        {/* Hospital backdrop hidden */}
 
         {/* Floating Language Selector Dropdown */}
         <div className="absolute top-4 right-4 z-20">
@@ -845,6 +842,8 @@ function HomeContent() {
                     activeSubmodule={activeSubmodule}
                     addAuditLog={addAuditLog}
                     professionals={professionals}
+                    activeRole={activeRole}
+                    activeOperator={activeOperator}
                   />
                 )}
                 {(activeSubmodule === 3 || activeSubmodule === 4 || activeSubmodule === 8 || activeSubmodule === 9) && (
