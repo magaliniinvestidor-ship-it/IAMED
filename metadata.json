@@ -1,0 +1,6 @@
+{
+  "name": "IAMED - CRM & ERP Clínico",
+  "description": "Sistema completo e real de gestão médica e CRM de pacientes. Inclui gestão de agenda, prontuários eletrônicos, faturamento, controle de estoque, telemedicina e co-piloto com Inteligência Artificial.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
