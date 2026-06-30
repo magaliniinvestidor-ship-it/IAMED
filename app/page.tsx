@@ -12,6 +12,7 @@ import {
 // Modular Component Screens
 import ReceptionModule from '@/components/ReceptionModule';
 import ClinicalModule from '@/components/ClinicalModule';
+import DiagnosticModule from '@/components/DiagnosticModule';
 import AdminFinanceModule from '@/components/AdminFinanceModule';
 import CrmBiModule from '@/components/CrmBiModule';
 
@@ -871,7 +872,7 @@ function HomeContent() {
                     activeOperator={activeOperator}
                   />
                 )}
-                {(activeSubmodule === 3 || activeSubmodule === 4 || activeSubmodule === 8 || activeSubmodule === 9) && (
+                {(activeSubmodule === 3 || activeSubmodule === 8 || activeSubmodule === 9) && (
                   <ClinicalModule
                     patients={patients}
                     setPatients={setPatients}
@@ -879,6 +880,13 @@ function HomeContent() {
                     addAuditLog={addAuditLog}
                     asos={asos}
                     setAsos={setAsos}
+                  />
+                )}
+                {activeSubmodule === 4 && (
+                  <DiagnosticModule
+                    patients={patients}
+                    activeSubmodule={activeSubmodule}
+                    addAuditLog={addAuditLog}
                   />
                 )}
                 {(activeSubmodule === 5 || activeSubmodule === 6 || activeSubmodule === 7 || activeSubmodule === 14) && (
