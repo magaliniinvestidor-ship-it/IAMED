@@ -29,6 +29,8 @@ import DiagnosticModule from '@/components/DiagnosticModule';
 import AdminFinanceModule from '@/components/AdminFinanceModule';
 import CrmBiModule from '@/components/CrmBiModule';
 import EstoqueFarmaciaModule from '@/components/EstoqueFarmaciaModule';
+import MedicinaTrabalhoModule from '@/components/MedicinaTrabalhoModule';
+import InternacaoCentroCirurgicoModule from '@/components/InternacaoCentroCirurgicoModule';
 
 // i18n Context
 import { I18nProvider, useI18n } from '@/lib/i18n/I18nContext';
@@ -665,8 +667,8 @@ function HomeContent() {
     { id: 5, title: "5. Faturamento Eletrônico (SIFEN/DNIT)", icon: Receipt, color: "border-emerald-500 text-emerald-600 bg-emerald-50/50" },
     { id: 6, title: "6. Gestão Financeira e Contábil", icon: TrendingUp, color: "border-emerald-500 text-emerald-600 bg-emerald-50/50" },
     { id: 7, title: "7. Estoque e Farmácia", icon: Pill, color: "border-indigo-500 text-indigo-600 bg-indigo-50/50" },
-    { id: 8, title: "8. Medicina do Trabalho", icon: HeartPulse, color: "border-rose-500 text-rose-600 bg-rose-50/50" },
-    { id: 9, title: "9. Medicina do Trabalho / Opcional", icon: ShieldAlert, color: "border-rose-500 text-rose-600 bg-rose-50/50" },
+    { id: 8, title: "8. Medicina do Trabalho (ASO)", icon: HeartPulse, color: "border-rose-500 text-rose-600 bg-rose-50/50" },
+    { id: 9, title: "9. Medicina do Trabalho / Saúde Ocupacional (PY)", icon: ShieldAlert, color: "border-rose-500 text-rose-600 bg-rose-50/50" },
     { id: 10, title: "10. Marketing e CRM de Pacientes", icon: Megaphone, color: "border-teal-500 text-teal-600 bg-teal-50/50" },
     { id: 11, title: "11. Internação e Centro Cirúrgico", icon: BedDouble, color: "border-violet-500 text-violet-600 bg-violet-50/50" },
     { id: 12, title: "12. Inteligência de Negócio (BI)", icon: BarChart3, color: "border-slate-500 text-slate-600 bg-slate-50/50" },
@@ -1105,10 +1107,18 @@ function HomeContent() {
                     activeOperator={activeOperator}
                   />
                 )}
-                {(activeSubmodule === 3 || activeSubmodule === 8 || activeSubmodule === 9) && (
+                {(activeSubmodule === 3 || activeSubmodule === 8) && (
                   <ClinicalModule
                     patients={patients}
                     setPatients={setPatients}
+                    activeSubmodule={activeSubmodule}
+                    addAuditLog={addAuditLog}
+                    asos={asos}
+                    setAsos={setAsos}
+                  />
+                )}
+                {activeSubmodule === 9 && (
+                  <MedicinaTrabalhoModule
                     activeSubmodule={activeSubmodule}
                     addAuditLog={addAuditLog}
                     asos={asos}
@@ -1198,12 +1208,21 @@ function HomeContent() {
                     setAccountingEntries={setAccountingEntries}
                   />
                 )}
-                {(activeSubmodule === 10 || activeSubmodule === 11 || activeSubmodule === 12 || activeSubmodule === 13) && (
+                {activeSubmodule === 11 && (
+                  <InternacaoCentroCirurgicoModule
+                    activeSubmodule={activeSubmodule}
+                    addAuditLog={addAuditLog}
+                    patients={patients}
+                  />
+                )}
+                {(activeSubmodule === 10 || activeSubmodule === 12 || activeSubmodule === 13) && (
                   <CrmBiModule
                     activeSubmodule={activeSubmodule}
                     addAuditLog={addAuditLog}
                     beds={beds}
                     setBeds={setBeds}
+                    patients={patients}
+                    financePostings={finance}
                   />
                 )}
               </div>

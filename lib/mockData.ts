@@ -2325,3 +2325,983 @@ export const initialBatchRecalls: BatchRecall[] = [
   },
 ];
 
+// ─────────────────────────────────────────────
+// PARAGUAI – SAÚDE OCUPACIONAL
+// Medicina do Trabalho / Certificado de Aptidão Laboral (CAL)
+// Conforme Código do Trabalho Paraguaio e MTESS
+// ─────────────────────────────────────────────
+
+export interface Empresa {
+  id: string;
+  ruc: string;
+  nome: string;
+  nomeFantasia?: string;
+  endereco: string;
+  cidade: string;
+  departamento: string;
+  telefone?: string;
+  email?: string;
+  atividadeEconomica: string;
+  setor: 'Industrial' | 'Comercial' | 'Serviços' | 'Agropecuária' | 'Construção' | 'Transporte' | 'Outro';
+  porte: 'Micro' | 'Pequena' | 'Média' | 'Grande';
+  nroFuncionarios: number;
+  representanteNome?: string;
+  representanteCi?: string;
+  status: 'ativa' | 'inativa' | 'suspensa';
+  observacoes?: string;
+}
+
+export interface ContratoEmpresa {
+  id: string;
+  empresaId: string;
+  numeroContrato: string;
+  dataInicio: string;
+  dataFim?: string;
+  tipo: 'PCMSO' | 'PGR' | 'PCMSO+PGR' | 'Exames Complementares' | 'Outro';
+  valorMensal: number;
+  prazoDias: number;
+  status: 'vigente' | 'expirado' | 'rescindido';
+  observacoes?: string;
+}
+
+export interface PlanoExame {
+  id: string;
+  contratoId: string;
+  nome: string;
+  tipoExame: 'Pré-ocupacional' | 'Periódico' | 'Retorno ao Trabalho' | 'Mudança de Função' | 'Demissional' | 'Monitoração Ambiental';
+  periodicidadeDias?: number;
+  examesPrevistos: string[];
+  valorPorTrabalhador: number;
+  ativo: boolean;
+}
+
+export interface PostoTrabalho {
+  id: string;
+  empresaId: string;
+  nome: string;
+  descricao?: string;
+  setor: string;
+  turno: 'Diurno' | 'Noturno' | 'Revezamento' | 'Administrativo';
+  nroTrabalhadores: number;
+}
+
+export interface RiscoOcupacional {
+  id: string;
+  nome: string;
+  tipo: 'Físico' | 'Químico' | 'Biológico' | 'Ergonômico' | 'Acidente' | 'Mecânico';
+  descricao?: string;
+  corIdentificacao: string;
+}
+
+export interface MatrizExame {
+  id: string;
+  riscoId: string;
+  exameNome: string;
+  exameTipo: 'Laboratorial' | 'Imagem' | 'Clínico' | 'Auditivo' | 'Oftalmológico' | 'Psicossocial' | 'Cardiológico' | 'Pneumológico' | 'Toxicológico' | 'Outro';
+  periodicidadeRecomendadaDias?: number;
+  obrigatorio: boolean;
+}
+
+export interface Trabalhador {
+  id: string;
+  empresaId: string;
+  postoId?: string;
+  nome: string;
+  ci: string;
+  ruc?: string;
+  dataNascimento: string;
+  genero: string;
+  nacionalidade: string;
+  endereco?: string;
+  telefone?: string;
+  email?: string;
+  funcao: string;
+  dataAdmissao?: string;
+  dataDemissao?: string;
+  status: 'ativo' | 'afastado' | 'demitido';
+  tipoSanguineo?: string;
+  contatoEmergencia?: string;
+  observacoes?: string;
+}
+
+export interface ExameOcupacional {
+  id: string;
+  trabalhadorId: string;
+  empresaId: string;
+  planoId?: string;
+  tipo: 'Pré-ocupacional' | 'Periódico' | 'Retorno ao Trabalho' | 'Mudança de Função' | 'Demissional';
+  dataRealizacao: string;
+  dataProximo?: string;
+  medicoResponsavel: string;
+  examesRealizados: string[];
+  resultados: string[];
+  observacoes?: string;
+  status: 'programado' | 'realizado' | 'cancelado';
+}
+
+export interface CalCertificado {
+  id: string;
+  exameId: string;
+  trabalhadorId: string;
+  empresaId: string;
+  numeroCal: string;
+  dataEmissao: string;
+  dataValidade?: string;
+  parecido: 'Apto' | 'Apto com Restrições' | 'Inapto Temporário' | 'Inapto Permanente';
+  restricoes?: string;
+  observacoes?: string;
+  medicoEmissor: string;
+  registroConselho: string;
+  qrCodeHash?: string;
+  assinaturaDigital?: string;
+  status: 'válido' | 'expirado' | 'cancelado' | 'substituído';
+}
+
+export interface RelatorioMtess {
+  id: string;
+  empresaId: string;
+  periodoInicio: string;
+  periodoFim: string;
+  tipoRelatorio: 'Mensal' | 'Trimestral' | 'Semestral' | 'Anual';
+  dados: Record<string, any>;
+  pdfUrl?: string;
+  status: 'rascunho' | 'gerado' | 'enviado' | 'arquivado';
+}
+
+// Initial data
+export const initialEmpresas: Empresa[] = [
+  { id: 'emp_1', ruc: '80045678-1', nome: 'Industrial del Sur S.A.', nomeFantasia: 'INSUR', endereco: 'Avda. Mariscal López 1456', cidade: 'Asunción', departamento: 'Capital', telefone: '+595 21 234 5678', email: 'contacto@insur.com.py', atividadeEconomica: 'Fabricação de Produtos Metalúrgicos', setor: 'Industrial', porte: 'Grande', nroFuncionarios: 350, representanteNome: 'Carlos Benítez', representanteCi: '1234567', status: 'ativa' },
+  { id: 'emp_2', ruc: '80123456-3', nome: 'TechSolutions PY S.R.L.', nomeFantasia: 'TechPY', endereco: 'Calle San Martin 890', cidade: 'Asunción', departamento: 'Capital', telefone: '+595 21 345 6789', email: 'info@techpy.com.py', atividadeEconomica: 'Serviços de TI', setor: 'Serviços', porte: 'Média', nroFuncionarios: 85, representanteNome: 'María González', representanteCi: '2345678', status: 'ativa' },
+  { id: 'emp_3', ruc: '80234567-5', nome: 'Agropecuária Doña Elena', endereco: 'Ruta 2 Km 25', cidade: 'San Lorenzo', departamento: 'Central', telefone: '+595 991 234 567', email: 'elena@agroelena.com.py', atividadeEconomica: 'Atividade Agropecuária', setor: 'Agropecuária', porte: 'Média', nroFuncionarios: 120, representanteNome: 'Elena Martínez', representanteCi: '3456789', status: 'ativa' },
+];
+
+export const initialContratos: ContratoEmpresa[] = [
+  { id: 'ctr_1', empresaId: 'emp_1', numeroContrato: 'CTR-2026-001', dataInicio: '2026-01-01', dataFim: '2026-12-31', tipo: 'PCMSO+PGR', valorMensal: 5000000, prazoDias: 30, status: 'vigente' },
+  { id: 'ctr_2', empresaId: 'emp_2', numeroContrato: 'CTR-2026-002', dataInicio: '2026-03-01', dataFim: '2027-02-28', tipo: 'PCMSO', valorMensal: 1500000, prazoDias: 30, status: 'vigente' },
+  { id: 'ctr_3', empresaId: 'emp_3', numeroContrato: 'CTR-2026-003', dataInicio: '2026-02-01', tipo: 'Exames Complementares', valorMensal: 2000000, prazoDias: 45, status: 'vigente' },
+];
+
+export const initialPostos: PostoTrabalho[] = [
+  { id: 'posto_1', empresaId: 'emp_1', nome: 'Operador de Máquinas', setor: 'Produção', turno: 'Revezamento', nroTrabalhadores: 45 },
+  { id: 'posto_2', empresaId: 'emp_1', nome: 'Soldador', setor: 'Produção', turno: 'Diurno', nroTrabalhadores: 30 },
+  { id: 'posto_3', empresaId: 'emp_2', nome: 'Desenvolvedor de Software', setor: 'TI', turno: 'Administrativo', nroTrabalhadores: 40 },
+  { id: 'posto_4', empresaId: 'emp_3', nome: 'Operador Agrícola', setor: 'Campo', turno: 'Diurno', nroTrabalhadores: 60 },
+];
+
+export const initialRiscos: RiscoOcupacional[] = [
+  { id: 'risco_1', nome: 'Ruído Contínuo', tipo: 'Físico', corIdentificacao: '#FFC107' },
+  { id: 'risco_2', nome: 'Vibração', tipo: 'Físico', corIdentificacao: '#FF5722' },
+  { id: 'risco_3', nome: 'Calor', tipo: 'Físico', corIdentificacao: '#F44336' },
+  { id: 'risco_4', nome: 'Produtos Químicos', tipo: 'Químico', corIdentificacao: '#FF5722' },
+  { id: 'risco_5', nome: 'Agentes Biológicos', tipo: 'Biológico', corIdentificacao: '#4CAF50' },
+  { id: 'risco_6', nome: 'Postura Inadequada', tipo: 'Ergonômico', corIdentificacao: '#FFC107' },
+  { id: 'risco_7', nome: 'Movimentos Repetitivos', tipo: 'Ergonômico', corIdentificacao: '#FF9800' },
+  { id: 'risco_8', nome: 'Trabalho em Altura', tipo: 'Acidente', corIdentificacao: '#F44336' },
+  { id: 'risco_9', nome: 'Eletricidade', tipo: 'Acidente', corIdentificacao: '#FFEB3B' },
+  { id: 'risco_10', nome: 'Máquinas e Equipamentos', tipo: 'Mecânico', corIdentificacao: '#795548' },
+];
+
+export const initialMatrizExames: MatrizExame[] = [
+  { id: 'mat_1', riscoId: 'risco_1', exameNome: 'Audiometria Tonal', exameTipo: 'Auditivo', periodicidadeRecomendadaDias: 365, obrigatorio: true },
+  { id: 'mat_2', riscoId: 'risco_1', exameNome: 'Audiometria Vocal', exameTipo: 'Auditivo', periodicidadeRecomendadaDias: 365, obrigatorio: true },
+  { id: 'mat_3', riscoId: 'risco_3', exameNome: 'Eletrocardiograma', exameTipo: 'Cardiológico', periodicidadeRecomendadaDias: 365, obrigatorio: true },
+  { id: 'mat_4', riscoId: 'risco_3', exameNome: 'Hemograma', exameTipo: 'Laboratorial', periodicidadeRecomendadaDias: 365, obrigatorio: false },
+  { id: 'mat_5', riscoId: 'risco_4', exameNome: 'Hemograma', exameTipo: 'Laboratorial', periodicidadeRecomendadaDias: 365, obrigatorio: true },
+  { id: 'mat_6', riscoId: 'risco_4', exameNome: 'Exame Toxicológico', exameTipo: 'Toxicológico', periodicidadeRecomendadaDias: 365, obrigatorio: true },
+  { id: 'mat_7', riscoId: 'risco_5', exameNome: 'Exames Sorológicos', exameTipo: 'Laboratorial', periodicidadeRecomendadaDias: 180, obrigatorio: true },
+  { id: 'mat_8', riscoId: 'risco_6', exameNome: 'Exame Clínico Ergonômico', exameTipo: 'Clínico', periodicidadeRecomendadaDias: 365, obrigatorio: true },
+  { id: 'mat_9', riscoId: 'risco_8', exameNome: 'Eletroencefalograma', exameTipo: 'Clínico', periodicidadeRecomendadaDias: 365, obrigatorio: true },
+  { id: 'mat_10', riscoId: 'risco_8', exameNome: 'Eletrocardiograma', exameTipo: 'Cardiológico', periodicidadeRecomendadaDias: 365, obrigatorio: true },
+  { id: 'mat_11', riscoId: 'risco_8', exameNome: 'Exame Psicológico', exameTipo: 'Psicossocial', periodicidadeRecomendadaDias: 365, obrigatorio: true },
+  { id: 'mat_12', riscoId: 'risco_10', exameNome: 'Exame Clínico Ortopédico', exameTipo: 'Clínico', periodicidadeRecomendadaDias: 365, obrigatorio: true },
+];
+
+export const initialTrabalhadores: Trabalhador[] = [
+  { id: 'trab_1', empresaId: 'emp_1', postoId: 'posto_1', nome: 'Juan Pérez Martínez', ci: '4567890', dataNascimento: '1988-03-15', genero: 'Masculino', nacionalidade: 'Paraguaya', funcao: 'Operador de Prensa', dataAdmissao: '2022-06-01', status: 'ativo', telefone: '+595 981 234 567' },
+  { id: 'trab_2', empresaId: 'emp_1', postoId: 'posto_2', nome: 'Pedro Ramírez López', ci: '5678901', dataNascimento: '1992-07-22', genero: 'Masculino', nacionalidade: 'Paraguaya', funcao: 'Soldador', dataAdmissao: '2023-01-15', status: 'ativo', telefone: '+595 982 345 678' },
+  { id: 'trab_3', empresaId: 'emp_1', postoId: 'posto_1', nome: 'Ana Vera González', ci: '6789012', dataNascimento: '1995-11-08', genero: 'Feminino', nacionalidade: 'Paraguaya', funcao: 'Operadora de Torno', dataAdmissao: '2024-03-01', status: 'ativo', telefone: '+595 983 456 789' },
+  { id: 'trab_4', empresaId: 'emp_2', postoId: 'posto_3', nome: 'Luis Fernández Ayala', ci: '7890123', dataNascimento: '1990-05-30', genero: 'Masculino', nacionalidade: 'Paraguaya', funcao: 'Desenvolvedor Sênior', dataAdmissao: '2023-08-20', status: 'ativo', telefone: '+595 984 567 890' },
+  { id: 'trab_5', empresaId: 'emp_3', postoId: 'posto_4', nome: 'Marcos Villalba Duarte', ci: '8901234', dataNascimento: '1985-09-12', genero: 'Masculino', nacionalidade: 'Paraguaya', funcao: 'Tratorista', dataAdmissao: '2020-04-10', status: 'ativo', telefone: '+595 985 678 901' },
+];
+
+export const initialExamesOcupacionais: ExameOcupacional[] = [
+  { id: 'ex_1', trabalhadorId: 'trab_1', empresaId: 'emp_1', tipo: 'Periódico', dataRealizacao: '2026-06-15', dataProximo: '2027-06-15', medicoResponsavel: 'Dr. Bruno Castro', examesRealizados: ['Audiometria Tonal', 'Hemograma', 'Eletrocardiograma', 'Raio-X de Tórax'], resultados: ['Audiometria: Normal', 'Hemograma: Normal', 'ECG: Normal', 'Raio-X: Normal'], status: 'realizado' },
+  { id: 'ex_2', trabalhadorId: 'trab_2', empresaId: 'emp_1', tipo: 'Pré-ocupacional', dataRealizacao: '2026-05-10', dataProximo: '2027-05-10', medicoResponsavel: 'Dr. Bruno Castro', examesRealizados: ['Audiometria', 'Eletrocardiograma', 'Hemograma'], resultados: ['Audiometria: Perda leve 4kHz', 'ECG: Normal', 'Hemograma: Normal'], status: 'realizado' },
+  { id: 'ex_3', trabalhadorId: 'trab_4', empresaId: 'emp_2', tipo: 'Periódico', dataRealizacao: '2026-06-01', medicoResponsavel: 'Dr. Bruno Castro', examesRealizados: ['Exame Clínico Ergonômico'], resultados: ['Clínico: Normal'], status: 'programado' },
+];
+
+export const initialCals: CalCertificado[] = [
+  { id: 'cal_1', exameId: 'ex_1', trabalhadorId: 'trab_1', empresaId: 'emp_1', numeroCal: 'CAL-2026-001', dataEmissao: '2026-06-15', dataValidade: '2027-06-15', parecido: 'Apto', medicoEmissor: 'Dr. Bruno Castro', registroConselho: 'CRM-PY 123456', status: 'válido' },
+  { id: 'cal_2', exameId: 'ex_2', trabalhadorId: 'trab_2', empresaId: 'emp_1', numeroCal: 'CAL-2026-002', dataEmissao: '2026-05-10', dataValidade: '2027-05-10', parecido: 'Apto com Restrições', restricoes: 'Uso obrigatório de EPI auditivo', medicoEmissor: 'Dr. Bruno Castro', registroConselho: 'CRM-PY 123456', status: 'válido' },
+];
+
+export const initialRelatoriosMtess: RelatorioMtess[] = [];
+
+// ─────────────────────────────────────────────
+// CRM & MARKETING DE PACIENTES
+// Segmentação, campanhas, funil, oportunidades, NPS, opt-out
+// Conforme Lei 1682/2001 (Paraguai)
+// ─────────────────────────────────────────────
+
+export interface Campaign {
+  id: string;
+  nome: string;
+  tipo: 'whatsapp' | 'sms' | 'email';
+  template: string;
+  segmentoAlvo: string;
+  mensagem: string;
+  dataDisparo: string;
+  status: 'rascunho' | 'agendada' | 'enviada' | 'cancelada';
+  totalContatos: number;
+  totalEnviados: number;
+  totalFalhas: number;
+  totalOptOut: number;
+  consentimentoObrigatorio: boolean;
+  createdBy: string;
+}
+
+export interface Lead {
+  id: string;
+  nome: string;
+  email?: string;
+  telefone?: string;
+  origem: 'site' | 'whatsapp' | 'facebook' | 'instagram' | 'google' | 'indicacao' | 'presencial' | 'outro';
+  dataPrimeiroContato: string;
+  etapaFunil: 'lead' | 'primeiro_contato' | 'primeira_consulta' | 'paciente_recorrente';
+  interesse?: string;
+  observacoes?: string;
+  ultimoContato?: string;
+  responsavel?: string;
+  convertido: boolean;
+}
+
+export interface CommercialOpportunity {
+  id: string;
+  leadId?: string;
+  pacienteNome: string;
+  pacienteTelefone?: string;
+  tipo: 'cirurgia_estetica' | 'cirurgia_geral' | 'odontologia' | 'tratamento_clinico' | 'exame' | 'internacao' | 'outro';
+  descricao: string;
+  valorEstimado: number;
+  status: 'aberta' | 'em_negociacao' | 'fechada_ganha' | 'fechada_perdida';
+  probabilidade: number;
+  dataCriacao: string;
+  dataFechamento?: string;
+  responsavel: string;
+  observacoes?: string;
+}
+
+export interface NpsSurvey {
+  id: string;
+  pacienteNome: string;
+  pacienteId?: string;
+  dataAtendimento: string;
+  dataResposta: string;
+  score: number;
+  comentario?: string;
+  categoria: 'promotor' | 'neutro' | 'detrator';
+  origem: 'whatsapp' | 'sms' | 'email' | 'app' | 'presencial';
+  respondido: boolean;
+}
+
+export interface OptOutRecord {
+  id: string;
+  pacienteNome: string;
+  pacienteContato: string;
+  canal: 'whatsapp' | 'sms' | 'email' | 'todos';
+  dataOptOut: string;
+  motivo?: string;
+  ipRegistro?: string;
+  confirmado: boolean;
+}
+
+export interface WebFormLead {
+  id: string;
+  nome: string;
+  email: string;
+  telefone: string;
+  origem: string;
+  mensagem: string;
+  dataRecebimento: string;
+  status: 'novo' | 'contatado' | 'convertido' | 'descartado';
+  interesse?: string;
+  responsavel?: string;
+}
+
+export const initialCampaigns: Campaign[] = [
+  { id: 'camp_1', nome: 'Lembrete de Consultas 22/06', tipo: 'whatsapp', template: 'Lembrete de Consulta', segmentoAlvo: 'Todos os pacientes com consulta em 22/06', mensagem: 'Olá {{nome}}, confirmamos sua consulta amanhã às {{horario}}. Sua saúde é nossa prioridade!', dataDisparo: '2026-06-21', status: 'enviada', totalContatos: 45, totalEnviados: 43, totalFalhas: 1, totalOptOut: 1, consentimentoObrigatorio: true, createdBy: 'Marcela Ramos' },
+  { id: 'camp_2', nome: 'Campanha Vacinação Gripe 2026', tipo: 'sms', template: 'Aviso de Vacinação', segmentoAlvo: 'Pacientes 60+ anos', mensagem: 'Campanha de vacinação contra gripe ativa. Agende seu horário gratuitamente.', dataDisparo: '2026-06-18', status: 'enviada', totalContatos: 128, totalEnviados: 125, totalFalhas: 2, totalOptOut: 1, consentimentoObrigatorio: true, createdBy: 'Marcela Ramos' },
+];
+
+export const initialLeads: Lead[] = [
+  { id: 'lead_1', nome: 'Camila Benítez', email: 'camila@email.com', telefone: '+595 981 111 222', origem: 'whatsapp', dataPrimeiroContato: '2026-06-15', etapaFunil: 'primeira_consulta', interesse: 'Cirurgia estética', convertido: false },
+  { id: 'lead_2', nome: 'Roberto Martínez', email: 'roberto@email.com', telefone: '+595 982 333 444', origem: 'site', dataPrimeiroContato: '2026-06-10', etapaFunil: 'primeiro_contato', interesse: 'Check-up geral', convertido: false },
+  { id: 'lead_3', nome: 'Laura Villalba', telefone: '+595 983 555 666', origem: 'instagram', dataPrimeiroContato: '2026-06-05', etapaFunil: 'lead', convertido: false },
+  { id: 'lead_4', nome: 'Diego Ramírez', email: 'diego@email.com', origem: 'indicacao', dataPrimeiroContato: '2026-05-20', etapaFunil: 'paciente_recorrente', interesse: 'Cardiologia', observacoes: 'Paciente já realizou 3 consultas', ultimoContato: '2026-06-18', convertido: true },
+];
+
+export const initialOpportunities: CommercialOpportunity[] = [
+  { id: 'opp_1', leadId: 'lead_1', pacienteNome: 'Camila Benítez', pacienteTelefone: '+595 981 111 222', tipo: 'cirurgia_estetica', descricao: 'Abdominoplastia pós-gestação', valorEstimado: 8500000, status: 'em_negociacao', probabilidade: 60, dataCriacao: '2026-06-15', responsavel: 'Dra. Amanda Silva' },
+  { id: 'opp_2', pacienteNome: 'Juan Pérez', pacienteTelefone: '+595 984 777 888', tipo: 'odontologia', descricao: 'Implante dentário 3 elementos', valorEstimado: 3200000, status: 'aberta', probabilidade: 30, dataCriacao: '2026-06-12', responsavel: 'Dr. Adriano Lima' },
+  { id: 'opp_3', pacienteNome: 'Ana María López', pacienteTelefone: '+595 985 999 000', tipo: 'cirurgia_geral', descricao: 'Colecistectomia laparoscópica', valorEstimado: 12000000, status: 'fechada_ganha', probabilidade: 100, dataCriacao: '2026-06-01', dataFechamento: '2026-06-20', responsavel: 'Dr. Bruno Castro' },
+];
+
+export const initialNpsSurveys: NpsSurvey[] = [
+  { id: 'nps_1', pacienteNome: 'Alzira Maria', pacienteId: 'pat_1', dataAtendimento: '2026-06-20', dataResposta: '2026-06-20', score: 10, comentario: 'Excelente atendimento! O co-piloto IA ajudou muito.', categoria: 'promotor', origem: 'whatsapp', respondido: true },
+  { id: 'nps_2', pacienteNome: 'Filipe Antunes', pacienteId: 'pat_2', dataAtendimento: '2026-06-19', dataResposta: '2026-06-20', score: 9, comentario: 'Portal do paciente impressionante!', categoria: 'promotor', origem: 'email', respondido: true },
+  { id: 'nps_3', pacienteNome: 'Paula Gomes', pacienteId: 'pat_3', dataAtendimento: '2026-06-18', dataResposta: '2026-06-19', score: 8, comentario: 'Atendimento rápido e eficiente.', categoria: 'neutro', origem: 'sms', respondido: true },
+  { id: 'nps_4', pacienteNome: 'Roberto Oliveira', pacienteId: 'pat_5', dataAtendimento: '2026-06-15', dataResposta: '2026-06-16', score: 6, comentario: 'Demorou um pouco na espera.', categoria: 'neutro', origem: 'whatsapp', respondido: true },
+  { id: 'nps_5', pacienteNome: 'Cláudio Siqueira', dataAtendimento: '2026-06-22', dataResposta: '', score: 0, categoria: 'neutro', origem: 'email', respondido: false },
+];
+
+export const initialOptOuts: OptOutRecord[] = [
+  { id: 'opt_1', pacienteNome: 'Marcos Pereira', pacienteContato: '+595 986 111 222', canal: 'whatsapp', dataOptOut: '2026-06-10', motivo: 'Não deseja receber mensagens de marketing', confirmado: true },
+  { id: 'opt_2', pacienteNome: 'Lucía Fernández', pacienteContato: 'lucia.f@email.com', canal: 'email', dataOptOut: '2026-06-08', motivo: 'Comunicações irrelevantes', confirmado: true },
+];
+
+export const initialWebFormLeads: WebFormLead[] = [
+  { id: 'wfl_1', nome: 'Sofia Mendoza', email: 'sofia@email.com', telefone: '+595 987 333 444', origem: 'site - Formulário Contato', mensagem: 'Gostaria de agendar uma consulta com cardiologista.', dataRecebimento: '2026-06-22', status: 'novo', interesse: 'Cardiologia' },
+  { id: 'wfl_2', nome: 'Gustavo Rivas', email: 'gustavo@email.com', telefone: '+595 988 555 666', origem: 'Facebook Ads', mensagem: 'Tenho interesse em saber valores de implante dentário.', dataRecebimento: '2026-06-21', status: 'contatado', interesse: 'Odontologia', responsavel: 'Marcela Ramos' },
+];
+
+// ==========================================
+// INTERNAÇÃO E CENTRO CIRÚRGICO
+// ==========================================
+
+// Tipos de leito
+export type BedType = 'UCI' | 'UTI' | 'UCO' | 'enfermaria' | 'apartamento_individual' | 'duplo' | 'suite';
+// Estados do leito
+export type BedStatus = 'livre' | 'ocupado' | 'limpeza' | 'manutencao' | 'reservado' | 'bloqueado';
+// Setores
+export type BedSector = 'Alas Gerais' | 'UTI' | 'UCO' | 'Centro Cirúrgico' | 'Enfermaria' | 'Apartamentos' | 'Pediatria' | 'Maternidade';
+
+// Leito estendido
+export interface BedV2 {
+  id: string;
+  name: string;
+  type: BedType;
+  sector: BedSector;
+  wing: string;
+  status: BedStatus;
+  patientId?: string;
+  patientName?: string;
+  entryDate?: string;
+  specialty?: string;
+  doctor?: string;
+  specialFeatures: string[];
+  isolation: boolean;
+  negativePressure: boolean;
+  lastCleaningAt?: string;
+  maintenanceReason?: string;
+  reservedUntil?: string;
+  reservedForPatient?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Transferência de leito
+export interface BedTransfer {
+  id: string;
+  bedFromId: string;
+  bedFromName: string;
+  bedToId: string;
+  bedToName: string;
+  patientId: string;
+  patientName: string;
+  reason: string;
+  transferredBy: string;
+  transferredAt: string;
+  notes?: string;
+}
+
+// Status da cirurgia
+export type SurgeryStatus = 'programada' | 'confirmada' | 'paciente_em_sala' | 'em_intervencao' | 'em_recuperacao' | 'finalizada' | 'suspensa' | 'cancelada';
+// Tipo de anestesia
+export type AnesthesiaType = 'geral' | 'regional' | 'local' | 'sedacao' | 'bloqueio' | 'combinada';
+
+// Equipe cirúrgica
+export interface SurgicalTeam {
+  surgeon: string;
+  anesthesiologist: string;
+  instrumentator: string;
+  circulator: string;
+  assistants: string[];
+}
+
+// Checklist pré-cirúrgico (OMS)
+export interface SurgicalChecklist {
+  id: string;
+  surgeryId: string;
+  patientIdentityVerified: boolean;
+  lateralityVerified: boolean;
+  fastingVerified: boolean;
+  preOpExamsVerified: boolean;
+  informedConsentSigned: boolean;
+  antibioticProphylaxis: boolean;
+  checklistCompletedBy: string;
+  checklistCompletedAt: string;
+  notes?: string;
+}
+
+// Registro intraoperatório
+export interface IntraoperativeRecord {
+  id: string;
+  surgeryId: string;
+  startTime: string;
+  endTime?: string;
+  intercurrences: string;
+  materialsConsumed: { name: string; quantity: number; lotNumber?: string }[];
+  anestheticNotes: string;
+  vitalSigns: { time: string; bp: string; hr: number; spo2: number; }[];
+  recordedBy: string;
+  recordedAt: string;
+}
+
+// Agendamento cirúrgico
+export interface SurgerySchedule {
+  id: string;
+  patientId: string;
+  patientName: string;
+  surgeon: string;
+  team: SurgicalTeam;
+  room: string;
+  procedureType: string;
+  procedureCode: string;
+  estimatedDuration: number;
+  anesthesiaType: AnesthesiaType;
+  specialMaterials: string[];
+  status: SurgeryStatus;
+  scheduledDate: string;
+  scheduledTime: string;
+  actualStartTime?: string;
+  actualEndTime?: string;
+  checklist?: SurgicalChecklist;
+  intraoperative?: IntraoperativeRecord;
+  preOpDiagnosis: string;
+  postOpDiagnosis?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Status da internação
+export type HospitalizationStatus = 'ativa' | 'alta_medica' | 'alta_voluntaria' | 'alta_administrativa' | 'transferencia' | 'obito';
+// Tipo de cobertura
+export type CoverageType = 'particular' | 'convênio' | 'ips' | 'sanidade_militar' | 'sanidade_policial' | 'seguro_privado' | 'corporativo' | 'mercosul';
+
+// Episódio de internação
+export interface HospitalizationEpisode {
+  id: string;
+  patientId: string;
+  patientName: string;
+  admissionDate: string;
+  admissionTime: string;
+  reason: string;
+  initialDiagnosis: string;
+  initialCid10: string;
+  responsibleDoctor: string;
+  coverageType: CoverageType;
+  coverageAuthorization: string;
+  bedId: string;
+  bedName: string;
+  status: HospitalizationStatus;
+  dischargeDate?: string;
+  dischargeSummary?: string;
+  dischargeDoctor?: string;
+  transferInstitution?: string;
+  deathCause?: string;
+  deathCertificate?: string;
+  medicalEvolutions: MedicalEvolution[];
+  nursingSheets: NursingSheet[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Evolução médica diária
+export interface MedicalEvolution {
+  id: string;
+  hospitalizationId: string;
+  patientId: string;
+  date: string;
+  time: string;
+  doctor: string;
+  subjective: string;
+  objective: string;
+  assessment: string;
+  plan: string;
+  vitalSigns: { bp: string; hr: number; rr: number; temp: string; spo2: number; };
+  signedAt?: string;
+  signatureId?: string;
+  createdAt: string;
+}
+
+// Folha de enfermagem
+export interface NursingSheet {
+  id: string;
+  hospitalizationId: string;
+  patientId: string;
+  date: string;
+  shift: 'manha' | 'tarde' | 'noite';
+  nurse: string;
+  vitalSigns: { time: string; bp: string; hr: number; rr: number; temp: string; spo2: number; }[];
+  fluidBalance: { intake: number; output: number; balance: number; };
+  medications: { name: string; dosage: string; route: string; time: string; administeredBy: string; }[];
+  interventions: { description: string; time: string; }[];
+  observations: string;
+  createdAt: string;
+}
+
+// Tipos de alerta
+export type AlertType = 'alta_prevista' | 'tempo_internacao_excedido' | 'limpeza_excedida' | 'conflito_sala' | 'checklist_pendente';
+
+export interface HospitalAlert {
+  id: string;
+  type: AlertType;
+  title: string;
+  description: string;
+  severity: 'info' | 'warning' | 'critical';
+  sourceId: string;
+  sourceName: string;
+  createdAt: string;
+  resolved: boolean;
+  resolvedAt?: string;
+  resolvedBy?: string;
+}
+
+// Relatórios hospitalares
+export interface BedOccupationReport {
+  date: string;
+  sector: string;
+  bedType: string;
+  totalBeds: number;
+  occupiedBeds: number;
+  freeBeds: number;
+  occupancyRate: number;
+}
+
+export interface HospitalizationReport {
+  period: string;
+  specialty: string;
+  doctor: string;
+  diagnosis: string;
+  coverage: string;
+  admissions: number;
+  discharges: number;
+  averageStay: number;
+  deaths: number;
+}
+
+export interface SurgeryReport {
+  period: string;
+  surgeon: string;
+  procedureType: string;
+  scheduled: number;
+  performed: number;
+  suspended: number;
+  cancelled: number;
+  averageDuration: number;
+}
+
+export interface FinancialHospitalReport {
+  hospitalizationId: string;
+  patientName: string;
+  directCosts: number;
+  indirectCosts: number;
+  totalCosts: number;
+  revenue: number;
+  margin: number;
+  coverageType: string;
+}
+
+export interface StayReport {
+  patientId: string;
+  patientName: string;
+  diagnosis: string;
+  actualStay: number;
+  averageStayForDiagnosis: number;
+  difference: number;
+}
+
+// ==========================================
+// SEED DATA - LEITOS V2
+// ==========================================
+export const initialBedsV2: BedV2[] = [
+  { id: 'bed_1', name: 'Enfermaria 101-A', type: 'enfermaria', sector: 'Alas Gerais', wing: 'Ala A', status: 'ocupado', patientId: 'pat_1', patientName: 'Carlos Eduardo Almeida', entryDate: '2026-06-21', specialty: 'Cardiologia', doctor: 'Dra. Amanda Silva', specialFeatures: [], isolation: false, negativePressure: false, lastCleaningAt: '2026-06-20T08:00:00', createdAt: '2026-01-01', updatedAt: '2026-06-21' },
+  { id: 'bed_2', name: 'Enfermaria 101-B', type: 'enfermaria', sector: 'Alas Gerais', wing: 'Ala A', status: 'livre', specialFeatures: [], isolation: false, negativePressure: false, lastCleaningAt: '2026-06-22T06:00:00', createdAt: '2026-01-01', updatedAt: '2026-06-22' },
+  { id: 'bed_3', name: 'UTI Cardiológica Box 01', type: 'UTI', sector: 'UTI', wing: 'UTI', status: 'limpeza', specialFeatures: ['monitor_cardiaco', 'ventilador_mecanico'], isolation: false, negativePressure: false, lastCleaningAt: '2026-06-22T10:00:00', createdAt: '2026-01-01', updatedAt: '2026-06-22' },
+  { id: 'bed_4', name: 'UTI Cardiológica Box 02', type: 'UTI', sector: 'UTI', wing: 'UTI', status: 'reservado', reservedUntil: '2026-06-25', reservedForPatient: 'Cirurgia Cardíaca Eletiva', specialFeatures: ['monitor_cardiaco', 'ventilador_mecanico', 'marca_passo'], isolation: false, negativePressure: false, createdAt: '2026-01-01', updatedAt: '2026-06-22' },
+  { id: 'bed_5', name: 'UCO Box 01', type: 'UCO', sector: 'UCO', wing: 'UCO', status: 'livre', specialFeatures: ['telemetria'], isolation: false, negativePressure: false, lastCleaningAt: '2026-06-21T14:00:00', createdAt: '2026-01-01', updatedAt: '2026-06-21' },
+  { id: 'bed_6', name: 'Apartamento 201 - Premium', type: 'apartamento_individual', sector: 'Apartamentos', wing: 'Ala B', status: 'ocupado', patientId: 'pat_2', patientName: 'Mariana Rosa Santos', entryDate: '2026-06-21', specialty: 'Obstetrícia', doctor: 'Dra. Amanda Silva', specialFeatures: ['tv', 'frigobar', 'wifi', 'banheiro_privativo'], isolation: false, negativePressure: false, createdAt: '2026-01-01', updatedAt: '2026-06-21' },
+  { id: 'bed_7', name: 'Apartamento 202 - Premium', type: 'apartamento_individual', sector: 'Apartamentos', wing: 'Ala B', status: 'manutencao', maintenanceReason: 'Pintura e reparos', specialFeatures: ['tv', 'frigobar', 'wifi', 'banheiro_privativo'], isolation: false, negativePressure: false, createdAt: '2026-01-01', updatedAt: '2026-06-20' },
+  { id: 'bed_8', name: 'Suíte Master 301', type: 'suite', sector: 'Apartamentos', wing: 'Ala C', status: 'bloqueado', specialFeatures: ['tv', 'frigobar', 'wifi', 'banheiro_privativo', 'sofá_cama', 'vista_panoramica'], isolation: false, negativePressure: false, createdAt: '2026-01-01', updatedAt: '2026-06-01' },
+  { id: 'bed_9', name: 'Enfermaria 102-A', type: 'enfermaria', sector: 'Alas Gerais', wing: 'Ala A', status: 'livre', specialFeatures: [], isolation: false, negativePressure: false, lastCleaningAt: '2026-06-22T07:00:00', createdAt: '2026-01-01', updatedAt: '2026-06-22' },
+  { id: 'bed_10', name: 'Quarto Duplo 203-A', type: 'duplo', sector: 'Alas Gerais', wing: 'Ala B', status: 'ocupado', patientId: 'pat_3', patientName: 'Joaquim Bento Pereira', entryDate: '2026-06-19', specialty: 'Ortopedia', doctor: 'Dr. Adriano Lima', specialFeatures: ['tv'], isolation: false, negativePressure: false, createdAt: '2026-01-01', updatedAt: '2026-06-19' },
+  { id: 'bed_11', name: 'Quarto Duplo 203-B', type: 'duplo', sector: 'Alas Gerais', wing: 'Ala B', status: 'livre', specialFeatures: ['tv'], isolation: false, negativePressure: false, lastCleaningAt: '2026-06-22T08:00:00', createdAt: '2026-01-01', updatedAt: '2026-06-22' },
+  { id: 'bed_12', name: 'UTI - Isolamento Box 03', type: 'UTI', sector: 'UTI', wing: 'UTI', status: 'livre', specialFeatures: ['monitor_cardiaco', 'ventilador_mecanico', 'pressao_negativa'], isolation: true, negativePressure: true, lastCleaningAt: '2026-06-21T16:00:00', createdAt: '2026-01-01', updatedAt: '2026-06-21' },
+  { id: 'bed_13', name: 'Pediatria 301-A', type: 'enfermaria', sector: 'Pediatria', wing: 'Ala D', status: 'livre', specialFeatures: ['berco'], isolation: false, negativePressure: false, createdAt: '2026-01-01', updatedAt: '2026-06-01' },
+  { id: 'bed_14', name: 'Maternidade 401', type: 'apartamento_individual', sector: 'Maternidade', wing: 'Ala E', status: 'reservado', reservedUntil: '2026-07-10', reservedForPatient: 'Parto programado', specialFeatures: ['tv', 'berco', 'poltrona_acompanhante'], isolation: false, negativePressure: false, createdAt: '2026-01-01', updatedAt: '2026-06-22' },
+  { id: 'bed_15', name: 'Sala Cirúrgica 01', type: 'apartamento_individual', sector: 'Centro Cirúrgico', wing: 'Bloco Cirúrgico', status: 'ocupado', specialFeatures: ['mesa_cirurgica', 'foco', 'anestesia', 'monitor'], isolation: false, negativePressure: false, createdAt: '2026-01-01', updatedAt: '2026-06-22' },
+];
+
+// Transferências de leito
+export const initialBedTransfers: BedTransfer[] = [
+  { id: 'bt_1', bedFromId: 'bed_10', bedFromName: 'Quarto Duplo 203-A', bedToId: 'bed_10', bedToName: 'Quarto Duplo 203-A', patientId: 'pat_3', patientName: 'Joaquim Bento Pereira', reason: 'Troca de leito por necessidade de acompanhante', transferredBy: 'Enf. Marcela Ramos', transferredAt: '2026-06-20T14:30:00', notes: 'Paciente solicitou troca para leito com acompanhante' },
+];
+
+// ==========================================
+// SEED DATA - AGENDA CIRÚRGICA
+// ==========================================
+export const initialSurgerySchedule: SurgerySchedule[] = [
+  {
+    id: 'surg_1',
+    patientId: 'pat_1',
+    patientName: 'Carlos Eduardo Almeida',
+    surgeon: 'Dr. Adriano Lima',
+    team: {
+      surgeon: 'Dr. Adriano Lima',
+      anesthesiologist: 'Dr. Carlos Mendes',
+      instrumentator: 'Enf. Téc. Juliana',
+      circulator: 'Enf. Marcos',
+      assistants: ['Dr. Pedro Alves'],
+    },
+    room: 'Sala Cirúrgica 01',
+    procedureType: 'Colecistectomia Laparoscópica',
+    procedureCode: 'CIR-001',
+    estimatedDuration: 120,
+    anesthesiaType: 'geral',
+    specialMaterials: ['Kit laparoscopia', 'Grampeador endoscópico', 'Solução fisiológica'],
+    status: 'confirmada',
+    scheduledDate: '2026-06-23',
+    scheduledTime: '08:00',
+    preOpDiagnosis: 'Colelitíase sintomática (K80)',
+    notes: 'Jejum desde 22h do dia anterior. Antibioticoprofilaxia com Cefazolina 2g EV.',
+    createdAt: '2026-06-10',
+    updatedAt: '2026-06-22',
+    checklist: {
+      id: 'check_1',
+      surgeryId: 'surg_1',
+      patientIdentityVerified: true,
+      lateralityVerified: true,
+      fastingVerified: true,
+      preOpExamsVerified: true,
+      informedConsentSigned: true,
+      antibioticProphylaxis: true,
+      checklistCompletedBy: 'Enf. Marcela Ramos',
+      checklistCompletedAt: '2026-06-22T20:00:00',
+    },
+  },
+  {
+    id: 'surg_2',
+    patientId: 'pat_2',
+    patientName: 'Mariana Rosa Santos',
+    surgeon: 'Dra. Amanda Silva',
+    team: {
+      surgeon: 'Dra. Amanda Silva',
+      anesthesiologist: 'Dr. Carlos Mendes',
+      instrumentator: 'Enf. Téc. Juliana',
+      circulator: 'Enf. Marcos',
+      assistants: [],
+    },
+    room: 'Sala Cirúrgica 01',
+    procedureType: 'Cesárea',
+    procedureCode: 'CIR-002',
+    estimatedDuration: 90,
+    anesthesiaType: 'regional',
+    specialMaterials: ['Kit cesárea', 'Solução fisiológica', 'Ocitocina'],
+    status: 'programada',
+    scheduledDate: '2026-06-24',
+    scheduledTime: '10:00',
+    preOpDiagnosis: 'Gestação 39 semanas - cesárea eletiva (O80)',
+    createdAt: '2026-06-15',
+    updatedAt: '2026-06-22',
+  },
+  {
+    id: 'surg_3',
+    patientId: 'pat_3',
+    patientName: 'Joaquim Bento Pereira',
+    surgeon: 'Dr. Adriano Lima',
+    team: {
+      surgeon: 'Dr. Adriano Lima',
+      anesthesiologist: 'Dr. Ricardo Souza',
+      instrumentator: 'Enf. Téc. Paula',
+      circulator: 'Enf. Carla',
+      assistants: [],
+    },
+    room: 'Sala Cirúrgica 02',
+    procedureType: 'Artroplastia Total de Joelho',
+    procedureCode: 'CIR-003',
+    estimatedDuration: 180,
+    anesthesiaType: 'combinada',
+    specialMaterials: ['Prótese de joelho', 'Cimento ósseo', 'Dreno de sucção', 'Compressas'],
+    status: 'programada',
+    scheduledDate: '2026-06-25',
+    scheduledTime: '07:30',
+    preOpDiagnosis: 'Artrose do joelho (M17)',
+    notes: 'Paciente em uso de anticoagulante - suspender 5 dias antes',
+    createdAt: '2026-06-01',
+    updatedAt: '2026-06-20',
+  },
+  {
+    id: 'surg_4',
+    patientId: 'pat_5',
+    patientName: 'Roberto de Oliveira Cruz',
+    surgeon: 'Dr. Bruno Castro',
+    team: {
+      surgeon: 'Dr. Bruno Castro',
+      anesthesiologist: 'Dr. Ricardo Souza',
+      instrumentator: 'Enf. Téc. Juliana',
+      circulator: 'Enf. Marcos',
+      assistants: [],
+    },
+    room: 'Sala Cirúrgica 03',
+    procedureType: 'Herniorrafia Inguinal',
+    procedureCode: 'CIR-004',
+    estimatedDuration: 60,
+    anesthesiaType: 'local',
+    specialMaterials: ['Tela de polipropileno', 'Solução anestésica'],
+    status: 'suspensa',
+    scheduledDate: '2026-06-20',
+    scheduledTime: '14:00',
+    preOpDiagnosis: 'Hérnia inguinal direita',
+    notes: 'Suspensa por falta de autorização do convênio',
+    createdAt: '2026-06-05',
+    updatedAt: '2026-06-19',
+  },
+  {
+    id: 'surg_5',
+    patientId: 'pat_4',
+    patientName: 'Ana Júlia de Souza',
+    surgeon: 'Dr. Adriano Lima',
+    team: {
+      surgeon: 'Dr. Adriano Lima',
+      anesthesiologist: 'Dr. Carlos Mendes',
+      instrumentator: 'Enf. Téc. Paula',
+      circulator: 'Enf. Carla',
+      assistants: [],
+    },
+    room: 'Sala Cirúrgica 02',
+    procedureType: 'Apendicectomia',
+    procedureCode: 'CIR-005',
+    estimatedDuration: 60,
+    anesthesiaType: 'geral',
+    specialMaterials: ['Kit apendicectomia'],
+    status: 'em_intervencao',
+    scheduledDate: '2026-06-22',
+    scheduledTime: '11:00',
+    actualStartTime: '2026-06-22T11:15:00',
+    preOpDiagnosis: 'Apendicite aguda',
+    createdAt: '2026-06-22',
+    updatedAt: '2026-06-22',
+    checklist: {
+      id: 'check_5',
+      surgeryId: 'surg_5',
+      patientIdentityVerified: true,
+      lateralityVerified: true,
+      fastingVerified: true,
+      preOpExamsVerified: true,
+      informedConsentSigned: true,
+      antibioticProphylaxis: true,
+      checklistCompletedBy: 'Enf. Marcela Ramos',
+      checklistCompletedAt: '2026-06-22T10:30:00',
+    },
+    intraoperative: {
+      id: 'intra_5',
+      surgeryId: 'surg_5',
+      startTime: '2026-06-22T11:15:00',
+      intercurrences: 'Nenhuma intercorrência até o momento',
+      materialsConsumed: [{ name: 'Solução fisiológica 500ml', quantity: 2 }, { name: 'Fio de sutura vicryl 2.0', quantity: 3 }],
+      anestheticNotes: 'Indução anestésica com Propofol 120mg + Fentanil 100mcg. Manutenção com Sevoflurano.',
+      vitalSigns: [{ time: '11:15', bp: '120x80', hr: 78, spo2: 99 }, { time: '11:30', bp: '118x76', hr: 72, spo2: 100 }],
+      recordedBy: 'Dr. Carlos Mendes',
+      recordedAt: '2026-06-22T11:30:00',
+    },
+  },
+];
+
+// ==========================================
+// SEED DATA - INTERNAÇÕES
+// ==========================================
+export const initialHospitalizations: HospitalizationEpisode[] = [
+  {
+    id: 'hosp_1',
+    patientId: 'pat_1',
+    patientName: 'Carlos Eduardo Almeida',
+    admissionDate: '2026-06-21',
+    admissionTime: '14:30',
+    reason: 'Dor abdominal intensa em hipocôndrio direito há 3 dias, com náuseas e vômitos',
+    initialDiagnosis: 'Colelitíase sintomática / Colecistite aguda',
+    initialCid10: 'K80',
+    responsibleDoctor: 'Dra. Amanda Silva',
+    coverageType: 'convênio',
+    coverageAuthorization: 'AUTH-2026-0100',
+    bedId: 'bed_1',
+    bedName: 'Enfermaria 101-A',
+    status: 'ativa',
+    medicalEvolutions: [
+      {
+        id: 'evol_1',
+        hospitalizationId: 'hosp_1',
+        patientId: 'pat_1',
+        date: '2026-06-21',
+        time: '16:00',
+        doctor: 'Dra. Amanda Silva',
+        subjective: 'Paciente relata dor moderada (5/10) em hipocôndrio direito. Náusea controlada com antieméticos.',
+        objective: 'PA 130x85, FC 82 bpm, FR 16 rpm, Temp 37.2°C, SpO2 98%. Abdome doloroso à palpação profunda em HD. Sinal de Murphy positivo. Sem sinais de peritonite.',
+        assessment: 'Colecistite aguda leve. Paciente estável hemodinamicamente.',
+        plan: 'Manter hidratação EV, antibioticoterapia (Ceftriaxona + Metronidazol). Programar colecistectomia laparoscópica para 23/06. Solicitar exames pré-operatórios.',
+        vitalSigns: { bp: '130x85', hr: 82, rr: 16, temp: '37.2', spo2: 98 },
+        createdAt: '2026-06-21T16:00:00',
+      },
+      {
+        id: 'evol_2',
+        hospitalizationId: 'hosp_1',
+        patientId: 'pat_1',
+        date: '2026-06-22',
+        time: '08:00',
+        doctor: 'Dra. Amanda Silva',
+        subjective: 'Paciente refere melhora da dor (2/10). Sem náuseas. Aceitando dieta líquida.',
+        objective: 'PA 125x80, FC 76 bpm, FR 14 rpm, Temp 36.8°C, SpO2 99%. Abdome menos doloroso. Exames pré-op solicitados.',
+        assessment: 'Melhora clínica com tratamento conservador. Paciente apto para cirurgia amanhã.',
+        plan: 'Manter antibioticoterapia. Jejum a partir das 22h. Preparo pré-operatório conforme protocolo.',
+        vitalSigns: { bp: '125x80', hr: 76, rr: 14, temp: '36.8', spo2: 99 },
+        createdAt: '2026-06-22T08:00:00',
+      },
+    ],
+    nursingSheets: [
+      {
+        id: 'nurs_1',
+        hospitalizationId: 'hosp_1',
+        patientId: 'pat_1',
+        date: '2026-06-21',
+        shift: 'tarde',
+        nurse: 'Enf. Marcela Ramos',
+        vitalSigns: [
+          { time: '15:00', bp: '135x85', hr: 84, rr: 16, temp: '37.3', spo2: 97 },
+          { time: '17:00', bp: '130x85', hr: 82, rr: 16, temp: '37.2', spo2: 98 },
+          { time: '19:00', bp: '128x82', hr: 80, rr: 15, temp: '37.0', spo2: 98 },
+        ],
+        fluidBalance: { intake: 1500, output: 800, balance: 700 },
+        medications: [
+          { name: 'Ceftriaxona 1g', dosage: '1g EV 12/12h', route: 'EV', time: '15:30', administeredBy: 'Enf. Marcela Ramos' },
+          { name: 'Metronidazol 500mg', dosage: '500mg EV 8/8h', route: 'EV', time: '15:30', administeredBy: 'Enf. Marcela Ramos' },
+          { name: 'Dipirona 500mg', dosage: '500mg EV', route: 'EV', time: '15:00', administeredBy: 'Enf. Marcela Ramos' },
+          { name: 'Ondansetrona 8mg', dosage: '8mg EV', route: 'EV', time: '15:00', administeredBy: 'Enf. Marcela Ramos' },
+        ],
+        interventions: [
+          { description: 'Acesso venoso periférico calibre 20G MSE', time: '15:00' },
+          { description: 'Coleta de exames laboratoriais', time: '15:15' },
+          { description: 'Orientação sobre jejum pré-operatório', time: '18:00' },
+        ],
+        observations: 'Paciente lúcido, orientado, deambulando. Aceitou dieta líquida. Queixas de dor controladas.',
+        createdAt: '2026-06-21T20:00:00',
+      },
+    ],
+    createdAt: '2026-06-21T14:30:00',
+    updatedAt: '2026-06-22T08:00:00',
+  },
+  {
+    id: 'hosp_2',
+    patientId: 'pat_2',
+    patientName: 'Mariana Rosa Santos',
+    admissionDate: '2026-06-21',
+    admissionTime: '10:00',
+    reason: 'Admissão para cesárea eletiva - gestação 39 semanas',
+    initialDiagnosis: 'Gestação 39 semanas - cesárea eletiva',
+    initialCid10: 'O80',
+    responsibleDoctor: 'Dra. Amanda Silva',
+    coverageType: 'particular',
+    coverageAuthorization: 'N/A',
+    bedId: 'bed_6',
+    bedName: 'Apartamento 201 - Premium',
+    status: 'ativa',
+    medicalEvolutions: [
+      {
+        id: 'evol_3',
+        hospitalizationId: 'hosp_2',
+        patientId: 'pat_2',
+        date: '2026-06-21',
+        time: '11:00',
+        doctor: 'Dra. Amanda Silva',
+        subjective: 'Paciente assintomática, nega contrações ou perda de líquido. Ansiosa pela cesárea agendada para 24/06.',
+        objective: 'PA 115x75, FC 72 bpm, FR 14 rpm, Temp 36.6°C, SpO2 100%. BCF 148 bpm. Altura uterina compatível. Toque: colo posterior, fechado.',
+        assessment: 'Gestante de 39 semanas, sem sinais de trabalho de parto. Condições fetais adequadas.',
+        plan: 'Aguardar cesárea eletiva dia 24/06. Realizar cardiotocografia diária. Orientar sinais de alerta.',
+        vitalSigns: { bp: '115x75', hr: 72, rr: 14, temp: '36.6', spo2: 100 },
+        createdAt: '2026-06-21T11:00:00',
+      },
+    ],
+    nursingSheets: [
+      {
+        id: 'nurs_2',
+        hospitalizationId: 'hosp_2',
+        patientId: 'pat_2',
+        date: '2026-06-21',
+        shift: 'tarde',
+        nurse: 'Enf. Marcela Ramos',
+        vitalSigns: [
+          { time: '12:00', bp: '115x75', hr: 74, rr: 14, temp: '36.5', spo2: 100 },
+          { time: '16:00', bp: '118x78', hr: 76, rr: 15, temp: '36.6', spo2: 100 },
+        ],
+        fluidBalance: { intake: 800, output: 350, balance: 450 },
+        medications: [
+          { name: 'Sulfato Ferroso 40mg', dosage: '40mg VO 1x/dia', route: 'VO', time: '12:00', administeredBy: 'Enf. Marcela Ramos' },
+          { name: 'Ácido Fólico 5mg', dosage: '5mg VO 1x/dia', route: 'VO', time: '12:00', administeredBy: 'Enf. Marcela Ramos' },
+        ],
+        interventions: [
+          { description: 'Cardiotocografia - reativo, BCF 148, movimentos fetais presentes', time: '14:00' },
+          { description: 'Orientação pré-operatória para cesárea', time: '15:00' },
+        ],
+        observations: 'Paciente tranquila, deambulando. Aceitando dieta geral. Movimentação fetal ativa.',
+        createdAt: '2026-06-21T18:00:00',
+      },
+    ],
+    createdAt: '2026-06-21T10:00:00',
+    updatedAt: '2026-06-21T11:00:00',
+  },
+  {
+    id: 'hosp_3',
+    patientId: 'pat_3',
+    patientName: 'Joaquim Bento Pereira',
+    admissionDate: '2026-06-19',
+    admissionTime: '09:00',
+    reason: 'Dor lombar crônica com piora progressiva, aguardando artroplastia de joelho',
+    initialDiagnosis: 'Artrose do joelho direito (M17)',
+    initialCid10: 'M17',
+    responsibleDoctor: 'Dr. Adriano Lima',
+    coverageType: 'convênio',
+    coverageAuthorization: 'AUTH-2026-0095',
+    bedId: 'bed_10',
+    bedName: 'Quarto Duplo 203-A',
+    status: 'ativa',
+    medicalEvolutions: [
+      {
+        id: 'evol_4',
+        hospitalizationId: 'hosp_3',
+        patientId: 'pat_3',
+        date: '2026-06-19',
+        time: '14:00',
+        doctor: 'Dr. Adriano Lima',
+        subjective: 'Paciente com dor articular (4/10) em joelho D. Dificuldade para deambular. Aguardando cirurgia.',
+        objective: 'PA 140x90, FC 88 bpm, FR 16 rpm, Temp 36.8°C. Joelho D com crepitação e dor à movimentação. Edema leve.',
+        assessment: 'Paciente pré-operatório de artroplastia de joelho. Hipertenso em tratamento.',
+        plan: 'Suspender anticoagulante (Rivaroxabana) conforme protocolo. Solicitar ECG e Rx tórax. Manter anti-hipertensivos.',
+        vitalSigns: { bp: '140x90', hr: 88, rr: 16, temp: '36.8', spo2: 97 },
+        createdAt: '2026-06-19T14:00:00',
+      },
+    ],
+    nursingSheets: [],
+    createdAt: '2026-06-19T09:00:00',
+    updatedAt: '2026-06-19T14:00:00',
+  },
+];
+
+// ==========================================
+// SEED DATA - ALERTAS HOSPITALARES
+// ==========================================
+export const initialHospitalAlerts: HospitalAlert[] = [
+  { id: 'alert_h_1', type: 'alta_prevista', title: 'Alta Prevista - Joaquim Bento', description: 'Paciente internado desde 19/06. Alta prevista para 26/06.', severity: 'info', sourceId: 'hosp_3', sourceName: 'Joaquim Bento Pereira', createdAt: '2026-06-22T08:00:00', resolved: false },
+  { id: 'alert_h_2', type: 'tempo_internacao_excedido', title: 'Tempo de Internação Excedido', description: 'Paciente Joaquim Bento (4 dias) excedeu média para artrose (3 dias).', severity: 'warning', sourceId: 'hosp_3', sourceName: 'Joaquim Bento Pereira', createdAt: '2026-06-22T08:00:00', resolved: false },
+  { id: 'alert_h_3', type: 'limpeza_excedida', title: 'Higienização Excedida - UTI Box 01', description: 'Leito UTI Box 01 em limpeza há mais de 2 horas. Verificar atraso.', severity: 'warning', sourceId: 'bed_3', sourceName: 'UTI Cardiológica Box 01', createdAt: '2026-06-22T10:30:00', resolved: false },
+  { id: 'alert_h_4', type: 'checklist_pendente', title: 'Checklist Pendente - Cesárea', description: 'Checklist pré-cirúrgico para cesárea de Mariana Santos ainda não foi preenchido.', severity: 'info', sourceId: 'surg_2', sourceName: 'Cesárea - Mariana Rosa Santos', createdAt: '2026-06-22T09:00:00', resolved: false },
+];
+
