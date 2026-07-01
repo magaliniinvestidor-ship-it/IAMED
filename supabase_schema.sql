@@ -249,3 +249,180 @@ INSERT INTO professionals (id, name, role, specialty, council, council_number, s
 ('prof_3', 'Dr. Bruno Castro', 'Médico(a)', 'Medicina do Trabalho', 'CRM', 'CRM-SP 345678', 'Integral', 'bruno.castro@iamed.med.br', '+55 11 98654-3210', 'ativo', '2020-01-10', 'bg-rose-500', ARRAY['view_agenda', 'view_hce', 'view_diagnostic', 'view_med_work', 'perform_prescribe']),
 ('prof_4', 'Enf. Marcela Ramos', 'Enfermeiro(a)', 'Enfermagem Clínica', 'COREN', 'COREN-SP 456789', 'Plantão 12h', 'marcela.ramos@iamed.med.br', '+55 11 97543-2109', 'ativo', '2023-02-20', 'bg-sky-500', ARRAY['view_reception', 'view_agenda', 'view_diagnostic', 'perform_admit', 'perform_beds']),
 ('prof_5', 'Fis. Camila Torres', 'Fisioterapeuta', 'Fisioterapia Ortopédica', 'CREFITO', 'CREFITO-3 567890', 'Manhã', 'camila.torres@iamed.med.br', '+55 11 96432-1098', 'férias', '2023-08-05', 'bg-violet-500', ARRAY['view_agenda', 'view_hce']);
+
+-- ==========================================
+-- ESTOQUE E FARMÁCIA
+-- ==========================================
+
+-- 12. Itens da Farmácia/Estoque
+CREATE TABLE pharmacy_items (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  active_principle TEXT,
+  category TEXT NOT NULL CHECK (category IN ('venda_livre', 'sob_receita', 'controlado', 'entorpecente', 'psicotropico', 'uso_hospitalar', 'biologico', 'insumo', 'descartavel', 'material')),
+  form TEXT CHECK (form IN ('comprimido', 'capsula', 'ampola', 'frasco', 'seringa', 'spray', 'creme', 'pomada', 'gel', 'solucao', 'po', 'outro')),
+  presentation TEXT NOT NULL DEFAULT '',
+  manufacturer TEXT NOT NULL DEFAULT '',
+  dinavisa_registration TEXT NOT NULL,
+  requires_prescription BOOLEAN DEFAULT FALSE,
+  total_quantity INTEGER NOT NULL DEFAULT 0,
+  min_quantity INTEGER NOT NULL DEFAULT 0,
+  storage_location TEXT NOT NULL DEFAULT '',
+  unit_cost NUMERIC(12,0) DEFAULT 0,
+  unit_price NUMERIC(12,0) DEFAULT 0,
+  active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+-- 13. Controle de Lotes
+CREATE TABLE lot_controls (
+  id TEXT PRIMARY KEY,
+  item_id TEXT REFERENCES pharmacy_items(id) ON DELETE CASCADE NOT NULL,
+  lot_number TEXT NOT NULL,
+  serial_number TEXT,
+  manufacture_date DATE NOT NULL,
+  expiry_date DATE NOT NULL,
+  quantity INTEGER NOT NULL DEFAULT 0,
+  initial_quantity INTEGER NOT NULL DEFAULT 0,
+  cost_per_unit NUMERIC(12,0) DEFAULT 0,
+  dinavisa_registration TEXT NOT NULL,
+  dte_entry_number TEXT,
+  supplier_name TEXT,
+  supplier_ruc TEXT,
+  received_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  status TEXT NOT NULL CHECK (status IN ('disponivel', 'bloqueado', 'vencido', 'recolhido')) DEFAULT 'disponivel',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+-- 14. Movimentações de Estoque
+CREATE TABLE stock_movements (
+  id TEXT PRIMARY KEY,
+  item_id TEXT REFERENCES pharmacy_items(id) ON DELETE CASCADE NOT NULL,
+  item_name TEXT NOT NULL,
+  lot_id TEXT REFERENCES lot_controls(id) ON DELETE CASCADE NOT NULL,
+  lot_number TEXT NOT NULL,
+  movement_type TEXT NOT NULL CHECK (movement_type IN ('entrada', 'saida', 'ajuste', 'inventario', 'devolucao', 'perda')),
+  quantity INTEGER NOT NULL,
+  unit_cost NUMERIC(12,0) DEFAULT 0,
+  total_cost NUMERIC(12,0) DEFAULT 0,
+  date DATE NOT NULL DEFAULT CURRENT_DATE,
+  operator_name TEXT NOT NULL DEFAULT '',
+  dte_number TEXT,
+  supplier_name TEXT,
+  patient_id TEXT,
+  patient_name TEXT,
+  procedure_name TEXT,
+  room TEXT,
+  sector TEXT,
+  hospitalization_id TEXT,
+  prescription_id TEXT,
+  doctor_name TEXT,
+  reason TEXT,
+  notes TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+-- 15. Inventário Físico
+CREATE TABLE inventory_counts (
+  id TEXT PRIMARY KEY,
+  date DATE NOT NULL DEFAULT CURRENT_DATE,
+  operator_name TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('programado', 'em_andamento', 'concluido', 'cancelado')) DEFAULT 'programado',
+  items JSONB DEFAULT '[]'::JSONB,
+  notes TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+-- 16. Farmacovigilância - Reações Adversas (RAM)
+CREATE TABLE adverse_events (
+  id TEXT PRIMARY KEY,
+  patient_name TEXT NOT NULL,
+  patient_id TEXT,
+  medication_name TEXT NOT NULL,
+  item_id TEXT REFERENCES pharmacy_items(id) ON DELETE SET NULL,
+  lot_id TEXT REFERENCES lot_controls(id) ON DELETE SET NULL,
+  lot_number TEXT NOT NULL,
+  adverse_reaction TEXT NOT NULL,
+  severity TEXT NOT NULL CHECK (severity IN ('leve', 'moderada', 'grave', 'fatal')),
+  start_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  end_date DATE,
+  outcome TEXT NOT NULL CHECK (outcome IN ('recuperado', 'recuperando', 'nao_recuperado', 'obito', 'desconhecido')),
+  suspected_drug BOOLEAN DEFAULT TRUE,
+  concomitant_drugs TEXT[] DEFAULT '{}',
+  description TEXT NOT NULL,
+  notifier_name TEXT NOT NULL,
+  notifier_role TEXT NOT NULL,
+  notification_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  status TEXT NOT NULL CHECK (status IN ('rascunho', 'notificado', 'em_analise', 'arquivado')) DEFAULT 'notificado',
+  dinavisa_protocol TEXT,
+  dinavisa_response TEXT,
+  notes TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+-- 17. Farmacovigilância - Desvios de Qualidade
+CREATE TABLE quality_deviations (
+  id TEXT PRIMARY KEY,
+  item_id TEXT REFERENCES pharmacy_items(id) ON DELETE CASCADE NOT NULL,
+  item_name TEXT NOT NULL,
+  lot_id TEXT REFERENCES lot_controls(id) ON DELETE CASCADE NOT NULL,
+  lot_number TEXT NOT NULL,
+  deviation_type TEXT NOT NULL CHECK (deviation_type IN ('quebra', 'contaminacao', 'rotulagem', 'embalagem', 'esterilidade', 'potencia', 'outro')),
+  description TEXT NOT NULL,
+  severity TEXT NOT NULL CHECK (severity IN ('leve', 'moderada', 'grave', 'fatal')),
+  affected_quantity INTEGER NOT NULL DEFAULT 0,
+  report_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  reporter_name TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('aberto', 'investigacao', 'concluido', 'arquivado')) DEFAULT 'aberto',
+  corrective_action TEXT,
+  root_cause TEXT,
+  closed_at DATE,
+  notes TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+-- 18. Farmacovigilância - Recolhimento de Lotes
+CREATE TABLE batch_recalls (
+  id TEXT PRIMARY KEY,
+  item_id TEXT REFERENCES pharmacy_items(id) ON DELETE CASCADE NOT NULL,
+  item_name TEXT NOT NULL,
+  lot_id TEXT REFERENCES lot_controls(id) ON DELETE CASCADE NOT NULL,
+  lot_number TEXT NOT NULL,
+  recall_type TEXT NOT NULL CHECK (recall_type IN ('fabricante', 'dinavisa', 'interna')),
+  reason TEXT NOT NULL,
+  risk_level TEXT NOT NULL CHECK (risk_level IN ('baixo', 'medio', 'alto', 'critico')),
+  alert_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  affected_quantity INTEGER NOT NULL DEFAULT 0,
+  recollected_quantity INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL CHECK (status IN ('ativo', 'concluido', 'monitoramento')) DEFAULT 'ativo',
+  dinavisa_notice TEXT,
+  instructions TEXT,
+  completed_at DATE,
+  notes TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+-- Habilitar RLS para todas as tabelas
+ALTER TABLE pharmacy_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE lot_controls ENABLE ROW LEVEL SECURITY;
+ALTER TABLE stock_movements ENABLE ROW LEVEL SECURITY;
+ALTER TABLE inventory_counts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE adverse_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE quality_deviations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE batch_recalls ENABLE ROW LEVEL SECURITY;
+
+-- Políticas de Acesso
+CREATE POLICY "Allow public read access" ON pharmacy_items FOR SELECT USING (true);
+CREATE POLICY "Allow authenticated changes" ON pharmacy_items FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public read access" ON lot_controls FOR SELECT USING (true);
+CREATE POLICY "Allow authenticated changes" ON lot_controls FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public read access" ON stock_movements FOR SELECT USING (true);
+CREATE POLICY "Allow authenticated changes" ON stock_movements FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public read access" ON inventory_counts FOR SELECT USING (true);
+CREATE POLICY "Allow authenticated changes" ON inventory_counts FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public read access" ON adverse_events FOR SELECT USING (true);
+CREATE POLICY "Allow authenticated changes" ON adverse_events FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public read access" ON quality_deviations FOR SELECT USING (true);
+CREATE POLICY "Allow authenticated changes" ON quality_deviations FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public read access" ON batch_recalls FOR SELECT USING (true);
+CREATE POLICY "Allow authenticated changes" ON batch_recalls FOR ALL TO authenticated USING (true) WITH CHECK (true);

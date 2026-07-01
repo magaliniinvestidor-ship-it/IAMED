@@ -1983,3 +1983,345 @@ export const initialLabAlerts: LabAlert[] = [
   { id: 'alert_2', resultId: 'labr_2', orderId: 'labord_1', patientId: 'pat_1', patientName: 'Carlos Eduardo Almeida', testName: 'Glucosa en ayunas', value: 108, flag: 'alto', severity: 'info', message: 'Glucosa 108 mg/dL. Ligeramente elevada. Considerar intolerancia a la glucosa.', notifiedTo: ['Dra. Amanda Silva'], createdAt: '2026-06-22T12:00:06' },
 ];
 
+// ==========================================
+// ESTOQUE E FARMÁCIA
+// ==========================================
+export type DrugCategory = 'venda_livre' | 'sob_receita' | 'controlado' | 'entorpecente' | 'psicotropico' | 'uso_hospitalar' | 'biologico' | 'insumo' | 'descartavel' | 'material';
+export type DrugForm = 'comprimido' | 'capsula' | 'ampola' | 'frasco' | 'seringa' | 'spray' | 'creme' | 'pomada' | 'gel' | 'solucao' | 'po' | 'outro';
+export type StockMovementType = 'entrada' | 'saida' | 'ajuste' | 'inventario' | 'devolucao' | 'perda';
+
+export interface PharmacyItem {
+  id: string;
+  name: string;
+  activePrinciple?: string;
+  category: DrugCategory;
+  form?: DrugForm;
+  presentation: string;
+  manufacturer: string;
+  dinavisaRegistration: string;
+  requiresPrescription: boolean;
+  lots: LotControl[];
+  totalQuantity: number;
+  minQuantity: number;
+  storageLocation: string;
+  unitCost: number;
+  unitPrice: number;
+  active: boolean;
+}
+
+export interface LotControl {
+  id: string;
+  itemId: string;
+  lotNumber: string;
+  serialNumber?: string;
+  manufactureDate: string;
+  expiryDate: string;
+  quantity: number;
+  initialQuantity: number;
+  costPerUnit: number;
+  dinavisaRegistration: string;
+  dteEntryNumber?: string;
+  supplierName?: string;
+  supplierRuc?: string;
+  receivedDate: string;
+  status: 'disponivel' | 'bloqueado' | 'vencido' | 'recolhido';
+}
+
+export interface StockMovement {
+  id: string;
+  itemId: string;
+  itemName: string;
+  lotId: string;
+  lotNumber: string;
+  movementType: StockMovementType;
+  quantity: number;
+  unitCost: number;
+  totalCost: number;
+  date: string;
+  operatorName: string;
+  dteNumber?: string;
+  supplierName?: string;
+  patientId?: string;
+  patientName?: string;
+  procedureName?: string;
+  room?: string;
+  sector?: string;
+  hospitalizationId?: string;
+  prescriptionId?: string;
+  doctorName?: string;
+  reason?: string;
+  notes?: string;
+}
+
+export interface InventoryCount {
+  id: string;
+  date: string;
+  operatorName: string;
+  status: 'programado' | 'em_andamento' | 'concluido' | 'cancelado';
+  items: InventoryCountItem[];
+  notes?: string;
+}
+
+export interface InventoryCountItem {
+  itemId: string;
+  itemName: string;
+  lotId: string;
+  lotNumber: string;
+  expectedQuantity: number;
+  countedQuantity: number;
+  difference: number;
+  barcodeScanned?: string;
+}
+
+export const initialPharmacyItems: PharmacyItem[] = [
+  {
+    id: 'pharm_1', name: 'Amoxicilina 500mg', activePrinciple: 'Amoxicilina',
+    category: 'sob_receita', form: 'capsula', presentation: 'Cápsula 500mg',
+    manufacturer: 'Laboratório PY', dinavisaRegistration: 'DINAVISA-001-2023',
+    requiresPrescription: true, totalQuantity: 480, minQuantity: 100,
+    storageLocation: 'Farmácia - Gôndola A1', unitCost: 150, unitPrice: 350, active: true,
+    lots: [
+      { id: 'lot_1', itemId: 'pharm_1', lotNumber: 'LOT-AMX-001', serialNumber: 'SN-AMX-001', manufactureDate: '2025-12-01', expiryDate: '2027-12-01', quantity: 240, initialQuantity: 500, costPerUnit: 150, dinavisaRegistration: 'DINAVISA-001-2023', dteEntryNumber: '001-001-0000101', supplierName: 'Proveedora Médica S.A.', supplierRuc: '80123456-5', receivedDate: '2026-01-15', status: 'disponivel' },
+      { id: 'lot_2', itemId: 'pharm_1', lotNumber: 'LOT-AMX-002', manufactureDate: '2026-03-01', expiryDate: '2028-03-01', quantity: 240, initialQuantity: 250, costPerUnit: 160, dinavisaRegistration: 'DINAVISA-001-2023', dteEntryNumber: '001-001-0000105', supplierName: 'Laboratorio Farma SA', supplierRuc: '80234567-1', receivedDate: '2026-04-10', status: 'disponivel' },
+    ]
+  },
+  {
+    id: 'pharm_2', name: 'Dipirona Sódica 500mg', activePrinciple: 'Dipirona Monoidratada',
+    category: 'venda_livre', form: 'comprimido', presentation: 'Comprimido 500mg',
+    manufacturer: 'Laboratório PY', dinavisaRegistration: 'DINAVISA-002-2023',
+    requiresPrescription: false, totalQuantity: 1000, minQuantity: 200,
+    storageLocation: 'Farmácia - Gôndola B2', unitCost: 80, unitPrice: 200, active: true,
+    lots: [
+      { id: 'lot_3', itemId: 'pharm_2', lotNumber: 'LOT-DIP-001', manufactureDate: '2026-01-01', expiryDate: '2028-01-01', quantity: 1000, initialQuantity: 1000, costPerUnit: 80, dinavisaRegistration: 'DINAVISA-002-2023', supplierName: 'Proveedora Médica S.A.', supplierRuc: '80123456-5', receivedDate: '2026-02-01', status: 'disponivel' },
+    ]
+  },
+  {
+    id: 'pharm_3', name: 'Clonazepam 2mg', activePrinciple: 'Clonazepam',
+    category: 'controlado', form: 'comprimido', presentation: 'Comprimido 2mg',
+    manufacturer: 'Laboratório PY', dinavisaRegistration: 'DINAVISA-003-2022',
+    requiresPrescription: true, totalQuantity: 150, minQuantity: 50,
+    storageLocation: 'Farmácia - Armário Controlado C1 (Chave)', unitCost: 250, unitPrice: 600, active: true,
+    lots: [
+      { id: 'lot_4', itemId: 'pharm_3', lotNumber: 'LOT-CLO-001', serialNumber: 'SN-CLO-001', manufactureDate: '2026-02-01', expiryDate: '2027-08-01', quantity: 150, initialQuantity: 200, costPerUnit: 250, dinavisaRegistration: 'DINAVISA-003-2022', dteEntryNumber: '001-001-0000102', supplierName: 'Oficina Farmacéutica S.A.', supplierRuc: '80765432-1', receivedDate: '2026-03-01', status: 'disponivel' },
+    ]
+  },
+  {
+    id: 'pharm_4', name: 'Insulina NPH 10ml', activePrinciple: 'Insulina Humana NPH',
+    category: 'biologico', form: 'frasco', presentation: 'Frasco 10ml (100 UI/ml)',
+    manufacturer: 'Novo Nordisk', dinavisaRegistration: 'DINAVISA-004-2021',
+    requiresPrescription: true, totalQuantity: 8, minQuantity: 15,
+    storageLocation: 'Farmácia - Refrigerador R1 (2-8°C)', unitCost: 4500, unitPrice: 8500, active: true,
+    lots: [
+      { id: 'lot_5', itemId: 'pharm_4', lotNumber: 'LOT-INS-001', serialNumber: 'SN-INS-001', manufactureDate: '2026-04-01', expiryDate: '2026-10-01', quantity: 5, initialQuantity: 20, costPerUnit: 4500, dinavisaRegistration: 'DINAVISA-004-2021', dteEntryNumber: '001-001-0000103', supplierName: 'Proveedora Médica S.A.', supplierRuc: '80123456-5', receivedDate: '2026-05-01', status: 'disponivel' },
+      { id: 'lot_6', itemId: 'pharm_4', lotNumber: 'LOT-INS-002', serialNumber: 'SN-INS-002', manufactureDate: '2026-05-01', expiryDate: '2026-09-01', quantity: 3, initialQuantity: 10, costPerUnit: 4700, dinavisaRegistration: 'DINAVISA-004-2021', dteEntryNumber: '001-001-0000104', supplierName: 'Oficina Farmacéutica S.A.', supplierRuc: '80765432-1', receivedDate: '2026-06-01', status: 'disponivel' },
+    ]
+  },
+  {
+    id: 'pharm_5', name: 'Sulfato Ferroso 40mg', activePrinciple: 'Sulfato Ferroso',
+    category: 'venda_livre', form: 'comprimido', presentation: 'Comprimido 40mg',
+    manufacturer: 'Laboratório PY', dinavisaRegistration: 'DINAVISA-005-2023',
+    requiresPrescription: false, totalQuantity: 600, minQuantity: 100,
+    storageLocation: 'Farmácia - Gôndola A3', unitCost: 50, unitPrice: 120, active: true,
+    lots: [
+      { id: 'lot_7', itemId: 'pharm_5', lotNumber: 'LOT-FER-001', manufactureDate: '2026-03-01', expiryDate: '2028-03-01', quantity: 600, initialQuantity: 600, costPerUnit: 50, dinavisaRegistration: 'DINAVISA-005-2023', supplierName: 'Laboratorio Farma SA', supplierRuc: '80234567-1', receivedDate: '2026-04-01', status: 'disponivel' },
+    ]
+  },
+  {
+    id: 'pharm_6', name: 'Seringa Descartável 5ml', activePrinciple: '',
+    category: 'descartavel', form: 'seringa', presentation: 'Seringa Luer Lock 5ml',
+    manufacturer: 'BD Medical', dinavisaRegistration: 'DINAVISA-006-2023',
+    requiresPrescription: false, totalQuantity: 1500, minQuantity: 300,
+    storageLocation: 'Depósito - Caixa D3', unitCost: 120, unitPrice: 250, active: true,
+    lots: [
+      { id: 'lot_8', itemId: 'pharm_6', lotNumber: 'LOT-SER-001', manufactureDate: '2026-01-01', expiryDate: '2029-01-01', quantity: 1500, initialQuantity: 2000, costPerUnit: 120, dinavisaRegistration: 'DINAVISA-006-2023', dteEntryNumber: '001-001-0000101', supplierName: 'Proveedora Médica S.A.', supplierRuc: '80123456-5', receivedDate: '2026-02-15', status: 'disponivel' },
+    ]
+  },
+  {
+    id: 'pharm_7', name: 'Metilfenidato 10mg', activePrinciple: 'Metilfenidato',
+    category: 'psicotropico', form: 'comprimido', presentation: 'Comprimido 10mg',
+    manufacturer: 'Novartis', dinavisaRegistration: 'DINAVISA-007-2022',
+    requiresPrescription: true, totalQuantity: 80, minQuantity: 30,
+    storageLocation: 'Farmácia - Armário Controlado C2 (Chave)', unitCost: 800, unitPrice: 1800, active: true,
+    lots: [
+      { id: 'lot_9', itemId: 'pharm_7', lotNumber: 'LOT-MET-001', serialNumber: 'SN-MET-001', manufactureDate: '2026-01-01', expiryDate: '2027-07-01', quantity: 80, initialQuantity: 100, costPerUnit: 800, dinavisaRegistration: 'DINAVISA-007-2022', dteEntryNumber: '001-001-0000102', supplierName: 'Oficina Farmacéutica S.A.', supplierRuc: '80765432-1', receivedDate: '2026-02-01', status: 'disponivel' },
+    ]
+  },
+  {
+    id: 'pharm_8', name: 'Gaze Estéril 7,5x7,5', activePrinciple: '',
+    category: 'material', form: 'outro', presentation: 'Pacote c/ 10 unidades',
+    manufacturer: 'Cremer', dinavisaRegistration: 'DINAVISA-008-2023',
+    requiresPrescription: false, totalQuantity: 300, minQuantity: 100,
+    storageLocation: 'Depósito - Caixa D1', unitCost: 350, unitPrice: 700, active: true,
+    lots: [
+      { id: 'lot_10', itemId: 'pharm_8', lotNumber: 'LOT-GAZ-001', manufactureDate: '2026-02-01', expiryDate: '2028-02-01', quantity: 300, initialQuantity: 300, costPerUnit: 350, dinavisaRegistration: 'DINAVISA-008-2023', supplierName: 'Proveedora Médica S.A.', supplierRuc: '80123456-5', receivedDate: '2026-03-01', status: 'disponivel' },
+    ]
+  },
+  {
+    id: 'pharm_9', name: 'Morfina 10mg/ml', activePrinciple: 'Morfina',
+    category: 'entorpecente', form: 'ampola', presentation: 'Ampola 1ml 10mg/ml',
+    manufacturer: 'Cristália', dinavisaRegistration: 'DINAVISA-009-2021',
+    requiresPrescription: true, totalQuantity: 20, minQuantity: 10,
+    storageLocation: 'Farmácia - Cofre Entorpecentes (Dupla Chave)', unitCost: 3200, unitPrice: 6500, active: true,
+    lots: [
+      { id: 'lot_11', itemId: 'pharm_9', lotNumber: 'LOT-MOR-001', serialNumber: 'SN-MOR-001', manufactureDate: '2026-03-01', expiryDate: '2027-09-01', quantity: 12, initialQuantity: 20, costPerUnit: 3200, dinavisaRegistration: 'DINAVISA-009-2021', dteEntryNumber: '001-001-0000106', supplierName: 'Oficina Farmacéutica S.A.', supplierRuc: '80765432-1', receivedDate: '2026-04-01', status: 'disponivel' },
+      { id: 'lot_12', itemId: 'pharm_9', lotNumber: 'LOT-MOR-002', serialNumber: 'SN-MOR-002', manufactureDate: '2026-05-01', expiryDate: '2027-10-15', quantity: 8, initialQuantity: 10, costPerUnit: 3300, dinavisaRegistration: 'DINAVISA-009-2021', dteEntryNumber: '001-001-0000107', supplierName: 'Oficina Farmacéutica S.A.', supplierRuc: '80765432-1', receivedDate: '2026-06-01', status: 'disponivel' },
+    ]
+  },
+  {
+    id: 'pharm_10', name: 'Cateter Gelco 20G', activePrinciple: '',
+    category: 'insumo', form: 'outro', presentation: 'Cateter Intravenoso 20G',
+    manufacturer: 'BD Medical', dinavisaRegistration: 'DINAVISA-010-2023',
+    requiresPrescription: false, totalQuantity: 12, minQuantity: 40,
+    storageLocation: 'Depósito - Caixa D2', unitCost: 450, unitPrice: 900, active: true,
+    lots: [
+      { id: 'lot_13', itemId: 'pharm_10', lotNumber: 'LOT-CAT-001', manufactureDate: '2025-06-01', expiryDate: '2027-06-01', quantity: 12, initialQuantity: 50, costPerUnit: 450, dinavisaRegistration: 'DINAVISA-010-2023', dteEntryNumber: '001-001-0000101', supplierName: 'Proveedora Médica S.A.', supplierRuc: '80123456-5', receivedDate: '2026-01-15', status: 'disponivel' },
+    ]
+  },
+];
+
+export const initialStockMovements: StockMovement[] = [
+  { id: 'mov_1', itemId: 'pharm_1', itemName: 'Amoxicilina 500mg', lotId: 'lot_1', lotNumber: 'LOT-AMX-001', movementType: 'entrada', quantity: 500, unitCost: 150, totalCost: 75000, date: '2026-01-15', operatorName: 'Marcela Ramos', dteNumber: '001-001-0000101', supplierName: 'Proveedora Médica S.A.' },
+  { id: 'mov_2', itemId: 'pharm_1', itemName: 'Amoxicilina 500mg', lotId: 'lot_1', lotNumber: 'LOT-AMX-001', movementType: 'saida', quantity: 260, unitCost: 150, totalCost: 39000, date: '2026-06-10', operatorName: 'Enf. Marcela Ramos', patientName: 'Carlos Eduardo Almeida', procedureName: 'Consulta Geral', notes: 'Prescrição de Amoxicilina 500mg 7 dias' },
+  { id: 'mov_3', itemId: 'pharm_4', itemName: 'Insulina NPH 10ml', lotId: 'lot_5', lotNumber: 'LOT-INS-001', movementType: 'saida', quantity: 15, unitCost: 4500, totalCost: 67500, date: '2026-06-15', operatorName: 'Enf. Marcela Ramos', patientName: 'Joaquim Bento Pereira', room: 'Leito 101-A', sector: 'Alas Gerais', notes: 'Paciente diabético insulinodependente' },
+  { id: 'mov_4', itemId: 'pharm_6', itemName: 'Seringa Descartável 5ml', lotId: 'lot_8', lotNumber: 'LOT-SER-001', movementType: 'saida', quantity: 500, unitCost: 120, totalCost: 60000, date: '2026-06-18', operatorName: 'Enf. Marcela Ramos', sector: 'Alas Gerais', notes: 'Uso geral nas enfermarias' },
+  { id: 'mov_5', itemId: 'pharm_4', itemName: 'Insulina NPH 10ml', lotId: 'lot_5', lotNumber: 'LOT-INS-001', movementType: 'entrada', quantity: 20, unitCost: 4500, totalCost: 90000, date: '2026-05-01', operatorName: 'Marcela Ramos', dteNumber: '001-001-0000103', supplierName: 'Proveedora Médica S.A.' },
+  { id: 'mov_6', itemId: 'pharm_9', itemName: 'Morfina 10mg/ml', lotId: 'lot_11', lotNumber: 'LOT-MOR-001', movementType: 'saida', quantity: 8, unitCost: 3200, totalCost: 25600, date: '2026-06-20', operatorName: 'Dra. Amanda Silva', patientName: 'Carlos Eduardo Almeida', procedureName: 'Procedimento Cirúrgico', notes: 'Uso intraoperatório sob prescrição médica controlada' },
+  { id: 'mov_7', itemId: 'pharm_10', itemName: 'Cateter Gelco 20G', lotId: 'lot_13', lotNumber: 'LOT-CAT-001', movementType: 'saida', quantity: 38, unitCost: 450, totalCost: 17100, date: '2026-06-22', operatorName: 'Enf. Marcela Ramos', sector: 'Alas Gerais', notes: 'Reposição semanal enfermarias' },
+];
+
+export const initialInventoryCounts: InventoryCount[] = [
+  { id: 'inv_1', date: '2026-06-15', operatorName: 'Marcela Ramos', status: 'concluido', items: [
+    { itemId: 'pharm_1', itemName: 'Amoxicilina 500mg', lotId: 'lot_1', lotNumber: 'LOT-AMX-001', expectedQuantity: 240, countedQuantity: 240, difference: 0 },
+    { itemId: 'pharm_1', itemName: 'Amoxicilina 500mg', lotId: 'lot_2', lotNumber: 'LOT-AMX-002', expectedQuantity: 240, countedQuantity: 238, difference: -2 },
+    { itemId: 'pharm_2', itemName: 'Dipirona Sódica 500mg', lotId: 'lot_3', lotNumber: 'LOT-DIP-001', expectedQuantity: 1000, countedQuantity: 1000, difference: 0 },
+    { itemId: 'pharm_4', itemName: 'Insulina NPH 10ml', lotId: 'lot_5', lotNumber: 'LOT-INS-001', expectedQuantity: 5, countedQuantity: 5, difference: 0 },
+    { itemId: 'pharm_6', itemName: 'Seringa Descartável 5ml', lotId: 'lot_8', lotNumber: 'LOT-SER-001', expectedQuantity: 1500, countedQuantity: 1498, difference: -2 },
+  ], notes: 'Inventário mensal - pequenas diferenças registradas e ajustadas' },
+  { id: 'inv_2', date: '2026-07-01', operatorName: 'Marcela Ramos', status: 'programado', items: [], notes: 'Próximo inventário programado' },
+];
+
+// ==========================================
+// FARMACOVIGILÂNCIA
+// ==========================================
+export type AdverseEventSeverity = 'leve' | 'moderada' | 'grave' | 'fatal';
+export type AdverseEventOutcome = 'recuperado' | 'recuperando' | 'nao_recuperado' | 'obito' | 'desconhecido';
+export type NotificationStatus = 'rascunho' | 'notificado' | 'em_analise' | 'arquivado';
+
+export interface AdverseEvent {
+  id: string;
+  patientName: string;
+  patientId?: string;
+  medicationName: string;
+  itemId: string;
+  lotId: string;
+  lotNumber: string;
+  adverseReaction: string;
+  severity: AdverseEventSeverity;
+  startDate: string;
+  endDate?: string;
+  outcome: AdverseEventOutcome;
+  suspectedDrug: boolean;
+  concomitantDrugs: string[];
+  description: string;
+  notifierName: string;
+  notifierRole: string;
+  notificationDate: string;
+  status: NotificationStatus;
+  dinavisaProtocol?: string;
+  dinavisaResponse?: string;
+  notes?: string;
+}
+
+export interface QualityDeviation {
+  id: string;
+  itemId: string;
+  itemName: string;
+  lotId: string;
+  lotNumber: string;
+  deviationType: 'quebra' | 'contaminacao' | 'rotulagem' | 'embalagem' | 'esterilidade' | 'potencia' | 'outro';
+  description: string;
+  severity: AdverseEventSeverity;
+  affectedQuantity: number;
+  reportDate: string;
+  reporterName: string;
+  status: 'aberto' | 'investigacao' | 'concluido' | 'arquivado';
+  correctiveAction?: string;
+  rootCause?: string;
+  closedAt?: string;
+  notes?: string;
+}
+
+export interface BatchRecall {
+  id: string;
+  itemId: string;
+  itemName: string;
+  lotId: string;
+  lotNumber: string;
+  recallType: 'fabricante' | 'dinavisa' | 'interna';
+  reason: string;
+  riskLevel: 'baixo' | 'medio' | 'alto' | 'critico';
+  alertDate: string;
+  affectedQuantity: number;
+  recollectedQuantity: number;
+  status: 'ativo' | 'concluido' | 'monitoramento';
+  dinavisaNotice?: string;
+  instructions?: string;
+  completedAt?: string;
+  notes?: string;
+}
+
+export const initialAdverseEvents: AdverseEvent[] = [
+  {
+    id: 'ae_1', patientName: 'Carlos Eduardo Almeida', patientId: 'pat_1',
+    medicationName: 'Amoxicilina 500mg', itemId: 'pharm_1', lotId: 'lot_1', lotNumber: 'LOT-AMX-001',
+    adverseReaction: 'Urticária generalizada e prurido intenso',
+    severity: 'moderada', startDate: '2026-06-20', endDate: '2026-06-22',
+    outcome: 'recuperado', suspectedDrug: true, concomitantDrugs: ['Losartana 50mg'],
+    description: 'Paciente iniciou amoxicilina para sinusite. Após 3 dias, apresentou urticária em tronco e membros, com prurido intenso. Medicamento suspenso e antihistamínico prescrito. Quadro resolvido em 48h.',
+    notifierName: 'Dra. Amanda Silva', notifierRole: 'Médico',
+    notificationDate: '2026-06-22', status: 'notificado',
+    dinavisaProtocol: 'DINAVISA-RAM-2026-0042',
+  },
+  {
+    id: 'ae_2', patientName: 'Mariana Rosa Santos', patientId: 'pat_2',
+    medicationName: 'Sulfato Ferroso 40mg', itemId: 'pharm_5', lotId: 'lot_7', lotNumber: 'LOT-FER-001',
+    adverseReaction: 'Náuseas intensas e epigastralgia',
+    severity: 'leve', startDate: '2026-06-10', outcome: 'recuperado',
+    suspectedDrug: true, concomitantDrugs: ['Ácido Fólico 5mg'],
+    description: 'Paciente gestante em uso de sulfato ferroso apresentou náuseas matinais intensas e desconforto epigástrico. Orientado tomar com alimentos. Sintomas controlados.',
+    notifierName: 'Enf. Marcela Ramos', notifierRole: 'Enfermeiro',
+    notificationDate: '2026-06-15', status: 'notificado',
+  },
+];
+
+export const initialQualityDeviations: QualityDeviation[] = [
+  {
+    id: 'qd_1', itemId: 'pharm_1', itemName: 'Amoxicilina 500mg', lotId: 'lot_2', lotNumber: 'LOT-AMX-002',
+    deviationType: 'embalagem', severity: 'leve', affectedQuantity: 2,
+    description: 'Blister com violação de selo - 2 comprimidos expostos',
+    reportDate: '2026-05-10', reporterName: 'Marcela Ramos',
+    status: 'concluido', correctiveAction: 'Lote segregado e devolvido ao fornecedor.',
+    rootCause: 'Falha na selagem durante fabricação', closedAt: '2026-05-15',
+  },
+  {
+    id: 'qd_2', itemId: 'pharm_10', itemName: 'Cateter Gelco 20G', lotId: 'lot_13', lotNumber: 'LOT-CAT-001',
+    deviationType: 'esterilidade', severity: 'grave', affectedQuantity: 5,
+    description: 'Embalagem individual com selo de esterilidade rompido',
+    reportDate: '2026-06-18', reporterName: 'Enf. Marcela Ramos',
+    status: 'investigacao',
+  },
+];
+
+export const initialBatchRecalls: BatchRecall[] = [
+  {
+    id: 'br_1', itemId: 'pharm_1', itemName: 'Amoxicilina 500mg', lotId: 'lot_2', lotNumber: 'LOT-AMX-002',
+    recallType: 'fabricante', riskLevel: 'medio', affectedQuantity: 250, recollectedQuantity: 238,
+    reason: 'Possível contaminação cruzada com penicilina durante fabricação - comunicado do fabricante',
+    alertDate: '2026-05-12', status: 'concluido',
+    dinavisaNotice: 'DINAVISA-REC-2026-001',
+    instructions: 'Suspender uso imediatamente. Recolher unidades restantes e segregar.',
+    completedAt: '2026-05-20',
+    notes: '238 unidades recolhidas de 250. Diferença de 12 unidades já dispensadas que estão sendo rastreadas.',
+  },
+];
+

@@ -16,7 +16,10 @@ import {
   initialAccountsPayable, initialAccountsReceivable, initialCashFlows,
   initialBankReconciliations, initialCostCenters, initialIncomeStatements,
   initialTaxCalculations, initialPurchaseBook, initialSalesBook,
-  initialExchangeRates, initialChartOfAccounts, initialAccountingEntries
+  initialExchangeRates, initialChartOfAccounts, initialAccountingEntries,
+  PharmacyItem, StockMovement, InventoryCount, AdverseEvent, QualityDeviation, BatchRecall,
+  initialPharmacyItems, initialStockMovements, initialInventoryCounts,
+  initialAdverseEvents, initialQualityDeviations, initialBatchRecalls,
 } from '@/lib/mockData';
 
 // Modular Component Screens
@@ -25,6 +28,7 @@ import ClinicalModule from '@/components/ClinicalModule';
 import DiagnosticModule from '@/components/DiagnosticModule';
 import AdminFinanceModule from '@/components/AdminFinanceModule';
 import CrmBiModule from '@/components/CrmBiModule';
+import EstoqueFarmaciaModule from '@/components/EstoqueFarmaciaModule';
 
 // i18n Context
 import { I18nProvider, useI18n } from '@/lib/i18n/I18nContext';
@@ -115,6 +119,13 @@ function HomeContent() {
   const [exchangeRates, setExchangeRates] = useState<ExchangeRate[]>([]);
   const [chartOfAccounts, setChartOfAccounts] = useState<ChartOfAccount[]>([]);
   const [accountingEntries, setAccountingEntries] = useState<AccountingEntry[]>([]);
+  // Pharmacy / Estoque state
+  const [pharmacyItems, setPharmacyItems] = useState<PharmacyItem[]>([]);
+  const [stockMovements, setStockMovements] = useState<StockMovement[]>([]);
+  const [inventoryCounts, setInventoryCounts] = useState<InventoryCount[]>([]);
+  const [adverseEvents, setAdverseEvents] = useState<AdverseEvent[]>([]);
+  const [qualityDeviations, setQualityDeviations] = useState<QualityDeviation[]>([]);
+  const [batchRecalls, setBatchRecalls] = useState<BatchRecall[]>([]);
   const [isDbConnected, setIsDbConnected] = useState<boolean | null>(null);
   const [dataLoading, setDataLoading] = useState(false);
 
@@ -187,7 +198,7 @@ function HomeContent() {
   const loadAllData = useCallback(async () => {
     setDataLoading(true);
     try {
-      const [patientsRes, appointmentsRes, bedsRes, logsRes, financeRes, stockRes, asosRes, dtesRes, professionalsRes] = await Promise.all([
+      const [patientsRes, appointmentsRes, bedsRes, logsRes, financeRes, stockRes, asosRes, dtesRes, professionalsRes, pharmacyItemsRes, stockMovementsRes, inventoryCountsRes, adverseEventsRes, qualityDeviationsRes, batchRecallsRes] = await Promise.all([
         supabase.from('patients').select('*, clinical_history(*)').order('created_at', { ascending: false }),
         supabase.from('appointments').select('*').order('date', { ascending: true }),
         supabase.from('beds').select('*').order('name'),
@@ -197,12 +208,23 @@ function HomeContent() {
         supabase.from('aso_exams').select('*').order('date', { ascending: false }),
         supabase.from('dtes').select('*').order('created_at', { ascending: false }),
         supabase.from('professionals').select('*').order('name', { ascending: true }),
+        supabase.from('pharmacy_items').select('*, lot_controls(*)').order('name', { ascending: true }),
+        supabase.from('stock_movements').select('*').order('date', { ascending: false }),
+        supabase.from('inventory_counts').select('*').order('date', { ascending: false }),
+        supabase.from('adverse_events').select('*').order('notification_date', { ascending: false }),
+        supabase.from('quality_deviations').select('*').order('report_date', { ascending: false }),
+        supabase.from('batch_recalls').select('*').order('alert_date', { ascending: false }),
       ]);
+
+      const pharmacyHasError = !!(
+        pharmacyItemsRes.error || stockMovementsRes.error || inventoryCountsRes.error ||
+        adverseEventsRes.error || qualityDeviationsRes.error || batchRecallsRes.error
+      );
 
       const hasError = !!(
         patientsRes.error || appointmentsRes.error || bedsRes.error ||
         logsRes.error || financeRes.error || stockRes.error || asosRes.error ||
-        dtesRes.error || professionalsRes.error
+        dtesRes.error || professionalsRes.error || pharmacyHasError
       );
 
       if (patientsRes.data && !patientsRes.error) {
@@ -335,6 +357,174 @@ function HomeContent() {
         setProfessionals(initialProfessionals);
       }
 
+      // Pharmacy items with lots
+      if (pharmacyItemsRes.data && !pharmacyItemsRes.error) {
+        const mapped = pharmacyItemsRes.data.map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          activePrinciple: p.active_principle || undefined,
+          category: p.category,
+          form: p.form || undefined,
+          presentation: p.presentation || '',
+          manufacturer: p.manufacturer || '',
+          dinavisaRegistration: p.dinavisa_registration || '',
+          requiresPrescription: p.requires_prescription || false,
+          lots: (p.lot_controls || []).map((l: any) => ({
+            id: l.id,
+            itemId: l.item_id,
+            lotNumber: l.lot_number,
+            serialNumber: l.serial_number || undefined,
+            manufactureDate: l.manufacture_date,
+            expiryDate: l.expiry_date,
+            quantity: Number(l.quantity),
+            initialQuantity: Number(l.initial_quantity),
+            costPerUnit: Number(l.cost_per_unit),
+            dinavisaRegistration: l.dinavisa_registration || '',
+            dteEntryNumber: l.dte_entry_number || undefined,
+            supplierName: l.supplier_name || undefined,
+            supplierRuc: l.supplier_ruc || undefined,
+            receivedDate: l.received_date,
+            status: l.status,
+          })),
+          totalQuantity: Number(p.total_quantity),
+          minQuantity: Number(p.min_quantity),
+          storageLocation: p.storage_location || '',
+          unitCost: Number(p.unit_cost),
+          unitPrice: Number(p.unit_price),
+          active: p.active ?? true,
+        }));
+        setPharmacyItems(mapped);
+      } else {
+        setPharmacyItems(initialPharmacyItems);
+      }
+
+      // Stock movements
+      if (stockMovementsRes.data && !stockMovementsRes.error) {
+        const mapped = stockMovementsRes.data.map((m: any) => ({
+          id: m.id,
+          itemId: m.item_id,
+          itemName: m.item_name,
+          lotId: m.lot_id,
+          lotNumber: m.lot_number,
+          movementType: m.movement_type,
+          quantity: Number(m.quantity),
+          unitCost: Number(m.unit_cost),
+          totalCost: Number(m.total_cost),
+          date: m.date,
+          operatorName: m.operator_name,
+          dteNumber: m.dte_number || undefined,
+          supplierName: m.supplier_name || undefined,
+          patientName: m.patient_name || undefined,
+          procedureName: m.procedure_name || undefined,
+          room: m.room || undefined,
+          sector: m.sector || undefined,
+          hospitalizationId: m.hospitalization_id || undefined,
+          prescriptionId: m.prescription_id || undefined,
+          doctorName: m.doctor_name || undefined,
+          reason: m.reason || undefined,
+          notes: m.notes || undefined,
+        }));
+        setStockMovements(mapped);
+      } else {
+        setStockMovements(initialStockMovements);
+      }
+
+      // Inventory counts
+      if (inventoryCountsRes.data && !inventoryCountsRes.error) {
+        const mapped = inventoryCountsRes.data.map((c: any) => ({
+          id: c.id,
+          date: c.date,
+          operatorName: c.operator_name,
+          status: c.status,
+          items: c.items || [],
+          notes: c.notes || undefined,
+        }));
+        setInventoryCounts(mapped);
+      } else {
+        setInventoryCounts(initialInventoryCounts);
+      }
+
+      // Adverse events
+      if (adverseEventsRes.data && !adverseEventsRes.error) {
+        const mapped = adverseEventsRes.data.map((e: any) => ({
+          id: e.id,
+          patientName: e.patient_name,
+          patientId: e.patient_id || undefined,
+          medicationName: e.medication_name,
+          itemId: e.item_id || undefined,
+          lotId: e.lot_id || undefined,
+          lotNumber: e.lot_number || '',
+          adverseReaction: e.adverse_reaction,
+          severity: e.severity,
+          startDate: e.start_date,
+          endDate: e.end_date || undefined,
+          outcome: e.outcome,
+          suspectedDrug: e.suspected_drug ?? true,
+          concomitantDrugs: e.concomitant_drugs || [],
+          description: e.description,
+          notifierName: e.notifier_name,
+          notifierRole: e.notifier_role,
+          notificationDate: e.notification_date,
+          status: e.status,
+          dinavisaProtocol: e.dinavisa_protocol || undefined,
+          dinavisaResponse: e.dinavisa_response || undefined,
+          notes: e.notes || undefined,
+        }));
+        setAdverseEvents(mapped);
+      } else {
+        setAdverseEvents(initialAdverseEvents);
+      }
+
+      // Quality deviations
+      if (qualityDeviationsRes.data && !qualityDeviationsRes.error) {
+        const mapped = qualityDeviationsRes.data.map((d: any) => ({
+          id: d.id,
+          itemId: d.item_id,
+          itemName: d.item_name,
+          lotId: d.lot_id,
+          lotNumber: d.lot_number,
+          deviationType: d.deviation_type,
+          severity: d.severity,
+          affectedQuantity: Number(d.affected_quantity),
+          description: d.description,
+          reportDate: d.report_date,
+          reporterName: d.reporter_name,
+          status: d.status,
+          correctiveAction: d.corrective_action || undefined,
+          rootCause: d.root_cause || undefined,
+          closedAt: d.closed_at || undefined,
+          notes: d.notes || undefined,
+        }));
+        setQualityDeviations(mapped);
+      } else {
+        setQualityDeviations(initialQualityDeviations);
+      }
+
+      // Batch recalls
+      if (batchRecallsRes.data && !batchRecallsRes.error) {
+        const mapped = batchRecallsRes.data.map((r: any) => ({
+          id: r.id,
+          itemId: r.item_id,
+          itemName: r.item_name,
+          lotId: r.lot_id,
+          lotNumber: r.lot_number,
+          recallType: r.recall_type,
+          reason: r.reason,
+          riskLevel: r.risk_level,
+          alertDate: r.alert_date,
+          affectedQuantity: Number(r.affected_quantity),
+          recollectedQuantity: Number(r.recollected_quantity),
+          status: r.status,
+          dinavisaNotice: r.dinavisa_notice || undefined,
+          instructions: r.instructions || undefined,
+          completedAt: r.completed_at || undefined,
+          notes: r.notes || undefined,
+        }));
+        setBatchRecalls(mapped);
+      } else {
+        setBatchRecalls(initialBatchRecalls);
+      }
+
       setIsDbConnected(!hasError);
     } catch (err) {
       console.warn("Failing to load from Supabase database. Falling back to mock data.", err);
@@ -348,6 +538,12 @@ function HomeContent() {
       setAsos(initialAsos);
       setDtes(initialDtes);
       setProfessionals(initialProfessionals);
+      setPharmacyItems(initialPharmacyItems);
+      setStockMovements(initialStockMovements);
+      setInventoryCounts(initialInventoryCounts);
+      setAdverseEvents(initialAdverseEvents);
+      setQualityDeviations(initialQualityDeviations);
+      setBatchRecalls(initialBatchRecalls);
     } finally {
       setDataLoading(false);
     }
@@ -926,7 +1122,27 @@ function HomeContent() {
                     addAuditLog={addAuditLog}
                   />
                 )}
-                {(activeSubmodule === 5 || activeSubmodule === 6 || activeSubmodule === 7 || activeSubmodule === 14 ||
+                {activeSubmodule === 7 && (
+                  <EstoqueFarmaciaModule
+                    addAuditLog={addAuditLog}
+                    patients={patients}
+                    pharmacyItems={pharmacyItems}
+                    setPharmacyItems={setPharmacyItems}
+                    stockMovements={stockMovements}
+                    setStockMovements={setStockMovements}
+                    inventoryCounts={inventoryCounts}
+                    setInventoryCounts={setInventoryCounts}
+                    adverseEvents={adverseEvents}
+                    setAdverseEvents={setAdverseEvents}
+                    qualityDeviations={qualityDeviations}
+                    setQualityDeviations={setQualityDeviations}
+                    batchRecalls={batchRecalls}
+                    setBatchRecalls={setBatchRecalls}
+                    activeRole={activeRole}
+                    activeOperator={activeOperator}
+                  />
+                )}
+                {(activeSubmodule === 5 || activeSubmodule === 6 || activeSubmodule === 14 ||
                   activeSubmodule === 15 || activeSubmodule === 16 || activeSubmodule === 17 ||
                   activeSubmodule === 18 || activeSubmodule === 19 || activeSubmodule === 20 || activeSubmodule === 21) && (
                   <AdminFinanceModule
