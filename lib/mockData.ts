@@ -546,6 +546,451 @@ export interface DteItem {
   total: number;
 }
 
+// ==========================================
+// FATURAMENTO - NOVAS INTERFACES (SIFEN/DNIT)
+// ==========================================
+
+export type InsuranceType = 'IPS' | 'Sanidade Militar' | 'Sanidade Policial' | 'EMP' | 'Seguro Privado' | 'Corporativo' | 'Particular' | 'Mercosul';
+
+export interface FeeSchedule {
+  id: string;
+  insurance_type: InsuranceType;
+  insurance_name: string;
+  specialty: string;
+  procedure_code: string;
+  procedure_name: string;
+  base_price: number;
+  repasse_percent: number;
+  copay_amount: number;
+  copay_percent: number;
+  coverage_limit: number;
+  requires_authorization: boolean;
+  active: boolean;
+}
+
+export interface InsuranceCompany {
+  id: string;
+  name: string;
+  type: InsuranceType;
+  ruc: string;
+  contact: string;
+  phone: string;
+  email: string;
+  has_webservice: boolean;
+  webservice_url: string;
+  requires_authorization: boolean;
+  requires_pre_approval: boolean;
+  copay_rules: string;
+  coverage_ceiling: number;
+  active: boolean;
+}
+
+export interface PreAuthorization {
+  id: string;
+  patient_id: string;
+  patient_name: string;
+  insurance_id: string;
+  insurance_name: string;
+  procedure_code: string;
+  procedure_name: string;
+  requested_amount: number;
+  authorized_amount: number;
+  status: 'solicitada' | 'autorizada' | 'negada' | 'parcial';
+  authorization_number: string;
+  request_date: string;
+  response_date: string;
+  notes: string;
+}
+
+export interface BatchInvoice {
+  id: string;
+  insurance_id: string;
+  insurance_name: string;
+  period_start: string;
+  period_end: string;
+  total_amount: number;
+  dte_count: number;
+  status: 'gerado' | 'enviado' | 'aprovado' | 'rejeitado';
+  dte_ids: string[];
+  created_at: string;
+}
+
+export interface EligibilityCheck {
+  id: string;
+  patient_id: string;
+  patient_name: string;
+  insurance_id: string;
+  insurance_name: string;
+  procedure_code: string;
+  procedure_name: string;
+  status: 'pendente' | 'coberto' | 'negado' | 'erro';
+  coverage_percent: number;
+  copay_amount: number;
+  network: string;
+  authorization_required: boolean;
+  checked_at: string;
+  response: string;
+}
+
+export interface ProfessionalSettlement {
+  id: string;
+  professional_id: string;
+  professional_name: string;
+  period_start: string;
+  period_end: string;
+  gross_amount: number;
+  deductions: number;
+  net_amount: number;
+  irp_withheld: number;
+  iva_withheld: number;
+  status: 'calculado' | 'liquidado' | 'pago';
+  dte_ids: string[];
+  settlement_date: string;
+  payment_date: string;
+}
+
+export interface ForeignBilling {
+  id: string;
+  patient_id: string;
+  patient_name: string;
+  country: string;
+  currency: 'USD' | 'ARS' | 'BRL' | 'EUR';
+  exchange_rate: number;
+  amount_local: number;
+  amount_foreign: number;
+  documents_generated: string[];
+  status: 'gerado' | 'entregue' | 'reembolsado';
+}
+
+// Seed data - Insurance Companies
+export const initialInsurances: InsuranceCompany[] = [
+  { id: 'ins_1', name: 'IPS - Instituto de Previsión Social', type: 'IPS', ruc: '80005123-1', contact: 'Lic. María González', phone: '+59521234567', email: 'facturacion@ips.gov.py', has_webservice: true, webservice_url: 'https://ws.ips.gov.py/elegibilidad', requires_authorization: true, requires_pre_approval: true, copay_rules: 'Copago 5% sobre nomenclador IPS', coverage_ceiling: 50000000, active: true },
+  { id: 'ins_2', name: 'Sanidad Militar - FF.AA.', type: 'Sanidade Militar', ruc: '80010001-2', contact: 'Gral. Rodríguez', phone: '+59521230000', email: 'sanidad@mdn.gov.py', has_webservice: true, webservice_url: 'https://ws.sanidad.mil.py/cobertura', requires_authorization: true, requires_pre_approval: true, copay_rules: 'Sin copago para personal activo', coverage_ceiling: 30000000, active: true },
+  { id: 'ins_3', name: 'Sanidad Policial - P.N.', type: 'Sanidade Policial', ruc: '80020001-1', contact: 'Comisario Benítez', phone: '+59521240000', email: 'sanidad@policia.gov.py', has_webservice: false, webservice_url: '', requires_authorization: true, requires_pre_approval: false, copay_rules: 'Copago 10% sobre tabla', coverage_ceiling: 20000000, active: true },
+  { id: 'ins_4', name: 'Plan Med Salud', type: 'EMP', ruc: '80069563-1', contact: 'Sr. López', phone: '+595981111111', email: 'facturacion@planmed.com.py', has_webservice: true, webservice_url: 'https://api.planmed.com.py/v2/elegibilidad', requires_authorization: true, requires_pre_approval: true, copay_rules: 'Copago fijo 50.000 Gs. consulta; 20% procedimientos', coverage_ceiling: 100000000, active: true },
+  { id: 'ins_5', name: 'Seguros Yacyretá S.A.', type: 'Seguro Privado', ruc: '80045678-1', contact: 'Lic. Martínez', phone: '+59521222222', email: 'reembolso@yacyreta.com.py', has_webservice: true, webservice_url: 'https://ws.yacyreta.com.py/cobertura', requires_authorization: false, requires_pre_approval: false, copay_rules: 'Reembolso 80% tabla referencial', coverage_ceiling: 150000000, active: true },
+  { id: 'ins_6', name: 'Grupo Industrial Norte S.A.', type: 'Corporativo', ruc: '80123456-1', contact: 'Sra. Duarte', phone: '+595985555555', email: 'rh@norte.com.py', has_webservice: false, webservice_url: '', requires_authorization: false, requires_pre_approval: false, copay_rules: 'Descuento 15% convenio corporativo', coverage_ceiling: 80000000, active: true },
+];
+
+// Seed data - Fee Schedule
+export const initialFeeSchedules: FeeSchedule[] = [
+  { id: 'fee_1', insurance_type: 'Particular', insurance_name: 'Particular', specialty: 'Clínica Geral', procedure_code: '10101012', procedure_name: 'Consulta Médica Geral', base_price: 150000, repasse_percent: 60, copay_amount: 0, copay_percent: 0, coverage_limit: 0, requires_authorization: false, active: true },
+  { id: 'fee_2', insurance_type: 'IPS', insurance_name: 'IPS - Instituto de Previsión Social', specialty: 'Cardiologia', procedure_code: '10101025', procedure_name: 'Consulta Cardiológica', base_price: 120000, repasse_percent: 55, copay_amount: 6000, copay_percent: 5, coverage_limit: 5000000, requires_authorization: true, active: true },
+  { id: 'fee_3', insurance_type: 'EMP', insurance_name: 'Plan Med Salud', specialty: 'Cardiologia', procedure_code: '10101025', procedure_name: 'Consulta Cardiológica', base_price: 200000, repasse_percent: 60, copay_amount: 50000, copay_percent: 0, coverage_limit: 10000000, requires_authorization: true, active: true },
+  { id: 'fee_4', insurance_type: 'Sanidade Militar', insurance_name: 'Sanidad Militar - FF.AA.', specialty: 'Ortopedia', procedure_code: '10101012', procedure_name: 'Consulta Médica Geral', base_price: 90000, repasse_percent: 50, copay_amount: 0, copay_percent: 0, coverage_limit: 3000000, requires_authorization: true, active: true },
+  { id: 'fee_5', insurance_type: 'Seguro Privado', insurance_name: 'Seguros Yacyretá S.A.', specialty: 'Cardiologia', procedure_code: '40201011', procedure_name: 'Ultrassonografia Obstétrica', base_price: 500000, repasse_percent: 65, copay_amount: 0, copay_percent: 0, coverage_limit: 0, requires_authorization: false, active: true },
+  { id: 'fee_6', insurance_type: 'Corporativo', insurance_name: 'Grupo Industrial Norte S.A.', specialty: 'Clínica Geral', procedure_code: '10101012', procedure_name: 'Consulta Médica Geral', base_price: 127500, repasse_percent: 60, copay_amount: 0, copay_percent: 0, coverage_limit: 0, requires_authorization: false, active: true },
+  { id: 'fee_7', insurance_type: 'Particular', insurance_name: 'Particular', specialty: 'Radiologia', procedure_code: '30101000', procedure_name: 'Raio-X Tórax (2 incidências)', base_price: 180000, repasse_percent: 50, copay_amount: 0, copay_percent: 0, coverage_limit: 0, requires_authorization: false, active: true },
+  { id: 'fee_8', insurance_type: 'Sanidade Policial', insurance_name: 'Sanidad Policial - P.N.', specialty: 'Clínica Geral', procedure_code: '10101012', procedure_name: 'Consulta Médica Geral', base_price: 80000, repasse_percent: 50, copay_amount: 8000, copay_percent: 10, coverage_limit: 2000000, requires_authorization: false, active: true },
+];
+
+// Seed data - Pre-Authorizations
+export const initialPreAuthorizations: PreAuthorization[] = [
+  { id: 'pre_1', patient_id: 'pat_1', patient_name: 'Carlos Eduardo Almeida', insurance_id: 'ins_1', insurance_name: 'IPS - Instituto de Previsión Social', procedure_code: '40201011', procedure_name: 'Ultrassonografia Obstétrica', requested_amount: 500000, authorized_amount: 450000, status: 'autorizada', authorization_number: 'AUTH-2026-0042', request_date: '2026-06-15', response_date: '2026-06-17', notes: 'Autorizado parcial - 90% cobertura' },
+  { id: 'pre_2', patient_id: 'pat_2', patient_name: 'Mariana Rosa Santos', insurance_id: 'ins_4', insurance_name: 'Plan Med Salud', procedure_code: '40201011', procedure_name: 'Ultrassonografia Obstétrica', requested_amount: 500000, authorized_amount: 500000, status: 'autorizada', authorization_number: 'AUTH-2026-0045', request_date: '2026-06-18', response_date: '2026-06-19', notes: 'Autorizado total conforme plano' },
+];
+
+// Seed data - Batch Invoices
+export const initialBatchInvoices: BatchInvoice[] = [
+  { id: 'batch_1', insurance_id: 'ins_1', insurance_name: 'IPS - Instituto de Previsión Social', period_start: '2026-06-01', period_end: '2026-06-30', total_amount: 2350000, dte_count: 3, status: 'gerado', dte_ids: ['dte_1', 'dte_2'], created_at: '2026-06-28' },
+  { id: 'batch_2', insurance_id: 'ins_4', insurance_name: 'Plan Med Salud', period_start: '2026-06-01', period_end: '2026-06-30', total_amount: 1100000, dte_count: 1, status: 'enviado', dte_ids: ['dte_3'], created_at: '2026-06-28' },
+];
+
+// Seed data - Eligibility Checks
+export const initialEligibilityChecks: EligibilityCheck[] = [
+  { id: 'elig_1', patient_id: 'pat_1', patient_name: 'Carlos Eduardo Almeida', insurance_id: 'ins_1', insurance_name: 'IPS - Instituto de Previsión Social', procedure_code: '10101025', procedure_name: 'Consulta Cardiológica', status: 'coberto', coverage_percent: 95, copay_amount: 6000, network: 'RED_IPS', authorization_required: true, checked_at: '2026-06-22T08:00:00', response: 'Contribuyente activo. Cobertura vigente. Autorización requerida: S01' },
+  { id: 'elig_2', patient_id: 'pat_2', patient_name: 'Mariana Rosa Santos', insurance_id: 'ins_4', insurance_name: 'Plan Med Salud', procedure_code: '40201011', procedure_name: 'Ultrassonografia Obstétrica', status: 'coberto', coverage_percent: 100, copay_amount: 0, network: 'RED_PLANMED', authorization_required: true, checked_at: '2026-06-22T08:05:00', response: 'Plan Premium vigente. Sin copago para estudios obstétricos.' },
+];
+
+// Seed data - Professional Settlements
+export const initialSettlements: ProfessionalSettlement[] = [
+  { id: 'sett_1', professional_id: 'prof_1', professional_name: 'Dra. Amanda Silva', period_start: '2026-06-01', period_end: '2026-06-15', gross_amount: 3500000, deductions: 525000, net_amount: 2975000, irp_withheld: 105000, iva_withheld: 420000, status: 'liquidado', dte_ids: ['dte_1', 'dte_2'], settlement_date: '2026-06-20', payment_date: '2026-06-22' },
+  { id: 'sett_2', professional_id: 'prof_2', professional_name: 'Dr. Adriano Lima', period_start: '2026-06-01', period_end: '2026-06-15', gross_amount: 2800000, deductions: 420000, net_amount: 2380000, irp_withheld: 84000, iva_withheld: 336000, status: 'pago', dte_ids: ['dte_3'], settlement_date: '2026-06-20', payment_date: '2026-06-21' },
+];
+
+// Seed data - Foreign Billings
+export const initialForeignBillings: ForeignBilling[] = [
+  { id: 'frn_1', patient_id: 'pat_5', patient_name: 'Roberto de Oliveira Cruz', country: 'BR', currency: 'USD', exchange_rate: 7500, amount_local: 450000, amount_foreign: 60, documents_generated: ['Invoice_INV-2026-001.pdf', 'Recibo_Rec-2026-001.pdf'], status: 'gerado' },
+];
+
+// ==========================================
+// GESTÃO FINANCEIRA E CONTÁBIL
+// ==========================================
+
+export interface AccountPayable {
+  id: string;
+  description: string;
+  supplier: string;
+  ruc: string;
+  category: string;
+  amount: number;
+  due_date: string;
+  days_overdue: number;
+  status: 'a_vencer' | 'vencido' | 'pago' | 'cancelado';
+  payment_date?: string;
+  dte_number?: string;
+  cost_center: string;
+  notes: string;
+}
+
+export interface AccountReceivable {
+  id: string;
+  description: string;
+  patient_name: string;
+  insurance_name: string;
+  category: string;
+  amount: number;
+  due_date: string;
+  days_overdue: number;
+  status: 'a_vencer' | 'vencido' | 'recebido' | 'cancelado';
+  receipt_date?: string;
+  dte_number: string;
+  cost_center: string;
+  notes: string;
+}
+
+export interface CashFlowProjection {
+  id: string;
+  date: string;
+  type: 'realizado' | 'projetado';
+  income: number;
+  expense: number;
+  balance: number;
+  accumulated: number;
+  notes: string;
+}
+
+export interface BankReconciliation {
+  id: string;
+  bank_name: string;
+  account_number: string;
+  statement_date: string;
+  bank_balance: number;
+  book_balance: number;
+  difference: number;
+  status: 'pendente' | 'conciliado' | 'divergente';
+  entries: { description: string; amount: number; type: 'credito' | 'debito'; reconciled: boolean }[];
+  last_reconciled: string;
+}
+
+export interface CostCenter {
+  id: string;
+  name: string;
+  type: 'unidade' | 'especialidade' | 'profissional';
+  parent_id: string;
+  budget: number;
+  spent: number;
+  revenue: number;
+  active: boolean;
+}
+
+export interface IncomeStatement {
+  id: string;
+  period: string;
+  revenue_consultas: number;
+  revenue_exames: number;
+  revenue_procedimentos: number;
+  revenue_internacao: number;
+  revenue_outros: number;
+  revenue_total: number;
+  cost_insumos: number;
+  cost_pessoal: number;
+  cost_operacional: number;
+  cost_ocupacional: number;
+  cost_total: number;
+  gross_profit: number;
+  expenses_admin: number;
+  expenses_marketing: number;
+  expenses_tax: number;
+  expenses_financial: number;
+  expenses_total: number;
+  net_income: number;
+  irp: number;
+  iva: number;
+  net_income_after_tax: number;
+}
+
+export interface TaxCalculation {
+  id: string;
+  period: string;
+  tax_type: 'IVA' | 'IRE' | 'IRP' | 'IDU';
+  taxable_base: number;
+  tax_rate: number;
+  tax_amount: number;
+  status: 'calculado' | 'declarado' | 'pago';
+  due_date: string;
+  payment_date: string;
+  notes: string;
+}
+
+export interface PurchaseBookEntry {
+  id: string;
+  dte_number: string;
+  supplier: string;
+  ruc: string;
+  date: string;
+  timbrado: string;
+  invoice_type: string;
+  taxable_5: number;
+  taxable_10: number;
+  iva_5: number;
+  iva_10: number;
+  total: number;
+}
+
+export interface SalesBookEntry {
+  id: string;
+  dte_number: string;
+  patient_name: string;
+  ruc: string;
+  date: string;
+  timbrado: string;
+  invoice_type: string;
+  taxable_5: number;
+  taxable_10: number;
+  iva_5: number;
+  iva_10: number;
+  total: number;
+}
+
+export interface ExchangeRate {
+  id: string;
+  currency: 'USD' | 'ARS' | 'BRL' | 'EUR';
+  buy_rate: number;
+  sell_rate: number;
+  date: string;
+  source: string;
+}
+
+export interface ChartOfAccount {
+  id: string;
+  code: string;
+  name: string;
+  type: 'ativo' | 'passivo' | 'patrimonio' | 'receita' | 'despesa' | 'custo';
+  level: number;
+  parent_code: string;
+  balance: number;
+  active: boolean;
+}
+
+export interface AccountingEntry {
+  id: string;
+  date: string;
+  description: string;
+  account_debit: string;
+  account_credit: string;
+  amount: number;
+  event_type: 'faturamento' | 'recebimento' | 'pagamento' | 'devolucao' | 'ajuste';
+  document_number: string;
+  cost_center: string;
+  notes: string;
+}
+
+// Seed data - Accounts Payable
+export const initialAccountsPayable: AccountPayable[] = [
+  { id: 'ap_1', description: 'Compra de insumos médicos - Proveedora Médica S.A.', supplier: 'Proveedora Médica S.A.', ruc: '80123456-5', category: 'Insumos Médicos', amount: 2850000, due_date: '2026-07-15', days_overdue: 0, status: 'a_vencer', cost_center: 'Administrativo', notes: 'Lotes de seringas, gasas y guantes' },
+  { id: 'ap_2', description: 'Aluguel mensal - Edificio Medical Center', supplier: 'Medical Center S.A.', ruc: '80543210-1', category: 'Operacional', amount: 5000000, due_date: '2026-07-05', days_overdue: 0, status: 'a_vencer', cost_center: 'Administrativo', notes: 'Aluguel julho/2026' },
+  { id: 'ap_3', description: 'Servicios públicos - ANDE', supplier: 'ANDE', ruc: '80012345-9', category: 'Operacional', amount: 890000, due_date: '2026-06-20', days_overdue: 10, status: 'vencido', cost_center: 'Administrativo', notes: 'Energia elétrica' },
+  { id: 'ap_4', description: 'Honorarios contables - Estudio Benítez', supplier: 'Estudio Benítez', ruc: '80456789-3', category: 'Serviços', amount: 1500000, due_date: '2026-06-10', days_overdue: 20, status: 'vencido', cost_center: 'Administrativo', notes: 'Servicios contables mayo/2026' },
+];
+
+// Seed data - Accounts Receivable
+export const initialAccountsReceivable: AccountReceivable[] = [
+  { id: 'ar_1', description: 'Consulta Cardiológica - Carlos Almeida', patient_name: 'Carlos Eduardo Almeida', insurance_name: 'IPS', category: 'Consultas', amount: 750000, due_date: '2026-07-10', days_overdue: 0, status: 'a_vencer', dte_number: '001-001-0000001', cost_center: 'Cardiologia', notes: 'IPS autorización S01' },
+  { id: 'ar_2', description: 'Ultrassonografia Obstétrica - Mariana Santos', patient_name: 'Mariana Rosa Santos', insurance_name: 'Plan Med Salud', category: 'Exames de Imagem', amount: 1100000, due_date: '2026-07-05', days_overdue: 0, status: 'a_vencer', dte_number: '001-001-0000002', cost_center: 'Ultrassonografia', notes: '' },
+  { id: 'ar_3', description: 'Rx Tórax - Roberto Oliveira', patient_name: 'Roberto de Oliveira Cruz', insurance_name: 'Particular', category: 'Exames de Imagem', amount: 180000, due_date: '2026-06-15', days_overdue: 15, status: 'vencido', dte_number: '001-001-0000004', cost_center: 'Radiologia', notes: '2a cobrança enviada' },
+];
+
+// Seed data - Cash Flow Projection
+export const initialCashFlows: CashFlowProjection[] = [
+  { id: 'cf_1', date: '2026-06-23', type: 'realizado', income: 3850000, expense: 1200000, balance: 2650000, accumulated: 2650000, notes: '' },
+  { id: 'cf_2', date: '2026-06-24', type: 'realizado', income: 2100000, expense: 890000, balance: 1210000, accumulated: 3860000, notes: '' },
+  { id: 'cf_3', date: '2026-06-25', type: 'realizado', income: 1500000, expense: 3000000, balance: -1500000, accumulated: 2360000, notes: 'Pago aluguel' },
+  { id: 'cf_4', date: '2026-06-26', type: 'realizado', income: 0, expense: 450000, balance: -450000, accumulated: 1910000, notes: '' },
+  { id: 'cf_5', date: '2026-06-27', type: 'realizado', income: 3200000, expense: 600000, balance: 2600000, accumulated: 4510000, notes: '' },
+  { id: 'cf_6', date: '2026-06-28', type: 'projetado', income: 2000000, expense: 1500000, balance: 500000, accumulated: 5010000, notes: 'Projeção' },
+  { id: 'cf_7', date: '2026-06-29', type: 'projetado', income: 1800000, expense: 900000, balance: 900000, accumulated: 5910000, notes: 'Projeção' },
+  { id: 'cf_8', date: '2026-06-30', type: 'projetado', income: 2500000, expense: 2000000, balance: 500000, accumulated: 6410000, notes: 'Projeção fechamento mensal' },
+];
+
+// Seed data - Bank Reconciliation
+export const initialBankReconciliations: BankReconciliation[] = [
+  { id: 'br_1', bank_name: 'Banco Continental', account_number: '101-234567-8', statement_date: '2026-06-30', bank_balance: 18500000, book_balance: 18230000, difference: 270000, status: 'pendente', entries: [
+    { description: 'Cheque pendente #1045', amount: 270000, type: 'debito', reconciled: false },
+  ], last_reconciled: '2026-05-31' },
+  { id: 'br_2', bank_name: 'Banco Itaú Paraguay', account_number: '333-987654-0', statement_date: '2026-06-30', bank_balance: 5200000, book_balance: 5200000, difference: 0, status: 'conciliado', entries: [], last_reconciled: '2026-06-30' },
+];
+
+// Seed data - Cost Centers
+export const initialCostCenters: CostCenter[] = [
+  { id: 'cc_1', name: 'Cardiologia', type: 'especialidade', parent_id: '', budget: 50000000, spent: 12400000, revenue: 18700000, active: true },
+  { id: 'cc_2', name: 'Radiologia', type: 'especialidade', parent_id: '', budget: 30000000, spent: 8900000, revenue: 14200000, active: true },
+  { id: 'cc_3', name: 'Ultrassonografia', type: 'especialidade', parent_id: '', budget: 25000000, spent: 6500000, revenue: 9800000, active: true },
+  { id: 'cc_4', name: 'Medicina do Trabalho', type: 'especialidade', parent_id: '', budget: 20000000, spent: 4200000, revenue: 6100000, active: true },
+  { id: 'cc_5', name: 'Administrativo', type: 'unidade', parent_id: '', budget: 40000000, spent: 18500000, revenue: 0, active: true },
+  { id: 'cc_6', name: 'Dra. Amanda Silva', type: 'profissional', parent_id: 'cc_1', budget: 15000000, spent: 0, revenue: 7200000, active: true },
+  { id: 'cc_7', name: 'Dr. Adriano Lima', type: 'profissional', parent_id: 'cc_2', budget: 12000000, spent: 0, revenue: 5400000, active: true },
+];
+
+// Seed data - Income Statement (DRE)
+export const initialIncomeStatements: IncomeStatement[] = [
+  { id: 'is_1', period: '2026-06', revenue_consultas: 12500000, revenue_exames: 9800000, revenue_procedimentos: 4200000, revenue_internacao: 3500000, revenue_outros: 800000, revenue_total: 30800000, cost_insumos: 5800000, cost_pessoal: 9200000, cost_operacional: 4100000, cost_ocupacional: 1500000, cost_total: 20600000, gross_profit: 10200000, expenses_admin: 3200000, expenses_marketing: 800000, expenses_tax: 2100000, expenses_financial: 450000, expenses_total: 6550000, net_income: 3650000, irp: 109500, iva: 438000, net_income_after_tax: 3102500 },
+];
+
+// Seed data - Tax Calculation
+export const initialTaxCalculations: TaxCalculation[] = [
+  { id: 'tax_1', period: '2026-06', tax_type: 'IVA', taxable_base: 28000000, tax_rate: 10, tax_amount: 2800000, status: 'calculado', due_date: '2026-07-15', payment_date: '', notes: 'IVA mensal - ventas generales' },
+  { id: 'tax_2', period: '2026-06', tax_type: 'IRE', taxable_base: 3650000, tax_rate: 10, tax_amount: 365000, status: 'calculado', due_date: '2026-07-31', payment_date: '', notes: 'Impuesto a la Renta Empresarial' },
+  { id: 'tax_3', period: '2026-06', tax_type: 'IRP', taxable_base: 3102500, tax_rate: 3, tax_amount: 93075, status: 'calculado', due_date: '2026-08-15', payment_date: '', notes: 'IRP personas físicas' },
+  { id: 'tax_4', period: '2026-06', tax_type: 'IDU', taxable_base: 5000000, tax_rate: 1, tax_amount: 50000, status: 'calculado', due_date: '2026-07-20', payment_date: '', notes: 'Impuesto a la Documentación' },
+];
+
+// Seed data - Purchase Book (Livro de Compras)
+export const initialPurchaseBook: PurchaseBookEntry[] = [
+  { id: 'pb_1', dte_number: '001-002-0000101', supplier: 'Proveedora Médica S.A.', ruc: '80123456-5', date: '2026-06-05', timbrado: '87654321', invoice_type: 'Fatura Eletrônica', taxable_5: 1000000, taxable_10: 1850000, iva_5: 50000, iva_10: 185000, total: 2850000 },
+  { id: 'pb_2', dte_number: '001-002-0000105', supplier: 'Oficina Farmacéutica S.A.', ruc: '80765432-1', date: '2026-06-12', timbrado: '87654322', invoice_type: 'Fatura Eletrônica', taxable_5: 0, taxable_10: 1200000, iva_5: 0, iva_10: 120000, total: 1200000 },
+];
+
+// Seed data - Sales Book (Livro de Vendas)
+export const initialSalesBook: SalesBookEntry[] = [
+  { id: 'sb_1', dte_number: '001-001-0000001', patient_name: 'Carlos Eduardo Almeida', ruc: '', date: '2026-06-21', timbrado: '12345678', invoice_type: 'Fatura Eletrônica', taxable_5: 0, taxable_10: 750000, iva_5: 0, iva_10: 68182, total: 750000 },
+  { id: 'sb_2', dte_number: '001-001-0000002', patient_name: 'Mariana Rosa Santos', ruc: '', date: '2026-06-21', timbrado: '12345678', invoice_type: 'Fatura Eletrônica', taxable_5: 0, taxable_10: 1100000, iva_5: 0, iva_10: 100000, total: 1100000 },
+  { id: 'sb_3', dte_number: '001-001-0000004', patient_name: 'Roberto de Oliveira Cruz', ruc: '80123456-1', date: '2026-06-23', timbrado: '12345678', invoice_type: 'Fatura Eletrônica', taxable_5: 0, taxable_10: 450000, iva_5: 0, iva_10: 40909, total: 450000 },
+];
+
+// Seed data - Exchange Rates (BCP)
+export const initialExchangeRates: ExchangeRate[] = [
+  { id: 'fx_1', currency: 'USD', buy_rate: 7480, sell_rate: 7520, date: '2026-06-30', source: 'BCP' },
+  { id: 'fx_2', currency: 'BRL', buy_rate: 1380, sell_rate: 1420, date: '2026-06-30', source: 'BCP' },
+  { id: 'fx_3', currency: 'ARS', buy_rate: 7.5, sell_rate: 8.5, date: '2026-06-30', source: 'BCP' },
+  { id: 'fx_4', currency: 'EUR', buy_rate: 8100, sell_rate: 8200, date: '2026-06-30', source: 'BCP' },
+];
+
+// Seed data - Chart of Accounts
+export const initialChartOfAccounts: ChartOfAccount[] = [
+  { id: 'coa_1', code: '1', name: 'ATIVO', type: 'ativo', level: 1, parent_code: '', balance: 45000000, active: true },
+  { id: 'coa_2', code: '1.1', name: 'Ativo Circulante', type: 'ativo', level: 2, parent_code: '1', balance: 35000000, active: true },
+  { id: 'coa_3', code: '1.1.1', name: 'Caixa e Bancos', type: 'ativo', level: 3, parent_code: '1.1', balance: 23700000, active: true },
+  { id: 'coa_4', code: '1.1.2', name: 'Contas a Receber', type: 'ativo', level: 3, parent_code: '1.1', balance: 9800000, active: true },
+  { id: 'coa_5', code: '2', name: 'PASSIVO', type: 'passivo', level: 1, parent_code: '', balance: 18500000, active: true },
+  { id: 'coa_6', code: '2.1', name: 'Passivo Circulante', type: 'passivo', level: 2, parent_code: '2', balance: 12500000, active: true },
+  { id: 'coa_7', code: '2.1.1', name: 'Fornecedores', type: 'passivo', level: 3, parent_code: '2.1', balance: 4850000, active: true },
+  { id: 'coa_8', code: '2.1.2', name: 'Obrigações Fiscais', type: 'passivo', level: 3, parent_code: '2.1', balance: 3308075, active: true },
+  { id: 'coa_9', code: '3', name: 'PATRIMÔNIO LÍQUIDO', type: 'patrimonio', level: 1, parent_code: '', balance: 26500000, active: true },
+  { id: 'coa_10', code: '4', name: 'RECEITAS', type: 'receita', level: 1, parent_code: '', balance: 30800000, active: true },
+  { id: 'coa_11', code: '4.1', name: 'Receitas de Serviços', type: 'receita', level: 2, parent_code: '4', balance: 30800000, active: true },
+  { id: 'coa_12', code: '5', name: 'CUSTOS', type: 'custo', level: 1, parent_code: '', balance: 20600000, active: true },
+  { id: 'coa_13', code: '6', name: 'DESPESAS', type: 'despesa', level: 1, parent_code: '', balance: 6550000, active: true },
+];
+
+// Seed data - Accounting Entries
+export const initialAccountingEntries: AccountingEntry[] = [
+  { id: 'ae_1', date: '2026-06-21', description: 'Faturamento Consulta - Carlos Almeida (DTE 001-001-0000001)', account_debit: '1.1.2', account_credit: '4.1', amount: 750000, event_type: 'faturamento', document_number: '001-001-0000001', cost_center: 'Cardiologia', notes: '' },
+  { id: 'ae_2', date: '2026-06-21', description: 'Faturamento US Obstétrico - Mariana Santos (DTE 001-001-0000002)', account_debit: '1.1.2', account_credit: '4.1', amount: 1100000, event_type: 'faturamento', document_number: '001-001-0000002', cost_center: 'Ultrassonografia', notes: '' },
+  { id: 'ae_3', date: '2026-06-21', description: 'Recebimento Bancard - Carlos Almeida', account_debit: '1.1.1', account_credit: '1.1.2', amount: 750000, event_type: 'recebimento', document_number: '001-001-0000001', cost_center: 'Cardiologia', notes: 'Pagamento via Bancard' },
+  { id: 'ae_4', date: '2026-06-25', description: 'Pago Aluguel - Medical Center S.A.', account_debit: '5', account_credit: '1.1.1', amount: 5000000, event_type: 'pagamento', document_number: '', cost_center: 'Administrativo', notes: 'Transferência bancária' },
+];
+
 export const initialDtes: Dte[] = [
   {
     id: 'dte_1',

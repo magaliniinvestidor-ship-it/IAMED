@@ -5,8 +5,18 @@ import { supabase } from '@/lib/supabaseClient';
 import type { Session } from '@supabase/supabase-js';
 import {
   Patient, Appointment, Bed, AuditLog, FinancialPosting, StockItem, AsoExam, Dte, Professional,
+  FeeSchedule, InsuranceCompany, PreAuthorization, BatchInvoice, EligibilityCheck,
+  ProfessionalSettlement, ForeignBilling, AccountPayable, AccountReceivable, CashFlowProjection,
+  BankReconciliation, CostCenter, IncomeStatement, TaxCalculation, PurchaseBookEntry,
+  SalesBookEntry, ExchangeRate, ChartOfAccount, AccountingEntry,
   initialPatients, initialAppointments, initialBeds, initialLogs,
-  initialFinance, initialStock, initialAsos, initialDtes, initialProfessionals
+  initialFinance, initialStock, initialAsos, initialDtes, initialProfessionals,
+  initialInsurances, initialFeeSchedules, initialPreAuthorizations, initialBatchInvoices,
+  initialEligibilityChecks, initialSettlements, initialForeignBillings,
+  initialAccountsPayable, initialAccountsReceivable, initialCashFlows,
+  initialBankReconciliations, initialCostCenters, initialIncomeStatements,
+  initialTaxCalculations, initialPurchaseBook, initialSalesBook,
+  initialExchangeRates, initialChartOfAccounts, initialAccountingEntries
 } from '@/lib/mockData';
 
 // Modular Component Screens
@@ -37,7 +47,8 @@ import {
   TrendingUp, Pill, HeartPulse, ShieldAlert, Megaphone,
   BedDouble, BarChart3, Smartphone, Settings, ArrowLeft,
   Bell, HelpCircle, Info, ShieldCheck,
-  Eye, EyeOff, Loader2, LogOut, Globe, ChevronDown
+  Eye, EyeOff, Loader2, LogOut, Globe, ChevronDown,
+  Building2, Hash, AlertCircle, Send, Wifi, Banknote
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -85,6 +96,25 @@ function HomeContent() {
   const [asos, setAsos] = useState<AsoExam[]>([]);
   const [dtes, setDtes] = useState<Dte[]>([]);
   const [professionals, setProfessionals] = useState<Professional[]>([]);
+  const [insurances, setInsurances] = useState<InsuranceCompany[]>([]);
+  const [feeSchedules, setFeeSchedules] = useState<FeeSchedule[]>([]);
+  const [preAuthorizations, setPreAuthorizations] = useState<PreAuthorization[]>([]);
+  const [batchInvoices, setBatchInvoices] = useState<BatchInvoice[]>([]);
+  const [eligibilityChecks, setEligibilityChecks] = useState<EligibilityCheck[]>([]);
+  const [settlements, setSettlements] = useState<ProfessionalSettlement[]>([]);
+  const [foreignBillings, setForeignBillings] = useState<ForeignBilling[]>([]);
+  const [accountsPayable, setAccountsPayable] = useState<AccountPayable[]>([]);
+  const [accountsReceivable, setAccountsReceivable] = useState<AccountReceivable[]>([]);
+  const [cashFlows, setCashFlows] = useState<CashFlowProjection[]>([]);
+  const [bankReconciliations, setBankReconciliations] = useState<BankReconciliation[]>([]);
+  const [costCenters, setCostCenters] = useState<CostCenter[]>([]);
+  const [incomeStatements, setIncomeStatements] = useState<IncomeStatement[]>([]);
+  const [taxCalculations, setTaxCalculations] = useState<TaxCalculation[]>([]);
+  const [purchaseBook, setPurchaseBook] = useState<PurchaseBookEntry[]>([]);
+  const [salesBook, setSalesBook] = useState<SalesBookEntry[]>([]);
+  const [exchangeRates, setExchangeRates] = useState<ExchangeRate[]>([]);
+  const [chartOfAccounts, setChartOfAccounts] = useState<ChartOfAccount[]>([]);
+  const [accountingEntries, setAccountingEntries] = useState<AccountingEntry[]>([]);
   const [isDbConnected, setIsDbConnected] = useState<boolean | null>(null);
   const [dataLoading, setDataLoading] = useState(false);
 
@@ -446,6 +476,13 @@ function HomeContent() {
     { id: 12, title: "12. Inteligência de Negócio (BI)", icon: BarChart3, color: "border-slate-500 text-slate-600 bg-slate-50/50" },
     { id: 13, title: "13. Portal do Paciente e App Móvel", icon: Smartphone, color: "border-indigo-500 text-indigo-600 bg-indigo-50/50" },
     { id: 14, title: "14. Administração do Sistema e Segurança", icon: Settings, color: "border-slate-500 text-slate-600 bg-slate-50/50" },
+    { id: 15, title: "15. Convênios e Cobertura", icon: Building2, color: "border-emerald-500 text-emerald-600 bg-emerald-50/50" },
+    { id: 16, title: "16. Tabela de Honorários", icon: Hash, color: "border-teal-500 text-teal-600 bg-teal-50/50" },
+    { id: 17, title: "17. Coparticipação e Tetos", icon: AlertCircle, color: "border-amber-500 text-amber-600 bg-amber-50/50" },
+    { id: 18, title: "18. Lotes Massivos", icon: Send, color: "border-indigo-500 text-indigo-600 bg-indigo-50/50" },
+    { id: 19, title: "19. Elegibilidade On-line", icon: Wifi, color: "border-cyan-500 text-cyan-600 bg-cyan-50/50" },
+    { id: 20, title: "20. Honorários e Repasse", icon: Banknote, color: "border-violet-500 text-violet-600 bg-violet-50/50" },
+    { id: 21, title: "21. Pacientes Estrangeiros", icon: Globe, color: "border-blue-500 text-blue-600 bg-blue-50/50" },
   ];
 
   // ──────────────────────────────────────────────
@@ -889,7 +926,9 @@ function HomeContent() {
                     addAuditLog={addAuditLog}
                   />
                 )}
-                {(activeSubmodule === 5 || activeSubmodule === 6 || activeSubmodule === 7 || activeSubmodule === 14) && (
+                {(activeSubmodule === 5 || activeSubmodule === 6 || activeSubmodule === 7 || activeSubmodule === 14 ||
+                  activeSubmodule === 15 || activeSubmodule === 16 || activeSubmodule === 17 ||
+                  activeSubmodule === 18 || activeSubmodule === 19 || activeSubmodule === 20 || activeSubmodule === 21) && (
                   <AdminFinanceModule
                     activeSubmodule={activeSubmodule}
                     addAuditLog={addAuditLog}
@@ -903,6 +942,44 @@ function HomeContent() {
                     patients={patients}
                     professionals={professionals}
                     setProfessionals={setProfessionals}
+                    insurances={insurances}
+                    setInsurances={setInsurances}
+                    feeSchedules={feeSchedules}
+                    setFeeSchedules={setFeeSchedules}
+                    preAuthorizations={preAuthorizations}
+                    setPreAuthorizations={setPreAuthorizations}
+                    batchInvoices={batchInvoices}
+                    setBatchInvoices={setBatchInvoices}
+                    eligibilityChecks={eligibilityChecks}
+                    setEligibilityChecks={setEligibilityChecks}
+                    settlements={settlements}
+                    setSettlements={setSettlements}
+                    foreignBillings={foreignBillings}
+                    setForeignBillings={setForeignBillings}
+                    accountsPayable={accountsPayable}
+                    setAccountsPayable={setAccountsPayable}
+                    accountsReceivable={accountsReceivable}
+                    setAccountsReceivable={setAccountsReceivable}
+                    cashFlows={cashFlows}
+                    setCashFlows={setCashFlows}
+                    bankReconciliations={bankReconciliations}
+                    setBankReconciliations={setBankReconciliations}
+                    costCenters={costCenters}
+                    setCostCenters={setCostCenters}
+                    incomeStatements={incomeStatements}
+                    setIncomeStatements={setIncomeStatements}
+                    taxCalculations={taxCalculations}
+                    setTaxCalculations={setTaxCalculations}
+                    purchaseBook={purchaseBook}
+                    setPurchaseBook={setPurchaseBook}
+                    salesBook={salesBook}
+                    setSalesBook={setSalesBook}
+                    exchangeRates={exchangeRates}
+                    setExchangeRates={setExchangeRates}
+                    chartOfAccounts={chartOfAccounts}
+                    setChartOfAccounts={setChartOfAccounts}
+                    accountingEntries={accountingEntries}
+                    setAccountingEntries={setAccountingEntries}
                   />
                 )}
                 {(activeSubmodule === 10 || activeSubmodule === 11 || activeSubmodule === 12 || activeSubmodule === 13) && (
