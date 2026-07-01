@@ -3305,3 +3305,84 @@ export const initialHospitalAlerts: HospitalAlert[] = [
   { id: 'alert_h_4', type: 'checklist_pendente', title: 'Checklist Pendente - Cesárea', description: 'Checklist pré-cirúrgico para cesárea de Mariana Santos ainda não foi preenchido.', severity: 'info', sourceId: 'surg_2', sourceName: 'Cesárea - Mariana Rosa Santos', createdAt: '2026-06-22T09:00:00', resolved: false },
 ];
 
+// ==========================================
+// PORTAL DO PACIENTE - Interfaces
+// ==========================================
+export interface PortalPatientUser {
+  id: string;
+  patientId: string;
+  ci: string;
+  email: string;
+  phone: string;
+  twoFactorEnabled: boolean;
+  twoFactorMethod: 'sms' | 'email';
+  pushToken?: string;
+  deviceOs?: string;
+  lastLogin?: string;
+  createdAt: string;
+  active: boolean;
+}
+
+export interface PortalNotification {
+  id: string;
+  patientId: string;
+  type: 'appointment_reminder' | 'exam_result' | 'prescription' | 'payment' | 'telemedicine' | 'vaccination' | 'general';
+  channel: 'push' | 'email' | 'whatsapp' | 'sms';
+  title: string;
+  body?: string;
+  referenceId?: string;
+  referenceType?: string;
+  status: 'pending' | 'sent' | 'delivered' | 'read' | 'failed';
+  sentAt?: string;
+  createdAt: string;
+}
+
+export interface OnlinePayment {
+  id: string;
+  patientId: string;
+  amount: number;
+  paymentMethod: 'credit_card' | 'debit_card' | 'pix' | 'boleto' | 'paypal' | 'mercadopago';
+  status: 'pending' | 'confirmed' | 'refunded' | 'cancelled';
+  transactionId?: string;
+  referenceType?: string;
+  referenceId?: string;
+  paidAt?: string;
+  createdAt: string;
+}
+
+export interface TelemedicineRequest {
+  id: string;
+  patientId: string;
+  patientName: string;
+  doctorName: string;
+  specialty: string;
+  scheduledDate: string;
+  scheduledTime: string;
+  status: 'solicitado' | 'confirmado' | 'em_andamento' | 'concluido' | 'cancelado';
+  roomUrl?: string;
+  notes?: string;
+  createdAt: string;
+}
+
+// ==========================================
+// PORTAL DO PACIENTE - Mock Data
+// ==========================================
+export const initialPortalNotifications: PortalNotification[] = [
+  { id: 'pn_1', patientId: 'pat_1', type: 'appointment_reminder', channel: 'push', title: 'Lembrete de Consulta', body: 'Sua consulta com Dra. Amanda Silva é amanhã às 10:30.', status: 'sent', sentAt: '2026-06-21T08:00:00', createdAt: '2026-06-21T08:00:00' },
+  { id: 'pn_2', patientId: 'pat_1', type: 'prescription', channel: 'push', title: 'Nova Receita Digital', body: 'Dra. Amanda Silva emitiu uma nova receita para Losartana 50mg.', status: 'delivered', sentAt: '2026-06-20T14:30:00', createdAt: '2026-06-20T14:30:00' },
+  { id: 'pn_3', patientId: 'pat_1', type: 'exam_result', channel: 'email', title: 'Resultado de Exame Disponível', body: 'Seu exame de sangue está disponível no portal.', status: 'sent', sentAt: '2026-06-19T10:00:00', createdAt: '2026-06-19T10:00:00' },
+  { id: 'pn_4', patientId: 'pat_1', type: 'payment', channel: 'whatsapp', title: 'Fatura Disponível', body: 'Sua fatura DTE Nº 001-002-0000302 está disponível para download.', status: 'delivered', sentAt: '2026-06-18T09:00:00', createdAt: '2026-06-18T09:00:00' },
+  { id: 'pn_5', patientId: 'pat_1', type: 'telemedicine', channel: 'push', title: 'Lembrete de Teleconsulta', body: 'Sua teleconsulta com Dr. Adriano Lima inicia em 30 minutos.', status: 'read', sentAt: '2026-06-22T10:00:00', createdAt: '2026-06-22T09:00:00' },
+];
+
+export const initialOnlinePayments: OnlinePayment[] = [
+  { id: 'pay_1', patientId: 'pat_1', amount: 150.00, paymentMethod: 'pix', status: 'confirmed', transactionId: 'PIX-20260621-ABCD1234', referenceType: 'consulta', referenceId: 'app_2', paidAt: '2026-06-21T11:30:00', createdAt: '2026-06-21T11:30:00' },
+  { id: 'pay_2', patientId: 'pat_3', amount: 320.00, paymentMethod: 'credit_card', status: 'confirmed', transactionId: 'CC-20260620-EFGH5678', referenceType: 'exame', referenceId: 'app_1', paidAt: '2026-06-20T15:00:00', createdAt: '2026-06-20T15:00:00' },
+  { id: 'pay_3', patientId: 'pat_1', amount: 89.90, paymentMethod: 'boleto', status: 'pending', referenceType: 'consulta', createdAt: '2026-06-22T08:00:00' },
+];
+
+export const initialTelemedicineRequests: TelemedicineRequest[] = [
+  { id: 'tel_1', patientId: 'pat_1', patientName: 'Carlos Eduardo Almeida', doctorName: 'Dr. Adriano Lima', specialty: 'Ortopedia', scheduledDate: '2026-07-05', scheduledTime: '14:00', status: 'confirmado', notes: 'Retorno sobre tendinite de Aquiles', createdAt: '2026-06-20T10:00:00' },
+  { id: 'tel_2', patientId: 'pat_2', patientName: 'Mariana Rosa Santos', doctorName: 'Dra. Amanda Silva', specialty: 'Ginecologia', scheduledDate: '2026-06-28', scheduledTime: '09:30', status: 'solicitado', notes: 'Acompanhamento pré-natal', createdAt: '2026-06-21T09:00:00' },
+];
+

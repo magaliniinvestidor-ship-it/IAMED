@@ -31,6 +31,7 @@ import CrmBiModule from '@/components/CrmBiModule';
 import EstoqueFarmaciaModule from '@/components/EstoqueFarmaciaModule';
 import MedicinaTrabalhoModule from '@/components/MedicinaTrabalhoModule';
 import InternacaoCentroCirurgicoModule from '@/components/InternacaoCentroCirurgicoModule';
+import PatientPortalModule from '@/components/PatientPortalModule';
 
 // i18n Context
 import { I18nProvider, useI18n } from '@/lib/i18n/I18nContext';
@@ -1215,7 +1216,7 @@ function HomeContent() {
                     patients={patients}
                   />
                 )}
-                {(activeSubmodule === 10 || activeSubmodule === 12 || activeSubmodule === 13) && (
+                {(activeSubmodule === 10 || activeSubmodule === 12) && (
                   <CrmBiModule
                     activeSubmodule={activeSubmodule}
                     addAuditLog={addAuditLog}
@@ -1223,6 +1224,17 @@ function HomeContent() {
                     setBeds={setBeds}
                     patients={patients}
                     financePostings={finance}
+                  />
+                )}
+                {activeSubmodule === 13 && (
+                  <PatientPortalModule
+                    patients={patients}
+                    setPatients={setPatients}
+                    appointments={appointments}
+                    setAppointments={setAppointments}
+                    dtes={dtes}
+                    setDtes={setDtes}
+                    addAuditLog={addAuditLog}
                   />
                 )}
               </div>
