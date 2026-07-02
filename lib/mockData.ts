@@ -512,6 +512,138 @@ export interface Professional {
   permissions?: string[];
 }
 
+// ==========================================
+// ADMINISTRAÇÃO DO SISTEMA E SEGURANÇA
+// ==========================================
+
+export type SystemRole = 'SuperAdmin' | 'Administrador' | 'Gestor' | 'Diretor Clínico' | 'Médico' | 'Enfermeiro' | 'Recepcionista' | 'Financeiro' | 'Farmacêutico' | 'Visualizador';
+
+export interface SystemUser {
+  id: string;
+  email: string;
+  name: string;
+  ci: string;
+  role: SystemRole;
+  profession: string;
+  professionalRegistry: string;
+  councilType: string;
+  location: string;
+  specialties: string[];
+  phone: string;
+  status: 'ativo' | 'inativo' | 'bloqueado';
+  twoFactorEnabled: boolean;
+  twoFactorMethod: 'totp' | 'sms' | 'email' | 'none';
+  lastLogin: string | null;
+  passwordChangedAt: string;
+  mustChangePassword: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PasswordPolicy {
+  enabled: boolean;
+  minLength: number;
+  requireUppercase: boolean;
+  requireLowercase: boolean;
+  requireNumbers: boolean;
+  requireSpecialChars: boolean;
+  expirationDays: number;
+  historyCount: number;
+  maxLoginAttempts: number;
+  lockoutDurationMinutes: number;
+  sessionTimeoutMinutes: number;
+}
+
+export interface UserSession {
+  id: string;
+  userId: string;
+  userName: string;
+  ipAddress: string;
+  deviceInfo: string;
+  loginAt: string;
+  lastActivityAt: string;
+  expiresAt: string;
+  active: boolean;
+}
+
+export interface LoginAttempt {
+  id: string;
+  email: string;
+  success: boolean;
+  ipAddress: string;
+  userAgent: string;
+  attemptedAt: string;
+  failureReason?: string;
+}
+
+export interface SSOProvider {
+  id: string;
+  name: string;
+  type: 'saml' | 'oauth2' | 'oidc';
+  enabled: boolean;
+  issuerUrl: string;
+  clientId: string;
+  clientSecret: string;
+  metadataUrl: string;
+  certificateFingerprint: string;
+  defaultRole: SystemRole;
+  active: boolean;
+}
+
+export interface TwoFactorBackupCode {
+  code: string;
+  used: boolean;
+  usedAt: string | null;
+}
+
+const DEFAULT_PASSWORD_POLICY: PasswordPolicy = {
+  enabled: true,
+  minLength: 8,
+  requireUppercase: true,
+  requireLowercase: true,
+  requireNumbers: true,
+  requireSpecialChars: true,
+  expirationDays: 90,
+  historyCount: 5,
+  maxLoginAttempts: 5,
+  lockoutDurationMinutes: 30,
+  sessionTimeoutMinutes: 60,
+};
+
+export const initialSystemUsers: SystemUser[] = [
+  { id: 'usr_1', email: 'admin@iamed.med.br', name: 'Dr. Adriano Lima', ci: '1234567-8', role: 'SuperAdmin', profession: 'Médico', professionalRegistry: 'CRM-SP 234567', councilType: 'CRM', location: 'Matriz - Encarnación', specialties: ['Ortopedia', 'Traumatologia'], phone: '+55 11 99765-4321', status: 'ativo', twoFactorEnabled: true, twoFactorMethod: 'totp', lastLogin: '2026-07-02 08:30:00', passwordChangedAt: '2026-06-01', mustChangePassword: false, createdAt: '2024-01-15', updatedAt: '2026-07-01' },
+  { id: 'usr_2', email: 'amanda.silva@iamed.med.br', name: 'Dra. Amanda Silva', ci: '2345678-9', role: 'Diretor Clínico', profession: 'Médico', professionalRegistry: 'CRM-SP 112345', councilType: 'CRM', location: 'Filial - Centro', specialties: ['Cardiologia', 'Clínica Geral'], phone: '+55 11 99876-5432', status: 'ativo', twoFactorEnabled: true, twoFactorMethod: 'totp', lastLogin: '2026-07-02 09:15:00', passwordChangedAt: '2026-06-15', mustChangePassword: false, createdAt: '2024-01-15', updatedAt: '2026-06-30' },
+  { id: 'usr_3', email: 'marcela.ramos@iamed.med.br', name: 'Enf. Marcela Ramos', ci: '3456789-0', role: 'Recepcionista', profession: 'Enfermeiro', professionalRegistry: 'COREN-SP 456789', councilType: 'COREN', location: 'Matriz - Encarnación', specialties: ['Enfermagem Clínica'], phone: '+55 11 97543-2109', status: 'ativo', twoFactorEnabled: false, twoFactorMethod: 'none', lastLogin: '2026-07-02 07:45:00', passwordChangedAt: '2026-05-20', mustChangePassword: false, createdAt: '2024-03-01', updatedAt: '2026-06-28' },
+  { id: 'usr_4', email: 'bruno.castro@iamed.med.br', name: 'Dr. Bruno Castro', ci: '4567890-1', role: 'Médico', profession: 'Médico', professionalRegistry: 'CRM-SP 345678', councilType: 'CRM', location: 'Filial - Centro', specialties: ['Medicina do Trabalho'], phone: '+55 11 98654-3210', status: 'ativo', twoFactorEnabled: true, twoFactorMethod: 'sms', lastLogin: '2026-07-01 14:00:00', passwordChangedAt: '2026-04-10', mustChangePassword: false, createdAt: '2024-01-15', updatedAt: '2026-06-25' },
+  { id: 'usr_5', email: 'financeiro@iamed.med.br', name: 'Carlos Mendes', ci: '5678901-2', role: 'Financeiro', profession: 'Contador', professionalRegistry: 'CRC-SP 78901', councilType: 'CRC', location: 'Matriz - Encarnación', specialties: ['Contabilidade', 'Faturamento'], phone: '+55 11 91234-5678', status: 'ativo', twoFactorEnabled: true, twoFactorMethod: 'email', lastLogin: '2026-07-02 08:00:00', passwordChangedAt: '2026-06-20', mustChangePassword: false, createdAt: '2024-06-01', updatedAt: '2026-06-30' },
+];
+
+export const initialPasswordPolicy: PasswordPolicy = { ...DEFAULT_PASSWORD_POLICY };
+
+export const initialUserSessions: UserSession[] = [
+  { id: 'sess_1', userId: 'usr_1', userName: 'Dr. Adriano Lima', ipAddress: '192.168.1.10', deviceInfo: 'Chrome 128 / Windows 11', loginAt: '2026-07-02 08:30:00', lastActivityAt: '2026-07-02 10:15:00', expiresAt: '2026-07-02 18:30:00', active: true },
+  { id: 'sess_2', userId: 'usr_2', userName: 'Dra. Amanda Silva', ipAddress: '10.0.0.12', deviceInfo: 'Firefox 127 / macOS 15', loginAt: '2026-07-02 09:15:00', lastActivityAt: '2026-07-02 10:20:00', expiresAt: '2026-07-02 19:15:00', active: true },
+  { id: 'sess_3', userId: 'usr_3', userName: 'Enf. Marcela Ramos', ipAddress: '192.168.1.45', deviceInfo: 'Edge 128 / Windows 11', loginAt: '2026-07-02 07:45:00', lastActivityAt: '2026-07-02 10:10:00', expiresAt: '2026-07-02 17:45:00', active: true },
+  { id: 'sess_4', userId: 'usr_5', userName: 'Carlos Mendes', ipAddress: '192.168.1.20', deviceInfo: 'Chrome 128 / Windows 11', loginAt: '2026-07-02 08:00:00', lastActivityAt: '2026-07-02 09:50:00', expiresAt: '2026-07-02 18:00:00', active: true },
+];
+
+export const initialLoginAttempts: LoginAttempt[] = [
+  { id: 'att_1', email: 'admin@iamed.med.br', success: true, ipAddress: '192.168.1.10', userAgent: 'Chrome 128', attemptedAt: '2026-07-02 08:30:00' },
+  { id: 'att_2', email: 'amanda.silva@iamed.med.br', success: true, ipAddress: '10.0.0.12', userAgent: 'Firefox 127', attemptedAt: '2026-07-02 09:15:00' },
+  { id: 'att_3', email: 'invasor@test.com', success: false, ipAddress: '203.0.113.5', userAgent: 'Unknown', attemptedAt: '2026-07-02 03:22:00', failureReason: 'Credenciais inválidas' },
+  { id: 'att_4', email: 'invasor@test.com', success: false, ipAddress: '203.0.113.5', userAgent: 'Unknown', attemptedAt: '2026-07-02 03:23:00', failureReason: 'Credenciais inválidas' },
+  { id: 'att_5', email: 'invasor@test.com', success: false, ipAddress: '203.0.113.5', userAgent: 'Unknown', attemptedAt: '2026-07-02 03:24:00', failureReason: 'Credenciais inválidas' },
+  { id: 'att_6', email: 'financeiro@iamed.med.br', success: true, ipAddress: '192.168.1.20', userAgent: 'Chrome 128', attemptedAt: '2026-07-02 08:00:00' },
+  { id: 'att_7', email: 'bruno.castro@iamed.med.br', success: false, ipAddress: '10.0.0.50', userAgent: 'Safari 18', attemptedAt: '2026-07-01 23:45:00', failureReason: 'Senha expirada' },
+];
+
+export const initialSSOProviders: SSOProvider[] = [
+  { id: 'sso_1', name: 'Azure AD (Microsoft)', type: 'oidc', enabled: true, issuerUrl: 'https://login.microsoftonline.com/tenant-id/v2.0', clientId: 'az_iamed_webapp', clientSecret: '********', metadataUrl: 'https://login.microsoftonline.com/tenant-id/v2.0/.well-known/openid-configuration', certificateFingerprint: 'A1:B2:C3:D4:E5:F6:...', defaultRole: 'Visualizador', active: true },
+  { id: 'sso_2', name: 'Google Workspace', type: 'oauth2', enabled: false, issuerUrl: 'https://accounts.google.com', clientId: 'google_iamed_client', clientSecret: '********', metadataUrl: 'https://accounts.google.com/.well-known/openid-configuration', certificateFingerprint: '', defaultRole: 'Visualizador', active: false },
+];
+
+export { DEFAULT_PASSWORD_POLICY };
+
 export interface Dte {
   id: string;
   cdc: string;               // Código de Control (44 dígitos) - código único SIFEN

@@ -1,7 +1,10 @@
 'use client';
 
 import React, { useState } from 'react';
-import { FinancialPosting, StockItem, AuditLog, Dte, DteItem, Patient, Professional, ProfessionalRole, ProfessionalCouncil, ProfessionalShift, FeeSchedule, InsuranceCompany, PreAuthorization, BatchInvoice, EligibilityCheck, ProfessionalSettlement, ForeignBilling, AccountPayable, AccountReceivable, CashFlowProjection, BankReconciliation, CostCenter, IncomeStatement, TaxCalculation, PurchaseBookEntry, SalesBookEntry, ExchangeRate, ChartOfAccount, AccountingEntry, initialInsurances, initialFeeSchedules, initialPreAuthorizations, initialBatchInvoices, initialEligibilityChecks, initialSettlements, initialForeignBillings, initialAccountsPayable, initialAccountsReceivable, initialCashFlows, initialBankReconciliations, initialCostCenters, initialIncomeStatements, initialTaxCalculations, initialPurchaseBook, initialSalesBook, initialExchangeRates, initialChartOfAccounts, initialAccountingEntries } from '@/lib/mockData';
+import { FinancialPosting, StockItem, AuditLog, Dte, DteItem, Patient, Professional, ProfessionalRole, ProfessionalCouncil, ProfessionalShift, FeeSchedule, InsuranceCompany, PreAuthorization, BatchInvoice, EligibilityCheck, ProfessionalSettlement, ForeignBilling, AccountPayable, AccountReceivable, CashFlowProjection, BankReconciliation, CostCenter, IncomeStatement, TaxCalculation, PurchaseBookEntry, SalesBookEntry, ExchangeRate, ChartOfAccount, AccountingEntry, initialInsurances, initialFeeSchedules, initialPreAuthorizations, initialBatchInvoices, initialEligibilityChecks, initialSettlements, initialForeignBillings, initialAccountsPayable, initialAccountsReceivable, initialCashFlows, initialBankReconciliations, initialCostCenters, initialIncomeStatements, initialTaxCalculations, initialPurchaseBook, initialSalesBook, initialExchangeRates, initialChartOfAccounts, initialAccountingEntries,
+  SystemUser, PasswordPolicy, UserSession, LoginAttempt, SSOProvider, SystemRole,
+  initialSystemUsers, initialPasswordPolicy, initialUserSessions, initialLoginAttempts, initialSSOProviders,
+} from '@/lib/mockData';
 import { supabase } from '@/lib/supabaseClient';
 import { useI18n } from '@/lib/i18n/I18nContext';
 import {
@@ -11,7 +14,10 @@ import {
   ChevronDown, ChevronRight, RefreshCw, Send, Ban, Eye,
   Building2, Hash, Globe, CheckCircle2, XCircle, Clock,
   AlertCircle, Banknote, Zap, Shield, FileCheck, Printer,
-  Stethoscope, UserPlus, UserCheck, UserX, Mail, Phone, Briefcase, Calendar, Edit2, Users
+  Stethoscope, UserPlus, UserCheck, UserX, Mail, Phone, Briefcase, Calendar, Edit2, Users,
+  Lock, KeyRound, Fingerprint, DoorOpen, LogOut, Gauge,
+  Smartphone as SmartphoneIcon, ScanLine, Copy, CheckCheck,
+  IdCard, MapPin, Star, ToggleLeft, ToggleRight,
 } from 'lucide-react';
 
 interface AdminFinanceModuleProps {
@@ -517,7 +523,8 @@ export default function AdminFinanceModule({
   React.useEffect(() => { if (accountingEntriesProp) setAccountingEntries(accountingEntriesProp); }, [accountingEntriesProp]);
 
   // ── Admin tab (submodule 14) ────────────────────────────────────────────────────────
-  const [adminTab, setAdminTab] = useState<'security' | 'professionals'>('security');
+  type AdminTab = 'users' | 'security' | 'password-policy' | 'two-factor' | 'sso' | 'sessions' | 'professionals';
+  const [adminTab, setAdminTab] = useState<AdminTab>('users');
 
   // ── Professional Form States ────────────────────────────────────────────────────────
   const [profFormOpen, setProfFormOpen] = useState(false);
@@ -828,6 +835,57 @@ export default function AdminFinanceModule({
   // ── 14. Admin State ─────────────────────────────────────────────────────────
   const [currentSelectedUser, setCurrentSelectedUser] = useState('Marcela Ramos - Recepcionista');
   const [rbacSelectedProfId, setRbacSelectedProfId] = useState<string>('');
+  const [systemUsers, setSystemUsers] = useState<SystemUser[]>(initialSystemUsers);
+  const [passwordPolicy, setPasswordPolicy] = useState<PasswordPolicy>(initialPasswordPolicy);
+  const [userSessions, setUserSessions] = useState<UserSession[]>(initialUserSessions);
+  const [loginAttempts, setLoginAttempts] = useState<LoginAttempt[]>(initialLoginAttempts);
+  const [ssoProviders, setSSOProviders] = useState<SSOProvider[]>(initialSSOProviders);
+  const [passwordPolicySaved, setPasswordPolicySaved] = useState(false);
+
+  // User form state
+  const [userFormOpen, setUserFormOpen] = useState(false);
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState('');
+  const [userName, setUserName] = useState('');
+  const [userCi, setUserCi] = useState('');
+  const [userRole, setUserRole] = useState<SystemRole>('Visualizador');
+  const [userProfession, setUserProfession] = useState('');
+  const [userRegistry, setUserRegistry] = useState('');
+  const [userCouncilType, setUserCouncilType] = useState('');
+  const [userLocation, setUserLocation] = useState('');
+  const [userSpecialties, setUserSpecialties] = useState<string[]>([]);
+  const [userPhone, setUserPhone] = useState('');
+  const [userStatus, setUserStatus] = useState<'ativo' | 'inativo' | 'bloqueado'>('ativo');
+  const [user2FA, setUser2FA] = useState(false);
+  const [user2FAMethod, setUser2FAMethod] = useState<'totp' | 'sms' | 'email' | 'none'>('none');
+  const [specialtyInput, setSpecialtyInput] = useState('');
+
+  // 2FA simulation state
+  const [twoFactorCode, setTwoFactorCode] = useState('');
+  const [twoFactorVerified, setTwoFactorVerified] = useState(false);
+  const [showTwoFactorQR, setShowTwoFactorQR] = useState(false);
+  const [backupCodes, setBackupCodes] = useState<string[]>(['ABCD-1234', 'EFGH-5678', 'IJKL-9012', 'MNOP-3456', 'QRST-7890']);
+
+  // Password reset simulation
+  const [passwordResetUserId, setPasswordResetUserId] = useState<string | null>(null);
+  const [passwordResetNewPass, setPasswordResetNewPass] = useState('');
+  const [passwordResetConfirm, setPasswordResetConfirm] = useState('');
+
+  // SSO form state
+  const [ssoFormOpen, setSsoFormOpen] = useState(false);
+  const [editingSsoId, setEditingSsoId] = useState<string | null>(null);
+  const [ssoName, setSsoName] = useState('');
+  const [ssoType, setSsoType] = useState<'saml' | 'oauth2' | 'oidc'>('oidc');
+  const [ssoIssuer, setSsoIssuer] = useState('');
+  const [ssoClientId, setSsoClientId] = useState('');
+  const [ssoClientSecret, setSsoClientSecret] = useState('');
+  const [ssoMetadataUrl, setSsoMetadataUrl] = useState('');
+  const [ssoCertFingerprint, setSsoCertFingerprint] = useState('');
+  const [ssoDefaultRole, setSsoDefaultRole] = useState<SystemRole>('Visualizador');
+  const [ssoEnabled, setSsoEnabled] = useState(false);
+
+  // Session filter/view
+  const [sessionFilter, setSessionFilter] = useState<'all' | 'active' | 'revoked'>('active');
 
   // Finance calculations
   const totalIncome = financePostings.filter(p => p.type === 'receita').reduce((sum, p) => sum + p.amount, 0);
@@ -2258,28 +2316,602 @@ export default function AdminFinanceModule({
       {activeSubmodule === 14 && (
         <div className="space-y-6">
           {/* Tab Selector */}
-          <div className="flex gap-2 border-b border-slate-200/80 pb-px">
-            <button
-              onClick={() => setAdminTab('security')}
-              className={`pb-2.5 px-4 text-sm font-semibold transition-all border-b-2 flex items-center gap-2 cursor-pointer ${
-                adminTab === 'security'
-                  ? 'border-teal-600 text-teal-600 font-bold'
-                  : 'border-transparent text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              <Shield className="w-4 h-4" /> {t('prof_tab_security', 'app')}
+          <div className="flex gap-1 border-b border-slate-200/80 pb-px overflow-x-auto">
+            <button onClick={() => setAdminTab('users')} className={`pb-2.5 px-3 text-sm font-semibold transition-all border-b-2 flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${adminTab === 'users' ? 'border-teal-600 text-teal-600 font-bold' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+              <Users className="w-3.5 h-3.5" /> Usuários
             </button>
-            <button
-              onClick={() => setAdminTab('professionals')}
-              className={`pb-2.5 px-4 text-sm font-semibold transition-all border-b-2 flex items-center gap-2 cursor-pointer ${
-                adminTab === 'professionals'
-                  ? 'border-teal-600 text-teal-600 font-bold'
-                  : 'border-transparent text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              <Users className="w-4 h-4" /> {t('prof_tab_professionals', 'app')}
+            <button onClick={() => setAdminTab('security')} className={`pb-2.5 px-3 text-sm font-semibold transition-all border-b-2 flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${adminTab === 'security' ? 'border-teal-600 text-teal-600 font-bold' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+              <Shield className="w-3.5 h-3.5" /> RBAC
+            </button>
+            <button onClick={() => setAdminTab('password-policy')} className={`pb-2.5 px-3 text-sm font-semibold transition-all border-b-2 flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${adminTab === 'password-policy' ? 'border-teal-600 text-teal-600 font-bold' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+              <Lock className="w-3.5 h-3.5" /> Política de Senhas
+            </button>
+            <button onClick={() => setAdminTab('two-factor')} className={`pb-2.5 px-3 text-sm font-semibold transition-all border-b-2 flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${adminTab === 'two-factor' ? 'border-teal-600 text-teal-600 font-bold' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+              <Fingerprint className="w-3.5 h-3.5" /> 2FA / MFA
+            </button>
+            <button onClick={() => setAdminTab('sso')} className={`pb-2.5 px-3 text-sm font-semibold transition-all border-b-2 flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${adminTab === 'sso' ? 'border-teal-600 text-teal-600 font-bold' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+              <Globe className="w-3.5 h-3.5" /> SSO
+            </button>
+            <button onClick={() => setAdminTab('sessions')} className={`pb-2.5 px-3 text-sm font-semibold transition-all border-b-2 flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${adminTab === 'sessions' ? 'border-teal-600 text-teal-600 font-bold' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+              <DoorOpen className="w-3.5 h-3.5" /> Sessões
+            </button>
+            <button onClick={() => setAdminTab('professionals')} className={`pb-2.5 px-3 text-sm font-semibold transition-all border-b-2 flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${adminTab === 'professionals' ? 'border-teal-600 text-teal-600 font-bold' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+              <Stethoscope className="w-3.5 h-3.5" /> Profissionais
             </button>
           </div>
+
+          {adminTab === 'users' && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Formulário de Usuário */}
+                <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs lg:col-span-1 space-y-4">
+                  <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                    <UserPlus className="w-5 h-5 text-teal-600" />
+                    <h3 className="font-semibold text-slate-800 text-base">{editingUserId ? 'Editar Usuário' : 'Novo Usuário'}</h3>
+                  </div>
+                  <form onSubmit={(e) => { e.preventDefault(); if (!userName.trim() || !userEmail.trim()) return; const exists = systemUsers.find(u => u.id === editingUserId); if (exists) { setSystemUsers(prev => prev.map(u => u.id === editingUserId ? { ...u, email: userEmail, name: userName, ci: userCi, role: userRole, profession: userProfession, professionalRegistry: userRegistry, councilType: userCouncilType, location: userLocation, specialties: userSpecialties, phone: userPhone, status: userStatus, twoFactorEnabled: user2FA, twoFactorMethod: user2FAMethod } : u)); addAuditLog('Editou Usuário', userName); } else { const newId = `usr_${Date.now()}`; setSystemUsers(prev => [...prev, { id: newId, email: userEmail, name: userName, ci: userCi, role: userRole, profession: userProfession, professionalRegistry: userRegistry, councilType: userCouncilType, location: userLocation, specialties: userSpecialties, phone: userPhone, status: 'ativo', twoFactorEnabled: false, twoFactorMethod: 'none', lastLogin: null, passwordChangedAt: new Date().toISOString(), mustChangePassword: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }]); addAuditLog('Cadastrou Usuário', userName); } setEditingUserId(null); setUserFormOpen(false); setUserName(''); setUserEmail(''); setUserCi(''); setUserSpecialties([]); }} className="space-y-3 text-xs font-sans">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="col-span-2">
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Nome Completo *</label>
+                        <input type="text" value={userName} onChange={e => setUserName(e.target.value)} placeholder="Ex: Dra. Amanda Silva" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" required />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">E-mail *</label>
+                        <input type="email" value={userEmail} onChange={e => setUserEmail(e.target.value)} placeholder="email@iamed.med.br" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" required />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">CI / Documento</label>
+                        <input type="text" value={userCi} onChange={e => setUserCi(e.target.value)} placeholder="1234567-8" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Função / Perfil</label>
+                      <select value={userRole} onChange={e => setUserRole(e.target.value as SystemRole)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg font-medium text-xs">
+                        <option value="SuperAdmin">SuperAdmin</option>
+                        <option value="Administrador">Administrador</option>
+                        <option value="Gestor">Gestor</option>
+                        <option value="Diretor Clínico">Diretor Clínico</option>
+                        <option value="Médico">Médico</option>
+                        <option value="Enfermeiro">Enfermeiro</option>
+                        <option value="Recepcionista">Recepcionista</option>
+                        <option value="Financeiro">Financeiro</option>
+                        <option value="Farmacêutico">Farmacêutico</option>
+                        <option value="Visualizador">Visualizador</option>
+                      </select>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Profissão</label>
+                        <input type="text" value={userProfession} onChange={e => setUserProfession(e.target.value)} placeholder="Médico" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Conselho</label>
+                        <input type="text" value={userCouncilType} onChange={e => setUserCouncilType(e.target.value)} placeholder="CRM" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Registro Profissional</label>
+                      <input type="text" value={userRegistry} onChange={e => setUserRegistry(e.target.value)} placeholder="CRM-SP 12345" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Sede / Localização</label>
+                      <input type="text" value={userLocation} onChange={e => setUserLocation(e.target.value)} placeholder="Matriz - Encarnación" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Especialidades</label>
+                      <div className="flex gap-1 mb-1 flex-wrap">
+                        {userSpecialties.map((s, i) => (
+                          <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 bg-teal-50 text-teal-700 rounded-full text-[10px] font-bold border border-teal-200">
+                            {s} <button type="button" onClick={() => setUserSpecialties(prev => prev.filter((_, j) => j !== i))} className="text-teal-500 hover:text-teal-700">&times;</button>
+                          </span>
+                        ))}
+                      </div>
+                      <div className="flex gap-1">
+                        <input type="text" value={specialtyInput} onChange={e => setSpecialtyInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (specialtyInput.trim() && !userSpecialties.includes(specialtyInput.trim())) { setUserSpecialties(prev => [...prev, specialtyInput.trim()]); setSpecialtyInput(''); } } }} placeholder="Digite e pressione Enter" className="flex-1 p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
+                        <button type="button" onClick={() => { if (specialtyInput.trim() && !userSpecialties.includes(specialtyInput.trim())) { setUserSpecialties(prev => [...prev, specialtyInput.trim()]); setSpecialtyInput(''); } }} className="px-3 py-2 bg-teal-100 text-teal-700 rounded-lg text-xs font-bold cursor-pointer hover:bg-teal-200">+</button>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Telefone</label>
+                        <input type="text" value={userPhone} onChange={e => setUserPhone(e.target.value)} placeholder="+55 11 99999-9999" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Status</label>
+                        <select value={userStatus} onChange={e => setUserStatus(e.target.value as any)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs">
+                          <option value="ativo">Ativo</option>
+                          <option value="inativo">Inativo</option>
+                          <option value="bloqueado">Bloqueado</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 p-2 bg-slate-50 rounded-lg border border-slate-200">
+                      <input type="checkbox" id="user2fa" checked={user2FA} onChange={e => setUser2FA(e.target.checked)} className="rounded border-slate-300 text-teal-600 focus:ring-teal-500" />
+                      <label htmlFor="user2fa" className="text-xs font-semibold text-slate-600">Habilitar 2FA</label>
+                      {user2FA && (
+                        <select value={user2FAMethod} onChange={e => setUser2FAMethod(e.target.value as any)} className="ml-auto p-1.5 bg-white border border-slate-200 rounded text-[10px]">
+                          <option value="totp">TOTP (App)</option>
+                          <option value="sms">SMS</option>
+                          <option value="email">E-mail</option>
+                        </select>
+                      )}
+                    </div>
+                    <div className="flex gap-2 pt-2">
+                      <button type="submit" className="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-lg text-xs cursor-pointer transition">
+                        {editingUserId ? 'Atualizar Usuário' : 'Criar Usuário'}
+                      </button>
+                      {editingUserId && (
+                        <button type="button" onClick={() => { setEditingUserId(null); setUserName(''); setUserEmail(''); setUserCi(''); setUserRole('Visualizador'); setUserProfession(''); setUserRegistry(''); setUserCouncilType(''); setUserLocation(''); setUserSpecialties([]); setUserPhone(''); setUserStatus('ativo'); setUser2FA(false); setUser2FAMethod('none'); }} className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs cursor-pointer transition">
+                          Cancelar
+                        </button>
+                      )}
+                    </div>
+                  </form>
+                </div>
+
+                {/* Lista de Usuários */}
+                <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs lg:col-span-2 space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <div className="flex items-center gap-2">
+                      <Users className="w-5 h-5 text-teal-600" />
+                      <h3 className="font-semibold text-slate-800 text-base">Usuários do Sistema ({systemUsers.length})</h3>
+                    </div>
+                  </div>
+                  <div className="space-y-2 max-h-[600px] overflow-y-auto pr-1">
+                    {systemUsers.map(u => (
+                      <div key={u.id} className={`p-3 bg-slate-50 hover:bg-slate-100/70 border border-slate-200/80 rounded-xl flex items-center justify-between gap-3 text-xs transition ${u.status === 'inativo' ? 'opacity-60' : ''} ${u.status === 'bloqueado' ? 'opacity-50 border-rose-200 bg-rose-50/30' : ''}`}>
+                        <div className="flex items-start gap-3 flex-1 min-w-0">
+                          <div className={`w-9 h-9 rounded-full shrink-0 flex items-center justify-center text-white font-bold text-sm ${u.role === 'SuperAdmin' ? 'bg-rose-600' : u.role === 'Administrador' || u.role === 'Gestor' ? 'bg-teal-600' : u.role === 'Médico' || u.role === 'Diretor Clínico' ? 'bg-indigo-500' : 'bg-slate-500'}`}>
+                            {u.name.split(' ').map(n => n[0]).filter((_, i) => i < 2).join('').toUpperCase()}
+                          </div>
+                          <div className="space-y-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="font-black text-slate-800 text-sm truncate">{u.name}</p>
+                              <span className={`text-[9px] py-0.5 px-2 rounded-full border font-bold whitespace-nowrap ${u.role === 'SuperAdmin' ? 'bg-rose-50 text-rose-700 border-rose-200' : u.role === 'Administrador' || u.role === 'Gestor' ? 'bg-teal-50 text-teal-700 border-teal-200' : u.role === 'Médico' || u.role === 'Diretor Clínico' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>{u.role}</span>
+                            </div>
+                            <div className="flex items-center gap-3 text-slate-500 font-medium flex-wrap text-[10px]">
+                              <span className="flex items-center gap-1"><Mail className="w-3 h-3" /> {u.email}</span>
+                              {u.ci && <span className="flex items-center gap-1"><IdCard className="w-3 h-3" /> {u.ci}</span>}
+                              {u.location && <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {u.location}</span>}
+                            </div>
+                            {u.specialties.length > 0 && (
+                              <div className="flex gap-1 flex-wrap">
+                                {u.specialties.map((s, i) => <span key={i} className="text-[9px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-medium">{s}</span>)}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {u.twoFactorEnabled && <Fingerprint className="w-3 h-3 text-teal-500" />}
+                          <span className={`px-1.5 py-0.5 text-[9px] font-bold rounded border ${u.status === 'ativo' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : u.status === 'bloqueado' ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>{u.status}</span>
+                          <button onClick={() => { setEditingUserId(u.id); setUserName(u.name); setUserEmail(u.email); setUserCi(u.ci); setUserRole(u.role); setUserProfession(u.profession); setUserRegistry(u.professionalRegistry); setUserCouncilType(u.councilType); setUserLocation(u.location); setUserSpecialties(u.specialties); setUserPhone(u.phone); setUserStatus(u.status); setUser2FA(u.twoFactorEnabled); setUser2FAMethod(u.twoFactorMethod); }} className="p-1.5 rounded-lg hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition cursor-pointer" title="Editar"><Edit2 className="w-3 h-3" /></button>
+                          <button onClick={() => { if (confirm(`Desativar usuário ${u.name}?`)) { setSystemUsers(prev => prev.map(x => x.id === u.id ? { ...x, status: x.status === 'ativo' ? 'inativo' : 'ativo' } : x)); addAuditLog('Alterou Status Usuário', `${u.name} → ${u.status === 'ativo' ? 'inativo' : 'ativo'}`); } }} className="p-1.5 rounded-lg hover:bg-rose-50 text-slate-500 hover:text-rose-600 transition cursor-pointer" title="Ativar/Desativar">{u.status === 'ativo' ? <UserX className="w-3 h-3" /> : <UserCheck className="w-3 h-3" />}</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {adminTab === 'password-policy' && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs space-y-4">
+                <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                  <Lock className="w-5 h-5 text-teal-600" />
+                  <h3 className="font-semibold text-slate-800 text-base">Política de Senhas</h3>
+                </div>
+                <div className="space-y-4 text-xs font-sans">
+                  <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200">
+                    <span className="font-semibold text-slate-700">Política Ativa</span>
+                    <button onClick={() => { setPasswordPolicy(prev => ({ ...prev, enabled: !prev.enabled })); setPasswordPolicySaved(false); }} className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer ${passwordPolicy.enabled ? 'bg-teal-600' : 'bg-slate-300'}`}>
+                      <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform ${passwordPolicy.enabled ? 'translate-x-5' : ''}`} />
+                    </button>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">Tamanho Mínimo: {passwordPolicy.minLength} caracteres</label>
+                    <input type="range" min={4} max={32} value={passwordPolicy.minLength} onChange={e => setPasswordPolicy(prev => ({ ...prev, minLength: Number(e.target.value) }))} className="w-full accent-teal-600" />
+                    <div className="flex justify-between text-[9px] text-slate-400"><span>4</span><span>32</span></div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold text-slate-600">Requisitos de Complexidade</p>
+                    {[
+                      { key: 'requireUppercase' as const, label: 'Exigir letra maiúscula (A-Z)' },
+                      { key: 'requireLowercase' as const, label: 'Exigir letra minúscula (a-z)' },
+                      { key: 'requireNumbers' as const, label: 'Exigir número (0-9)' },
+                      { key: 'requireSpecialChars' as const, label: 'Exigir caractere especial (!@#$%)' },
+                    ].map(item => (
+                      <label key={item.key} className="flex items-center gap-2 p-2 bg-slate-50 rounded-lg border border-slate-200 cursor-pointer">
+                        <input type="checkbox" checked={passwordPolicy[item.key]} onChange={e => setPasswordPolicy(prev => ({ ...prev, [item.key]: e.target.checked }))} className="rounded border-slate-300 text-teal-600 focus:ring-teal-500" />
+                        <span className="text-xs font-medium text-slate-700">{item.label}</span>
+                      </label>
+                    ))}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Expiração (dias)</label>
+                      <input type="number" min={0} max={365} value={passwordPolicy.expirationDays} onChange={e => setPasswordPolicy(prev => ({ ...prev, expirationDays: Number(e.target.value) }))} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
+                      {passwordPolicy.expirationDays === 0 && <p className="text-[9px] text-amber-600 font-medium mt-0.5">0 = sem expiração</p>}
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Histórico (senhas anteriores)</label>
+                      <input type="number" min={0} max={24} value={passwordPolicy.historyCount} onChange={e => setPasswordPolicy(prev => ({ ...prev, historyCount: Number(e.target.value) }))} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
+                    </div>
+                  </div>
+
+                  <button onClick={() => { setPasswordPolicySaved(true); addAuditLog('Alterou Política de Senhas', JSON.stringify(passwordPolicy)); setTimeout(() => setPasswordPolicySaved(false), 3000); }} className="w-full py-3 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-lg text-xs cursor-pointer transition flex items-center justify-center gap-2">
+                    {passwordPolicySaved ? <><CheckCheck className="w-4 h-4" /> Política Salva</> : 'Salvar Política de Senhas'}
+                  </button>
+                </div>
+              </div>
+
+              <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs space-y-4">
+                <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                  <Shield className="w-5 h-5 text-teal-600" />
+                  <h3 className="font-semibold text-slate-800 text-base">Bloqueio Automático</h3>
+                </div>
+                <div className="space-y-4 text-xs font-sans">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">Tentativas Máximas Antes do Bloqueio: {passwordPolicy.maxLoginAttempts}</label>
+                    <input type="range" min={1} max={20} value={passwordPolicy.maxLoginAttempts} onChange={e => setPasswordPolicy(prev => ({ ...prev, maxLoginAttempts: Number(e.target.value) }))} className="w-full accent-teal-600" />
+                    <div className="flex justify-between text-[9px] text-slate-400"><span>1</span><span>20</span></div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">Duração do Bloqueio: {passwordPolicy.lockoutDurationMinutes} minutos</label>
+                    <input type="range" min={1} max={1440} value={passwordPolicy.lockoutDurationMinutes} onChange={e => setPasswordPolicy(prev => ({ ...prev, lockoutDurationMinutes: Number(e.target.value) }))} className="w-full accent-teal-600" />
+                    <div className="flex justify-between text-[9px] text-slate-400"><span>1 min</span><span>24 h</span></div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">Timeout de Sessão por Inatividade: {passwordPolicy.sessionTimeoutMinutes} minutos</label>
+                    <input type="range" min={5} max={480} value={passwordPolicy.sessionTimeoutMinutes} onChange={e => setPasswordPolicy(prev => ({ ...prev, sessionTimeoutMinutes: Number(e.target.value) }))} className="w-full accent-teal-600" />
+                    <div className="flex justify-between text-[9px] text-slate-400"><span>5 min</span><span>8 h</span></div>
+                  </div>
+
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                    <p className="text-[10px] text-amber-800 font-medium flex items-center gap-1.5">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                      Usuários bloqueados serão notificados por e-mail com instruções de desbloqueio. O administrador pode desbloquear manualmente na aba "Usuários".
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {adminTab === 'two-factor' && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs lg:col-span-2 space-y-4">
+                <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                  <Fingerprint className="w-5 h-5 text-teal-600" />
+                  <h3 className="font-semibold text-slate-800 text-base">Autenticação de Dois Fatores (2FA / MFA)</h3>
+                </div>
+
+                <div className="space-y-4 text-xs font-sans">
+                  <div className="p-4 bg-teal-50 border border-teal-200 rounded-xl">
+                    <p className="text-xs text-teal-800 font-semibold flex items-center gap-2">
+                      <ShieldCheck className="w-4 h-4 text-teal-600" />
+                      {systemUsers.filter(u => u.twoFactorEnabled).length} de {systemUsers.length} usuários com 2FA ativo
+                    </p>
+                    <div className="mt-2 w-full bg-teal-200 rounded-full h-2">
+                      <div className="bg-teal-600 h-2 rounded-full transition-all" style={{ width: `${(systemUsers.filter(u => u.twoFactorEnabled).length / systemUsers.length) * 100}%` }} />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-center">
+                      <SmartphoneIcon className="w-6 h-6 text-teal-600 mx-auto mb-1" />
+                      <p className="font-bold text-slate-700 text-xs">TOTP</p>
+                      <p className="text-[9px] text-slate-400">Google Authenticator, Authy</p>
+                    </div>
+                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-center">
+                      <SmartphoneIcon className="w-6 h-6 text-indigo-600 mx-auto mb-1" />
+                      <p className="font-bold text-slate-700 text-xs">SMS</p>
+                      <p className="text-[9px] text-slate-400">Código via SMS</p>
+                    </div>
+                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-center">
+                      <Mail className="w-6 h-6 text-amber-600 mx-auto mb-1" />
+                      <p className="font-bold text-slate-700 text-xs">E-mail</p>
+                      <p className="text-[9px] text-slate-400">Código via e-mail</p>
+                    </div>
+                  </div>
+
+                  {/* Simulador de Configuração 2FA */}
+                  <div className="border border-slate-200 rounded-xl p-4 space-y-3">
+                    <h4 className="font-bold text-slate-700 text-xs flex items-center gap-1.5">
+                      <ScanLine className="w-4 h-4 text-teal-600" /> Simular Configuração 2FA (TOTP)
+                    </h4>
+                    <div className="flex items-center gap-3">
+                      <div className="w-24 h-24 bg-white border-2 border-slate-200 rounded-xl flex items-center justify-center overflow-hidden">
+                        <div className="w-20 h-20 grid grid-cols-6 gap-0.5">
+                          {Array.from({ length: 36 }).map((_, i) => (
+                            <div key={i} className="rounded-sm" style={{ background: ((i * 13 + i % 7) % 3 === 0) ? '#0f172a' : 'white' }} />
+                          ))}
+                        </div>
+                      </div>
+                      <div className="flex-1 space-y-1.5">
+                        <p className="text-[10px] text-slate-500 font-medium">Escaneie o QR code com seu aplicativo autenticador:</p>
+                        <p className="font-mono text-[9px] text-slate-700 bg-slate-100 p-2 rounded break-all">otpauth://totp/IAMED:admin@iamed.med.br?secret=JBSWY3DPEHPK3PXP&issuer=IAMED</p>
+                        <button onClick={() => { setShowTwoFactorQR(!showTwoFactorQR); }} className="text-[10px] text-teal-600 font-bold hover:text-teal-800 cursor-pointer">
+                          {showTwoFactorQR ? 'Ocultar' : 'Mostrar'} chave secreta
+                        </button>
+                        {showTwoFactorQR && (
+                          <p className="font-mono text-[10px] text-amber-700 bg-amber-50 p-2 rounded border border-amber-200 break-all">
+                            Chave: JBSWY3DPEHPK3PXP
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2 items-end">
+                      <div className="flex-1">
+                        <label className="block text-[10px] font-semibold text-slate-600 mb-1">Código de Verificação (6 dígitos)</label>
+                        <input type="text" maxLength={6} value={twoFactorCode} onChange={e => setTwoFactorCode(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="000000" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono text-center tracking-widest" />
+                      </div>
+                      <button onClick={() => { if (twoFactorCode.length === 6) { setTwoFactorVerified(true); addAuditLog('Verificou 2FA TOTP', 'Código validado com sucesso'); } else { alert('Digite um código de 6 dígitos.'); } }} className="px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-lg text-xs cursor-pointer transition">
+                        Verificar
+                      </button>
+                    </div>
+                    {twoFactorVerified && (
+                      <p className="text-emerald-600 font-bold text-[11px] flex items-center gap-1.5">
+                        <CheckCircle2 className="w-4 h-4" /> 2FA verificado com sucesso! Código válido.
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Códigos de Backup */}
+                  <div className="border border-slate-200 rounded-xl p-4 space-y-2">
+                    <h4 className="font-bold text-slate-700 text-xs flex items-center gap-1.5">
+                      <Copy className="w-4 h-4 text-amber-600" /> Códigos de Backup
+                    </h4>
+                    <p className="text-[10px] text-slate-500">Guarde estes códigos em local seguro. Cada código só pode ser usado uma vez.</p>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {backupCodes.map((code, i) => (
+                        <div key={i} className="font-mono text-xs bg-slate-100 p-2 rounded border border-slate-200 text-center text-slate-700 font-bold tracking-wider">
+                          {code}
+                        </div>
+                      ))}
+                    </div>
+                    <button onClick={() => { addAuditLog('Gerou novos códigos de backup 2FA', 'Backup codes regenerated'); setBackupCodes(Array.from({ length: 5 }, () => { const c = () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random() * 32)]; return `${c()}${c()}${c()}${c()}-${c()}${c()}${c()}${c()}`; })); alert('Novos códigos de backup gerados! Os anteriores foram invalidados.'); }} className="text-[10px] text-amber-600 font-bold hover:text-amber-800 cursor-pointer">
+                      Regenerar Códigos de Backup
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Status 2FA por Usuário */}
+              <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs space-y-4">
+                <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                  <Users className="w-5 h-5 text-teal-600" />
+                  <h3 className="font-semibold text-slate-800 text-base">Status 2FA por Usuário</h3>
+                </div>
+                <div className="space-y-2 max-h-[500px] overflow-y-auto">
+                  {systemUsers.map(u => (
+                    <div key={u.id} className="flex items-center justify-between p-2.5 bg-slate-50 rounded-lg border border-slate-200">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white font-bold text-[9px] ${u.twoFactorEnabled ? 'bg-teal-500' : 'bg-slate-300'}`}>
+                          {u.name.charAt(0)}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-bold text-slate-700 text-[10px] truncate">{u.name}</p>
+                          <p className="text-[9px] text-slate-400 truncate">{u.role}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {u.twoFactorEnabled ? (
+                          <>
+                            <span className="w-1.5 h-1.5 rounded-full bg-teal-500" />
+                            <span className="text-[9px] text-teal-700 font-bold">{u.twoFactorMethod === 'totp' ? 'TOTP' : u.twoFactorMethod === 'sms' ? 'SMS' : 'E-mail'}</span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="w-1.5 h-1.5 rounded-full bg-slate-300" />
+                            <span className="text-[9px] text-slate-400">Inativo</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {adminTab === 'sso' && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Form SSO */}
+              <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs lg:col-span-1 space-y-4">
+                <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                  <Globe className="w-5 h-5 text-teal-600" />
+                  <h3 className="font-semibold text-slate-800 text-base">{editingSsoId ? 'Editar Provedor SSO' : 'Novo Provedor SSO'}</h3>
+                </div>
+                <form onSubmit={(e) => { e.preventDefault(); if (!ssoName.trim() || !ssoIssuer.trim() || !ssoClientId.trim()) return; if (editingSsoId) { setSSOProviders(prev => prev.map(p => p.id === editingSsoId ? { ...p, name: ssoName, type: ssoType, issuerUrl: ssoIssuer, clientId: ssoClientId, clientSecret: ssoClientSecret, metadataUrl: ssoMetadataUrl, certificateFingerprint: ssoCertFingerprint, defaultRole: ssoDefaultRole, enabled: ssoEnabled } : p)); addAuditLog('Editou Provedor SSO', ssoName); } else { setSSOProviders(prev => [...prev, { id: `sso_${Date.now()}`, name: ssoName, type: ssoType, enabled: ssoEnabled, issuerUrl: ssoIssuer, clientId: ssoClientId, clientSecret: ssoClientSecret, metadataUrl: ssoMetadataUrl, certificateFingerprint: ssoCertFingerprint, defaultRole: ssoDefaultRole, active: ssoEnabled }]); addAuditLog('Cadastrou Provedor SSO', ssoName); } setSsoFormOpen(false); setEditingSsoId(null); setSsoName(''); }} className="space-y-3 text-xs font-sans">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Nome do Provedor *</label>
+                    <input type="text" value={ssoName} onChange={e => setSsoName(e.target.value)} placeholder="Azure AD" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" required />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Tipo</label>
+                    <select value={ssoType} onChange={e => setSsoType(e.target.value as any)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs">
+                      <option value="oidc">OpenID Connect (OIDC)</option>
+                      <option value="oauth2">OAuth 2.0</option>
+                      <option value="saml">SAML 2.0</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Issuer URL *</label>
+                    <input type="url" value={ssoIssuer} onChange={e => setSsoIssuer(e.target.value)} placeholder="https://login.microsoftonline.com/tenant/v2.0" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" required />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Client ID *</label>
+                      <input type="text" value={ssoClientId} onChange={e => setSsoClientId(e.target.value)} placeholder="app_client_id" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" required />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Client Secret</label>
+                      <input type="password" value={ssoClientSecret} onChange={e => setSsoClientSecret(e.target.value)} placeholder="********" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Metadata URL</label>
+                    <input type="url" value={ssoMetadataUrl} onChange={e => setSsoMetadataUrl(e.target.value)} placeholder="https://.../.well-known/openid-configuration" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
+                  </div>
+                  {ssoType === 'saml' && (
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Certificado / Impressão Digital</label>
+                      <input type="text" value={ssoCertFingerprint} onChange={e => setSsoCertFingerprint(e.target.value)} placeholder="A1:B2:C3:D4:..." className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono" />
+                    </div>
+                  )}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Perfil Padrão</label>
+                    <select value={ssoDefaultRole} onChange={e => setSsoDefaultRole(e.target.value as SystemRole)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs">
+                      <option value="SuperAdmin">SuperAdmin</option>
+                      <option value="Administrador">Administrador</option>
+                      <option value="Gestor">Gestor</option>
+                      <option value="Diretor Clínico">Diretor Clínico</option>
+                      <option value="Médico">Médico</option>
+                      <option value="Enfermeiro">Enfermeiro</option>
+                      <option value="Recepcionista">Recepcionista</option>
+                      <option value="Financeiro">Financeiro</option>
+                      <option value="Farmacêutico">Farmacêutico</option>
+                      <option value="Visualizador">Visualizador</option>
+                    </select>
+                  </div>
+                  <div className="flex items-center justify-between p-2.5 bg-slate-50 rounded-lg border border-slate-200">
+                    <span className="text-xs font-semibold text-slate-700">Ativo</span>
+                    <button type="button" onClick={() => setSsoEnabled(!ssoEnabled)} className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer ${ssoEnabled ? 'bg-teal-600' : 'bg-slate-300'}`}>
+                      <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform ${ssoEnabled ? 'translate-x-5' : ''}`} />
+                    </button>
+                  </div>
+                  <button type="submit" className="w-full py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-lg text-xs cursor-pointer transition">
+                    {editingSsoId ? 'Atualizar Provedor' : 'Adicionar Provedor'}
+                  </button>
+                  {editingSsoId && (
+                    <button type="button" onClick={() => { setEditingSsoId(null); setSsoName(''); setSsoType('oidc'); setSsoIssuer(''); setSsoClientId(''); setSsoClientSecret(''); setSsoMetadataUrl(''); setSsoCertFingerprint(''); setSsoDefaultRole('Visualizador'); setSsoEnabled(false); }} className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs cursor-pointer transition">
+                      Cancelar
+                    </button>
+                  )}
+                </form>
+              </div>
+
+              {/* Lista de Provedores SSO */}
+              <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs lg:col-span-2 space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div className="flex items-center gap-2">
+                    <Globe className="w-5 h-5 text-teal-600" />
+                    <h3 className="font-semibold text-slate-800 text-base">Provedores SSO Configurados</h3>
+                  </div>
+                  <span className="text-xs font-bold px-2 py-1 bg-teal-50 text-teal-700 border border-teal-200 rounded-full">{ssoProviders.length}</span>
+                </div>
+                <div className="space-y-3">
+                  {ssoProviders.map(p => (
+                    <div key={p.id} className={`p-4 bg-slate-50 border border-slate-200/80 rounded-xl space-y-2 text-xs transition ${!p.active ? 'opacity-60' : ''}`}>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-sm ${p.type === 'oidc' ? 'bg-blue-600' : p.type === 'oauth2' ? 'bg-green-600' : 'bg-purple-600'}`}>
+                            {p.type === 'oidc' ? 'O' : p.type === 'oauth2' ? 'A' : 'S'}
+                          </div>
+                          <div>
+                            <p className="font-bold text-slate-800 text-sm">{p.name}</p>
+                            <span className="text-[10px] px-1.5 py-0.5 bg-slate-200 text-slate-600 rounded font-mono uppercase">{p.type}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-0.5 text-[9px] font-bold rounded border ${p.enabled ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>{p.enabled ? 'Ativo' : 'Inativo'}</span>
+                          <button onClick={() => { setEditingSsoId(p.id); setSsoName(p.name); setSsoType(p.type); setSsoIssuer(p.issuerUrl); setSsoClientId(p.clientId); setSsoClientSecret(p.clientSecret); setSsoMetadataUrl(p.metadataUrl); setSsoCertFingerprint(p.certificateFingerprint); setSsoDefaultRole(p.defaultRole); setSsoEnabled(p.enabled); }} className="p-1.5 rounded-lg hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition cursor-pointer"><Edit2 className="w-3.5 h-3.5" /></button>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-slate-500">
+                        <p><span className="font-semibold text-slate-600">Issuer:</span> <span className="font-mono text-[10px]">{p.issuerUrl}</span></p>
+                        <p><span className="font-semibold text-slate-600">Client ID:</span> <span className="font-mono text-[10px]">{p.clientId}</span></p>
+                        {p.metadataUrl && <p className="col-span-2"><span className="font-semibold text-slate-600">Metadata:</span> <span className="font-mono text-[10px]">{p.metadataUrl}</span></p>}
+                        <p><span className="font-semibold text-slate-600">Perfil Padrão:</span> {p.defaultRole}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {adminTab === 'sessions' && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Bloqueio e Sessões */}
+              <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs lg:col-span-1 space-y-4">
+                <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                  <DoorOpen className="w-5 h-5 text-teal-600" />
+                  <h3 className="font-semibold text-slate-800 text-base">Sessões Ativas</h3>
+                </div>
+                <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                  {(sessionFilter === 'all' ? userSessions : userSessions.filter(s => sessionFilter === 'active' ? s.active : !s.active)).map(s => (
+                    <div key={s.id} className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 text-[10px] space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-slate-700">{s.userName}</span>
+                        {s.active ? <span className="w-2 h-2 rounded-full bg-emerald-500" /> : <span className="w-2 h-2 rounded-full bg-slate-300" />}
+                      </div>
+                      <p className="text-slate-400 font-mono text-[9px]">{s.ipAddress} | {s.deviceInfo}</p>
+                      <div className="flex justify-between text-[9px] text-slate-400">
+                        <span>Login: {s.loginAt}</span>
+                        <span>Expira: {s.expiresAt}</span>
+                      </div>
+                      {s.active && (
+                        <button onClick={() => { setUserSessions(prev => prev.map(x => x.id === s.id ? { ...x, active: false, revoked: true } : x)); addAuditLog('Revogou Sessão', s.userName); }} className="text-[9px] text-rose-600 font-bold hover:text-rose-800 cursor-pointer">
+                          Revogar Sessão
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  <div className="flex gap-1 pt-2">
+                    <button onClick={() => setSessionFilter('active')} className={`px-2 py-1 text-[9px] font-bold rounded cursor-pointer ${sessionFilter === 'active' ? 'bg-teal-100 text-teal-700' : 'bg-slate-100 text-slate-500'}`}>Ativas ({userSessions.filter(s => s.active).length})</button>
+                    <button onClick={() => setSessionFilter('all')} className={`px-2 py-1 text-[9px] font-bold rounded cursor-pointer ${sessionFilter === 'all' ? 'bg-teal-100 text-teal-700' : 'bg-slate-100 text-slate-500'}`}>Todas ({userSessions.length})</button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Login Attempts */}
+              <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs lg:col-span-2 space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div className="flex items-center gap-2">
+                    <Shield className="w-5 h-5 text-teal-600" />
+                    <h3 className="font-semibold text-slate-800 text-base">Tentativas de Login</h3>
+                  </div>
+                  <span className="text-xs font-bold px-2 py-1 bg-rose-50 text-rose-700 border border-rose-200 rounded-full">{loginAttempts.filter(a => !a.success).length} falhas</span>
+                </div>
+                <div className="space-y-1.5 max-h-[400px] overflow-y-auto">
+                  {loginAttempts.map(a => (
+                    <div key={a.id} className={`flex items-center justify-between p-2 rounded-lg text-[10px] border ${a.success ? 'bg-emerald-50/50 border-emerald-200/50' : 'bg-rose-50/50 border-rose-200/50'}`}>
+                      <div className="flex items-center gap-2 min-w-0">
+                        {a.success ? <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0" /> : <XCircle className="w-3 h-3 text-rose-500 shrink-0" />}
+                        <div className="min-w-0">
+                          <p className="font-bold text-slate-700 truncate">{a.email}</p>
+                          <p className="text-[9px] text-slate-400">{a.ipAddress} | {a.userAgent}</p>
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-[9px] text-slate-500">{a.attemptedAt}</p>
+                        {a.failureReason && <p className="text-[9px] text-rose-600 font-medium">{a.failureReason}</p>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between">
+                  <span className="text-[10px] text-slate-600 font-medium">
+                    Últimas {loginAttempts.length} tentativas registradas. As tentativas são armazenadas por 90 dias conforme política de retenção.
+                  </span>
+                  <button onClick={() => { addAuditLog('Limpou Tentativas de Login', `${loginAttempts.length} registros removidos`); setLoginAttempts([]); }} className="text-[10px] text-rose-600 font-bold hover:text-rose-800 cursor-pointer shrink-0">
+                    Limpar Log
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {adminTab === 'security' && (
             <div className="space-y-6">

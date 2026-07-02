@@ -55,7 +55,8 @@ import {
   BedDouble, BarChart3, Smartphone, Settings, ArrowLeft,
   Bell, HelpCircle, Info, ShieldCheck,
   Eye, EyeOff, Loader2, LogOut, Globe, ChevronDown,
-  Building2, Hash, AlertCircle, Send, Wifi, Banknote
+  Building2, Hash, AlertCircle, Send, Wifi, Banknote,
+  Clock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -138,6 +139,14 @@ function HomeContent() {
   const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
+  const [loginAttemptCount, setLoginAttemptCount] = useState(0);
+  const [lockedUntil, setLockedUntil] = useState<string | null>(null);
+
+  // Session Timeout / Inactivity
+  const [lastActivity, setLastActivity] = useState(Date.now());
+  const [showInactivityWarning, setShowInactivityWarning] = useState(false);
+  const SESSION_TIMEOUT_MS = 60 * 60 * 1000; // 60 minutes default
+  const INACTIVITY_WARNING_MS = 55 * 60 * 1000; // warning at 55 minutes
 
   // Router States
   const [activeSubmodule, setActiveSubmodule] = useState<number | null>(null);
@@ -166,6 +175,41 @@ function HomeContent() {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // ──────────────────────────────────────────────
+  // 1b. Inactivity / Session Timeout Tracker
+  // ──────────────────────────────────────────────
+  useEffect(() => {
+    if (!session) return;
+
+    const handleUserActivity = () => {
+      setLastActivity(Date.now());
+      setShowInactivityWarning(false);
+    };
+
+    window.addEventListener('mousemove', handleUserActivity);
+    window.addEventListener('keydown', handleUserActivity);
+    window.addEventListener('click', handleUserActivity);
+    window.addEventListener('touchstart', handleUserActivity);
+
+    const interval = setInterval(() => {
+      const elapsed = Date.now() - lastActivity;
+      if (elapsed >= SESSION_TIMEOUT_MS) {
+        addAuditLog('Sessão Expirada por Inatividade', activeOperator);
+        handleLogout();
+      } else if (elapsed >= INACTIVITY_WARNING_MS) {
+        setShowInactivityWarning(true);
+      }
+    }, 30000);
+
+    return () => {
+      window.removeEventListener('mousemove', handleUserActivity);
+      window.removeEventListener('keydown', handleUserActivity);
+      window.removeEventListener('click', handleUserActivity);
+      window.removeEventListener('touchstart', handleUserActivity);
+      clearInterval(interval);
+    };
+  }, [session, lastActivity]);
 
   // ──────────────────────────────────────────────
   // 2. Load profile once session is available
@@ -591,6 +635,14 @@ function HomeContent() {
   // ──────────────────────────────────────────────
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Check if account is locked
+    if (lockedUntil && new Date(lockedUntil) > new Date()) {
+      const remaining = Math.ceil((new Date(lockedUntil).getTime() - Date.now()) / 60000);
+      setLoginError(`Conta temporariamente bloqueada. Tente novamente em ${remaining} minuto(s).`);
+      return;
+    }
+
     if (!loginEmail.trim()) {
       setLoginError(t('error_email_required'));
       return;
@@ -612,6 +664,22 @@ function HomeContent() {
 
     setLoginLoading(false);
     if (error) {
+      // Track failed login attempt
+      const newCount = loginAttemptCount + 1;
+      setLoginAttemptCount(newCount);
+
+      if (newCount >= 5) {
+        const lockDuration = 30; // minutes
+        const lockTime = new Date(Date.now() + lockDuration * 60000).toISOString();
+        setLockedUntil(lockTime);
+        setLoginError(`Conta bloqueada por ${lockDuration} minutos devido a múltiplas tentativas de login inválidas.`);
+        addAuditLog('Conta Bloqueada por Tentativas', loginEmail);
+        setLoginAttemptCount(0);
+      } else {
+        const remaining = 5 - newCount;
+        setLoginError(`Credenciais inválidas. Tentativa ${newCount}/5. Restam ${remaining} tentativa(s).`);
+      }
+
       if (isPlaceholder) {
         // Fallback for placeholder configs: allow bypass login
         const mockSession = {
@@ -627,9 +695,14 @@ function HomeContent() {
           role: 'Gestor'
         });
         setIsDbConnected(false);
-      } else {
-        setLoginError('Credenciais inválidas. Verifique seu e-mail e senha.');
+        setLoginAttemptCount(0);
+        setLockedUntil(null);
       }
+    } else {
+      // Successful login - reset counters
+      setLoginAttemptCount(0);
+      setLockedUntil(null);
+      setLastActivity(Date.now());
     }
   };
 
@@ -1267,6 +1340,38 @@ function HomeContent() {
           <p className="text-[10px] text-slate-400 pt-2">Desenvolvido sob normas da LGPD, CFM e SIFEN.</p>
         </DialogContent>
       </Dialog>
+
+      {/* Inactivity Warning Modal */}
+      {showInactivityWarning && session && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl border border-amber-200 overflow-hidden">
+            <div className="bg-gradient-to-r from-amber-500 to-orange-500 p-4 text-white">
+              <div className="flex items-center gap-2">
+                <Clock className="w-5 h-5" />
+                <h3 className="font-black text-sm">Sessão Prestes a Expirar</h3>
+              </div>
+            </div>
+            <div className="p-5 space-y-4">
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Sua sessão será encerrada em aproximadamente <b className="text-amber-700">5 minutos</b> devido à inatividade.
+                Qualquer movimento (mouse, teclado ou toque) renovará automaticamente sua sessão.
+              </p>
+              <div className="flex items-center gap-3 p-3 bg-amber-50 rounded-xl border border-amber-200">
+                <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
+                <p className="text-[10px] text-amber-800 font-medium">
+                  Por segurança, sessões inativas são automaticamente encerradas após 60 minutos.
+                </p>
+              </div>
+              <button
+                onClick={() => { setShowInactivityWarning(false); setLastActivity(Date.now()); }}
+                className="w-full py-3 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-xs cursor-pointer transition"
+              >
+                Continuar Sessão
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
