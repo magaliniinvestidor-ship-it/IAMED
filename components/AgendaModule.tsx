@@ -130,6 +130,17 @@ export default function AgendaModule({
   const [whatsappReminders, setWhatsappReminders] = useState<WhatsappReminder[]>([]);
   const [callLogs, setCallLogs] = useState<CallLog[]>([]);
 
+  // Create appointment state
+  const [showNewAppointmentModal, setShowNewAppointmentModal] = useState(false);
+  const [newApptPatientId, setNewApptPatientId] = useState('');
+  const [newApptDoctor, setNewApptDoctor] = useState('');
+  const [newApptSpecialty, setNewApptSpecialty] = useState('Clínica Geral');
+  const [newApptDate, setNewApptDate] = useState(selectedDate);
+  const [newApptTime, setNewApptTime] = useState('08:00');
+  const [newApptModality, setNewApptModality] = useState<'Presencial' | 'Virtual'>('Presencial');
+  const [newApptBranch, setNewApptBranch] = useState('Sede Central');
+  const [newApptRoom, setNewApptRoom] = useState('Consultório 101');
+
   // Create blockage state
   const [showBlockageModal, setShowBlockageModal] = useState(false);
   const [blockDoctor, setBlockDoctor] = useState<string>('todos');
@@ -900,10 +911,19 @@ export default function AgendaModule({
                     <ChevronRight className="w-4 h-4 text-slate-600" />
                   </button>
 
+                  {/* Novo Agendamento button */}
+                  <button
+                    onClick={() => { setNewApptDate(selectedDate); setShowNewAppointmentModal(true); }}
+                    className="bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-3 rounded-lg flex items-center gap-1 cursor-pointer transition text-[11px]"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Novo Agendamento
+                  </button>
+
                   {/* Blockages button */}
                   <button
                     onClick={() => setShowBlockageModal(true)}
-                    className="ml-2 bg-rose-600 hover:bg-rose-700 text-white font-bold py-2 px-3 rounded-lg flex items-center gap-1 cursor-pointer transition text-[11px]"
+                    className="bg-rose-600 hover:bg-rose-700 text-white font-bold py-2 px-3 rounded-lg flex items-center gap-1 cursor-pointer transition text-[11px]"
                   >
                     <ShieldAlert className="w-3.5 h-3.5" />
                     Gerenciar Bloqueios
@@ -1829,6 +1849,110 @@ export default function AgendaModule({
       {/* -------------------------------------------------------------
           MODALS / BOX DIALOGS
       ------------------------------------------------------------- */}
+
+      {/* 0. NEW APPOINTMENT MODAL */}
+      <Dialog open={showNewAppointmentModal} onOpenChange={setShowNewAppointmentModal}>
+        <DialogContent className="max-w-md font-sans">
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 pb-2.5 border-b text-slate-800">
+              <Plus className="w-5 h-5 text-teal-600" />
+              <h3 className="font-extrabold text-sm uppercase">Novo Agendamento</h3>
+            </div>
+
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              if (!newApptPatientId || !newApptDoctor) { alert('Selecione paciente e médico.'); return; }
+              const patient = patients.find(p => p.id === newApptPatientId);
+              const newAppt: Appointment = {
+                id: `app_${Date.now()}`,
+                patientId: newApptPatientId,
+                patientName: patient?.name || '',
+                doctorName: newApptDoctor,
+                specialty: newApptSpecialty,
+                date: newApptDate,
+                time: `${newApptTime}:00`,
+                status: 'confirmado' as const,
+                branch: newApptBranch,
+                room: newApptRoom,
+                modality: newApptModality,
+                type: 'consulta',
+              };
+              setAppointments(prev => [newAppt, ...prev]);
+              addAuditLog('Novo Agendamento', `${newAppt.patientName} - ${newAppt.doctorName} - ${newAppt.date}`);
+              setShowNewAppointmentModal(false);
+              setNewApptPatientId('');
+            }} className="space-y-3 text-xs">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Paciente *</label>
+                <select value={newApptPatientId} onChange={e => setNewApptPatientId(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold" required>
+                  <option value="">Selecionar paciente...</option>
+                  {patients.map(p => <option key={p.id} value={p.id}>{p.name} - {p.health_insurance_type || 'Particular'}</option>)}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Médico *</label>
+                  <select value={newApptDoctor} onChange={e => setNewApptDoctor(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold" required>
+                    <option value="">Selecionar...</option>
+                    {professionals.filter(p => p.role === 'Médico(a)' && p.status === 'ativo').map(p => <option key={p.id} value={p.name}>{p.name} - {p.specialty}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Especialidade</label>
+                  <select value={newApptSpecialty} onChange={e => setNewApptSpecialty(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold">
+                    <option value="Clínica Geral">Clínica Geral</option>
+                    <option value="Cardiologia">Cardiologia</option>
+                    <option value="Ortopedia">Ortopedia</option>
+                    <option value="Pediatria">Pediatria</option>
+                    <option value="Ginecologia">Ginecologia</option>
+                    <option value="Dermatologia">Dermatologia</option>
+                    <option value="Medicina do Trabalho">Medicina do Trabalho</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Data</label>
+                  <input type="date" value={newApptDate} onChange={e => setNewApptDate(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Horário</label>
+                  <input type="time" value={newApptTime} onChange={e => setNewApptTime(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Modalidade</label>
+                  <select value={newApptModality} onChange={e => setNewApptModality(e.target.value as any)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold">
+                    <option value="Presencial">Presencial</option>
+                    <option value="Virtual">Virtual (Telemedicina)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Sede</label>
+                  <select value={newApptBranch} onChange={e => setNewApptBranch(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold">
+                    <option value="Sede Central">Sede Central</option>
+                    <option value="Filial - Centro">Filial - Centro</option>
+                    <option value="Filial - Shopping">Filial - Shopping</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button type="submit" className="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-lg text-xs cursor-pointer transition">
+                  Criar Agendamento
+                </button>
+                <button type="button" onClick={() => setShowNewAppointmentModal(false)} className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs cursor-pointer transition">
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* 1. RESCHEDULE CONFIRMATION MODAL */}
       <Dialog open={rescheduleTarget !== null} onOpenChange={(open) => !open && setRescheduleTarget(null)}>

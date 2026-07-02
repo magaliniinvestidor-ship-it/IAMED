@@ -187,6 +187,7 @@ export default function ClinicalModule({
   const [asoType, setAsoType] = useState<'Admissional' | 'Periódico' | 'Demissional'>('Periódico');
   const [asoRisks, setAsoRisks] = useState('Ruídos, Ergonomia');
   const [asoStatus, setAsoStatus] = useState<'apto' | 'inapto'>('apto');
+  const [editingAso, setEditingAso] = useState<AsoExam | null>(null);
   const [catEmployee, setCatEmployee] = useState('');
   const [catDate, setCatDate] = useState('2026-06-21');
   const [catNotes, setCatNotes] = useState('');
@@ -1683,16 +1684,21 @@ export default function ClinicalModule({
             <h4 className="font-bold text-slate-800 text-sm">Histórico de ASOs</h4>
             <div className="space-y-2 max-h-[360px] overflow-y-auto">
               {asos.map(aso => (
-                <div key={aso.id} className="p-3 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center justify-between text-xs">
-                  <div className="space-y-1">
+                <div key={aso.id} className="p-3 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center justify-between text-xs group">
+                  <div className="space-y-1 flex-1">
                     <p className="font-black text-slate-800 text-sm">{aso.patientName}</p>
                     <p className="text-slate-500">Exame: <b className="text-slate-700">{aso.type}</b> | {aso.doctor}</p>
                     <div className="flex gap-1.5 flex-wrap">{aso.risks.map((r, i) => <span key={i} className="bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded text-[10px] font-semibold">{r}</span>)}</div>
                   </div>
-                  <div className="text-right space-y-1">
-                    <span className={`px-2.5 py-1 rounded-full font-bold uppercase text-[10px] ${aso.status === 'apto' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}`}>
-                      {aso.status === 'apto' ? '✅ Apto' : '❌ Inapto'}
-                    </span>
+                  <div className="text-right space-y-1 shrink-0 ml-3">
+                    <div className="flex items-center justify-end gap-2">
+                      <span className={`px-2.5 py-1 rounded-full font-bold uppercase text-[10px] ${aso.status === 'apto' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}`}>
+                        {aso.status === 'apto' ? '✅ Apto' : '❌ Inapto'}
+                      </span>
+                      <button onClick={() => setEditingAso(aso)} className="opacity-0 group-hover:opacity-100 p-1.5 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 cursor-pointer transition text-slate-500 hover:text-teal-600" title="Editar ASO">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+                      </button>
+                    </div>
                     <p className="text-[10px] text-slate-400">{aso.date}</p>
                   </div>
                 </div>
@@ -1760,6 +1766,74 @@ export default function ClinicalModule({
                     Todo trabalhador em altura superior a 2m deve possuir ASO válido.
                   </p>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ASO EDITING MODAL */}
+      {editingAso && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setEditingAso(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 p-6 font-sans border border-slate-200" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-teal-600"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+              <h3 className="font-extrabold text-slate-800 text-sm uppercase">Editar ASO</h3>
+            </div>
+            <div className="space-y-4 mt-4 text-xs">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Paciente</label>
+                <p className="font-bold text-slate-800">{editingAso.patientName}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Tipo de ASO</label>
+                  <select
+                    value={editingAso.type}
+                    onChange={e => setEditingAso(prev => prev ? { ...prev, type: e.target.value as any } : null)}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold"
+                  >
+                    <option value="Admissional">Admissional</option>
+                    <option value="Periódico">Periódico</option>
+                    <option value="Demissional">Demissional</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Parecer</label>
+                  <select
+                    value={editingAso.status}
+                    onChange={e => setEditingAso(prev => prev ? { ...prev, status: e.target.value as 'apto' | 'inapto' } : null)}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold"
+                  >
+                    <option value="apto">APTO</option>
+                    <option value="inapto">INAPTO</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Riscos Ocupacionais</label>
+                <input
+                  type="text"
+                  value={editingAso.risks.join(', ')}
+                  onChange={e => setEditingAso(prev => prev ? { ...prev, risks: e.target.value.split(',').map(r => r.trim()) } : null)}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
+                  placeholder="Separar por vírgula"
+                />
+              </div>
+              <div className="flex gap-2 pt-2">
+                <button
+                  onClick={() => {
+                    setAsos(prev => prev.map(a => a.id === editingAso.id ? { ...editingAso, date: a.date, doctor: a.doctor } : a));
+                    addAuditLog('Edição ASO', `${editingAso.patientName} - status: ${editingAso.status.toUpperCase()}`);
+                    setEditingAso(null);
+                  }}
+                  className="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-lg text-xs cursor-pointer transition"
+                >
+                  Salvar Alterações
+                </button>
+                <button onClick={() => setEditingAso(null)} className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs cursor-pointer transition">
+                  Cancelar
+                </button>
               </div>
             </div>
           </div>

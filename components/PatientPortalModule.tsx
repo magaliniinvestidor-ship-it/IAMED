@@ -235,9 +235,11 @@ export default function PatientPortalModule({
 
   // ─── Telemedicine ───
   const handleToggleTeleconsultation = useCallback(async () => {
-    if (isCallActive && stream) {
-      stream.getTracks().forEach(t => t.stop());
-      setStream(null);
+    if (isCallActive) {
+      if (stream) {
+        stream.getTracks().forEach(t => t.stop());
+        setStream(null);
+      }
       setIsCallActive(false);
       addAuditLog('Portal: Teleconsulta encerrada', loggedPatient?.name || '');
       return;
@@ -249,7 +251,6 @@ export default function PatientPortalModule({
       setIsCallActive(true);
       addAuditLog('Portal: Teleconsulta iniciada', loggedPatient?.name || '');
     } catch {
-      // fallback: still show UI
       setIsCallActive(true);
     }
   }, [isCallActive, stream, loggedPatient, addAuditLog]);

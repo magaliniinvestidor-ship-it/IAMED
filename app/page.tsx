@@ -145,8 +145,16 @@ function HomeContent() {
   // Session Timeout / Inactivity
   const [lastActivity, setLastActivity] = useState(Date.now());
   const [showInactivityWarning, setShowInactivityWarning] = useState(false);
-  const SESSION_TIMEOUT_MS = 60 * 60 * 1000; // 60 minutes default
-  const INACTIVITY_WARNING_MS = 55 * 60 * 1000; // warning at 55 minutes
+  // Suporta override via URL param ?timeout_ms=180000 para testes
+  const getTimeoutMs = () => {
+    if (typeof window !== 'undefined') {
+      const p = new URLSearchParams(window.location.search).get('timeout_ms');
+      if (p) return Math.max(30000, parseInt(p, 10));
+    }
+    return 3 * 60 * 1000; // 3 minutos default
+  };
+  const SESSION_TIMEOUT_MS = getTimeoutMs();
+  const INACTIVITY_WARNING_MS = SESSION_TIMEOUT_MS - 60000; // warning 1 min antes
 
   // Router States
   const [activeSubmodule, setActiveSubmodule] = useState<number | null>(null);
