@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode } from 'react';
 import ptBR from './locales/pt-BR.json';
 import ptPT from './locales/pt-PT.json';
 import esAR from './locales/es-AR.json';
@@ -27,26 +27,24 @@ interface I18nContextType {
 
 const I18nContext = createContext<I18nContextType | undefined>(undefined);
 
-export const I18nProvider = ({ children }: { children: ReactNode }) => {
-  const [locale, setLocaleState] = useState<LocaleType>('pt-BR');
-  const [isLoaded, setIsLoaded] = useState(false);
+const detectInitialLocale = (): LocaleType => {
+  if (typeof window === 'undefined') return 'pt-BR';
+  const savedLocale = localStorage.getItem('iamed_locale') as LocaleType;
+  if (savedLocale && locales[savedLocale]) {
+    return savedLocale;
+  }
+  const browserLang = navigator.language;
+  if (browserLang === 'pt-BR') return 'pt-BR';
+  if (browserLang === 'pt-PT' || browserLang.startsWith('pt')) return 'pt-PT';
+  if (browserLang === 'es-AR') return 'es-AR';
+  if (browserLang === 'es-PY') return 'es-PY';
+  if (browserLang.startsWith('es')) return 'es';
+  if (browserLang.startsWith('en')) return 'en';
+  return 'pt-BR';
+};
 
-  useEffect(() => {
-    const savedLocale = localStorage.getItem('iamed_locale') as LocaleType;
-    if (savedLocale && locales[savedLocale]) {
-      setLocaleState(savedLocale);
-    } else {
-      // Auto-detect based on navigator.language
-      const browserLang = navigator.language;
-      if (browserLang === 'pt-BR') setLocaleState('pt-BR');
-      else if (browserLang === 'pt-PT' || browserLang.startsWith('pt')) setLocaleState('pt-PT');
-      else if (browserLang === 'es-AR') setLocaleState('es-AR');
-      else if (browserLang === 'es-PY') setLocaleState('es-PY');
-      else if (browserLang.startsWith('es')) setLocaleState('es');
-      else if (browserLang.startsWith('en')) setLocaleState('en');
-    }
-    setIsLoaded(true);
-  }, []);
+export const I18nProvider = ({ children }: { children: ReactNode }) => {
+  const [locale, setLocaleState] = useState<LocaleType>(detectInitialLocale);
 
   const setLocale = (newLocale: LocaleType) => {
     setLocaleState(newLocale);
@@ -57,9 +55,6 @@ export const I18nProvider = ({ children }: { children: ReactNode }) => {
     if (!locales[locale]) return key;
     return locales[locale][section]?.[key] || key;
   };
-
-  // Prevent hydration mismatch by not rendering children until locale is loaded from localStorage
-  if (!isLoaded) return null;
 
   return (
     <I18nContext.Provider value={{ locale, setLocale, t }}>

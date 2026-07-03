@@ -1196,343 +1196,15 @@ export default function EstoqueFarmaciaModule({
     </div>
   );
 
-  // ─── Adverse Event Modal ─────────────────────────────────────────────────────
-  const AeModal = () => (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setShowAeForm(false)}>
-      <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl border border-slate-200 overflow-hidden" onClick={e => e.stopPropagation()}>
-        <div className="bg-gradient-to-r from-rose-700 to-pink-700 text-white p-4">
-          <p className="text-xs font-bold uppercase tracking-widest opacity-75">{t('pharm_pv_title', 'app')}</p>
-          <h3 className="font-black text-lg mt-0.5">{t('pharm_pv_ae_new', 'app')}</h3>
-        </div>
-        <form onSubmit={handleNewAdverseEvent} className="p-5 space-y-3 text-xs">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2">
-              <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_pv_ae_patient', 'app')} *</label>
-              <input list="ae-patients" value={aePatient} onChange={e => setAePatient(e.target.value)} required className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" placeholder={t('pharm_pv_ae_patient', 'app')} />
-              <datalist id="ae-patients">{patients.map((p: any) => <option key={p.id} value={p.name} />)}</datalist>
-            </div>
-            <div className="col-span-2">
-              <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_pv_ae_medication', 'app')} *</label>
-              <input value={aeMedication} onChange={e => setAeMedication(e.target.value)} required className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" placeholder={t('pharm_pv_ae_medication', 'app')} />
-            </div>
-            <div>
-              <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_item_name', 'app')}</label>
-              <select value={aeItemId} onChange={e => { setAeItemId(e.target.value); setAeLotId(''); }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
-                <option value="">{t('pharm_modal_select', 'app')}</option>
-                {pharmacyItems.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_lot_lot', 'app')}</label>
-              <select value={aeLotId} onChange={e => setAeLotId(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
-                <option value="">{t('pharm_modal_select', 'app')}</option>
-                {pharmacyItems.find(i => i.id === aeItemId)?.lots.map(l => (
-                  <option key={l.id} value={l.id}>{l.lotNumber}</option>
-                ))}
-              </select>
-            </div>
-            <div className="col-span-2">
-              <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_pv_ae_reaction', 'app')} *</label>
-              <input value={aeReaction} onChange={e => setAeReaction(e.target.value)} required className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" placeholder={t('pharm_pv_ae_reaction', 'app')} />
-            </div>
-            <div>
-              <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_pv_ae_severity', 'app')}</label>
-              <select value={aeSeverity} onChange={e => setAeSeverity(e.target.value as AdverseEventSeverity)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
-                <option value="leve">{t('pharm_severity_leve', 'app')}</option><option value="moderada">{t('pharm_severity_moderada', 'app')}</option>
-                <option value="grave">{t('pharm_severity_grave', 'app')}</option><option value="fatal">{t('pharm_severity_fatal', 'app')}</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_pv_ae_outcome', 'app')}</label>
-              <select value={aeOutcome} onChange={e => setAeOutcome(e.target.value as AdverseEventOutcome)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
-                <option value="recuperado">{t('pharm_outcome_recuperado', 'app')}</option><option value="recuperando">{t('pharm_outcome_recuperando', 'app')}</option>
-                <option value="nao_recuperado">{t('pharm_outcome_nao_recuperado', 'app')}</option><option value="obito">{t('pharm_outcome_obito', 'app')}</option>
-                <option value="desconhecido">{t('pharm_outcome_desconhecido', 'app')}</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_pv_ae_start_date', 'app')}</label>
-              <input type="date" value={aeStart} onChange={e => setAeStart(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
-            </div>
-            <div>
-              <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_pv_ae_notifier', 'app')}</label>
-              <input value={aeNotifier} onChange={e => setAeNotifier(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" placeholder={t('pharm_pv_ae_notifier_name', 'app')} />
-            </div>
-            <div className="col-span-2">
-              <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_pv_ae_description', 'app')} *</label>
-              <textarea value={aeDescription} onChange={e => setAeDescription(e.target.value)} required className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" rows={3} placeholder={t('pharm_pv_ae_description', 'app')} />
-            </div>
-          </div>
-          <div className="flex gap-2 pt-2">
-            <button type="submit" disabled={!aePatient.trim() || !aeMedication.trim() || !aeReaction.trim() || !aeDescription.trim()}
-              className="flex-1 py-3 bg-rose-600 hover:bg-rose-700 disabled:opacity-40 text-white font-bold rounded-lg text-xs transition">{t('pharm_pv_ae_register', 'app')}</button>
-            <button type="button" onClick={() => setShowAeForm(false)} className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs transition">{t('pharm_modal_cancel', 'app')}</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
 
-  // ─── Quality Deviation Modal ─────────────────────────────────────────────────
-  const QdModal = () => (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setShowQdForm(false)}>
-      <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl border border-slate-200 overflow-hidden" onClick={e => e.stopPropagation()}>
-        <div className="bg-gradient-to-r from-amber-700 to-orange-700 text-white p-4">
-          <p className="text-xs font-bold uppercase tracking-widest opacity-75">{t('pharm_pv_qd_type', 'app')}</p>
-          <h3 className="font-black text-lg mt-0.5">{t('pharm_pv_qd_new', 'app')}</h3>
-        </div>
-        <form onSubmit={handleNewQualityDeviation} className="p-5 space-y-3 text-xs">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_item_name', 'app')} *</label>
-              <select value={qdItemId} onChange={e => { setQdItemId(e.target.value); setQdLotId(''); }} required className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
-                <option value="">{t('pharm_modal_select', 'app')}</option>
-                {pharmacyItems.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_lot_lot', 'app')} *</label>
-              <select value={qdLotId} onChange={e => setQdLotId(e.target.value)} required className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
-                <option value="">{t('pharm_modal_select', 'app')}</option>
-                {pharmacyItems.find(i => i.id === qdItemId)?.lots.map(l => (
-                  <option key={l.id} value={l.id}>{l.lotNumber}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_pv_qd_type', 'app')}</label>
-              <select value={qdType} onChange={e => setQdType(e.target.value as QualityDeviation['deviationType'])} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
-                <option value="quebra">{t('pharm_qd_type_quebra', 'app')}</option><option value="contaminacao">{t('pharm_qd_type_contaminacao', 'app')}</option>
-                <option value="rotulagem">{t('pharm_qd_type_rotulagem', 'app')}</option><option value="embalagem">{t('pharm_qd_type_embalagem', 'app')}</option>
-                <option value="esterilidade">{t('pharm_qd_type_esterilidade', 'app')}</option><option value="potencia">{t('pharm_qd_type_potencia', 'app')}</option>
-                <option value="outro">{t('pharm_qd_type_outro', 'app')}</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_pv_ae_severity', 'app')}</label>
-              <select value={qdSeverity} onChange={e => setQdSeverity(e.target.value as AdverseEventSeverity)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
-                <option value="leve">{t('pharm_severity_leve', 'app')}</option><option value="moderada">{t('pharm_severity_moderada', 'app')}</option>
-                <option value="grave">{t('pharm_severity_grave', 'app')}</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_lot_qty', 'app')}</label>
-              <input type="number" value={qdQty || ''} onChange={e => setQdQty(Number(e.target.value))} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
-            </div>
-            <div>
-              <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_pv_ae_notifier', 'app')}</label>
-              <input value={qdReporter} onChange={e => setQdReporter(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
-            </div>
-            <div className="col-span-2">
-              <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_pv_ae_description', 'app')} *</label>
-              <textarea value={qdDesc} onChange={e => setQdDesc(e.target.value)} required className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" rows={3} />
-            </div>
-          </div>
-          <div className="flex gap-2 pt-2">
-            <button type="submit" disabled={!qdItemId || !qdLotId || !qdDesc.trim()}
-              className="flex-1 py-3 bg-amber-600 hover:bg-amber-700 disabled:opacity-40 text-white font-bold rounded-lg text-xs transition">{t('pharm_pv_qd_new', 'app')}</button>
-            <button type="button" onClick={() => setShowQdForm(false)} className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs transition">{t('pharm_modal_cancel', 'app')}</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
 
-  // ─── Entry Form Modal ──────────────────────────────────────────────────────────
-  const EntryModal = () => (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setShowEntryForm(false)}>
-      <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl border border-slate-200 overflow-hidden" onClick={e => e.stopPropagation()}>
-        <div className="bg-gradient-to-r from-teal-700 to-emerald-700 text-white p-4">
-          <p className="text-xs font-bold uppercase tracking-widest opacity-75">{t('pharm_entry_title', 'app')}</p>
-          <h3 className="font-black text-lg mt-0.5">{t('pharm_entry_register', 'app')}</h3>
-        </div>
-        <form onSubmit={handleEntry} className="p-5 space-y-3 text-xs">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_item_name', 'app')} *</label>
-              <select value={entryItemId} onChange={e => setEntryItemId(e.target.value)} required className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
-                <option value="">{t('pharm_modal_select', 'app')}</option>
-                {pharmacyItems.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_entry_lot', 'app')} *</label>
-              <input value={entryLotNumber} onChange={e => setEntryLotNumber(e.target.value)} required className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" placeholder={t('pharm_entry_lot', 'app')} />
-            </div>
-            <div>
-              <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_entry_serial', 'app')}</label>
-              <input value={entrySerial} onChange={e => setEntrySerial(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" placeholder={t('pharm_entry_serial', 'app')} />
-            </div>
-            <div>
-              <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_entry_qty', 'app')} *</label>
-              <input type="number" value={entryQty || ''} onChange={e => setEntryQty(Number(e.target.value))} required min={1} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
-            </div>
-            <div>
-              <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_entry_cost', 'app')}</label>
-              <input type="number" value={entryCost || ''} onChange={e => setEntryCost(Number(e.target.value))} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
-            </div>
-            <div>
-              <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_entry_expiry', 'app')} *</label>
-              <input type="date" value={entryExpiry} onChange={e => setEntryExpiry(e.target.value)} required className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
-            </div>
-            <div>
-              <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_entry_mfg', 'app')}</label>
-              <input type="date" value={EntryMfg} onChange={e => setEntryMfg(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
-            </div>
-            <div>
-              <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_entry_dte', 'app')}</label>
-              <input value={entryDte} onChange={e => setEntryDte(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" placeholder={t('pharm_entry_dte', 'app')} />
-            </div>
-            <div className="col-span-2">
-              <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_entry_supplier', 'app')}</label>
-              <input value={entrySupplier} onChange={e => setEntrySupplier(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" placeholder={t('pharm_entry_supplier', 'app')} />
-            </div>
-          </div>
-          <div className="flex gap-2 pt-2">
-            <button type="submit" data-testid="entry-register-submit" aria-label={t('pharm_entry_register', 'app')} disabled={!entryItemId || !entryQty || !entryLotNumber} className="flex-1 py-3 bg-teal-600 hover:bg-teal-700 disabled:opacity-40 text-white font-bold rounded-lg text-xs transition">{t('pharm_entry_register', 'app')}</button>
-            <button type="button" data-testid="entry-register-cancel" aria-label={t('pharm_modal_cancel', 'app')} onClick={() => setShowEntryForm(false)} className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs transition">{t('pharm_modal_cancel', 'app')}</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
 
-  // ─── Exit Form Modal ───────────────────────────────────────────────────────────
-  const ExitModal = () => (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setShowExitForm(false)}>
-      <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl border border-slate-200 overflow-hidden" onClick={e => e.stopPropagation()}>
-        <div className="bg-gradient-to-r from-amber-700 to-orange-700 text-white p-4">
-          <p className="text-xs font-bold uppercase tracking-widest opacity-75">{t('pharm_exit_title', 'app')}</p>
-          <h3 className="font-black text-lg mt-0.5">{t('pharm_exit_register', 'app')}</h3>
-        </div>
-        <form onSubmit={handleExit} className="p-5 space-y-3 text-xs">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_item_name', 'app')} *</label>
-              <select value={exitItemId} onChange={e => { setExitItemId(e.target.value); setExitLotId(''); }} required className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
-                <option value="">{t('pharm_modal_select', 'app')}</option>
-                {pharmacyItems.filter(i => i.totalQuantity > 0).map(i => <option key={i.id} value={i.id}>{i.name} ({t('pharm_lot_status_disponivel', 'app').toLowerCase()}: {i.totalQuantity})</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_lot_lot', 'app')} *</label>
-              <select value={exitLotId} onChange={e => setExitLotId(e.target.value)} required className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
-                <option value="">{t('pharm_modal_select', 'app')}</option>
-                {pharmacyItems.find(i => i.id === exitItemId)?.lots.filter(l => l.quantity > 0).map(l => (
-                  <option key={l.id} value={l.id}>{l.lotNumber} ({t('pharm_lot_status_disponivel', 'app').toLowerCase()}: {l.quantity}, {t('pharm_lot_expiry', 'app').toLowerCase()}: {l.expiryDate})</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_exit_qty', 'app')} *</label>
-              <input type="number" value={exitQty || ''} onChange={e => setExitQty(Number(e.target.value))} required min={1} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
-            </div>
-            <div>
-              <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_exit_patient', 'app')}</label>
-              <input list="exit-patients" value={exitPatient} onChange={e => setExitPatient(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" placeholder={t('pharm_exit_patient', 'app')} />
-              <datalist id="exit-patients">{patients.map((p: any) => <option key={p.id} value={p.name} />)}</datalist>
-            </div>
-            <div>
-              <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_exit_procedure', 'app')}</label>
-              <input value={exitProcedure} onChange={e => setExitProcedure(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" placeholder={t('pharm_exit_procedure', 'app')} />
-            </div>
-            <div>
-              <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_exit_sector', 'app')}</label>
-              <input value={exitSector} onChange={e => setExitSector(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" placeholder={t('pharm_exit_sector', 'app')} />
-            </div>
-            <div>
-              <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_exit_room', 'app')}</label>
-              <input value={exitRoom} onChange={e => setExitRoom(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" placeholder={t('pharm_exit_room', 'app')} />
-            </div>
-            <div>
-              <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_exit_doctor', 'app')}</label>
-              <input value={exitDoctor} onChange={e => setExitDoctor(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" placeholder={t('pharm_exit_doctor', 'app')} />
-            </div>
-          </div>
-          <div>
-            <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_exit_notes', 'app')}</label>
-            <textarea value={exitNotes} onChange={e => setExitNotes(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" rows={2} />
-          </div>
-          <div className="flex gap-2 pt-2">
-            <button type="submit" data-testid="exit-register-submit" aria-label={t('pharm_exit_register', 'app')} disabled={!exitItemId || !exitLotId || !exitQty} className="flex-1 py-3 bg-amber-600 hover:bg-amber-700 disabled:opacity-40 text-white font-bold rounded-lg text-xs transition">{t('pharm_exit_register', 'app')}</button>
-            <button type="button" data-testid="exit-register-cancel" aria-label={t('pharm_modal_cancel', 'app')} onClick={() => setShowExitForm(false)} className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs transition">{t('pharm_modal_cancel', 'app')}</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
 
-  // ─── New Item Modal ────────────────────────────────────────────────────────────
-  const NewItemModal = () => (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setShowNewItemForm(false)}>
-      <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl border border-slate-200 overflow-hidden" onClick={e => e.stopPropagation()}>
-        <div className="bg-gradient-to-r from-indigo-700 to-purple-700 text-white p-4">
-          <p className="text-xs font-bold uppercase tracking-widest opacity-75">{t('pharm_item_new', 'app')}</p>
-          <h3 className="font-black text-lg mt-0.5">{t('pharm_item_list_title', 'app')}</h3>
-        </div>
-        <form onSubmit={handleNewItem} className="p-5 space-y-3 text-xs">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2">
-              <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_item_name', 'app')} *</label>
-              <input value={newItemName} onChange={e => setNewItemName(e.target.value)} required className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" placeholder={t('pharm_item_name', 'app')} />
-            </div>
-            <div>
-              <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_item_category', 'app')} *</label>
-              <select value={newItemCategory} onChange={e => setNewItemCategory(e.target.value as DrugCategory)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
-                {(['venda_livre','sob_receita','controlado','entorpecente','psicotropico','uso_hospitalar','biologico','insumo','descartavel','material'] as DrugCategory[]).map(key => <option key={key} value={key}>{catLabel(key)}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_item_form', 'app')}</label>
-              <select value={newItemForm} onChange={e => setNewItemForm(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
-                <option value="comprimido">{t('pharm_form_comprimido', 'app')}</option><option value="capsula">{t('pharm_form_capsula', 'app')}</option>
-                <option value="ampola">{t('pharm_form_ampola', 'app')}</option><option value="frasco">{t('pharm_form_frasco', 'app')}</option>
-                <option value="seringa">{t('pharm_form_seringa', 'app')}</option><option value="spray">{t('pharm_form_spray', 'app')}</option>
-                <option value="creme">{t('pharm_form_creme', 'app')}</option><option value="solucao">{t('pharm_form_solucao', 'app')}</option>
-                <option value="po">{t('pharm_form_po', 'app')}</option><option value="outro">{t('pharm_form_outro', 'app')}</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_item_presentation', 'app')}</label>
-              <input value={newItemPresentation} onChange={e => setNewItemPresentation(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" placeholder={t('pharm_item_presentation', 'app')} />
-            </div>
-            <div>
-              <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_item_manufacturer', 'app')}</label>
-              <input value={newItemManufacturer} onChange={e => setNewItemManufacturer(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
-            </div>
-            <div>
-              <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_item_dinavisa', 'app')} *</label>
-              <input value={newItemDinavisa} onChange={e => setNewItemDinavisa(e.target.value)} required className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" placeholder={t('pharm_item_dinavisa', 'app')} />
-            </div>
-            <div>
-              <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_item_initial_qty', 'app')}</label>
-              <input type="number" value={newItemQty || ''} onChange={e => setNewItemQty(Number(e.target.value))} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
-            </div>
-            <div>
-              <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_item_min_qty', 'app')}</label>
-              <input type="number" value={newItemMin || ''} onChange={e => setNewItemMin(Number(e.target.value))} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
-            </div>
-            <div>
-              <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_item_storage', 'app')}</label>
-              <input value={newItemLocation} onChange={e => setNewItemLocation(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
-            </div>
-            <div>
-              <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_item_unit_cost', 'app')}</label>
-              <input type="number" value={newItemCost || ''} onChange={e => setNewItemCost(Number(e.target.value))} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
-            </div>
-            <div>
-              <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_item_unit_price', 'app')}</label>
-              <input type="number" value={newItemPrice || ''} onChange={e => setNewItemPrice(Number(e.target.value))} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
-            </div>
-          </div>
-          <div className="flex gap-2 pt-2">
-            <button type="submit" data-testid="new-item-submit" aria-label={t('pharm_modal_register', 'app')} disabled={!newItemName.trim() || !newItemDinavisa.trim()} className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-bold rounded-lg text-xs transition">{t('pharm_modal_register', 'app')}</button>
-            <button type="button" data-testid="new-item-cancel" aria-label={t('pharm_modal_cancel', 'app')} onClick={() => setShowNewItemForm(false)} className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs transition">{t('pharm_modal_cancel', 'app')}</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
+
+
+
+
+
 
   // ─── Main navigation tabs ───────────────────────────────────────────────────────
   const tabs = [
@@ -1678,11 +1350,334 @@ export default function EstoqueFarmaciaModule({
       </div>
 
       {/* Modals */}
-      {showNewItemForm && <NewItemModal />}
-      {showEntryForm && <EntryModal />}
-      {showExitForm && <ExitModal />}
-      {showAeForm && <AeModal />}
-      {showQdForm && <QdModal />}
+      {showNewItemForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setShowNewItemForm(false)}>
+          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl border border-slate-200 overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="bg-gradient-to-r from-indigo-700 to-purple-700 text-white p-4">
+              <p className="text-xs font-bold uppercase tracking-widest opacity-75">{t('pharm_item_new', 'app')}</p>
+              <h3 className="font-black text-lg mt-0.5">{t('pharm_item_list_title', 'app')}</h3>
+            </div>
+            <form onSubmit={handleNewItem} className="p-5 space-y-3 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="col-span-2">
+                  <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_item_name', 'app')} *</label>
+                  <input data-testid="new-item-name" value={newItemName} onChange={e => setNewItemName(e.target.value)} required className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" placeholder={t('pharm_item_name', 'app')} />
+                </div>
+                <div>
+                  <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_item_category', 'app')} *</label>
+                  <select data-testid="new-item-category" value={newItemCategory} onChange={e => setNewItemCategory(e.target.value as DrugCategory)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                    {(['venda_livre','sob_receita','controlado','entorpecente','psicotropico','uso_hospitalar','biologico','insumo','descartavel','material'] as DrugCategory[]).map(key => <option key={key} value={key}>{catLabel(key)}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_item_form', 'app')}</label>
+                  <select data-testid="new-item-form-select" value={newItemForm} onChange={e => setNewItemForm(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                    <option value="comprimido">{t('pharm_form_comprimido', 'app')}</option><option value="capsula">{t('pharm_form_capsula', 'app')}</option>
+                    <option value="ampola">{t('pharm_form_ampola', 'app')}</option><option value="frasco">{t('pharm_form_frasco', 'app')}</option>
+                    <option value="seringa">{t('pharm_form_seringa', 'app')}</option><option value="spray">{t('pharm_form_spray', 'app')}</option>
+                    <option value="creme">{t('pharm_form_creme', 'app')}</option><option value="solucao">{t('pharm_form_solucao', 'app')}</option>
+                    <option value="po">{t('pharm_form_po', 'app')}</option><option value="outro">{t('pharm_form_outro', 'app')}</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_item_presentation', 'app')}</label>
+                  <input data-testid="new-item-presentation" value={newItemPresentation} onChange={e => setNewItemPresentation(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" placeholder={t('pharm_item_presentation', 'app')} />
+                </div>
+                <div>
+                  <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_item_manufacturer', 'app')}</label>
+                  <input data-testid="new-item-manufacturer" value={newItemManufacturer} onChange={e => setNewItemManufacturer(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
+                </div>
+                <div>
+                  <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_item_dinavisa', 'app')} *</label>
+                  <input data-testid="new-item-dinavisa" value={newItemDinavisa} onChange={e => setNewItemDinavisa(e.target.value)} required className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" placeholder={t('pharm_item_dinavisa', 'app')} />
+                </div>
+                <div>
+                  <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_item_initial_qty', 'app')}</label>
+                  <input data-testid="new-item-qty" type="number" value={newItemQty || ''} onChange={e => setNewItemQty(Number(e.target.value))} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
+                </div>
+                <div>
+                  <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_item_min_qty', 'app')}</label>
+                  <input data-testid="new-item-min" type="number" value={newItemMin || ''} onChange={e => setNewItemMin(Number(e.target.value))} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
+                </div>
+                <div>
+                  <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_item_storage', 'app')}</label>
+                  <input data-testid="new-item-location" value={newItemLocation} onChange={e => setNewItemLocation(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
+                </div>
+                <div>
+                  <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_item_unit_cost', 'app')}</label>
+                  <input data-testid="new-item-cost" type="number" value={newItemCost || ''} onChange={e => setNewItemCost(Number(e.target.value))} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
+                </div>
+                <div>
+                  <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_item_unit_price', 'app')}</label>
+                  <input data-testid="new-item-price" type="number" value={newItemPrice || ''} onChange={e => setNewItemPrice(Number(e.target.value))} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
+                </div>
+              </div>
+              <div className="flex gap-2 pt-2">
+                <button type="submit" data-testid="new-item-submit" aria-label={t('pharm_modal_register', 'app')} disabled={!newItemName.trim() || !newItemDinavisa.trim()} className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-bold rounded-lg text-xs transition">{t('pharm_modal_register', 'app')}</button>
+                <button type="button" data-testid="new-item-cancel" aria-label={t('pharm_modal_cancel', 'app')} onClick={() => setShowNewItemForm(false)} className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs transition">{t('pharm_modal_cancel', 'app')}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {showEntryForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setShowEntryForm(false)}>
+          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl border border-slate-200 overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="bg-gradient-to-r from-teal-700 to-emerald-700 text-white p-4">
+              <p className="text-xs font-bold uppercase tracking-widest opacity-75">{t('pharm_entry_title', 'app')}</p>
+              <h3 className="font-black text-lg mt-0.5">{t('pharm_entry_register', 'app')}</h3>
+            </div>
+            <form onSubmit={handleEntry} className="p-5 space-y-3 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_item_name', 'app')} *</label>
+                  <select data-testid="entry-item-id" value={entryItemId} onChange={e => setEntryItemId(e.target.value)} required className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                    <option value="">{t('pharm_modal_select', 'app')}</option>
+                    {pharmacyItems.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_entry_lot', 'app')} *</label>
+                  <input data-testid="entry-lot-number" value={entryLotNumber} onChange={e => setEntryLotNumber(e.target.value)} required className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" placeholder={t('pharm_entry_lot', 'app')} />
+                </div>
+                <div>
+                  <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_entry_serial', 'app')}</label>
+                  <input data-testid="entry-serial" value={entrySerial} onChange={e => setEntrySerial(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" placeholder={t('pharm_entry_serial', 'app')} />
+                </div>
+                <div>
+                  <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_entry_qty', 'app')} *</label>
+                  <input data-testid="entry-qty" type="number" value={entryQty || ''} onChange={e => setEntryQty(Number(e.target.value))} required min={1} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
+                </div>
+                <div>
+                  <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_entry_cost', 'app')}</label>
+                  <input data-testid="entry-cost" type="number" value={entryCost || ''} onChange={e => setEntryCost(Number(e.target.value))} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
+                </div>
+                <div>
+                  <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_entry_expiry', 'app')} *</label>
+                  <input data-testid="entry-expiry" type="date" value={entryExpiry} onChange={e => setEntryExpiry(e.target.value)} required className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
+                </div>
+                <div>
+                  <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_entry_mfg', 'app')}</label>
+                  <input data-testid="entry-mfg" type="date" value={EntryMfg} onChange={e => setEntryMfg(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
+                </div>
+                <div>
+                  <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_entry_dte', 'app')}</label>
+                  <input data-testid="entry-dte" value={entryDte} onChange={e => setEntryDte(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" placeholder={t('pharm_entry_dte', 'app')} />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_entry_supplier', 'app')}</label>
+                  <input data-testid="entry-supplier" value={entrySupplier} onChange={e => setEntrySupplier(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" placeholder={t('pharm_entry_supplier', 'app')} />
+                </div>
+              </div>
+              <div className="flex gap-2 pt-2">
+                <button type="submit" data-testid="entry-register-submit" aria-label={t('pharm_entry_register', 'app')} disabled={!entryItemId || !entryQty || !entryLotNumber} className="flex-1 py-3 bg-teal-600 hover:bg-teal-700 disabled:opacity-40 text-white font-bold rounded-lg text-xs transition">{t('pharm_entry_register', 'app')}</button>
+                <button type="button" data-testid="entry-register-cancel" aria-label={t('pharm_modal_cancel', 'app')} onClick={() => setShowEntryForm(false)} className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs transition">{t('pharm_modal_cancel', 'app')}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {showExitForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setShowExitForm(false)}>
+          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl border border-slate-200 overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="bg-gradient-to-r from-amber-700 to-orange-700 text-white p-4">
+              <p className="text-xs font-bold uppercase tracking-widest opacity-75">{t('pharm_exit_title', 'app')}</p>
+              <h3 className="font-black text-lg mt-0.5">{t('pharm_exit_register', 'app')}</h3>
+            </div>
+            <form onSubmit={handleExit} className="p-5 space-y-3 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_item_name', 'app')} *</label>
+                  <select data-testid="exit-item-id" value={exitItemId} onChange={e => { setExitItemId(e.target.value); setExitLotId(''); }} required className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                    <option value="">{t('pharm_modal_select', 'app')}</option>
+                    {pharmacyItems.filter(i => i.totalQuantity > 0).map(i => <option key={i.id} value={i.id}>{i.name} ({t('pharm_lot_status_disponivel', 'app').toLowerCase()}: {i.totalQuantity})</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_lot_lot', 'app')} *</label>
+                  <select data-testid="exit-lot-id" value={exitLotId} onChange={e => setExitLotId(e.target.value)} required className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                    <option value="">{t('pharm_modal_select', 'app')}</option>
+                    {pharmacyItems.find(i => i.id === exitItemId)?.lots.filter(l => l.quantity > 0).map(l => (
+                      <option key={l.id} value={l.id}>{l.lotNumber} ({t('pharm_lot_status_disponivel', 'app').toLowerCase()}: {l.quantity}, {t('pharm_lot_expiry', 'app').toLowerCase()}: {l.expiryDate})</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_exit_qty', 'app')} *</label>
+                  <input data-testid="exit-qty" type="number" value={exitQty || ''} onChange={e => setExitQty(Number(e.target.value))} required min={1} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
+                </div>
+                <div>
+                  <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_exit_patient', 'app')}</label>
+                  <input data-testid="exit-patient" list="exit-patients" value={exitPatient} onChange={e => setExitPatient(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" placeholder={t('pharm_exit_patient', 'app')} />
+                  <datalist id="exit-patients">{patients.map((p: any) => <option key={p.id} value={p.name} />)}</datalist>
+                </div>
+                <div>
+                  <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_exit_procedure', 'app')}</label>
+                  <input data-testid="exit-procedure" value={exitProcedure} onChange={e => setExitProcedure(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" placeholder={t('pharm_exit_procedure', 'app')} />
+                </div>
+                <div>
+                  <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_exit_sector', 'app')}</label>
+                  <input data-testid="exit-sector" value={exitSector} onChange={e => setExitSector(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" placeholder={t('pharm_exit_sector', 'app')} />
+                </div>
+                <div>
+                  <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_exit_room', 'app')}</label>
+                  <input data-testid="exit-room" value={exitRoom} onChange={e => setExitRoom(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" placeholder={t('pharm_exit_room', 'app')} />
+                </div>
+                <div>
+                  <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_exit_doctor', 'app')}</label>
+                  <input data-testid="exit-doctor" value={exitDoctor} onChange={e => setExitDoctor(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" placeholder={t('pharm_exit_doctor', 'app')} />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_exit_notes', 'app')}</label>
+                <textarea data-testid="exit-notes" value={exitNotes} onChange={e => setExitNotes(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" rows={2} />
+              </div>
+              <div className="flex gap-2 pt-2">
+                <button type="submit" data-testid="exit-register-submit" aria-label={t('pharm_exit_register', 'app')} disabled={!exitItemId || !exitLotId || !exitQty} className="flex-1 py-3 bg-amber-600 hover:bg-amber-700 disabled:opacity-40 text-white font-bold rounded-lg text-xs transition">{t('pharm_exit_register', 'app')}</button>
+                <button type="button" data-testid="exit-register-cancel" aria-label={t('pharm_modal_cancel', 'app')} onClick={() => setShowExitForm(false)} className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs transition">{t('pharm_modal_cancel', 'app')}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {showAeForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setShowAeForm(false)}>
+          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl border border-slate-200 overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="bg-gradient-to-r from-rose-700 to-pink-700 text-white p-4">
+              <p className="text-xs font-bold uppercase tracking-widest opacity-75">{t('pharm_pv_title', 'app')}</p>
+              <h3 className="font-black text-lg mt-0.5">{t('pharm_pv_ae_new', 'app')}</h3>
+            </div>
+            <form onSubmit={handleNewAdverseEvent} className="p-5 space-y-3 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="col-span-2">
+                  <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_pv_ae_patient', 'app')} *</label>
+                  <input data-testid="ae-patient" list="ae-patients" value={aePatient} onChange={e => setAePatient(e.target.value)} required className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" placeholder={t('pharm_pv_ae_patient', 'app')} />
+                  <datalist id="ae-patients">{patients.map((p: any) => <option key={p.id} value={p.name} />)}</datalist>
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_pv_ae_medication', 'app')} *</label>
+                  <input data-testid="ae-medication" value={aeMedication} onChange={e => setAeMedication(e.target.value)} required className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" placeholder={t('pharm_pv_ae_medication', 'app')} />
+                </div>
+                <div>
+                  <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_item_name', 'app')}</label>
+                  <select data-testid="ae-item-id" value={aeItemId} onChange={e => { setAeItemId(e.target.value); setAeLotId(''); }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                    <option value="">{t('pharm_modal_select', 'app')}</option>
+                    {pharmacyItems.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_lot_lot', 'app')}</label>
+                  <select data-testid="ae-lot-id" value={aeLotId} onChange={e => setAeLotId(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                    <option value="">{t('pharm_modal_select', 'app')}</option>
+                    {pharmacyItems.find(i => i.id === aeItemId)?.lots.map(l => (
+                      <option key={l.id} value={l.id}>{l.lotNumber}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_pv_ae_reaction', 'app')} *</label>
+                  <input data-testid="ae-reaction" value={aeReaction} onChange={e => setAeReaction(e.target.value)} required className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" placeholder={t('pharm_pv_ae_reaction', 'app')} />
+                </div>
+                <div>
+                  <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_pv_ae_severity', 'app')}</label>
+                  <select data-testid="ae-severity" value={aeSeverity} onChange={e => setAeSeverity(e.target.value as AdverseEventSeverity)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                    <option value="leve">{t('pharm_severity_leve', 'app')}</option><option value="moderada">{t('pharm_severity_moderada', 'app')}</option>
+                    <option value="grave">{t('pharm_severity_grave', 'app')}</option><option value="fatal">{t('pharm_severity_fatal', 'app')}</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_pv_ae_outcome', 'app')}</label>
+                  <select data-testid="ae-outcome" value={aeOutcome} onChange={e => setAeOutcome(e.target.value as AdverseEventOutcome)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                    <option value="recuperado">{t('pharm_outcome_recuperado', 'app')}</option><option value="recuperando">{t('pharm_outcome_recuperando', 'app')}</option>
+                    <option value="nao_recuperado">{t('pharm_outcome_nao_recuperado', 'app')}</option><option value="obito">{t('pharm_outcome_obito', 'app')}</option>
+                    <option value="desconhecido">{t('pharm_outcome_desconhecido', 'app')}</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_pv_ae_start_date', 'app')}</label>
+                  <input data-testid="ae-start-date" type="date" value={aeStart} onChange={e => setAeStart(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
+                </div>
+                <div>
+                  <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_pv_ae_notifier', 'app')}</label>
+                  <input data-testid="ae-notifier" value={aeNotifier} onChange={e => setAeNotifier(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" placeholder={t('pharm_pv_ae_notifier_name', 'app')} />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_pv_ae_description', 'app')} *</label>
+                  <textarea data-testid="ae-description" value={aeDescription} onChange={e => setAeDescription(e.target.value)} required className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" rows={3} placeholder={t('pharm_pv_ae_description', 'app')} />
+                </div>
+              </div>
+              <div className="flex gap-2 pt-2">
+                <button type="submit" data-testid="ae-submit" disabled={!aePatient.trim() || !aeMedication.trim() || !aeReaction.trim() || !aeDescription.trim()}
+                  className="flex-1 py-3 bg-rose-600 hover:bg-rose-700 disabled:opacity-40 text-white font-bold rounded-lg text-xs transition">{t('pharm_pv_ae_register', 'app')}</button>
+                <button type="button" onClick={() => setShowAeForm(false)} className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs transition">{t('pharm_modal_cancel', 'app')}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {showQdForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setShowQdForm(false)}>
+          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl border border-slate-200 overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="bg-gradient-to-r from-amber-700 to-orange-700 text-white p-4">
+              <p className="text-xs font-bold uppercase tracking-widest opacity-75">{t('pharm_pv_qd_type', 'app')}</p>
+              <h3 className="font-black text-lg mt-0.5">{t('pharm_pv_qd_new', 'app')}</h3>
+            </div>
+            <form onSubmit={handleNewQualityDeviation} className="p-5 space-y-3 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_item_name', 'app')} *</label>
+                  <select data-testid="qd-item-id" value={qdItemId} onChange={e => { setQdItemId(e.target.value); setQdLotId(''); }} required className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                    <option value="">{t('pharm_modal_select', 'app')}</option>
+                    {pharmacyItems.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_lot_lot', 'app')} *</label>
+                  <select data-testid="qd-lot-id" value={qdLotId} onChange={e => setQdLotId(e.target.value)} required className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                    <option value="">{t('pharm_modal_select', 'app')}</option>
+                    {pharmacyItems.find(i => i.id === qdItemId)?.lots.map(l => (
+                      <option key={l.id} value={l.id}>{l.lotNumber}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_pv_qd_type', 'app')}</label>
+                  <select data-testid="qd-type" value={qdType} onChange={e => setQdType(e.target.value as QualityDeviation['deviationType'])} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                    <option value="quebra">{t('pharm_qd_type_quebra', 'app')}</option><option value="contaminacao">{t('pharm_qd_type_contaminacao', 'app')}</option>
+                    <option value="rotulagem">{t('pharm_qd_type_rotulagem', 'app')}</option><option value="embalagem">{t('pharm_qd_type_embalagem', 'app')}</option>
+                    <option value="esterilidade">{t('pharm_qd_type_esterilidade', 'app')}</option><option value="potencia">{t('pharm_qd_type_potencia', 'app')}</option>
+                    <option value="outro">{t('pharm_qd_type_outro', 'app')}</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_pv_ae_severity', 'app')}</label>
+                  <select data-testid="qd-severity" value={qdSeverity} onChange={e => setQdSeverity(e.target.value as AdverseEventSeverity)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                    <option value="leve">{t('pharm_severity_leve', 'app')}</option><option value="moderada">{t('pharm_severity_moderada', 'app')}</option>
+                    <option value="grave">{t('pharm_severity_grave', 'app')}</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_lot_qty', 'app')}</label>
+                  <input data-testid="qd-qty" type="number" value={qdQty || ''} onChange={e => setQdQty(Number(e.target.value))} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
+                </div>
+                <div>
+                  <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_pv_ae_notifier', 'app')}</label>
+                  <input data-testid="qd-reporter" value={qdReporter} onChange={e => setQdReporter(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_pv_ae_description', 'app')} *</label>
+                  <textarea data-testid="qd-description" value={qdDesc} onChange={e => setQdDesc(e.target.value)} required className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" rows={3} />
+                </div>
+              </div>
+              <div className="flex gap-2 pt-2">
+                <button type="submit" data-testid="qd-submit" disabled={!qdItemId || !qdLotId || !qdDesc.trim()}
+                  className="flex-1 py-3 bg-amber-600 hover:bg-amber-700 disabled:opacity-40 text-white font-bold rounded-lg text-xs transition">{t('pharm_pv_qd_new', 'app')}</button>
+                <button type="button" onClick={() => setShowQdForm(false)} className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs transition">{t('pharm_modal_cancel', 'app')}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

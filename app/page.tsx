@@ -143,6 +143,7 @@ function HomeContent() {
   const [lockedUntil, setLockedUntil] = useState<string | null>(null);
 
   // Session Timeout / Inactivity
+  // eslint-disable-next-line react-hooks/purity
   const lastActivityRef = useRef(Date.now());
   const showInactivityWarningRef = useRef(false);
   const [showInactivityWarning, setShowInactivityWarning] = useState(false);
@@ -152,7 +153,7 @@ function HomeContent() {
       const p = new URLSearchParams(window.location.search).get('timeout_ms');
       if (p) return Math.max(30000, parseInt(p, 10));
     }
-    return 10 * 60 * 1000; // 10 minutos default
+    return 7 * 60 * 1000; // 7 minutos default (420s)
   };
   const SESSION_TIMEOUT_MS = getTimeoutMs();
   const INACTIVITY_WARNING_MS = SESSION_TIMEOUT_MS - 60000; // warning 1 min antes
@@ -207,7 +208,9 @@ function HomeContent() {
     const interval = setInterval(() => {
       const elapsed = Date.now() - lastActivityRef.current;
       if (elapsed >= SESSION_TIMEOUT_MS) {
+        // eslint-disable-next-line react-hooks/immutability
         addAuditLog('Sessão Expirada por Inatividade', activeOperator);
+        // eslint-disable-next-line react-hooks/immutability
         handleLogout();
       } else if (elapsed >= INACTIVITY_WARNING_MS && !showInactivityWarningRef.current) {
         showInactivityWarningRef.current = true;
@@ -626,10 +629,27 @@ function HomeContent() {
     } finally {
       setDataLoading(false);
     }
-  }, []);
+  }, [
+    setDataLoading, setPatients, setAppointments, setBeds, setLogs, setFinance, setStock,
+    setAsos, setDtes, setProfessionals, setPharmacyItems, setStockMovements, setInventoryCounts,
+    setAdverseEvents, setQualityDeviations, setBatchRecalls, setIsDbConnected, setInsurances,
+    setFeeSchedules, setPreAuthorizations, setBatchInvoices, setEligibilityChecks, setSettlements,
+    setForeignBillings, setAccountsPayable, setAccountsReceivable, setCashFlows,
+    setBankReconciliations, setCostCenters, setIncomeStatements, setTaxCalculations,
+    setPurchaseBook, setSalesBook, setExchangeRates, setChartOfAccounts, setAccountingEntries,
+    initialPatients, initialAppointments, initialBeds, initialLogs, initialFinance, initialStock,
+    initialAsos, initialDtes, initialProfessionals, initialPharmacyItems, initialStockMovements,
+    initialInventoryCounts, initialAdverseEvents, initialQualityDeviations, initialBatchRecalls,
+    initialInsurances, initialFeeSchedules, initialPreAuthorizations, initialBatchInvoices,
+    initialEligibilityChecks, initialSettlements, initialForeignBillings, initialAccountsPayable,
+    initialAccountsReceivable, initialCashFlows, initialBankReconciliations, initialCostCenters,
+    initialIncomeStatements, initialTaxCalculations, initialPurchaseBook, initialSalesBook,
+    initialExchangeRates, initialChartOfAccounts, initialAccountingEntries,
+  ]);
 
   useEffect(() => {
     if (session) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       loadAllData();
     }
   }, [session, loadAllData]);
@@ -637,6 +657,7 @@ function HomeContent() {
   // ──────────────────────────────────────────────
   // 4. Audit log writer — persists to Supabase
   // ──────────────────────────────────────────────
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const addAuditLog = useCallback(async (action: string, target: string) => {
     const newLog: AuditLog = {
       id: `log_${Date.now()}`,

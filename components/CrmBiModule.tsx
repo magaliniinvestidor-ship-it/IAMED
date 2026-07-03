@@ -923,7 +923,7 @@ export default function CrmBiModule({
                             <span className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-[9px] font-bold ${n.score >= 9 ? 'bg-green-500' : n.score >= 7 ? 'bg-amber-500' : 'bg-rose-500'}`}>{n.score}</span>
                             <div>
                               <p className="font-bold text-slate-700">{n.pacienteNome}</p>
-                              <p className="text-[10px] text-slate-500 italic">"{n.comentario}"</p>
+                              <p className="text-[10px] text-slate-500 italic">&quot;{n.comentario}&quot;</p>
                             </div>
                           </div>
                           <span className="text-[10px] text-slate-400">{n.origem} | {n.dataResposta}</span>
@@ -1008,7 +1008,7 @@ export default function CrmBiModule({
                         <div>
                           <p className="font-bold text-slate-700">{wfl.nome}</p>
                           <p className="text-[10px] text-slate-500">{wfl.email} | {wfl.telefone} | {wfl.origem}</p>
-                          <p className="text-[10px] text-slate-400 italic">"{wfl.mensagem.substring(0, 80)}..."</p>
+                          <p className="text-[10px] text-slate-400 italic">&quot;{wfl.mensagem.substring(0, 80)}...&quot;</p>
                         </div>
                         <div className="text-right">
                           <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${wfl.status === 'novo' ? 'bg-blue-50 text-blue-600 border-blue-200' : wfl.status === 'contatado' ? 'bg-amber-50 text-amber-600 border-amber-200' : wfl.status === 'convertido' ? 'bg-green-50 text-green-600 border-green-200' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
@@ -1063,7 +1063,7 @@ export default function CrmBiModule({
                         </div>
                         <div className="text-right">
                           <p className="text-[10px] text-rose-500">{opt.dataOptOut}</p>
-                          {opt.motivo && <p className="text-[9px] text-rose-400 italic">"{opt.motivo}"</p>}
+                          {opt.motivo && <p className="text-[9px] text-rose-400 italic">&quot;{opt.motivo}&quot;</p>}
                         </div>
                       </div>
                     ))}
@@ -1491,7 +1491,7 @@ export default function CrmBiModule({
                             <div className="flex items-center gap-2">
                               <span className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-[9px] font-bold ${n.score >= 9 ? 'bg-green-500' : n.score >= 7 ? 'bg-amber-500' : 'bg-red-500'}`}>{n.score}</span>
                               <span className="font-bold text-slate-700">{n.pacienteNome}</span>
-                              {n.comentario && <span className="text-slate-400 italic text-[10px]">"{n.comentario}"</span>}
+                              {n.comentario && <span className="text-slate-400 italic text-[10px]">&quot;{n.comentario}&quot;</span>}
                             </div>
                           </div>
                         ))}
@@ -1635,7 +1635,7 @@ export default function CrmBiModule({
               <div>
                 <h4 className="font-bold text-slate-700">Nenhuma Vídeo Chamada de Telemedicina Ativa</h4>
                 <p className="text-xs text-slate-500 max-w-sm mt-1 leading-relaxed">
-                  Para testar, ative a Vídeo Consulta clicando em "Entrar na Teleconsulta" direto no aplicativo simulador do paciente ao lado!
+                  Para testar, ative a Vídeo Consulta clicando em &quot;Entrar na Teleconsulta&quot; direto no aplicativo simulador do paciente ao lado!
                 </p>
               </div>
             </div>

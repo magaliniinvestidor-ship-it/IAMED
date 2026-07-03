@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useReducer, useCallback, useMemo } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useI18n } from '@/lib/i18n/I18nContext';
 import { Patient, Appointment, Professional, AuditLog } from '@/lib/mockData';
@@ -124,11 +124,47 @@ export default function AgendaModule({
   const [draggedAppId, setDraggedAppId] = useState<string | null>(null);
   const [rescheduleTarget, setRescheduleTarget] = useState<{ appId: string, date: string, time: string, groupVal: string } | null>(null);
 
-  // Database lists
-  const [blockedSlots, setBlockedSlots] = useState<BlockedSlot[]>([]);
-  const [waitingList, setWaitingList] = useState<WaitlistEntry[]>([]);
-  const [whatsappReminders, setWhatsappReminders] = useState<WhatsappReminder[]>([]);
-  const [callLogs, setCallLogs] = useState<CallLog[]>([]);
+  // Database lists (managed via useReducer to avoid setState-in-effect lint errors)
+  type DbDataState = {
+    blockedSlots: BlockedSlot[];
+    waitingList: WaitlistEntry[];
+    whatsappReminders: WhatsappReminder[];
+    callLogs: CallLog[];
+  };
+  type DbDataAction =
+    | { type: 'SET_ALL'; payload: DbDataState }
+    | { type: 'SET_BLOCKED_SLOTS'; payload: BlockedSlot[] | ((prev: BlockedSlot[]) => BlockedSlot[]) }
+    | { type: 'SET_WAITING_LIST'; payload: WaitlistEntry[] | ((prev: WaitlistEntry[]) => WaitlistEntry[]) }
+    | { type: 'SET_WHATSAPP_REMINDERS'; payload: WhatsappReminder[] | ((prev: WhatsappReminder[]) => WhatsappReminder[]) }
+    | { type: 'SET_CALL_LOGS'; payload: CallLog[] | ((prev: CallLog[]) => CallLog[]) };
+
+  const dbDataReducer = (state: DbDataState, action: DbDataAction): DbDataState => {
+    switch (action.type) {
+      case 'SET_ALL': return action.payload;
+      case 'SET_BLOCKED_SLOTS': return { ...state, blockedSlots: typeof action.payload === 'function' ? action.payload(state.blockedSlots) : action.payload };
+      case 'SET_WAITING_LIST': return { ...state, waitingList: typeof action.payload === 'function' ? action.payload(state.waitingList) : action.payload };
+      case 'SET_WHATSAPP_REMINDERS': return { ...state, whatsappReminders: typeof action.payload === 'function' ? action.payload(state.whatsappReminders) : action.payload };
+      case 'SET_CALL_LOGS': return { ...state, callLogs: typeof action.payload === 'function' ? action.payload(state.callLogs) : action.payload };
+      default: return state;
+    }
+  };
+
+  const [dbData, dispatchDb] = useReducer(dbDataReducer, {
+    blockedSlots: [],
+    waitingList: [],
+    whatsappReminders: [],
+    callLogs: [],
+  });
+
+  const setBlockedSlots = useCallback((value: BlockedSlot[] | ((prev: BlockedSlot[]) => BlockedSlot[])) => dispatchDb({ type: 'SET_BLOCKED_SLOTS', payload: value }), []);
+  const setWaitingList = useCallback((value: WaitlistEntry[] | ((prev: WaitlistEntry[]) => WaitlistEntry[])) => dispatchDb({ type: 'SET_WAITING_LIST', payload: value }), []);
+  const setWhatsappReminders = useCallback((value: WhatsappReminder[] | ((prev: WhatsappReminder[]) => WhatsappReminder[])) => dispatchDb({ type: 'SET_WHATSAPP_REMINDERS', payload: value }), []);
+  const setCallLogs = useCallback((value: CallLog[] | ((prev: CallLog[]) => CallLog[])) => dispatchDb({ type: 'SET_CALL_LOGS', payload: value }), []);
+
+  const blockedSlots = dbData.blockedSlots;
+  const waitingList = dbData.waitingList;
+  const whatsappReminders = dbData.whatsappReminders;
+  const callLogs = dbData.callLogs;
 
   // Create appointment state
   const [showNewAppointmentModal, setShowNewAppointmentModal] = useState(false);
@@ -219,24 +255,27 @@ export default function AgendaModule({
         supabase.from('call_center_logs').select('*').order('created_at', { ascending: false })
       ]);
 
-      if (blockRes.data && !blockRes.error) setBlockedSlots(blockRes.data);
-      else setBlockedSlots(initialBlockedSlots);
-
-      if (wlRes.data && !wlRes.error) setWaitingList(wlRes.data);
-      else setWaitingList(initialWaitlist);
-
-      if (waRes.data && !waRes.error) setWhatsappReminders(waRes.data);
-      else setWhatsappReminders(initialWhatsappReminders);
-
-      if (callRes.data && !callRes.error) setCallLogs(callRes.data);
-      else setCallLogs(initialCallLogs);
+      dispatchDb({
+        type: 'SET_ALL',
+        payload: {
+          blockedSlots: blockRes.data && !blockRes.error ? blockRes.data : initialBlockedSlots,
+          waitingList: wlRes.data && !wlRes.error ? wlRes.data : initialWaitlist,
+          whatsappReminders: waRes.data && !waRes.error ? waRes.data : initialWhatsappReminders,
+          callLogs: callRes.data && !callRes.error ? callRes.data : initialCallLogs,
+        },
+      });
 
     } catch (e) {
       console.warn("Failed to fetch from Supabase. Falling back to mock variables.", e);
-      setBlockedSlots(initialBlockedSlots);
-      setWaitingList(initialWaitlist);
-      setWhatsappReminders(initialWhatsappReminders);
-      setCallLogs(initialCallLogs);
+      dispatchDb({
+        type: 'SET_ALL',
+        payload: {
+          blockedSlots: initialBlockedSlots,
+          waitingList: initialWaitlist,
+          whatsappReminders: initialWhatsappReminders,
+          callLogs: initialCallLogs,
+        },
+      });
     }
   };
 
@@ -244,12 +283,12 @@ export default function AgendaModule({
     loadModuleData();
   }, []);
 
-  // Update selected WhatsApp appointment default selection
-  useEffect(() => {
-    if (appointments.length > 0 && !selectedWhatsAppAppId) {
-      setSelectedWhatsAppAppId(appointments[0].id);
-    }
-  }, [appointments, selectedWhatsAppAppId]);
+  // Update selected WhatsApp appointment default selection (derived state)
+  const effectiveWhatsAppAppId = useMemo(() => {
+    if (selectedWhatsAppAppId) return selectedWhatsAppAppId;
+    if (appointments.length > 0) return appointments[0].id;
+    return '';
+  }, [selectedWhatsAppAppId, appointments]);
 
   // -------------------------------------------------------------
   // CALL CENTER TIMER
@@ -1216,7 +1255,7 @@ export default function AgendaModule({
                         <div 
                           key={rem.id} 
                           onClick={() => setSelectedWhatsAppAppId(rem.appointment_id)}
-                          className={`p-3 border rounded-xl flex items-center justify-between gap-4 cursor-pointer transition ${selectedWhatsAppAppId === rem.appointment_id ? 'border-teal-500 bg-teal-50/30' : 'border-slate-200 hover:bg-slate-50'}`}
+                          className={`p-3 border rounded-xl flex items-center justify-between gap-4 cursor-pointer transition ${effectiveWhatsAppAppId === rem.appointment_id ? 'border-teal-500 bg-teal-50/30' : 'border-slate-200 hover:bg-slate-50'}`}
                         >
                           <div className="space-y-1">
                             <div className="flex items-center gap-2">
@@ -1253,7 +1292,7 @@ export default function AgendaModule({
 
                   {/* PHONE FRAME */}
                   {(() => {
-                    const activeWaApp = appointments.find(a => a.id === selectedWhatsAppAppId);
+                    const activeWaApp = appointments.find(a => a.id === effectiveWhatsAppAppId);
                     if (!activeWaApp) {
                       return <p className="text-center text-xs text-slate-400 py-10 font-bold">Selecione um lembrete à esquerda para simular a tela do paciente.</p>;
                     }
@@ -1314,7 +1353,7 @@ export default function AgendaModule({
                           {/* Patient message response bubble */}
                           {whatsappReminders.find(r => r.appointment_id === activeWaApp.id)?.response_received && (
                             <div className="bg-[#d9fdd3] p-2 rounded-lg text-[10px] text-slate-800 shadow-3xs max-w-[80%] self-end ml-auto leading-relaxed">
-                              <p className="font-bold text-slate-700">Resposta enviada: "{whatsappReminders.find(r => r.appointment_id === activeWaApp.id)?.response_received}"</p>
+                              <p className="font-bold text-slate-700">Resposta enviada: &quot;{whatsappReminders.find(r => r.appointment_id === activeWaApp.id)?.response_received}&quot;</p>
                               <span className="text-[8px] text-slate-400 block text-right mt-1">14:02 ✔️✔️</span>
                             </div>
                           )}
@@ -1746,7 +1785,7 @@ export default function AgendaModule({
                         </div>
 
                         <p className="text-slate-600 font-medium leading-relaxed italic bg-white p-2 rounded border border-slate-200/40">
-                          " {log.notes} "
+                          &quot; {log.notes} &quot;
                         </p>
 
                         {/* Simulated Audio Recording Player */}

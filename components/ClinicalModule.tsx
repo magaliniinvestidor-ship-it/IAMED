@@ -195,29 +195,35 @@ export default function ClinicalModule({
 
   const selectedPatient = patients.find(p => p.id === selectedPatId) || patients[0];
 
-  // Reset form state when patient changes
-  useEffect(() => {
-    if (selectedPatient) {
-      setAnamnese({
-        id: '', patientId: selectedPatient.id, createdBy: '', createdAt: '', updatedAt: '',
-        personalPathological: [], smoking: 'não', alcohol: 'não', physicalActivity: 'não',
-        diet: '', sleep: '', familyHistory: [], allergies: [], currentMedications: [],
-        surgicalHistory: [], gynecological: null, obstetric: null,
-        occupation: '', maritalStatus: '', notes: '',
-      });
-      setPhysicalExam({
-        id: '', patientId: selectedPatient.id, createdBy: '', createdAt: '',
-        vitalSigns: {}, examHeadNeck: '', examCardiovascular: '', examRespiratory: '',
-        examAbdomen: '', examGenitourinary: '', examMusculoskeletal: '', examNeurological: '',
-        examSkin: '', examEyes: '', examEars: '', examMouth: '', examRectal: '', examPsychiatric: '',
-        generalAspect: '', notes: '',
-      });
-      setSoapNote({
-        id: '', patientId: selectedPatient.id, createdBy: '', createdAt: '',
-        subjective: '', objective: '', assessment: '', plan: '', notes: '',
-      });
-    }
-  }, [selectedPatId]);
+  // Initial state factories for form reset on patient change
+  const makeAnamnese = useCallback((patientId: string): Anamnese => ({
+    id: '', patientId, createdBy: '', createdAt: '', updatedAt: '',
+    personalPathological: [], smoking: 'não', alcohol: 'não', physicalActivity: 'não',
+    diet: '', sleep: '', familyHistory: [], allergies: [], currentMedications: [],
+    surgicalHistory: [], gynecological: null, obstetric: null,
+    occupation: '', maritalStatus: '', notes: '',
+  }), []);
+
+  const makePhysicalExam = useCallback((patientId: string): PhysicalExam => ({
+    id: '', patientId, createdBy: '', createdAt: '',
+    vitalSigns: {}, examHeadNeck: '', examCardiovascular: '', examRespiratory: '',
+    examAbdomen: '', examGenitourinary: '', examMusculoskeletal: '', examNeurological: '',
+    examSkin: '', examEyes: '', examEars: '', examMouth: '', examRectal: '', examPsychiatric: '',
+    generalAspect: '', notes: '',
+  }), []);
+
+  const makeSoapNote = useCallback((patientId: string): SoapNote => ({
+    id: '', patientId, createdBy: '', createdAt: '',
+    subjective: '', objective: '', assessment: '', plan: '', notes: '',
+  }), []);
+
+  // Reset form when patient changes (moved from useEffect to event handler)
+  const handlePatientChange = useCallback((newPatientId: string) => {
+    setSelectedPatId(newPatientId);
+    setAnamnese(makeAnamnese(newPatientId));
+    setPhysicalExam(makePhysicalExam(newPatientId));
+    setSoapNote(makeSoapNote(newPatientId));
+  }, [makeAnamnese, makePhysicalExam, makeSoapNote]);
 
   // ─── CID-10 LOOKUP ───
   const filteredCid10 = useMemo(() => {
@@ -644,7 +650,7 @@ export default function ClinicalModule({
             <div className={sectionCls}>
               <div className="border-b border-slate-100 pb-3">
                 <label className={labelCls}>{t('access_record', 'app')}</label>
-                <select value={selectedPatId} onChange={e => setSelectedPatId(e.target.value)} className={inputCls}>
+                <select value={selectedPatId} onChange={e => handlePatientChange(e.target.value)} className={inputCls}>
                   {patients.map(p => <option key={p.id} value={p.id}>{p.name} ({p.priority.toUpperCase()})</option>)}
                 </select>
               </div>
@@ -1658,7 +1664,7 @@ export default function ClinicalModule({
             <div className="space-y-3.5 text-xs">
               <div>
                 <label className={labelCls}>Paciente</label>
-                <select value={selectedPatId} onChange={e => setSelectedPatId(e.target.value)} className={inputCls}>
+                <select value={selectedPatId} onChange={e => handlePatientChange(e.target.value)} className={inputCls}>
                   {patients.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
               </div>

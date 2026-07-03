@@ -235,6 +235,7 @@ export default function MedicinaTrabalhoModule({
 
   const handleGerarRelatorioMtess = (empresaId: string) => {
     const rel: RelatorioMtess = {
+      // eslint-disable-next-line react-hooks/purity
       id: `rel_${Date.now()}`,
       empresaId,
       periodoInicio: new Date(new Date().getFullYear(), 0, 1).toISOString().split('T')[0],

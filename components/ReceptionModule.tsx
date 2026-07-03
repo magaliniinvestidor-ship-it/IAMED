@@ -86,13 +86,50 @@ export default function ReceptionModule({
   const [webcamPlaceholder, setWebcamPlaceholder] = useState<string | null>(null);
   const videoSimRef = useRef<HTMLDivElement>(null);
 
-  // --- Validation & Alerts States ---
-  const [calculatedDV, setCalculatedDV] = useState<number | null>(null);
-  const [isPhoneValid, setIsPhoneValid] = useState(false);
-  const [isEmailValid, setIsEmailValid] = useState(true);
-  const [age, setAge] = useState<number>(0);
-  const [isMinor, setIsMinor] = useState(false);
-  const [duplicatePatient, setDuplicatePatient] = useState<Patient | null>(null);
+  // --- Validation & Alerts (derived state) ---
+  const calculatedDV = useMemo(() => {
+    if (documentType !== 'CI' || !documentNumber) return null;
+    const cleanDoc = documentNumber.replace(/\D/g, '');
+    if (cleanDoc.length === 0) return null;
+    let sum = 0;
+    let factor = 2;
+    for (let i = cleanDoc.length - 1; i >= 0; i--) {
+      sum += parseInt(cleanDoc.charAt(i)) * factor;
+      factor++;
+      if (factor > 11) factor = 2;
+    }
+    const remainder = sum % 11;
+    return remainder > 1 ? 11 - remainder : 0;
+  }, [documentNumber, documentType]);
+
+  const isPhoneValid = useMemo(() => {
+    const cleanPhone = newPhone.replace(/\s+/g, '');
+    return /^\+5959[6-9]\d{7}$/.test(cleanPhone);
+  }, [newPhone]);
+
+  const isEmailValid = useMemo(() => {
+    if (!newEmail) return true;
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail);
+  }, [newEmail]);
+
+  const { age, isMinor } = useMemo(() => {
+    if (!newBirthdate) return { age: 0, isMinor: false };
+    const today = new Date();
+    const birthDate = new Date(newBirthdate);
+    let calculatedAge = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      calculatedAge--;
+    }
+    return { age: calculatedAge, isMinor: calculatedAge < 18 };
+  }, [newBirthdate]);
+
+  const duplicatePatient = useMemo(() => {
+    if (!documentNumber || !newBirthdate) return null;
+    return patients.find(
+      p => p.document_number === documentNumber && p.birthdate === newBirthdate
+    ) || null;
+  }, [documentNumber, newBirthdate, patients]);
   const [showMergeModal, setShowMergeModal] = useState(false);
   const [supervisorPin, setSupervisorPin] = useState('');
   const [pinError, setPinError] = useState('');
@@ -163,110 +200,26 @@ export default function ReceptionModule({
   const [fileToUploadType, setFileToUploadType] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Sync health insurance type when selecting a patient for scheduling
-  useEffect(() => {
+  // Derived modality based on consultation type
+  const effectiveModality = useMemo(() =>
+    selectedConsultationType === 'telemedicina' ? 'Virtual' as const : selectedModality,
+    [selectedConsultationType, selectedModality]
+  );
+
+  const effectiveOnlineModality = useMemo(() =>
+    onlineType === 'telemedicina' ? 'Virtual' as const : onlineModality,
+    [onlineType, onlineModality]
+  );
+
+  // Derived insurance based on selected patient
+  const effectiveInsurance = useMemo(() => {
     if (selectedPatientId) {
       const patient = patients.find(p => p.id === selectedPatientId);
-      if (patient && patient.health_insurance_type) {
-        setSelectedInsurance(patient.health_insurance_type);
-      }
+      if (patient?.health_insurance_type) return patient.health_insurance_type;
     }
-  }, [selectedPatientId, patients]);
+    return selectedInsurance;
+  }, [selectedPatientId, patients, selectedInsurance]);
 
-  // Telemedicine auto virtual modality
-  useEffect(() => {
-    if (selectedConsultationType === 'telemedicina') {
-      setSelectedModality('Virtual');
-    } else {
-      setSelectedModality('Presencial');
-    }
-  }, [selectedConsultationType]);
-
-  useEffect(() => {
-    if (onlineType === 'telemedicina') {
-      setOnlineModality('Virtual');
-    } else {
-      setOnlineModality('Presencial');
-    }
-  }, [onlineType]);
-
-
-  // --- Real-time Calculators & Validations ---
-  
-  // Paraguay CI Modulo 11 check digit calculation
-  useEffect(() => {
-    if (documentType === 'CI' && documentNumber) {
-      const cleanDoc = documentNumber.replace(/\D/g, '');
-      if (cleanDoc.length > 0) {
-        let sum = 0;
-        let factor = 2;
-        for (let i = cleanDoc.length - 1; i >= 0; i--) {
-          sum += parseInt(cleanDoc.charAt(i)) * factor;
-          factor++;
-          if (factor > 11) factor = 2;
-        }
-        const remainder = sum % 11;
-        const dv = remainder > 1 ? 11 - remainder : 0;
-        setCalculatedDV(dv);
-      } else {
-        setCalculatedDV(null);
-      }
-    } else {
-      setCalculatedDV(null);
-    }
-  }, [documentNumber, documentType]);
-
-  // Phone Validation (+595 9xx xxx xxx)
-  useEffect(() => {
-    const cleanPhone = newPhone.replace(/\s+/g, '');
-    const paraguayRegex = /^\+5959[6-9]\d{7}$/;
-    setIsPhoneValid(paraguayRegex.test(cleanPhone));
-  }, [newPhone]);
-
-  // Email Validation
-  useEffect(() => {
-    if (!newEmail) {
-      setIsEmailValid(true);
-      return;
-    }
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    setIsEmailValid(emailRegex.test(newEmail));
-  }, [newEmail]);
-
-  // Age & Minor logic
-  useEffect(() => {
-    if (!newBirthdate) {
-      setAge(0);
-      setIsMinor(false);
-      return;
-    }
-    const today = new Date();
-    const birthDate = new Date(newBirthdate);
-    let calculatedAge = today.getFullYear() - birthDate.getFullYear();
-    const monthDiff = today.getMonth() - birthDate.getMonth();
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-      calculatedAge--;
-    }
-    setAge(calculatedAge);
-    setIsMinor(calculatedAge < 18);
-    
-    // Automatically switch to guardian tab if minor to alert user
-    if (calculatedAge < 18 && activeFormTab === 'guardian') {
-      // stay here
-    }
-  }, [newBirthdate]);
-
-  // Duplicate Check (CI + Birthdate)
-  useEffect(() => {
-    if (documentNumber && newBirthdate) {
-      const match = patients.find(
-        p => p.document_number === documentNumber && p.birthdate === newBirthdate
-      );
-      setDuplicatePatient(match || null);
-    } else {
-      setDuplicatePatient(null);
-    }
-  }, [documentNumber, newBirthdate, patients]);
 
   // --- Handlers & Helpers ---
 
@@ -344,6 +297,7 @@ export default function ReceptionModule({
       return;
     }
 
+    // eslint-disable-next-line react-hooks/purity
     const patientId = `pat_${Date.now()}`;
     const newPatient: Patient = {
       id: patientId,
@@ -659,8 +613,8 @@ export default function ReceptionModule({
       room: selectedRoom,
       resource: selectedResource,
       type: selectedConsultationType,
-      modality: selectedModality,
-      insurance: selectedInsurance,
+      modality: effectiveModality,
+      insurance: effectiveInsurance,
     };
 
     const conflicts = validateAppointment(appData);
@@ -771,7 +725,7 @@ export default function ReceptionModule({
       room: 'Consultório Virtual / Telemedicina',
       resource: 'Nenhum',
       type: onlineType,
-      modality: onlineModality,
+      modality: effectiveOnlineModality,
       insurance: patient.health_insurance_type || 'Particular',
     };
 
@@ -1541,7 +1495,7 @@ export default function ReceptionModule({
                   const pIsMinor = pAge < 18;
                   
                   return (
-                    <div key={p.id} className="p-4 bg-slate-50 hover:bg-slate-100/70 border border-slate-200/80 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-4 transition text-sm">
+                    <div key={p.id} data-testid={`patient-card-${p.id}`} className="p-4 bg-slate-50 hover:bg-slate-100/70 border border-slate-200/80 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-4 transition text-sm">
                       <div className="flex items-start gap-3">
                         <div className="w-12 h-12 rounded-lg border border-slate-200 bg-white overflow-hidden flex items-center justify-center shrink-0 shadow-xs">
                           {p.photo_url ? (
@@ -1629,7 +1583,7 @@ export default function ReceptionModule({
                                 setVirusScanStatus('pending');
                                 setShowTriageModal(true);
                               }}
-                              data-testid="reception-open-triage"
+                              data-testid="attend"
                               className="bg-teal-600 hover:bg-teal-700 text-white text-xs px-3 py-1.5 rounded-lg font-bold shadow-xs transition cursor-pointer flex items-center gap-1"
                             >
                               <HeartPulse className="w-3.5 h-3.5 text-white animate-pulse" />
@@ -1645,6 +1599,7 @@ export default function ReceptionModule({
                             </span>
                             <button
                               onClick={() => handleUpdatePatientStatus(p.id, 'atendido')}
+                              data-testid="complete"
                               className="bg-slate-700 hover:bg-slate-800 text-white text-xs px-3 py-1.5 rounded-lg font-semibold shadow-xs transition cursor-pointer"
                             >
                               Liberado
@@ -1665,6 +1620,7 @@ export default function ReceptionModule({
                             </span>
                             <button
                               onClick={() => handleUpdatePatientStatus(p.id, 'aguardando')}
+                              data-testid="check-in"
                               className="bg-teal-600 hover:bg-teal-700 text-white text-xs px-3 py-1.5 rounded-lg font-semibold shadow-xs transition cursor-pointer"
                             >
                               Dar Entrada
