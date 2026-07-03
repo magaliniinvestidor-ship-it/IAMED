@@ -394,7 +394,7 @@ export interface Patient {
   birthdate: string;
   gender: string;
   priority: 'normal' | 'preferencial' | 'emergência';
-  status: 'agendado' | 'aguardando' | 'atendimento' | 'atendido';
+  status: 'agendado' | 'aguardando' | 'atendimento' | 'atendido' | 'internado';
   clinicalHistory: ClinicalHistoryEntry[];
   
   // Campos obrigatórios adicionais

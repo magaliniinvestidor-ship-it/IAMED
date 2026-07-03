@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   BedV2, BedStatus, BedType, BedSector,
   BedTransfer,
@@ -43,6 +43,7 @@ interface InternacaoCentroCirurgicoModuleProps {
   activeSubmodule: number;
   addAuditLog: (action: string, target: string) => void;
   patients: Patient[];
+  setPatients: React.Dispatch<React.SetStateAction<Patient[]>>;
 }
 
 type TabType = 'dashboard' | 'leitos' | 'cirurgia' | 'internacao' | 'relatorios';
@@ -124,6 +125,7 @@ export default function InternacaoCentroCirurgicoModule({
   activeSubmodule,
   addAuditLog,
   patients,
+  setPatients,
 }: InternacaoCentroCirurgicoModuleProps) {
   const { t } = useI18n();
   const [tab, setTab] = useState<TabType>('dashboard');
@@ -137,6 +139,24 @@ export default function InternacaoCentroCirurgicoModule({
   const [surgeries, setSurgeries] = useState<SurgerySchedule[]>(initialSurgerySchedule);
   const [hospitalizations, setHospitalizations] = useState<HospitalizationEpisode[]>(initialHospitalizations);
   const [alerts, setAlerts] = useState<HospitalAlert[]>(initialHospitalAlerts);
+
+  // Auto-transition beds from 'limpeza' to 'livre' after 30 minutes
+  useEffect(() => {
+    const CLEANING_DURATION_MS = 30 * 60 * 1000; // 30 minutes
+    const interval = setInterval(() => {
+      const now = Date.now();
+      setBeds(prev => prev.map(b => {
+        if (b.status === 'limpeza' && b.lastCleaningAt) {
+          const cleaningTime = new Date(b.lastCleaningAt).getTime();
+          if (now - cleaningTime >= CLEANING_DURATION_MS) {
+            return { ...b, status: 'livre' as BedStatus };
+          }
+        }
+        return b;
+      }));
+    }, 60000); // Check every minute
+    return () => clearInterval(interval);
+  }, []);
 
   // Modal
   const [showModal, setShowModal] = useState(false);
@@ -299,6 +319,9 @@ export default function InternacaoCentroCirurgicoModule({
     };
     setHospitalizations(prev => [newHosp, ...prev]);
     setBeds(prev => prev.map(b => b.id === admitForm.bedId ? { ...b, status: 'ocupado', patientId: admitForm.patientId, patientName: admitForm.patientName, entryDate: todayStr() } : b));
+    if (admitForm.patientId) {
+      setPatients(prev => prev.map(p => p.id === admitForm.patientId ? { ...p, status: 'internado' as const } : p));
+    }
     addAuditLog('Admitiu Paciente', `${admitForm.patientName} em ${bed.name}`);
     setShowModal(false);
     setAdmitForm({ patientId: '', patientName: '', reason: '', initialDiagnosis: '', initialCid10: '', responsibleDoctor: '', coverageType: 'particular', coverageAuthorization: '', bedId: '' });
@@ -345,7 +368,8 @@ export default function InternacaoCentroCirurgicoModule({
       deathCertificate: dischargeForm.deathCertificate,
     };
     setHospitalizations(prev => prev.map(h => h.id === hosp.id ? updatedHosp : h));
-    setBeds(prev => prev.map(b => b.id === hosp.bedId ? { ...b, status: 'limpeza', patientId: undefined, patientName: undefined, entryDate: undefined } : b));
+    setBeds(prev => prev.map(b => b.id === hosp.bedId ? { ...b, status: 'limpeza', patientId: undefined, patientName: undefined, entryDate: undefined, lastCleaningAt: new Date().toISOString() } : b));
+    setPatients(prev => prev.map(p => p.id === hosp.patientId ? { ...p, status: 'atendido' as const } : p));
     addAuditLog('Realizou Alta', `${hosp.patientName} - ${dischargeForm.dischargeType}`);
     setShowModal(false);
     setDischargeForm({ dischargeType: 'alta_medica', summary: '', doctor: '', transferInstitution: '', deathCause: '', deathCertificate: '' });
@@ -1377,6 +1401,18 @@ export default function InternacaoCentroCirurgicoModule({
                   <p className="text-[9px] font-bold text-blue-600 uppercase">Reserva</p>
                   <p className="font-semibold text-slate-800">Para: {selectedItem.reservedForPatient}</p>
                   <p className="text-slate-500">Até: {selectedItem.reservedUntil}</p>
+                </div>
+              )}
+              {selectedItem.status === 'limpeza' && (
+                <div className="flex gap-2 pt-2">
+                  <Button size="sm" variant="outline" className="text-xs border-green-200 text-green-700 hover:bg-green-50"
+                    onClick={() => {
+                      setBeds(prev => prev.map(b => b.id === selectedItem.id ? { ...b, status: 'livre' as BedStatus } : b));
+                      addAuditLog('Concluiu Limpeza', selectedItem.name);
+                      setShowModal(false);
+                    }}>
+                    <Check className="w-3.5 h-3.5 mr-1" /> Concluir Limpeza
+                  </Button>
                 </div>
               )}
               {selectedItem.status === 'ocupado' && (

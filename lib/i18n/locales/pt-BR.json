@@ -5,6 +5,7 @@
     "email_placeholder": "operador@iamed.com.br",
     "password_placeholder": "••••••••",
     "submit": "Entrar no Sistema",
+    "blocked": "Conta Bloqueada",
     "authenticating": "Autenticando...",
     "restricted_access": "Acesso restrito. Credenciais fornecidas pelo administrador.",
     "checking_session": "Verificando sessão...",

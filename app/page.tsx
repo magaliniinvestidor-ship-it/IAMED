@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import type { Session } from '@supabase/supabase-js';
 import {
@@ -104,23 +104,23 @@ function HomeContent() {
   const [asos, setAsos] = useState<AsoExam[]>([]);
   const [dtes, setDtes] = useState<Dte[]>([]);
   const [professionals, setProfessionals] = useState<Professional[]>([]);
-  const [insurances, setInsurances] = useState<InsuranceCompany[]>([]);
-  const [feeSchedules, setFeeSchedules] = useState<FeeSchedule[]>([]);
-  const [preAuthorizations, setPreAuthorizations] = useState<PreAuthorization[]>([]);
-  const [batchInvoices, setBatchInvoices] = useState<BatchInvoice[]>([]);
-  const [eligibilityChecks, setEligibilityChecks] = useState<EligibilityCheck[]>([]);
-  const [settlements, setSettlements] = useState<ProfessionalSettlement[]>([]);
-  const [foreignBillings, setForeignBillings] = useState<ForeignBilling[]>([]);
-  const [accountsPayable, setAccountsPayable] = useState<AccountPayable[]>([]);
-  const [accountsReceivable, setAccountsReceivable] = useState<AccountReceivable[]>([]);
-  const [cashFlows, setCashFlows] = useState<CashFlowProjection[]>([]);
-  const [bankReconciliations, setBankReconciliations] = useState<BankReconciliation[]>([]);
-  const [costCenters, setCostCenters] = useState<CostCenter[]>([]);
-  const [incomeStatements, setIncomeStatements] = useState<IncomeStatement[]>([]);
-  const [taxCalculations, setTaxCalculations] = useState<TaxCalculation[]>([]);
-  const [purchaseBook, setPurchaseBook] = useState<PurchaseBookEntry[]>([]);
-  const [salesBook, setSalesBook] = useState<SalesBookEntry[]>([]);
-  const [exchangeRates, setExchangeRates] = useState<ExchangeRate[]>([]);
+  const [insurances, setInsurances] = useState<InsuranceCompany[]>(initialInsurances);
+  const [feeSchedules, setFeeSchedules] = useState<FeeSchedule[]>(initialFeeSchedules);
+  const [preAuthorizations, setPreAuthorizations] = useState<PreAuthorization[]>(initialPreAuthorizations);
+  const [batchInvoices, setBatchInvoices] = useState<BatchInvoice[]>(initialBatchInvoices);
+  const [eligibilityChecks, setEligibilityChecks] = useState<EligibilityCheck[]>(initialEligibilityChecks);
+  const [settlements, setSettlements] = useState<ProfessionalSettlement[]>(initialSettlements);
+  const [foreignBillings, setForeignBillings] = useState<ForeignBilling[]>(initialForeignBillings);
+  const [accountsPayable, setAccountsPayable] = useState<AccountPayable[]>(initialAccountsPayable);
+  const [accountsReceivable, setAccountsReceivable] = useState<AccountReceivable[]>(initialAccountsReceivable);
+  const [cashFlows, setCashFlows] = useState<CashFlowProjection[]>(initialCashFlows);
+  const [bankReconciliations, setBankReconciliations] = useState<BankReconciliation[]>(initialBankReconciliations);
+  const [costCenters, setCostCenters] = useState<CostCenter[]>(initialCostCenters);
+  const [incomeStatements, setIncomeStatements] = useState<IncomeStatement[]>(initialIncomeStatements);
+  const [taxCalculations, setTaxCalculations] = useState<TaxCalculation[]>(initialTaxCalculations);
+  const [purchaseBook, setPurchaseBook] = useState<PurchaseBookEntry[]>(initialPurchaseBook);
+  const [salesBook, setSalesBook] = useState<SalesBookEntry[]>(initialSalesBook);
+  const [exchangeRates, setExchangeRates] = useState<ExchangeRate[]>(initialExchangeRates);
   const [chartOfAccounts, setChartOfAccounts] = useState<ChartOfAccount[]>([]);
   const [accountingEntries, setAccountingEntries] = useState<AccountingEntry[]>([]);
   // Pharmacy / Estoque state
@@ -143,7 +143,8 @@ function HomeContent() {
   const [lockedUntil, setLockedUntil] = useState<string | null>(null);
 
   // Session Timeout / Inactivity
-  const [lastActivity, setLastActivity] = useState(Date.now());
+  const lastActivityRef = useRef(Date.now());
+  const showInactivityWarningRef = useRef(false);
   const [showInactivityWarning, setShowInactivityWarning] = useState(false);
   // Suporta override via URL param ?timeout_ms=180000 para testes
   const getTimeoutMs = () => {
@@ -151,7 +152,7 @@ function HomeContent() {
       const p = new URLSearchParams(window.location.search).get('timeout_ms');
       if (p) return Math.max(30000, parseInt(p, 10));
     }
-    return 3 * 60 * 1000; // 3 minutos default
+    return 10 * 60 * 1000; // 10 minutos default
   };
   const SESSION_TIMEOUT_MS = getTimeoutMs();
   const INACTIVITY_WARNING_MS = SESSION_TIMEOUT_MS - 60000; // warning 1 min antes
@@ -191,8 +192,11 @@ function HomeContent() {
     if (!session) return;
 
     const handleUserActivity = () => {
-      setLastActivity(Date.now());
-      setShowInactivityWarning(false);
+      lastActivityRef.current = Date.now();
+      if (showInactivityWarningRef.current) {
+        showInactivityWarningRef.current = false;
+        setShowInactivityWarning(false);
+      }
     };
 
     window.addEventListener('mousemove', handleUserActivity);
@@ -201,11 +205,12 @@ function HomeContent() {
     window.addEventListener('touchstart', handleUserActivity);
 
     const interval = setInterval(() => {
-      const elapsed = Date.now() - lastActivity;
+      const elapsed = Date.now() - lastActivityRef.current;
       if (elapsed >= SESSION_TIMEOUT_MS) {
         addAuditLog('Sessão Expirada por Inatividade', activeOperator);
         handleLogout();
-      } else if (elapsed >= INACTIVITY_WARNING_MS) {
+      } else if (elapsed >= INACTIVITY_WARNING_MS && !showInactivityWarningRef.current) {
+        showInactivityWarningRef.current = true;
         setShowInactivityWarning(true);
       }
     }, 30000);
@@ -217,7 +222,7 @@ function HomeContent() {
       window.removeEventListener('touchstart', handleUserActivity);
       clearInterval(interval);
     };
-  }, [session, lastActivity]);
+  }, [session]);
 
   // ──────────────────────────────────────────────
   // 2. Load profile once session is available
@@ -413,7 +418,7 @@ function HomeContent() {
       }
 
       // Pharmacy items with lots
-      if (pharmacyItemsRes.data && !pharmacyItemsRes.error) {
+      if (pharmacyItemsRes.data && !pharmacyItemsRes.error && pharmacyItemsRes.data.length > 0) {
         const mapped = pharmacyItemsRes.data.map((p: any) => ({
           id: p.id,
           name: p.name,
@@ -454,7 +459,7 @@ function HomeContent() {
       }
 
       // Stock movements
-      if (stockMovementsRes.data && !stockMovementsRes.error) {
+      if (stockMovementsRes.data && !stockMovementsRes.error && stockMovementsRes.data.length > 0) {
         const mapped = stockMovementsRes.data.map((m: any) => ({
           id: m.id,
           itemId: m.item_id,
@@ -485,7 +490,7 @@ function HomeContent() {
       }
 
       // Inventory counts
-      if (inventoryCountsRes.data && !inventoryCountsRes.error) {
+      if (inventoryCountsRes.data && !inventoryCountsRes.error && inventoryCountsRes.data.length > 0) {
         const mapped = inventoryCountsRes.data.map((c: any) => ({
           id: c.id,
           date: c.date,
@@ -500,7 +505,7 @@ function HomeContent() {
       }
 
       // Adverse events
-      if (adverseEventsRes.data && !adverseEventsRes.error) {
+      if (adverseEventsRes.data && !adverseEventsRes.error && adverseEventsRes.data.length > 0) {
         const mapped = adverseEventsRes.data.map((e: any) => ({
           id: e.id,
           patientName: e.patient_name,
@@ -531,7 +536,7 @@ function HomeContent() {
       }
 
       // Quality deviations
-      if (qualityDeviationsRes.data && !qualityDeviationsRes.error) {
+      if (qualityDeviationsRes.data && !qualityDeviationsRes.error && qualityDeviationsRes.data.length > 0) {
         const mapped = qualityDeviationsRes.data.map((d: any) => ({
           id: d.id,
           itemId: d.item_id,
@@ -556,7 +561,7 @@ function HomeContent() {
       }
 
       // Batch recalls
-      if (batchRecallsRes.data && !batchRecallsRes.error) {
+      if (batchRecallsRes.data && !batchRecallsRes.error && batchRecallsRes.data.length > 0) {
         const mapped = batchRecallsRes.data.map((r: any) => ({
           id: r.id,
           itemId: r.item_id,
@@ -599,6 +604,25 @@ function HomeContent() {
       setAdverseEvents(initialAdverseEvents);
       setQualityDeviations(initialQualityDeviations);
       setBatchRecalls(initialBatchRecalls);
+      setInsurances(initialInsurances);
+      setFeeSchedules(initialFeeSchedules);
+      setPreAuthorizations(initialPreAuthorizations);
+      setBatchInvoices(initialBatchInvoices);
+      setEligibilityChecks(initialEligibilityChecks);
+      setSettlements(initialSettlements);
+      setForeignBillings(initialForeignBillings);
+      setAccountsPayable(initialAccountsPayable);
+      setAccountsReceivable(initialAccountsReceivable);
+      setCashFlows(initialCashFlows);
+      setBankReconciliations(initialBankReconciliations);
+      setCostCenters(initialCostCenters);
+      setIncomeStatements(initialIncomeStatements);
+      setTaxCalculations(initialTaxCalculations);
+      setPurchaseBook(initialPurchaseBook);
+      setSalesBook(initialSalesBook);
+      setExchangeRates(initialExchangeRates);
+      setChartOfAccounts(initialChartOfAccounts);
+      setAccountingEntries(initialAccountingEntries);
     } finally {
       setDataLoading(false);
     }
@@ -710,7 +734,7 @@ function HomeContent() {
       // Successful login - reset counters
       setLoginAttemptCount(0);
       setLockedUntil(null);
-      setLastActivity(Date.now());
+      lastActivityRef.current = Date.now();
     }
   };
 
@@ -930,14 +954,14 @@ function HomeContent() {
 
               <Button
                 type="submit"
-                disabled={loginLoading}
-                className="w-full bg-[#00a884] hover:bg-[#008f70] text-white font-bold py-3 rounded-lg transition-all tracking-wide text-xs uppercase mt-3"
+                disabled={loginLoading || !!(lockedUntil && new Date(lockedUntil) > new Date())}
+                className="w-full bg-[#00a884] hover:bg-[#008f70] text-white font-bold py-3 rounded-lg transition-all tracking-wide text-xs uppercase mt-3 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loginLoading ? (
                   <span className="flex items-center gap-2">
                     <Loader2 className="w-4 h-4 animate-spin" /> {t('authenticating')}
                   </span>
-                ) : t('submit')}
+                ) : (lockedUntil && new Date(lockedUntil) > new Date()) ? t('blocked') : t('submit')}
               </Button>
             </form>
 
@@ -1135,7 +1159,7 @@ function HomeContent() {
                   const CardIcon = card.icon;
                   const currentTitle = t(`submodule_${card.id}`, 'app');
                   return (
-                    <div
+                    <button
                       key={card.id}
                       onClick={() => {
                         setActiveSubmodule(card.id);
@@ -1149,7 +1173,7 @@ function HomeContent() {
                       <h3 className="font-bold text-slate-700 text-xs uppercase tracking-wide leading-relaxed min-h-[36px] flex items-center justify-center">
                         {currentTitle}
                       </h3>
-                    </div>
+                    </button>
                   );
                 })}
               </div>
@@ -1295,6 +1319,7 @@ function HomeContent() {
                     activeSubmodule={activeSubmodule}
                     addAuditLog={addAuditLog}
                     patients={patients}
+                    setPatients={setPatients}
                   />
                 )}
                 {(activeSubmodule === 10 || activeSubmodule === 12) && (
@@ -1361,17 +1386,17 @@ function HomeContent() {
             </div>
             <div className="p-5 space-y-4">
               <p className="text-xs text-slate-600 leading-relaxed">
-                Sua sessão será encerrada em aproximadamente <b className="text-amber-700">5 minutos</b> devido à inatividade.
+                Sua sessão será encerrada em aproximadamente <b className="text-amber-700">1 minuto</b> devido à inatividade.
                 Qualquer movimento (mouse, teclado ou toque) renovará automaticamente sua sessão.
               </p>
               <div className="flex items-center gap-3 p-3 bg-amber-50 rounded-xl border border-amber-200">
                 <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
                 <p className="text-[10px] text-amber-800 font-medium">
-                  Por segurança, sessões inativas são automaticamente encerradas após 60 minutos.
+                  Por segurança, sessões inativas são automaticamente encerradas após 10 minutos.
                 </p>
               </div>
               <button
-                onClick={() => { setShowInactivityWarning(false); setLastActivity(Date.now()); }}
+                onClick={() => { setShowInactivityWarning(false); lastActivityRef.current = Date.now(); showInactivityWarningRef.current = false; }}
                 className="w-full py-3 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-xs cursor-pointer transition"
               >
                 Continuar Sessão

@@ -554,7 +554,7 @@ export default function EstoqueFarmaciaModule({
       <div className="bg-white rounded-xl border border-slate-200/80 shadow-xs p-4">
         <h4 className="font-black text-slate-800 text-sm mb-3">{t('pharm_dashboard_quick_actions', 'app')}</h4>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-          <button onClick={() => setShowNewItemForm(true)} className="p-3 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl text-xs font-bold text-indigo-700 flex items-center gap-2 transition"><Plus className="w-4 h-4" /> {t('pharm_dashboard_new_item', 'app')}</button>
+          <button data-testid="open-new-item-form" aria-label={t('pharm_item_new', 'app')} onClick={() => setShowNewItemForm(true)} className="p-3 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl text-xs font-bold text-indigo-700 flex items-center gap-2 transition"><Plus className="w-4 h-4" /> {t('pharm_dashboard_new_item', 'app')}</button>
           <button onClick={() => setShowEntryForm(true)} className="p-3 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-xl text-xs font-bold text-teal-700 flex items-center gap-2 transition"><Truck className="w-4 h-4" /> {t('pharm_dashboard_entry_dte', 'app')}</button>
           <button onClick={() => setShowExitForm(true)} className="p-3 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-xl text-xs font-bold text-amber-700 flex items-center gap-2 transition"><Syringe className="w-4 h-4" /> {t('pharm_dashboard_exit', 'app')}</button>
           <button onClick={() => setTab('inventory')} className="p-3 bg-cyan-50 hover:bg-cyan-100 border border-cyan-200 rounded-xl text-xs font-bold text-cyan-700 flex items-center gap-2 transition"><ClipboardList className="w-4 h-4" /> {t('pharm_dashboard_inventory', 'app')}</button>
@@ -578,7 +578,9 @@ export default function EstoqueFarmaciaModule({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {movements.slice(0, 5).map(m => (
+              {movements.length === 0 ? (
+                <tr><td colSpan={6} className="px-4 py-8 text-center text-xs text-slate-400">{t('pharm_no_movements', 'app') || 'Nenhuma movimentação'}</td></tr>
+              ) : movements.slice(0, 5).map(m => (
                 <tr key={m.id} className="hover:bg-slate-50/70 transition">
                   <td className="px-4 py-3 font-semibold text-slate-800">{m.itemName}</td>
                   <td className="px-4 py-3">
@@ -606,7 +608,7 @@ export default function EstoqueFarmaciaModule({
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder={t('pharm_item_search', 'app')} className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-xs" />
         </div>
-        <button onClick={() => setShowNewItemForm(true)} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg flex items-center gap-2 transition"><Plus className="w-4 h-4" /> {t('pharm_item_new', 'app')}</button>
+        <button data-testid="open-new-item-form" aria-label={t('pharm_item_new', 'app')} onClick={() => setShowNewItemForm(true)} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg flex items-center gap-2 transition"><Plus className="w-4 h-4" /> {t('pharm_item_new', 'app')}</button>
       </div>
       <div className="bg-white rounded-xl border border-slate-200/80 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
@@ -620,7 +622,9 @@ export default function EstoqueFarmaciaModule({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {filteredItems.map(item => {
+              {filteredItems.length === 0 ? (
+                <tr><td colSpan={8} className="px-4 py-8 text-center text-xs text-slate-400">{t('pharm_no_items', 'app') || 'Nenhum item encontrado'}</td></tr>
+              ) : filteredItems.map(item => {
                 const low = item.totalQuantity <= item.minQuantity;
                 const hasExpiring = item.lots.some(l => { const d = daysUntil(l.expiryDate); return d > 0 && d <= 90; });
                 const hasExpired = item.lots.some(l => daysUntil(l.expiryDate) <= 0 && l.quantity > 0);
@@ -696,6 +700,9 @@ export default function EstoqueFarmaciaModule({
                 );
               })
             )}
+            {pharmacyItems.flatMap(item => item.lots.filter(l => l.quantity > 0)).length === 0 && (
+              <tr><td colSpan={10} className="px-4 py-8 text-center text-xs text-slate-400">{t('pharm_no_lots', 'app') || 'Nenhum lote encontrado'}</td></tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -719,7 +726,9 @@ export default function EstoqueFarmaciaModule({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
-            {movements.map(m => (
+            {movements.length === 0 ? (
+              <tr><td colSpan={9} className="px-4 py-8 text-center text-xs text-slate-400">{t('pharm_no_movements', 'app') || 'Nenhuma movimentação encontrada'}</td></tr>
+            ) : movements.map(m => (
               <tr key={m.id} className="hover:bg-slate-50/70 transition">
                 <td className="px-4 py-3 text-slate-500">{m.date}</td>
                 <td className="px-4 py-3 font-semibold text-slate-800">{m.itemName}</td>
@@ -1380,8 +1389,8 @@ export default function EstoqueFarmaciaModule({
             </div>
           </div>
           <div className="flex gap-2 pt-2">
-            <button type="submit" disabled={!entryItemId || !entryQty || !entryLotNumber} className="flex-1 py-3 bg-teal-600 hover:bg-teal-700 disabled:opacity-40 text-white font-bold rounded-lg text-xs transition">{t('pharm_entry_register', 'app')}</button>
-            <button type="button" onClick={() => setShowEntryForm(false)} className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs transition">{t('pharm_modal_cancel', 'app')}</button>
+            <button type="submit" data-testid="entry-register-submit" aria-label={t('pharm_entry_register', 'app')} disabled={!entryItemId || !entryQty || !entryLotNumber} className="flex-1 py-3 bg-teal-600 hover:bg-teal-700 disabled:opacity-40 text-white font-bold rounded-lg text-xs transition">{t('pharm_entry_register', 'app')}</button>
+            <button type="button" data-testid="entry-register-cancel" aria-label={t('pharm_modal_cancel', 'app')} onClick={() => setShowEntryForm(false)} className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs transition">{t('pharm_modal_cancel', 'app')}</button>
           </div>
         </form>
       </div>
@@ -1445,8 +1454,8 @@ export default function EstoqueFarmaciaModule({
             <textarea value={exitNotes} onChange={e => setExitNotes(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" rows={2} />
           </div>
           <div className="flex gap-2 pt-2">
-            <button type="submit" disabled={!exitItemId || !exitLotId || !exitQty} className="flex-1 py-3 bg-amber-600 hover:bg-amber-700 disabled:opacity-40 text-white font-bold rounded-lg text-xs transition">{t('pharm_exit_register', 'app')}</button>
-            <button type="button" onClick={() => setShowExitForm(false)} className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs transition">{t('pharm_modal_cancel', 'app')}</button>
+            <button type="submit" data-testid="exit-register-submit" aria-label={t('pharm_exit_register', 'app')} disabled={!exitItemId || !exitLotId || !exitQty} className="flex-1 py-3 bg-amber-600 hover:bg-amber-700 disabled:opacity-40 text-white font-bold rounded-lg text-xs transition">{t('pharm_exit_register', 'app')}</button>
+            <button type="button" data-testid="exit-register-cancel" aria-label={t('pharm_modal_cancel', 'app')} onClick={() => setShowExitForm(false)} className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs transition">{t('pharm_modal_cancel', 'app')}</button>
           </div>
         </form>
       </div>
@@ -1517,8 +1526,8 @@ export default function EstoqueFarmaciaModule({
             </div>
           </div>
           <div className="flex gap-2 pt-2">
-            <button type="submit" disabled={!newItemName.trim() || !newItemDinavisa.trim()} className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-bold rounded-lg text-xs transition">{t('pharm_modal_register', 'app')}</button>
-            <button type="button" onClick={() => setShowNewItemForm(false)} className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs transition">{t('pharm_modal_cancel', 'app')}</button>
+            <button type="submit" data-testid="new-item-submit" aria-label={t('pharm_modal_register', 'app')} disabled={!newItemName.trim() || !newItemDinavisa.trim()} className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-bold rounded-lg text-xs transition">{t('pharm_modal_register', 'app')}</button>
+            <button type="button" data-testid="new-item-cancel" aria-label={t('pharm_modal_cancel', 'app')} onClick={() => setShowNewItemForm(false)} className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs transition">{t('pharm_modal_cancel', 'app')}</button>
           </div>
         </form>
       </div>
@@ -1567,6 +1576,8 @@ export default function EstoqueFarmaciaModule({
             return (
               <button
                 key={tabItem.id}
+                data-testid={`pharm-tab-${tabItem.id}`}
+                aria-label={tabItem.label}
                 onClick={() => setTab(tabItem.id)}
                 className={`px-3 py-2 rounded-lg text-[10px] font-bold transition flex items-center gap-1.5
                   ${isActive
@@ -1592,7 +1603,7 @@ export default function EstoqueFarmaciaModule({
         {tab === 'entries' && (
           <div className="space-y-4">
             <div className="flex justify-end">
-              <button onClick={() => setShowEntryForm(true)} className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg flex items-center gap-2"><Plus className="w-4 h-4" /> {t('pharm_entry_title', 'app')}</button>
+              <button data-testid="open-entry-form" aria-label={t('pharm_entry_title', 'app')} onClick={() => setShowEntryForm(true)} className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg flex items-center gap-2"><Plus className="w-4 h-4" /> {t('pharm_entry_title', 'app')}</button>
             </div>
             <div className="bg-white rounded-xl border border-slate-200/80 shadow-xs overflow-hidden">
               <div className="px-5 py-3 border-b border-slate-100"><h4 className="font-black text-slate-800 text-sm">{t('pharm_entry_list', 'app')}</h4></div>
@@ -1605,7 +1616,9 @@ export default function EstoqueFarmaciaModule({
                     <th className="px-4 py-2.5 text-left">{t('pharm_lot_supplier', 'app')}</th>
                   </tr></thead>
                   <tbody className="divide-y divide-slate-50">
-                    {movements.filter(m => m.movementType === 'entrada').map(m => (
+                    {movements.filter(m => m.movementType === 'entrada').length === 0 ? (
+                      <tr><td colSpan={7} className="px-4 py-8 text-center text-xs text-slate-400">{t('pharm_no_entries', 'app') || 'Nenhuma entrada registrada'}</td></tr>
+                    ) : movements.filter(m => m.movementType === 'entrada').map(m => (
                       <tr key={m.id} className="hover:bg-slate-50/70 transition">
                         <td className="px-4 py-3 text-slate-500">{m.date}</td>
                         <td className="px-4 py-3 font-semibold text-slate-800">{m.itemName}</td>
@@ -1625,7 +1638,7 @@ export default function EstoqueFarmaciaModule({
         {tab === 'exits' && (
           <div className="space-y-4">
             <div className="flex justify-end">
-              <button onClick={() => setShowExitForm(true)} className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-lg flex items-center gap-2"><Plus className="w-4 h-4" /> {t('pharm_exit_title', 'app')}</button>
+              <button data-testid="open-exit-form" aria-label={t('pharm_exit_title', 'app')} onClick={() => setShowExitForm(true)} className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-lg flex items-center gap-2"><Plus className="w-4 h-4" /> {t('pharm_exit_title', 'app')}</button>
             </div>
             <div className="bg-white rounded-xl border border-slate-200/80 shadow-xs overflow-hidden">
               <div className="px-5 py-3 border-b border-slate-100"><h4 className="font-black text-slate-800 text-sm">{t('pharm_exit_list', 'app')}</h4></div>
@@ -1638,7 +1651,9 @@ export default function EstoqueFarmaciaModule({
                     <th className="px-4 py-2.5 text-left">{t('pharm_exit_sector', 'app')}</th><th className="px-4 py-2.5 text-left">{t('pharm_exit_doctor', 'app')}</th>
                   </tr></thead>
                   <tbody className="divide-y divide-slate-50">
-                    {movements.filter(m => m.movementType === 'saida').map(m => (
+                    {movements.filter(m => m.movementType === 'saida').length === 0 ? (
+                      <tr><td colSpan={8} className="px-4 py-8 text-center text-xs text-slate-400">{t('pharm_no_exits', 'app') || 'Nenhuma saída registrada'}</td></tr>
+                    ) : movements.filter(m => m.movementType === 'saida').map(m => (
                       <tr key={m.id} className="hover:bg-slate-50/70 transition">
                         <td className="px-4 py-3 text-slate-500">{m.date}</td>
                         <td className="px-4 py-3 font-semibold text-slate-800">{m.itemName}</td>

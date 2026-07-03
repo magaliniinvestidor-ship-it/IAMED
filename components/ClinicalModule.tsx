@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { Patient, AsoExam, Cid10Code, DrugCatalogItem, Prescription, ExamRequest, Procedure, Anamnese, SoapNote, Diagnosis, PhysicalExam, VitalSigns, AllergyEntry, MedicationEntry, FamilyHistoryEntry, SurgicalEntry, ElectronicSignature, AccessControl, PatientTimelineEvent, nationalProcedures, sensitiveFieldConfig, drugInteractions } from '@/lib/mockData';
 import { supabase } from '@/lib/supabaseClient';
 import { useI18n } from '@/lib/i18n/I18nContext';
@@ -195,6 +195,30 @@ export default function ClinicalModule({
 
   const selectedPatient = patients.find(p => p.id === selectedPatId) || patients[0];
 
+  // Reset form state when patient changes
+  useEffect(() => {
+    if (selectedPatient) {
+      setAnamnese({
+        id: '', patientId: selectedPatient.id, createdBy: '', createdAt: '', updatedAt: '',
+        personalPathological: [], smoking: 'não', alcohol: 'não', physicalActivity: 'não',
+        diet: '', sleep: '', familyHistory: [], allergies: [], currentMedications: [],
+        surgicalHistory: [], gynecological: null, obstetric: null,
+        occupation: '', maritalStatus: '', notes: '',
+      });
+      setPhysicalExam({
+        id: '', patientId: selectedPatient.id, createdBy: '', createdAt: '',
+        vitalSigns: {}, examHeadNeck: '', examCardiovascular: '', examRespiratory: '',
+        examAbdomen: '', examGenitourinary: '', examMusculoskeletal: '', examNeurological: '',
+        examSkin: '', examEyes: '', examEars: '', examMouth: '', examRectal: '', examPsychiatric: '',
+        generalAspect: '', notes: '',
+      });
+      setSoapNote({
+        id: '', patientId: selectedPatient.id, createdBy: '', createdAt: '',
+        subjective: '', objective: '', assessment: '', plan: '', notes: '',
+      });
+    }
+  }, [selectedPatId]);
+
   // ─── CID-10 LOOKUP ───
   const filteredCid10 = useMemo(() => {
     if (!cidSearch.trim()) return cid10Data;
@@ -312,6 +336,15 @@ export default function ClinicalModule({
       updatedAt: new Date().toISOString(),
     };
     setAnamnese(entry);
+    if (selectedPatient) {
+      setPatients(prev => prev.map(p => p.id === selectedPatient.id ? {
+        ...p,
+        clinicalHistory: [
+          { id: entry.id, date: entry.createdAt, type: 'Anamnese', diagnosis: entry.notes || 'Anamnese registrada', cid10: '', prescriptions: [], notes: entry.notes, doctor: entry.createdBy },
+          ...p.clinicalHistory,
+        ],
+      } : p));
+    }
     addAuditLog('Salvou Anamnese', selectedPatient?.name || '');
     await supabase.from('anamnese').insert({ ...entry, patient_id: entry.patientId, created_by: entry.createdBy });
   };
@@ -326,6 +359,15 @@ export default function ClinicalModule({
       createdAt: new Date().toISOString(),
     };
     setSoapNote(entry);
+    if (selectedPatient) {
+      setPatients(prev => prev.map(p => p.id === selectedPatient.id ? {
+        ...p,
+        clinicalHistory: [
+          { id: entry.id, date: entry.createdAt, type: 'Evolução SOAP', diagnosis: entry.assessment || 'Evolução registrada', cid10: '', prescriptions: [], notes: `${entry.subjective} ${entry.objective} ${entry.plan}`, doctor: entry.createdBy },
+          ...p.clinicalHistory,
+        ],
+      } : p));
+    }
     addAuditLog('Salvou Evolução SOAP', selectedPatient?.name || '');
     await supabase.from('soap_notes').insert({ ...entry, patient_id: entry.patientId, created_by: entry.createdBy });
   };
@@ -476,6 +518,40 @@ export default function ClinicalModule({
       });
     });
 
+    // Add anamnesis entries
+    if (anamnese && anamnese.id && anamnese.patientId) {
+      events.push({
+        id: anamnese.id,
+        patientId: anamnese.patientId,
+        eventType: 'consulta',
+        eventDate: anamnese.createdAt,
+        eventTitle: 'Anamnese',
+        eventDescription: anamnese.notes || `Alergias: ${anamnese.allergies.map(a => a.allergen).join(', ') || 'Nenhuma'}. Medicações: ${anamnese.currentMedications.map(m => m.name).join(', ') || 'Nenhuma'}.`,
+        eventSource: 'anamnese',
+        eventSourceId: anamnese.id,
+        doctorName: anamnese.createdBy,
+        specialty: '',
+        cid10Code: '',
+      });
+    }
+
+    // Add SOAP notes
+    if (soapNote && soapNote.id && soapNote.patientId) {
+      events.push({
+        id: soapNote.id,
+        patientId: soapNote.patientId,
+        eventType: 'consulta',
+        eventDate: soapNote.createdAt,
+        eventTitle: 'Evolução SOAP',
+        eventDescription: `S: ${soapNote.subjective || '-'} | O: ${soapNote.objective || '-'} | A: ${soapNote.assessment || '-'} | P: ${soapNote.plan || '-'}`,
+        eventSource: 'soap_note',
+        eventSourceId: soapNote.id,
+        doctorName: soapNote.createdBy,
+        specialty: '',
+        cid10Code: '',
+      });
+    }
+
     // Sort by date descending
     events.sort((a, b) => new Date(b.eventDate).getTime() - new Date(a.eventDate).getTime());
 
@@ -489,7 +565,7 @@ export default function ClinicalModule({
       }
       return true;
     });
-  }, [selectedPatient, prescriptions, examRequests, procedureList, timelineSearch, timelineFilterType, timelineFilterDoctor]);
+  }, [selectedPatient, prescriptions, examRequests, procedureList, anamnese, soapNote, timelineSearch, timelineFilterType, timelineFilterDoctor]);
 
   // ─── AI CO-PILOT ───
   const handleQueryAiCoPilot = async () => {
@@ -907,7 +983,27 @@ export default function ClinicalModule({
                   </div>
 
                   <div className="flex justify-end">
-                    <button onClick={() => { addAuditLog('Salvou Exame Físico', selectedPatient?.name || ''); alert('Exame físico salvo!'); }}
+                    <button onClick={async () => {
+                      const entry: PhysicalExam = {
+                        ...physicalExam,
+                        id: `exam_${Date.now()}`,
+                        patientId: selectedPatient?.id || '',
+                        createdBy: 'Dr. Atual',
+                        createdAt: new Date().toISOString(),
+                      };
+                      setPhysicalExam(entry);
+                      if (selectedPatient) {
+                        setPatients(prev => prev.map(p => p.id === selectedPatient.id ? {
+                          ...p,
+                          clinicalHistory: [
+                            { id: entry.id, date: entry.createdAt, type: 'Exame Físico', diagnosis: 'Exame físico registrado', cid10: '', prescriptions: [], notes: entry.notes, doctor: entry.createdBy },
+                            ...p.clinicalHistory,
+                          ],
+                        } : p));
+                      }
+                      addAuditLog('Salvou Exame Físico', selectedPatient?.name || '');
+                      await supabase.from('physical_exams').insert({ ...entry, patient_id: entry.patientId, created_by: entry.createdBy });
+                    }}
                       className="py-2.5 px-6 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-lg text-xs transition">
                       Salvar Exame Físico
                     </button>

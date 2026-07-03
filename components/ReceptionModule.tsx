@@ -860,6 +860,7 @@ export default function ReceptionModule({
               <div className="flex bg-slate-100 p-1 rounded-lg text-xs font-semibold mb-4 gap-1 overflow-x-auto">
                 <button
                   type="button"
+                  data-testid="reception-tab-identification"
                   onClick={() => setActiveFormTab('identification')}
                   className={`flex-1 min-w-[70px] py-1.5 px-2 rounded-md transition text-center cursor-pointer ${
                     activeFormTab === 'identification' 
@@ -871,6 +872,7 @@ export default function ReceptionModule({
                 </button>
                 <button
                   type="button"
+                  data-testid="reception-tab-contact"
                   onClick={() => setActiveFormTab('contact_address')}
                   className={`flex-1 min-w-[70px] py-1.5 px-2 rounded-md transition text-center cursor-pointer ${
                     activeFormTab === 'contact_address' 
@@ -882,6 +884,7 @@ export default function ReceptionModule({
                 </button>
                 <button
                   type="button"
+                  data-testid="reception-tab-complementary"
                   onClick={() => setActiveFormTab('complementary')}
                   className={`flex-1 min-w-[70px] py-1.5 px-2 rounded-md transition text-center cursor-pointer ${
                     activeFormTab === 'complementary' 
@@ -893,6 +896,7 @@ export default function ReceptionModule({
                 </button>
                 <button
                   type="button"
+                  data-testid="reception-tab-guardian"
                   onClick={() => setActiveFormTab('guardian')}
                   className={`flex-1 min-w-[70px] py-1.5 px-2 rounded-md transition text-center cursor-pointer flex items-center justify-center gap-1 ${
                     isMinor ? 'border border-amber-300 text-amber-800 bg-amber-50/50' : ''
@@ -1442,6 +1446,7 @@ export default function ReceptionModule({
                   {activeFormTab !== 'guardian' ? (
                     <button
                       type="button"
+                      data-testid="reception-next-tab"
                       onClick={() => {
                         if (activeFormTab === 'identification') setActiveFormTab('contact_address');
                         else if (activeFormTab === 'contact_address') setActiveFormTab('complementary');
@@ -1454,6 +1459,7 @@ export default function ReceptionModule({
                   ) : (
                     <button 
                       type="submit" 
+                      data-testid="reception-submit-admit"
                       className={`py-2 px-4 text-white text-xs font-bold rounded-lg shadow-sm flex items-center justify-center gap-1.5 cursor-pointer transition ${
                         isMinor && (!guardianName.trim() || !guardianDocument.trim() || !guardianRelationship.trim())
                           ? 'bg-slate-400 cursor-not-allowed opacity-60'
@@ -1623,6 +1629,7 @@ export default function ReceptionModule({
                                 setVirusScanStatus('pending');
                                 setShowTriageModal(true);
                               }}
+                              data-testid="reception-open-triage"
                               className="bg-teal-600 hover:bg-teal-700 text-white text-xs px-3 py-1.5 rounded-lg font-bold shadow-xs transition cursor-pointer flex items-center gap-1"
                             >
                               <HeartPulse className="w-3.5 h-3.5 text-white animate-pulse" />
@@ -1634,7 +1641,7 @@ export default function ReceptionModule({
                         {p.status === 'atendimento' && (
                           <>
                             <span className="text-xs font-bold px-2.5 py-1 bg-teal-50 text-teal-700 border border-teal-200 rounded-full flex items-center gap-1 animate-pulse">
-                              🩺 Triagem / Médico
+                              🩺 Em Atendimento
                             </span>
                             <button
                               onClick={() => handleUpdatePatientStatus(p.id, 'atendido')}
@@ -2378,6 +2385,7 @@ export default function ReceptionModule({
               <div className="flex justify-end gap-3 border-t border-slate-200 pt-4">
                 <button
                   type="button"
+                  data-testid="reception-cancel-triage"
                   onClick={() => setShowTriageModal(false)}
                   className="py-2.5 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs rounded-lg transition cursor-pointer"
                 >
@@ -2385,6 +2393,7 @@ export default function ReceptionModule({
                 </button>
                 <button
                   type="button"
+                  data-testid="reception-save-triage"
                   onClick={async () => {
                     if (!triagePatient || !triageReason.trim()) return;
                     const bmi = triageWeight && triageHeight

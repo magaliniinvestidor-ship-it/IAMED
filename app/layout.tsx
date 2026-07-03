@@ -16,6 +16,12 @@ export const metadata: Metadata = {
   description: 'Sistema completo integrado de gestão médica, recepção, faturamento, prontuário eletrônico e CRM de pacientes.',
 };
 
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+};
+
 export default function RootLayout({children}: {children: React.ReactNode}) {
   return (
     <html lang="pt-BR" className={cn(jetbrainsMono.variable, "font-sans", geist.variable)} suppressHydrationWarning>

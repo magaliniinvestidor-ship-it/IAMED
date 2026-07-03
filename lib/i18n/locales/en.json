@@ -5,6 +5,7 @@
     "email_placeholder": "operator@iamed.com",
     "password_placeholder": "••••••••",
     "submit": "Sign In",
+    "blocked": "Account Blocked",
     "authenticating": "Authenticating...",
     "restricted_access": "Restricted access. Credentials provided by your system administrator.",
     "checking_session": "Verifying session...",
