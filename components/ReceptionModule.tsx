@@ -1,6 +1,6 @@
 ﻿'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Patient, Appointment, Professional } from '@/lib/mockData';
 import { supabase } from '@/lib/supabaseClient';
 import { useI18n } from '@/lib/i18n/I18nContext';
@@ -521,7 +521,6 @@ export default function ReceptionModule({
     // Reset Form and close modal
     resetForm();
     setShowMergeModal(false);
-    setDuplicatePatient(null);
   };
 
   // Helper function to validate appointment rules
