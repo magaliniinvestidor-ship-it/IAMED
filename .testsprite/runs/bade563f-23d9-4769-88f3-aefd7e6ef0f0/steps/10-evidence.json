@@ -1,0 +1,8 @@
+[
+  {
+    "kind": "snapshot",
+    "stepIndex": 10,
+    "summary": "Step 10 'Expected the password field to be visible.' failed. Error: TEST FAILURE\n\nThe application did not proceed to OTP verification after submitting patient credentials — an invalid-credentials error was shown instead.\n\nObservations:\n- The Patient Portal login form displayed an inline error: 'Credenciais inválidas. Verifique seu documento e senha.'\n- The page remained on the Patient Portal login screen; no OTP verification prompt or code entry screen appeared.",
+    "path": "steps/10-snapshot.html"
+  }
+]

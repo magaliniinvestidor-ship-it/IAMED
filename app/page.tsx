@@ -243,12 +243,19 @@ function HomeContent() {
       if (data) {
         setProfile(data as UserProfile);
         setActiveOperator(data.name);
-        setActiveRole(data.role);
+        // Allow role override via URL param for testing
+        const roleOverride = typeof window !== 'undefined'
+          ? new URLSearchParams(window.location.search).get('role')
+          : null;
+        setActiveRole(roleOverride || data.role);
       } else {
         // Fallback: use email prefix as operator name
         const emailName = session.user.email?.split('@')[0] || 'Operador';
         setActiveOperator(emailName);
-        setActiveRole('Usuário');
+        const roleOverride = typeof window !== 'undefined'
+          ? new URLSearchParams(window.location.search).get('role')
+          : null;
+        setActiveRole(roleOverride || 'Usuário');
       }
     };
 

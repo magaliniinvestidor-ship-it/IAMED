@@ -1,0 +1,15 @@
+{
+  "projectId": "0d59b4b9-2054-4d1b-bcd9-84153c8d2f0a",
+  "type": "frontend",
+  "name": "Login — usuário pode autenticar com credenciais válidas",
+  "planSteps": [
+    { "type": "action", "description": "Navigate to the login page at https://iamedcenter.netlify.app/" },
+    { "type": "action", "description": "Enter 'testesprite@gmail.com' in the email input field" },
+    { "type": "action", "description": "Enter 'testesprite123' in the password input field" },
+    { "type": "action", "description": "Click the submit button to log in" },
+    {
+      "type": "assertion",
+      "description": "After successful login, the main dashboard is displayed with the IAMED header and module cards visible"
+    }
+  ]
+}

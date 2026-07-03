@@ -1,0 +1,20 @@
+{
+  "projectId": "0d59b4b9-2054-4d1b-bcd9-84153c8d2f0a",
+  "type": "frontend",
+  "name": "Gestão Financeira — visualizar lançamentos",
+  "planSteps": [
+    { "type": "action", "description": "Navigate to the login page and log in with testesprite@gmail.com / testesprite123" },
+    { "type": "action", "description": "Click on the 'Gestão Financeira e Contábil' module card (id: 6)" },
+    {
+      "type": "assertion",
+      "description": "The Finance module page is displayed with a list of financial postings"
+    },
+    { "type": "action", "description": "Click the button to create a new financial posting" },
+    { "type": "action", "description": "Fill in description, amount, and select type (receita/despesa)" },
+    { "type": "action", "description": "Save the financial posting" },
+    {
+      "type": "assertion",
+      "description": "The new posting appears in the financial list with the correct amount"
+    }
+  ]
+}

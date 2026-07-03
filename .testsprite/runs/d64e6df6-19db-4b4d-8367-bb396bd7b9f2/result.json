@@ -1,0 +1,18 @@
+{
+  "testId": "ada4ae94-50af-498b-aba9-4f516ae19fd1",
+  "status": "failed",
+  "startedAt": "2026-07-03T20:07:19.830Z",
+  "finishedAt": "2026-07-03T20:13:15.019Z",
+  "videoUrl": "https://testsprite-videos.s3.us-east-1.amazonaws.com/14c8f438-90d1-70d9-e7d7-841616433a14/1783109590378558//tmp/f1926559-2872-4c69-9d51-d1f641d914a5/result.webm",
+  "failureAnalysisUrl": null,
+  "snapshotId": "snap_97b03c996de53ccc",
+  "runIdIfAvailable": "d64e6df6-19db-4b4d-8367-bb396bd7b9f2",
+  "codeVersion": "v1",
+  "targetUrl": "https://iamedcenter.netlify.app/",
+  "targetUrlSource": "run",
+  "failedStepIndex": 12,
+  "failureKind": "unknown",
+  "verdict": "failed",
+  "executionStatus": "completed",
+  "summary": "Failed: TEST FAILURE\n\nThe patient registration did not result in the new patient appearing in the visible patient list or any visible success message.\n\nObservations:\n- The right-hand patient list shows other patients (Roberto de Oliveira Cruz, Mariana Rosa Santos, Joaquim Bento Pereira, Carlos Eduardo Almeida, Ana Júlia de Souza) but not 'Test Patient QA'.\n- Searches for 'Test Patient QA' and the entered phone number returned no matches on the page.\n- After clicking 'Próximo' to submit the form…"
+}

@@ -1,0 +1,18 @@
+{
+  "testId": "7b380df6-d01e-4870-a37e-9a37a8c687e2",
+  "status": "blocked",
+  "startedAt": "2026-07-03T20:38:04.704Z",
+  "finishedAt": "2026-07-03T20:41:19.377Z",
+  "videoUrl": "https://testsprite-videos.s3.us-east-1.amazonaws.com/14c8f438-90d1-70d9-e7d7-841616433a14/1783111276952934//tmp/bdf0a1cf-1302-4246-b3a0-5b1e8b59c79b/result.webm",
+  "failureAnalysisUrl": null,
+  "snapshotId": "snap_4729022365b22eed",
+  "runIdIfAvailable": "bade563f-23d9-4769-88f3-aefd7e6ef0f0",
+  "codeVersion": "v1",
+  "targetUrl": "https://iamedcenter.netlify.app/",
+  "targetUrlSource": "run",
+  "failedStepIndex": 9,
+  "failureKind": null,
+  "verdict": "blocked",
+  "executionStatus": "completed",
+  "summary": "Blocked before a verdict could be produced: TEST FAILURE\n\nThe application did not proceed to OTP verification after submitting patient credentials — an invalid-credentials error was shown instead.\n\nObservations:\n- The Patient Portal login form displayed an inline error: 'Credenciais inválidas. Verifique seu documento e senha.'\n- The page remained on the Patient Portal login screen; no OTP verification prompt or code entry screen appeared."
+}

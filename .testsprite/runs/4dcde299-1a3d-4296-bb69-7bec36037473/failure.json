@@ -1,0 +1,5 @@
+{
+  "rootCauseHypothesis": "TEST BLOCKED\n\nThe test could not be run — valid operator credentials were not available to sign in.\n\nObservations:\n- After submitting credentials, the page showed \"Credenciais inválidas. Tentativa 1/5. Restam 4 tentativa(s).\" and a message stating \"Restricted access. Credentials provided by your system administrator.\" \n- The login form remained visible and the IAMED dashboard was not reached.",
+  "recommendedFixTarget": null,
+  "evidence": []
+}

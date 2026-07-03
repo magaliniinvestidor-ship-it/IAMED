@@ -1,0 +1,23 @@
+{
+  "projectId": "0d59b4b9-2054-4d1b-bcd9-84153c8d2f0a",
+  "type": "frontend",
+  "name": "Portal do Paciente — login e acesso ao dashboard",
+  "planSteps": [
+    { "type": "action", "description": "Navigate to the login page at https://iamedcenter.netlify.app/" },
+    { "type": "action", "description": "Enter 'testesprite@gmail.com' in the email input field" },
+    { "type": "action", "description": "Enter 'testesprite123' in the password input field" },
+    { "type": "action", "description": "Click the submit button to log in" },
+    { "type": "action", "description": "Click on the 'Portal do Paciente e App Móvel' module card (id: 13)" },
+    {
+      "type": "assertion",
+      "description": "The Patient Portal login form is displayed with 'ID DOCUMENT NUMBER' and password fields"
+    },
+    { "type": "action", "description": "Enter a valid document number in the 'ID DOCUMENT NUMBER' field" },
+    { "type": "action", "description": "Enter a password in the password field" },
+    { "type": "action", "description": "Click the login button" },
+    {
+      "type": "assertion",
+      "description": "The OTP verification screen is displayed asking for a code"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "cli-v1",
+  "snapshotId": "snap_f1fadc3d51b733cd",
+  "testId": "69207444-2c8e-481f-9a30-bd52f474265e",
+  "projectId": "faed986a-2b3f-4e12-b0f4-eff3d7c43d04",
+  "codeVersion": "v1",
+  "runIdIfAvailable": "4dcde299-1a3d-4296-bb69-7bec36037473",
+  "targetUrl": "https://iamedcenter.netlify.app/",
+  "failedStepIndex": 5,
+  "failureKind": null,
+  "capturedAt": "2026-07-03T20:01:54.777Z",
+  "fetchedAt": "2026-07-03T20:02:01.454Z"
+}
