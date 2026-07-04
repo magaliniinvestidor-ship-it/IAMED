@@ -212,19 +212,21 @@ export default function EstoqueFarmaciaModule({
       active: true,
     };
     setPharmacyItems(prev => [...prev, newItem]);
-    supabase.from('pharmacy_items').insert({
-      id: newId, name: newItemName, category: newItemCategory, form: newItemForm,
-      presentation: newItemPresentation, manufacturer: newItemManufacturer,
-      dinavisa_registration: newItemDinavisa, requires_prescription: newItem.requiresPrescription,
-      total_quantity: newItemQty, min_quantity: newItemMin, storage_location: newItemLocation,
-      unit_cost: newItemCost, unit_price: newItemPrice, active: true,
-    }).then(({ error }) => { if (error) console.warn('pharmacy_items insert error:', error.message); });
-    supabase.from('lot_controls').insert({
-      id: newLot.id, item_id: newId, lot_number: newLot.lotNumber,
-      manufacture_date: newLot.manufactureDate, expiry_date: newLot.expiryDate,
-      quantity: newItemQty, initial_quantity: newItemQty, cost_per_unit: newItemCost,
-      dinavisa_registration: newItemDinavisa, received_date: newLot.receivedDate, status: 'disponivel',
-    }).then(({ error }) => { if (error) console.warn('lot_controls insert error:', error.message); });
+    if (supabase) {
+      supabase.from('pharmacy_items').insert({
+        id: newId, name: newItemName, category: newItemCategory, form: newItemForm,
+        presentation: newItemPresentation, manufacturer: newItemManufacturer,
+        dinavisa_registration: newItemDinavisa, requires_prescription: newItem.requiresPrescription,
+        total_quantity: newItemQty, min_quantity: newItemMin, storage_location: newItemLocation,
+        unit_cost: newItemCost, unit_price: newItemPrice, active: true,
+      }).then(({ error }) => { if (error) console.warn('pharmacy_items insert error:', error.message); });
+      supabase.from('lot_controls').insert({
+        id: newLot.id, item_id: newId, lot_number: newLot.lotNumber,
+        manufacture_date: newLot.manufactureDate, expiry_date: newLot.expiryDate,
+        quantity: newItemQty, initial_quantity: newItemQty, cost_per_unit: newItemCost,
+        dinavisa_registration: newItemDinavisa, received_date: newLot.receivedDate, status: 'disponivel',
+      }).then(({ error }) => { if (error) console.warn('lot_controls insert error:', error.message); });
+    }
     addAuditLog('Cadastrou Item Farmácia', newItemName);
     setShowNewItemForm(false);
     setNewItemName(''); setNewItemPresentation(''); setNewItemManufacturer(''); setNewItemDinavisa('');
@@ -275,26 +277,30 @@ export default function EstoqueFarmaciaModule({
       totalQuantity: i.totalQuantity + entryQty,
       unitCost: entryCost || i.unitCost,
     } : i));
-    supabase.from('lot_controls').insert({
-      id: newLot.id, item_id: entryItemId, lot_number: entryLotNumber,
-      serial_number: entrySerial || null, manufacture_date: newLot.manufactureDate,
-      expiry_date: newLot.expiryDate, quantity: entryQty, initial_quantity: entryQty,
-      cost_per_unit: newLot.costPerUnit, dinavisa_registration: item.dinavisaRegistration,
-      dte_entry_number: entryDte || null, supplier_name: entrySupplier || null,
-      supplier_ruc: entrySupplierRuc || null, received_date: newLot.receivedDate, status: 'disponivel',
-    }).then(({ error }) => { if (error) console.warn('lot_controls entry insert error:', error.message); });
-    supabase.from('pharmacy_items').update({
-      total_quantity: item.totalQuantity + entryQty,
-      unit_cost: entryCost || item.unitCost,
-    }).eq('id', entryItemId).then(({ error }) => { if (error) console.warn('pharmacy_items entry update error:', error.message); });
+    if (supabase) {
+      supabase.from('lot_controls').insert({
+        id: newLot.id, item_id: entryItemId, lot_number: entryLotNumber,
+        serial_number: entrySerial || null, manufacture_date: newLot.manufactureDate,
+        expiry_date: newLot.expiryDate, quantity: entryQty, initial_quantity: entryQty,
+        cost_per_unit: newLot.costPerUnit, dinavisa_registration: item.dinavisaRegistration,
+        dte_entry_number: entryDte || null, supplier_name: entrySupplier || null,
+        supplier_ruc: entrySupplierRuc || null, received_date: newLot.receivedDate, status: 'disponivel',
+      }).then(({ error }) => { if (error) console.warn('lot_controls entry insert error:', error.message); });
+      supabase.from('pharmacy_items').update({
+        total_quantity: item.totalQuantity + entryQty,
+        unit_cost: entryCost || item.unitCost,
+      }).eq('id', entryItemId).then(({ error }) => { if (error) console.warn('pharmacy_items entry update error:', error.message); });
+    }
     setMovements(prev => [newMovement, ...prev]);
-    supabase.from('stock_movements').insert({
-      id: newMovement.id, item_id: entryItemId, item_name: item.name,
-      lot_id: newLot.id, lot_number: entryLotNumber, movement_type: 'entrada',
-      quantity: entryQty, unit_cost: newLot.costPerUnit, total_cost: entryQty * newLot.costPerUnit,
-      date: newMovement.date, operator_name: 'Operador',
-      dte_number: entryDte || null, supplier_name: entrySupplier || null,
-    }).then(({ error }) => { if (error) console.warn('stock_movements entry insert error:', error.message); });
+    if (supabase) {
+      supabase.from('stock_movements').insert({
+        id: newMovement.id, item_id: entryItemId, item_name: item.name,
+        lot_id: newLot.id, lot_number: entryLotNumber, movement_type: 'entrada',
+        quantity: entryQty, unit_cost: newLot.costPerUnit, total_cost: entryQty * newLot.costPerUnit,
+        date: newMovement.date, operator_name: 'Operador',
+        dte_number: entryDte || null, supplier_name: entrySupplier || null,
+      }).then(({ error }) => { if (error) console.warn('stock_movements entry insert error:', error.message); });
+    }
     addAuditLog('Entrada Estoque por DTE', `${item.name} - Lote ${entryLotNumber} (${entryQty})`);
     setShowEntryForm(false);
     setEntryItemId(''); setEntryLotNumber(''); setEntrySerial(''); setEntryQty(0);
@@ -335,21 +341,25 @@ export default function EstoqueFarmaciaModule({
       lots: i.lots.map(l => l.id === exitLotId ? { ...l, quantity: l.quantity - exitQty } : l),
       totalQuantity: i.totalQuantity - exitQty,
     } : i));
-    supabase.from('lot_controls').update({ quantity: lot.quantity - exitQty }).eq('id', exitLotId)
-      .then(({ error }) => { if (error) console.warn('lot_controls exit update error:', error.message); });
-    supabase.from('pharmacy_items').update({ total_quantity: item.totalQuantity - exitQty })
-      .eq('id', exitItemId)
-      .then(({ error }) => { if (error) console.warn('pharmacy_items exit update error:', error.message); });
+    if (supabase) {
+      supabase.from('lot_controls').update({ quantity: lot.quantity - exitQty }).eq('id', exitLotId)
+        .then(({ error }) => { if (error) console.warn('lot_controls exit update error:', error.message); });
+      supabase.from('pharmacy_items').update({ total_quantity: item.totalQuantity - exitQty })
+        .eq('id', exitItemId)
+        .then(({ error }) => { if (error) console.warn('pharmacy_items exit update error:', error.message); });
+    }
     setMovements(prev => [newMovement, ...prev]);
-    supabase.from('stock_movements').insert({
-      id: newMovement.id, item_id: exitItemId, item_name: item.name,
-      lot_id: exitLotId, lot_number: lot.lotNumber, movement_type: 'saida',
-      quantity: exitQty, unit_cost: lot.costPerUnit, total_cost: totalCost,
-      date: newMovement.date, operator_name: 'Operador',
-      patient_name: exitPatient || null, procedure_name: exitProcedure || null,
-      sector: exitSector || null, room: exitRoom || null,
-      doctor_name: exitDoctor || null, notes: exitNotes || null,
-    }).then(({ error }) => { if (error) console.warn('stock_movements exit insert error:', error.message); });
+    if (supabase) {
+      supabase.from('stock_movements').insert({
+        id: newMovement.id, item_id: exitItemId, item_name: item.name,
+        lot_id: exitLotId, lot_number: lot.lotNumber, movement_type: 'saida',
+        quantity: exitQty, unit_cost: lot.costPerUnit, total_cost: totalCost,
+        date: newMovement.date, operator_name: 'Operador',
+        patient_name: exitPatient || null, procedure_name: exitProcedure || null,
+        sector: exitSector || null, room: exitRoom || null,
+        doctor_name: exitDoctor || null, notes: exitNotes || null,
+      }).then(({ error }) => { if (error) console.warn('stock_movements exit insert error:', error.message); });
+    }
     addAuditLog('Saída Estoque', `${item.name} - ${exitQty} para ${exitPatient || exitSector || 'setor'}`);
     setShowExitForm(false);
     setExitItemId(''); setExitLotId(''); setExitQty(1); setExitPatient('');
@@ -380,11 +390,13 @@ export default function EstoqueFarmaciaModule({
         ...i, lots: i.lots.map(l => l.id === invLotId ? { ...l, quantity: invCounted } : l),
         totalQuantity: i.totalQuantity + diff,
       } : i));
-      supabase.from('lot_controls').update({ quantity: invCounted }).eq('id', invLotId)
-        .then(({ error }) => { if (error) console.warn('lot_controls inv update error:', error.message); });
-      supabase.from('pharmacy_items').update({ total_quantity: item.totalQuantity + diff })
-        .eq('id', invItemId)
-        .then(({ error }) => { if (error) console.warn('pharmacy_items inv update error:', error.message); });
+      if (supabase) {
+        supabase.from('lot_controls').update({ quantity: invCounted }).eq('id', invLotId)
+          .then(({ error }) => { if (error) console.warn('lot_controls inv update error:', error.message); });
+        supabase.from('pharmacy_items').update({ total_quantity: item.totalQuantity + diff })
+          .eq('id', invItemId)
+          .then(({ error }) => { if (error) console.warn('pharmacy_items inv update error:', error.message); });
+      }
     }
     addAuditLog('Inventário Físico', `${item.name} Lote ${lot.lotNumber}: esperado ${lot.quantity}, contado ${invCounted}`);
     setInvItemId(''); setInvLotId(''); setInvCounted(0);
@@ -417,14 +429,16 @@ export default function EstoqueFarmaciaModule({
       status: 'notificado',
     };
     setAdverseEvents(prev => [newEvent, ...prev]);
-    supabase.from('adverse_events').insert({
-      id: newEvent.id, patient_name: aePatient, patient_id: null,
-      medication_name: aeMedication, item_id: aeItemId || null, lot_id: aeLotId || null,
-      lot_number: newEvent.lotNumber, adverse_reaction: aeReaction, severity: aeSeverity,
-      start_date: newEvent.startDate, outcome: aeOutcome, suspected_drug: true,
-      concomitant_drugs: [], description: aeDescription, notifier_name: aeNotifier || 'Operador',
-      notifier_role: 'Operador', notification_date: newEvent.notificationDate, status: 'notificado',
-    }).then(({ error }) => { if (error) console.warn('adverse_events insert error:', error.message); });
+    if (supabase) {
+      supabase.from('adverse_events').insert({
+        id: newEvent.id, patient_name: aePatient, patient_id: null,
+        medication_name: aeMedication, item_id: aeItemId || null, lot_id: aeLotId || null,
+        lot_number: newEvent.lotNumber, adverse_reaction: aeReaction, severity: aeSeverity,
+        start_date: newEvent.startDate, outcome: aeOutcome, suspected_drug: true,
+        concomitant_drugs: [], description: aeDescription, notifier_name: aeNotifier || 'Operador',
+        notifier_role: 'Operador', notification_date: newEvent.notificationDate, status: 'notificado',
+      }).then(({ error }) => { if (error) console.warn('adverse_events insert error:', error.message); });
+    }
     addAuditLog('Notificou RAM', `${aeMedication} - ${aeReaction} (${aePatient})`);
     setShowAeForm(false);
     setAePatient(''); setAeMedication(''); setAeItemId(''); setAeLotId('');
@@ -453,12 +467,14 @@ export default function EstoqueFarmaciaModule({
       status: 'aberto',
     };
     setQualityDeviations(prev => [newDev, ...prev]);
-    supabase.from('quality_deviations').insert({
-      id: newDev.id, item_id: qdItemId, item_name: item?.name || '',
-      lot_id: qdLotId, lot_number: lot?.lotNumber || '', deviation_type: qdType,
-      severity: qdSeverity, affected_quantity: qdQty || 0, description: qdDesc,
-      report_date: newDev.reportDate, reporter_name: qdReporter || 'Operador', status: 'aberto',
-    }).then(({ error }) => { if (error) console.warn('quality_deviations insert error:', error.message); });
+    if (supabase) {
+      supabase.from('quality_deviations').insert({
+        id: newDev.id, item_id: qdItemId, item_name: item?.name || '',
+        lot_id: qdLotId, lot_number: lot?.lotNumber || '', deviation_type: qdType,
+        severity: qdSeverity, affected_quantity: qdQty || 0, description: qdDesc,
+        report_date: newDev.reportDate, reporter_name: qdReporter || 'Operador', status: 'aberto',
+      }).then(({ error }) => { if (error) console.warn('quality_deviations insert error:', error.message); });
+    }
     addAuditLog('Notificou Desvio Qualidade', `${item?.name} - ${qdType}`);
     setShowQdForm(false);
     setQdItemId(''); setQdLotId(''); setQdDesc(''); setQdSeverity('leve'); setQdQty(0); setQdReporter('');
@@ -468,18 +484,22 @@ export default function EstoqueFarmaciaModule({
     setQualityDeviations(prev => prev.map(d => d.id === id ? {
       ...d, status: 'concluido' as const, closedAt: new Date().toISOString().split('T')[0],
     } : d));
-    supabase.from('quality_deviations').update({
-      status: 'concluido', closed_at: new Date().toISOString().split('T')[0],
-    }).eq('id', id).then(({ error }) => { if (error) console.warn('quality_deviation update error:', error.message); });
+    if (supabase) {
+      supabase.from('quality_deviations').update({
+        status: 'concluido', closed_at: new Date().toISOString().split('T')[0],
+      }).eq('id', id).then(({ error }) => { if (error) console.warn('quality_deviation update error:', error.message); });
+    }
   };
 
   const handleCompleteRecall = (id: string) => {
     setBatchRecalls(prev => prev.map(r => r.id === id ? {
       ...r, status: 'concluido' as const, completedAt: new Date().toISOString().split('T')[0],
     } : r));
-    supabase.from('batch_recalls').update({
-      status: 'concluido', completed_at: new Date().toISOString().split('T')[0],
-    }).eq('id', id).then(({ error }) => { if (error) console.warn('batch_recall update error:', error.message); });
+    if (supabase) {
+      supabase.from('batch_recalls').update({
+        status: 'concluido', completed_at: new Date().toISOString().split('T')[0],
+      }).eq('id', id).then(({ error }) => { if (error) console.warn('batch_recall update error:', error.message); });
+    }
   };
 
   const filteredItems = pharmacyItems.filter(i =>
@@ -915,11 +935,13 @@ export default function EstoqueFarmaciaModule({
                           lots: i.lots.map(l => l.id === lot.id ? { ...l, status: 'vencido' as const, quantity: 0 } : l),
                           totalQuantity: i.totalQuantity - lot.quantity,
                         } : i));
-                        supabase.from('lot_controls').update({ status: 'vencido', quantity: 0 }).eq('id', lot.id)
-                          .then(({ error }) => { if (error) console.warn('lot_controls expired update error:', error.message); });
-                        supabase.from('pharmacy_items').update({ total_quantity: item.totalQuantity - lot.quantity })
-                          .eq('id', item.id)
-                          .then(({ error }) => { if (error) console.warn('pharmacy_items expired update error:', error.message); });
+                        if (supabase) {
+                          supabase.from('lot_controls').update({ status: 'vencido', quantity: 0 }).eq('id', lot.id)
+                            .then(({ error }) => { if (error) console.warn('lot_controls expired update error:', error.message); });
+                          supabase.from('pharmacy_items').update({ total_quantity: item.totalQuantity - lot.quantity })
+                            .eq('id', item.id)
+                            .then(({ error }) => { if (error) console.warn('pharmacy_items expired update error:', error.message); });
+                        }
                         const lossId = `mov_${Date.now()}`;
                         setMovements(prev => [{
                           id: lossId, itemId: item.id, itemName: item.name,
@@ -928,14 +950,16 @@ export default function EstoqueFarmaciaModule({
                           date: new Date().toISOString().split('T')[0], operatorName: 'Operador',
                           notes: 'Lote vencido - baixa automática',
                         }, ...prev]);
-                        supabase.from('stock_movements').insert({
-                          id: lossId, item_id: item.id, item_name: item.name,
-                          lot_id: lot.id, lot_number: lot.lotNumber, movement_type: 'perda',
-                          quantity: lot.quantity, unit_cost: lot.costPerUnit,
-                          total_cost: lot.quantity * lot.costPerUnit,
-                          date: new Date().toISOString().split('T')[0], operator_name: 'Operador',
-                          notes: 'Lote vencido - baixa automática',
-                        }).then(({ error }) => { if (error) console.warn('stock_movements loss insert error:', error.message); });
+                        if (supabase) {
+                          supabase.from('stock_movements').insert({
+                            id: lossId, item_id: item.id, item_name: item.name,
+                            lot_id: lot.id, lot_number: lot.lotNumber, movement_type: 'perda',
+                            quantity: lot.quantity, unit_cost: lot.costPerUnit,
+                            total_cost: lot.quantity * lot.costPerUnit,
+                            date: new Date().toISOString().split('T')[0], operator_name: 'Operador',
+                            notes: 'Lote vencido - baixa automática',
+                          }).then(({ error }) => { if (error) console.warn('stock_movements loss insert error:', error.message); });
+                        }
                         addAuditLog('Baixa Lote Vencido', `${item.name} ${lot.lotNumber}`);
                       }} className="text-[10px] px-2 py-1 bg-rose-100 hover:bg-rose-200 text-rose-800 font-bold rounded-lg transition">{t('pharm_lot_write_off', 'app')}</button>
                     </td>

@@ -1,5 +1,0 @@
-{
-  "rootCauseHypothesis": "TEST FAILURE\n\nThe Patient Portal page does not provide a patient search-by-name feature; only the patient login form is available so it is not possible to search for a patient by name.\n\nObservations:\n- The page shows only the login form with 'ID DOCUMENT NUMBER' and password fields.\n- No patient search input or labels like 'Nome', 'Pesquisar', 'Buscar', or a visible patient search/results area were found.\n- The module displays Register and demo instructions, but no patient details, contact info, or medical history sections are present on this page.",
-  "recommendedFixTarget": null,
-  "evidence": []
-}

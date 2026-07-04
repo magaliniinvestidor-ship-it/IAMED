@@ -47,6 +47,8 @@ export default function CrmBiModule({
 
   // ─── Load from Supabase ───
   useEffect(() => {
+    if (!supabase) return;
+
     const loadCrmData = async () => {
       const tables = [
         { key: 'campaigns', table: 'crm_campaigns', setter: setCampaigns, map: (d: any) => ({ id: d.id, nome: d.nome, tipo: d.tipo, template: d.template || '', segmentoAlvo: d.segmento_alvo || '', mensagem: d.mensagem, dataDisparo: d.data_disparo, status: d.status, totalContatos: d.total_contatos || 0, totalEnviados: d.total_enviados || 0, totalFalhas: d.total_falhas || 0, totalOptOut: d.total_optout || 0, consentimentoObrigatorio: d.consentimento_obrigatorio ?? true, createdBy: d.created_by || '' }) },
@@ -151,7 +153,9 @@ export default function CrmBiModule({
     };
     setCampaigns(prev => [nova, ...prev]);
     addAuditLog('Campanha CRM Enviada', `${nova.nome} (${nova.tipo})`);
-    supabase.from('crm_campaigns').insert({ id: nova.id, nome: nova.nome, tipo: nova.tipo, template: nova.template, segmento_alvo: nova.segmentoAlvo, mensagem: nova.mensagem, data_disparo: nova.dataDisparo, status: nova.status, total_contatos: nova.totalContatos, total_enviados: nova.totalEnviados, total_falhas: nova.totalFalhas, total_optout: nova.totalOptOut, consentimento_obrigatorio: nova.consentimentoObrigatorio, created_by: nova.createdBy });
+    if (supabase) {
+      supabase.from('crm_campaigns').insert({ id: nova.id, nome: nova.nome, tipo: nova.tipo, template: nova.template, segmento_alvo: nova.segmentoAlvo, mensagem: nova.mensagem, data_disparo: nova.dataDisparo, status: nova.status, total_contatos: nova.totalContatos, total_enviados: nova.totalEnviados, total_falhas: nova.totalFalhas, total_optout: nova.totalOptOut, consentimento_obrigatorio: nova.consentimentoObrigatorio, created_by: nova.createdBy });
+    }
     setCampForm({ nome: '', tipo: 'whatsapp', template: '', mensagem: '', segmentoAlvo: '' });
     setShowForm(null);
   };
@@ -172,7 +176,9 @@ export default function CrmBiModule({
     };
     setLeads(prev => [novo, ...prev]);
     addAuditLog('Lead Capturado', `${novo.nome} (${novo.origem})`);
-    supabase.from('crm_leads').insert({ id: novo.id, nome: novo.nome, email: novo.email || null, telefone: novo.telefone || null, origem: novo.origem, data_primeiro_contato: novo.dataPrimeiroContato, etapa_funil: novo.etapaFunil, interesse: novo.interesse || null, observacoes: novo.observacoes || null, convertido: novo.convertido });
+    if (supabase) {
+      supabase.from('crm_leads').insert({ id: novo.id, nome: novo.nome, email: novo.email || null, telefone: novo.telefone || null, origem: novo.origem, data_primeiro_contato: novo.dataPrimeiroContato, etapa_funil: novo.etapaFunil, interesse: novo.interesse || null, observacoes: novo.observacoes || null, convertido: novo.convertido });
+    }
     setLeadForm({ nome: '', email: '', telefone: '', origem: 'site', interesse: '', observacoes: '' });
     setShowForm(null);
   };
@@ -193,7 +199,9 @@ export default function CrmBiModule({
     };
     setOpportunities(prev => [nova, ...prev]);
     addAuditLog('Oportunidade Criada', `${nova.pacienteNome} - ${nova.tipo}`);
-    supabase.from('crm_opportunities').insert({ id: nova.id, paciente_nome: nova.pacienteNome, paciente_telefone: nova.pacienteTelefone || null, tipo: nova.tipo, descricao: nova.descricao, valor_estimado: nova.valorEstimado, status: nova.status, probabilidade: nova.probabilidade, data_criacao: nova.dataCriacao, responsavel: nova.responsavel });
+    if (supabase) {
+      supabase.from('crm_opportunities').insert({ id: nova.id, paciente_nome: nova.pacienteNome, paciente_telefone: nova.pacienteTelefone || null, tipo: nova.tipo, descricao: nova.descricao, valor_estimado: nova.valorEstimado, status: nova.status, probabilidade: nova.probabilidade, data_criacao: nova.dataCriacao, responsavel: nova.responsavel });
+    }
     setOppForm({ pacienteNome: '', pacienteTelefone: '', tipo: 'tratamento_clinico', descricao: '', valorEstimado: 0, probabilidade: 50, responsavel: '' });
     setShowForm(null);
   };
@@ -205,7 +213,9 @@ export default function CrmBiModule({
       const idx = stages.indexOf(l.etapaFunil);
       const next = idx < stages.length - 1 ? stages[idx + 1] : l.etapaFunil;
       const ultimo = new Date().toISOString().split('T')[0];
-      supabase.from('crm_leads').update({ etapa_funil: next, ultimo_contato: ultimo, convertido: next === 'paciente_recorrente' }).eq('id', id);
+      if (supabase) {
+        supabase.from('crm_leads').update({ etapa_funil: next, ultimo_contato: ultimo, convertido: next === 'paciente_recorrente' }).eq('id', id);
+      }
       return { ...l, etapaFunil: next, ultimoContato: ultimo, convertido: next === 'paciente_recorrente' };
     }));
   };
@@ -218,7 +228,9 @@ export default function CrmBiModule({
     } : o));
     addAuditLog('Status Oportunidade Alterado', id);
     const dataFechamento = status === 'fechada_ganha' || status === 'fechada_perdida' ? new Date().toISOString().split('T')[0] : null;
-    supabase.from('crm_opportunities').update({ status, data_fechamento: dataFechamento, probabilidade: status === 'fechada_ganha' ? 100 : status === 'fechada_perdida' ? 0 : undefined }).eq('id', id);
+    if (supabase) {
+      supabase.from('crm_opportunities').update({ status, data_fechamento: dataFechamento, probabilidade: status === 'fechada_ganha' ? 100 : status === 'fechada_perdida' ? 0 : undefined }).eq('id', id);
+    }
   };
 
   const handleRegisterOptOut = () => {
@@ -232,7 +244,9 @@ export default function CrmBiModule({
     };
     setOptOuts(prev => [novo, ...prev]);
     addAuditLog('Opt-Out Registrado', novo.pacienteContato);
-    supabase.from('crm_optouts').insert({ id: novo.id, paciente_nome: novo.pacienteNome, paciente_contato: novo.pacienteContato, canal: novo.canal, data_optout: novo.dataOptOut, confirmado: novo.confirmado });
+    if (supabase) {
+      supabase.from('crm_optouts').insert({ id: novo.id, paciente_nome: novo.pacienteNome, paciente_contato: novo.pacienteContato, canal: novo.canal, data_optout: novo.dataOptOut, confirmado: novo.confirmado });
+    }
   };
 
   // ─── Hospitalization States (unchanged) ───
@@ -269,7 +283,9 @@ export default function CrmBiModule({
     }));
     addAuditLog('Allocação de Leito', `${hospPatient} no ${selectedBedId}`);
     setHospPatient('');
-    await supabase.from('beds').update({ status: 'ocupado', patient_name: hospPatient, entry_date: entryDate }).eq('id', selectedBedId);
+    if (supabase) {
+      await supabase.from('beds').update({ status: 'ocupado', patient_name: hospPatient, entry_date: entryDate }).eq('id', selectedBedId);
+    }
   };
 
   const handleFreeBed = async (id: string, name?: string) => {
@@ -280,7 +296,9 @@ export default function CrmBiModule({
       }
       return b;
     }));
-    await supabase.from('beds').update({ status: 'disponível', patient_name: null, entry_date: null }).eq('id', id);
+    if (supabase) {
+      await supabase.from('beds').update({ status: 'disponível', patient_name: null, entry_date: null }).eq('id', id);
+    }
   };
 
   // ─── Gemini BI handler (unchanged) ───
@@ -910,7 +928,9 @@ export default function CrmBiModule({
                       <button className={btnCls + ' w-full mt-2'} onClick={() => {
                         const novaNps: NpsSurvey = { id: `nps_${Date.now()}`, pacienteNome: 'Pesquisa automática', dataAtendimento: new Date().toISOString().split('T')[0], dataResposta: '', score: 0, categoria: 'neutro', origem: 'whatsapp', respondido: false };
                         setNpsSurveys(prev => [novaNps, ...prev]);
-                        supabase.from('crm_nps_surveys').insert({ id: novaNps.id, paciente_nome: novaNps.pacienteNome, data_atendimento: novaNps.dataAtendimento, score: 0, categoria: 'neutro', origem: novaNps.origem, respondido: false });
+                        if (supabase) {
+                          supabase.from('crm_nps_surveys').insert({ id: novaNps.id, paciente_nome: novaNps.pacienteNome, data_atendimento: novaNps.dataAtendimento, score: 0, categoria: 'neutro', origem: novaNps.origem, respondido: false });
+                        }
                         addAuditLog('NPS Disparado', 'Pesquisa automática');
                       }}>
                         <Send className="w-3 h-3 inline mr-1" /> Disparar Agora

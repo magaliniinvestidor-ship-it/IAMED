@@ -352,7 +352,9 @@ export default function ClinicalModule({
       } : p));
     }
     addAuditLog('Salvou Anamnese', selectedPatient?.name || '');
-    await supabase.from('anamnese').insert({ ...entry, patient_id: entry.patientId, created_by: entry.createdBy });
+    if (supabase) {
+      await supabase.from('anamnese').insert({ ...entry, patient_id: entry.patientId, created_by: entry.createdBy });
+    }
   };
 
   // ─── SAVE SOAP NOTE ───
@@ -375,7 +377,9 @@ export default function ClinicalModule({
       } : p));
     }
     addAuditLog('Salvou Evolução SOAP', selectedPatient?.name || '');
-    await supabase.from('soap_notes').insert({ ...entry, patient_id: entry.patientId, created_by: entry.createdBy });
+    if (supabase) {
+      await supabase.from('soap_notes').insert({ ...entry, patient_id: entry.patientId, created_by: entry.createdBy });
+    }
   };
 
   // ─── SAVE PRESCRIPTION ───
@@ -606,7 +610,9 @@ export default function ClinicalModule({
     };
     setAsos(prev => [newAso, ...prev]);
     addAuditLog('Emissão ASO', `${asoPatient} (${asoStatus.toUpperCase()})`);
-    await supabase.from('aso_exams').insert({ id: newAso.id, patient_name: newAso.patientName, type: newAso.type, risks: newAso.risks, status: newAso.status, date: newAso.date, doctor: newAso.doctor });
+    if (supabase) {
+      await supabase.from('aso_exams').insert({ id: newAso.id, patient_name: newAso.patientName, type: newAso.type, risks: newAso.risks, status: newAso.status, date: newAso.date, doctor: newAso.doctor });
+    }
     setAsoPatient('');
   };
 
@@ -1008,7 +1014,9 @@ export default function ClinicalModule({
                         } : p));
                       }
                       addAuditLog('Salvou Exame Físico', selectedPatient?.name || '');
-                      await supabase.from('physical_exams').insert({ ...entry, patient_id: entry.patientId, created_by: entry.createdBy });
+                      if (supabase) {
+                        await supabase.from('physical_exams').insert({ ...entry, patient_id: entry.patientId, created_by: entry.createdBy });
+                      }
                     }}
                       className="py-2.5 px-6 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-lg text-xs transition">
                       Salvar Exame Físico

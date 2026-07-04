@@ -1,8 +1,0 @@
-[
-  {
-    "kind": "snapshot",
-    "stepIndex": 13,
-    "summary": "Step 13 'Expected the 'Próximo' (Next) button of the patient registration form to be visible.' failed. Error: TEST FAILURE\n\nThe patient registration did not result in the new patient appearing in the visible patient list or any visible success message.\n\nObservations:\n- The right-hand patient list shows other patients (Roberto de Oliveira Cruz, Mariana Rosa Santos, Joaquim Bento Pereira, Carlos Eduardo Almeida, Ana Júlia de Souza) but not 'Test Patient QA'.\n- Searches for 'Test Patient QA' and the entered phone number returned no matches on the page.\n- After clicking 'Próximo' to submit the form, no success confirmation or new list entry for the test patient is visible in the UI.",
-    "path": "steps/13-snapshot.html"
-  }
-]

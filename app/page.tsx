@@ -173,6 +173,11 @@ function HomeContent() {
   // 1. Auth listener
   // ──────────────────────────────────────────────
   useEffect(() => {
+    if (!supabase) {
+      setAuthLoading(false);
+      return;
+    }
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setAuthLoading(false);
@@ -231,9 +236,10 @@ function HomeContent() {
   // 2. Load profile once session is available
   // ──────────────────────────────────────────────
   useEffect(() => {
-    if (!session?.user) return;
+    if (!session?.user || !supabase) return;
 
     const loadProfile = async () => {
+      if (!supabase) return;
       const { data } = await supabase
         .from('profiles')
         .select('id, name, role')
@@ -266,6 +272,11 @@ function HomeContent() {
   // 3. Load all data once logged in
   // ──────────────────────────────────────────────
   const loadAllData = useCallback(async () => {
+    if (!supabase) {
+      setIsDbConnected(false);
+      return;
+    }
+
     setDataLoading(true);
     try {
       const [patientsRes, appointmentsRes, bedsRes, logsRes, financeRes, stockRes, asosRes, dtesRes, professionalsRes, pharmacyItemsRes, stockMovementsRes, inventoryCountsRes, adverseEventsRes, qualityDeviationsRes, batchRecallsRes] = await Promise.all([
@@ -680,14 +691,16 @@ function HomeContent() {
     setLogs(prev => [newLog, ...prev]);
 
     // Persist to Supabase
-    await supabase.from('audit_logs').insert({
-      id: newLog.id,
-      operator: newLog.operator,
-      role: newLog.role,
-      action: newLog.action,
-      target: newLog.target,
-      ip: newLog.ip,
-    });
+    if (supabase) {
+      await supabase.from('audit_logs').insert({
+        id: newLog.id,
+        operator: newLog.operator,
+        role: newLog.role,
+        action: newLog.action,
+        target: newLog.target,
+        ip: newLog.ip,
+      });
+    }
   }, [activeOperator, activeRole]);
 
   // ──────────────────────────────────────────────
@@ -716,6 +729,25 @@ function HomeContent() {
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
     const isPlaceholder = supabaseUrl.includes('your-supabase-url') || supabaseUrl === '';
+
+    if (!supabase) {
+      // Fallback for no Supabase config
+      const mockSession = {
+        user: {
+          id: 'mock_user_id',
+          email: loginEmail,
+        }
+      } as any;
+      setSession(mockSession);
+      setProfile({
+        id: 'mock_user_id',
+        name: loginEmail.split('@')[0],
+        role: 'Gestor'
+      });
+      setIsDbConnected(false);
+      setLoginLoading(false);
+      return;
+    }
 
     const { data, error } = await supabase.auth.signInWithPassword({
       email: loginEmail,
@@ -770,7 +802,7 @@ function HomeContent() {
     await addAuditLog('Logout do Sistema', activeOperator);
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
     const isPlaceholder = supabaseUrl.includes('your-supabase-url') || supabaseUrl === '';
-    if (!isPlaceholder) {
+    if (!isPlaceholder && supabase) {
       await supabase.auth.signOut();
     }
     setSession(null);

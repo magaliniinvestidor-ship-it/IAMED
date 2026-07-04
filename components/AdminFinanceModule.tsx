@@ -589,18 +589,20 @@ export default function AdminFinanceModule({
       } : p));
       addAuditLog('Editou Profissional', profName);
 
-      await supabase.from('professionals').update({
-        name: profName,
-        role: profRole,
-        specialty: profSpecialty,
-        council: profCouncil,
-        council_number: profCouncilNumber,
-        shift: profShift,
-        email: profEmail,
-        phone: profPhone,
-        admission_date: profAdmission,
-        status: profStatus,
-      }).eq('id', editingProfId);
+      if (supabase) {
+        await supabase.from('professionals').update({
+          name: profName,
+          role: profRole,
+          specialty: profSpecialty,
+          council: profCouncil,
+          council_number: profCouncilNumber,
+          shift: profShift,
+          email: profEmail,
+          phone: profPhone,
+          admission_date: profAdmission,
+          status: profStatus,
+        }).eq('id', editingProfId);
+      }
     } else {
       // Calculate sequential ID: prof_1, prof_2, etc.
       const numericIds = professionals.map(p => {
@@ -623,20 +625,22 @@ export default function AdminFinanceModule({
       setProfessionals(prev => [...prev, newProf]);
       addAuditLog('Cadastrou Profissional', profName);
 
-      await supabase.from('professionals').insert({
-        id: newProf.id,
-        name: newProf.name,
-        role: newProf.role,
-        specialty: newProf.specialty,
-        council: newProf.council,
-        council_number: newProf.councilNumber,
-        shift: newProf.shift,
-        email: newProf.email,
-        phone: newProf.phone,
-        status: newProf.status,
-        admission_date: newProf.admissionDate,
-        color: newProf.color,
-      });
+      if (supabase) {
+        await supabase.from('professionals').insert({
+          id: newProf.id,
+          name: newProf.name,
+          role: newProf.role,
+          specialty: newProf.specialty,
+          council: newProf.council,
+          council_number: newProf.councilNumber,
+          shift: newProf.shift,
+          email: newProf.email,
+          phone: newProf.phone,
+          status: newProf.status,
+          admission_date: newProf.admissionDate,
+          color: newProf.color,
+        });
+      }
     }
     resetProfForm();
     setProfFormOpen(false);
@@ -666,7 +670,9 @@ export default function AdminFinanceModule({
       addAuditLog('Alterou Status', `${p.name} → ${nextStatus}`);
       return { ...p, status: nextStatus };
     }));
-    await supabase.from('professionals').update({ status: nextStatus }).eq('id', profId);
+    if (supabase) {
+      await supabase.from('professionals').update({ status: nextStatus }).eq('id', profId);
+    }
   };
 
   // ── 5. SIFEN/DTE States ──────────────────────────────────────────────────────
@@ -755,17 +761,19 @@ export default function AdminFinanceModule({
     setFinancePostings(prev => [newPosting, ...prev]);
 
     // Persist to Supabase
-    await supabase.from('dtes').insert({
-      id: newDte.id, cdc, type: dteType, number, timbrado,
-      establishment, expedition_point: expPoint,
-      patient_name: dtePatient, patient_email: dtePatientEmail,
-      patient_phone: dtePatientPhone,
-      date: newDte.date, amount: totalAmount, iva_5: totalIva5, iva_10: totalIva10,
-      environment: dteEnv, status: 'Enviado', payment_status: 'pendente',
-      xml_content: xml, items: dteItems,
-    }).then(({ error }) => {
-      if (error) console.warn('DTE persist error:', error.message);
-    });
+    if (supabase) {
+      await supabase.from('dtes').insert({
+        id: newDte.id, cdc, type: dteType, number, timbrado,
+        establishment, expedition_point: expPoint,
+        patient_name: dtePatient, patient_email: dtePatientEmail,
+        patient_phone: dtePatientPhone,
+        date: newDte.date, amount: totalAmount, iva_5: totalIva5, iva_10: totalIva10,
+        environment: dteEnv, status: 'Enviado', payment_status: 'pendente',
+        xml_content: xml, items: dteItems,
+      }).then(({ error }) => {
+        if (error) console.warn('DTE persist error:', error.message);
+      });
+    }
 
     setDteItems([]);
     setDtePatient('');
@@ -777,14 +785,18 @@ export default function AdminFinanceModule({
   const handleCancelarDte = (id: string) => {
     setDtes?.(prev => prev.map(d => d.id === id ? { ...d, status: 'Cancelado', payment_status: 'cancelado' } : d));
     addAuditLog('Cancelou DTE', id);
-    supabase.from('dtes').update({ status: 'Cancelado', payment_status: 'cancelado' }).eq('id', id);
+    if (supabase) {
+      supabase.from('dtes').update({ status: 'Cancelado', payment_status: 'cancelado' }).eq('id', id);
+    }
   };
 
   const handleConciliar = (dte: Dte, gateway: typeof GATEWAYS[number]) => {
     setDtes?.(prev => prev.map(d => d.id === dte.id ? { ...d, payment_gateway: gateway, payment_status: 'conciliado' } : d));
     setGatewayTarget(null);
     addAuditLog(`Conciliou DTE via ${gateway}`, `${dte.number} — ${GS(dte.amount)}`);
-    supabase.from('dtes').update({ payment_gateway: gateway, payment_status: 'conciliado' }).eq('id', dte.id);
+    if (supabase) {
+      supabase.from('dtes').update({ payment_gateway: gateway, payment_status: 'conciliado' }).eq('id', dte.id);
+    }
   };
 
   // ── 6. Finance States ──────────────────────────────────────────────────────
@@ -807,11 +819,13 @@ export default function AdminFinanceModule({
     setFinancePostings(prev => [newPosting, ...prev]);
     addAuditLog(`Lançamento Financeiro (${finType})`, finDescription);
     setFinDescription('');
-    await supabase.from('financial_postings').insert({
-      id: newPosting.id, description: newPosting.description,
-      type: newPosting.type, amount: newPosting.amount,
-      category: newPosting.category, date: newPosting.date,
-    });
+    if (supabase) {
+      await supabase.from('financial_postings').insert({
+        id: newPosting.id, description: newPosting.description,
+        type: newPosting.type, amount: newPosting.amount,
+        category: newPosting.category, date: newPosting.date,
+      });
+    }
   };
 
   // ── 7. Stock States ─────────────────────────────────────────────────────────
@@ -834,10 +848,12 @@ export default function AdminFinanceModule({
     setStockItems(prev => [...prev, newItem]);
     addAuditLog('Cadastrou Insumo Estoque', newStockName);
     setNewStockName('');
-    await supabase.from('stock_items').insert({
-      id: newItem.id, name: newItem.name, category: newItem.category,
-      quantity: newItem.quantity, min_quantity: newItem.minQuantity, unit: newItem.unit,
-    });
+    if (supabase) {
+      await supabase.from('stock_items').insert({
+        id: newItem.id, name: newItem.name, category: newItem.category,
+        quantity: newItem.quantity, min_quantity: newItem.minQuantity, unit: newItem.unit,
+      });
+    }
   };
 
   const handleUpdateStockQty = async (id: string, delta: number) => {
@@ -850,7 +866,9 @@ export default function AdminFinanceModule({
       }
       return item;
     }));
-    await supabase.from('stock_items').update({ quantity: updatedQty }).eq('id', id);
+    if (supabase) {
+      await supabase.from('stock_items').update({ quantity: updatedQty }).eq('id', id);
+    }
   };
 
   // ── 14. Admin State ─────────────────────────────────────────────────────────

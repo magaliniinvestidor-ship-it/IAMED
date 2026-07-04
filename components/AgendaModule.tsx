@@ -247,6 +247,8 @@ export default function AgendaModule({
   // DATA FETCHING & SYNCHRONIZATION
   // -------------------------------------------------------------
   const loadModuleData = async () => {
+    if (!supabase) return;
+
     try {
       const [blockRes, wlRes, waRes, callRes] = await Promise.all([
         supabase.from('blocked_slots').select('*').order('start_date', { ascending: true }),
@@ -444,7 +446,9 @@ export default function AgendaModule({
       if (calendarGroupBy === 'specialty') payload.specialty = groupVal;
       if (calendarGroupBy === 'branch') payload.branch = groupVal;
 
-      await supabase.from('appointments').update(payload).eq('id', appId);
+      if (supabase) {
+        await supabase.from('appointments').update(payload).eq('id', appId);
+      }
 
       // Create WhatsApp reminder log for this rescheduling
       const newWaReminder: WhatsappReminder = {
@@ -461,7 +465,9 @@ export default function AgendaModule({
       };
 
       setWhatsappReminders(prev => [newWaReminder, ...prev]);
-      await supabase.from('whatsapp_reminders').insert(newWaReminder);
+      if (supabase) {
+        await supabase.from('whatsapp_reminders').insert(newWaReminder);
+      }
 
     } catch (e) {
       console.warn("DB write failed in drag & drop, running memory-only mode.", e);
@@ -490,20 +496,22 @@ export default function AgendaModule({
     setShowBlockageModal(false);
     addAuditLog('Bloqueio de Agenda', `Bloqueou faixa para ${blockDoctor} (Sede: ${blockBranch}) de ${blockStartDate} a ${blockEndDate} (${blockReason})`);
 
-    try {
-      await supabase.from('blocked_slots').insert({
-        id: newBlock.id,
-        doctor_name: newBlock.doctor_name,
-        branch: newBlock.branch,
-        start_date: newBlock.start_date,
-        end_date: newBlock.end_date,
-        start_time: newBlock.start_time ? `${newBlock.start_time}:00` : null,
-        end_time: newBlock.end_time ? `${newBlock.end_time}:00` : null,
-        reason: newBlock.reason,
-        description: newBlock.description,
-      });
-    } catch (err) {
-      console.warn("Could not insert blocked slot to Supabase", err);
+    if (supabase) {
+      try {
+        await supabase.from('blocked_slots').insert({
+          id: newBlock.id,
+          doctor_name: newBlock.doctor_name,
+          branch: newBlock.branch,
+          start_date: newBlock.start_date,
+          end_date: newBlock.end_date,
+          start_time: newBlock.start_time ? `${newBlock.start_time}:00` : null,
+          end_time: newBlock.end_time ? `${newBlock.end_time}:00` : null,
+          reason: newBlock.reason,
+          description: newBlock.description,
+        });
+      } catch (err) {
+        console.warn("Could not insert blocked slot to Supabase", err);
+      }
     }
 
     // Reset fields
@@ -513,10 +521,12 @@ export default function AgendaModule({
   const handleDeleteBlockage = async (id: string) => {
     setBlockedSlots(prev => prev.filter(b => b.id !== id));
     addAuditLog('Remoção de Bloqueio', `Removeu o bloqueio ID: ${id}`);
-    try {
-      await supabase.from('blocked_slots').delete().eq('id', id);
-    } catch (err) {
-      console.warn("Could not delete blocked slot from Supabase", err);
+    if (supabase) {
+      try {
+        await supabase.from('blocked_slots').delete().eq('id', id);
+      } catch (err) {
+        console.warn("Could not delete blocked slot from Supabase", err);
+      }
     }
   };
 
@@ -533,10 +543,12 @@ export default function AgendaModule({
     addAuditLog('Confirmação Integrada WhatsApp', `Paciente ${app.patientName} respondeu via WhatsApp: ${statusResponse.toUpperCase()}`);
 
     // 2. Update DB
-    try {
-      await supabase.from('appointments').update({ status: statusResponse }).eq('id', appId);
-    } catch (err) {
-      console.warn("DB update failed for WhatsApp response hook", err);
+    if (supabase) {
+      try {
+        await supabase.from('appointments').update({ status: statusResponse }).eq('id', appId);
+      } catch (err) {
+        console.warn("DB update failed for WhatsApp response hook", err);
+      }
     }
 
     // 3. Update WhatsApp reminder log status
@@ -547,14 +559,16 @@ export default function AgendaModule({
       sent_at: new Date().toISOString()
     } : r));
 
-    try {
-      await supabase.from('whatsapp_reminders').update({
-        status: statusResponse === 'confirmado' ? 'confirmed' : statusResponse === 'cancelado' ? 'cancelled' : 'rescheduled',
-        response_received: statusResponse.charAt(0).toUpperCase() + statusResponse.slice(1),
-        sent_at: new Date().toISOString()
-      }).eq('appointment_id', appId);
-    } catch (err) {
-      console.warn("DB whatsapp_reminders update failed", err);
+    if (supabase) {
+      try {
+        await supabase.from('whatsapp_reminders').update({
+          status: statusResponse === 'confirmado' ? 'confirmed' : statusResponse === 'cancelado' ? 'cancelled' : 'rescheduled',
+          response_received: statusResponse.charAt(0).toUpperCase() + statusResponse.slice(1),
+          sent_at: new Date().toISOString()
+        }).eq('appointment_id', appId);
+      } catch (err) {
+        console.warn("DB whatsapp_reminders update failed", err);
+      }
     }
 
     // 4. If cancelled, check if waitlist can auto-fill this slot!
@@ -566,9 +580,11 @@ export default function AgendaModule({
         // Trigger notification
         setNotifiedWlItem({ ...candidate, status: 'notificado' });
         setWaitingList(prev => prev.map(w => w.id === candidate.id ? { ...w, status: 'notificado' } : w));
-        try {
-          await supabase.from('waiting_list').update({ status: 'notificado' }).eq('id', candidate.id);
-        } catch (err) {}
+        if (supabase) {
+          try {
+            await supabase.from('waiting_list').update({ status: 'notificado' }).eq('id', candidate.id);
+          } catch (err) {}
+        }
       }
     }
   };
@@ -615,22 +631,24 @@ export default function AgendaModule({
     setWaitingList(prev => [...prev, newWl].sort((a, b) => b.priority_score - a.priority_score));
     addAuditLog('Adição à Lista de Espera', `Adicionou ${patient.name} para especialidade ${wlSpecialty} (Score: ${score})`);
 
-    try {
-      await supabase.from('waiting_list').insert({
-        id: newWl.id,
-        patient_id: newWl.patient_id,
-        patient_name: newWl.patient_name,
-        phone: newWl.phone,
-        specialty: newWl.specialty,
-        doctor_name: newWl.doctor_name,
-        priority_criteria: newWl.priority_criteria,
-        priority_score: newWl.priority_score,
-        preferred_days: newWl.preferred_days,
-        preferred_hours: newWl.preferred_hours,
-        status: newWl.status,
-      });
-    } catch (err) {
-      console.warn("DB waitlist write error", err);
+    if (supabase) {
+      try {
+        await supabase.from('waiting_list').insert({
+          id: newWl.id,
+          patient_id: newWl.patient_id,
+          patient_name: newWl.patient_name,
+          phone: newWl.phone,
+          specialty: newWl.specialty,
+          doctor_name: newWl.doctor_name,
+          priority_criteria: newWl.priority_criteria,
+          priority_score: newWl.priority_score,
+          preferred_days: newWl.preferred_days,
+          preferred_hours: newWl.preferred_hours,
+          status: newWl.status,
+        });
+      } catch (err) {
+        console.warn("DB waitlist write error", err);
+      }
     }
 
     // Reset
@@ -668,25 +686,27 @@ export default function AgendaModule({
 
     addAuditLog('Reatribuição Automática Lista de Espera', `Reatribuiu slot liberado para paciente ${notifiedWlItem.patient_name} (${notifiedWlItem.specialty})`);
 
-    try {
-      await supabase.from('appointments').insert({
-        id: newAppointment.id,
-        patient_id: newAppointment.patientId,
-        patient_name: newAppointment.patientName,
-        doctor_name: newAppointment.doctorName,
-        specialty: newAppointment.specialty,
-        date: newAppointment.date,
-        time: newAppointment.time,
-        status: newAppointment.status,
-        branch: newAppointment.branch,
-        room: newAppointment.room,
-        type: newAppointment.type,
-        modality: newAppointment.modality,
-      });
+    if (supabase) {
+      try {
+        await supabase.from('appointments').insert({
+          id: newAppointment.id,
+          patient_id: newAppointment.patientId,
+          patient_name: newAppointment.patientName,
+          doctor_name: newAppointment.doctorName,
+          specialty: newAppointment.specialty,
+          date: newAppointment.date,
+          time: newAppointment.time,
+          status: newAppointment.status,
+          branch: newAppointment.branch,
+          room: newAppointment.room,
+          type: newAppointment.type,
+          modality: newAppointment.modality,
+        });
 
-      await supabase.from('waiting_list').delete().eq('id', notifiedWlItem.id);
-    } catch (err) {
-      console.warn("DB waitlist reallocation write failed", err);
+        await supabase.from('waiting_list').delete().eq('id', notifiedWlItem.id);
+      } catch (err) {
+        console.warn("DB waitlist reallocation write failed", err);
+      }
     }
 
     setNotifiedWlItem(null);
@@ -748,21 +768,23 @@ export default function AgendaModule({
     setCallLogs(prev => [newLog, ...prev]);
     addAuditLog('Call Center Registro', `Chamada finalizada com ${newLog.patient_name}. Tipificação: ${newLog.reason.toUpperCase()} (Duração: ${newLog.duration_seconds}s)`);
 
-    try {
-      await supabase.from('call_center_logs').insert({
-        id: newLog.id,
-        operator_name: newLog.operator_name,
-        patient_id: newLog.patient_id,
-        patient_name: newLog.patient_name,
-        patient_phone: newLog.patient_phone,
-        type: newLog.type,
-        reason: newLog.reason,
-        notes: newLog.notes,
-        duration_seconds: newLog.duration_seconds,
-        recording_url: newLog.recording_url,
-      });
-    } catch (err) {
-      console.warn("DB call_center_logs write failed", err);
+    if (supabase) {
+      try {
+        await supabase.from('call_center_logs').insert({
+          id: newLog.id,
+          operator_name: newLog.operator_name,
+          patient_id: newLog.patient_id,
+          patient_name: newLog.patient_name,
+          patient_phone: newLog.patient_phone,
+          type: newLog.type,
+          reason: newLog.reason,
+          notes: newLog.notes,
+          duration_seconds: newLog.duration_seconds,
+          recording_url: newLog.recording_url,
+        });
+      } catch (err) {
+        console.warn("DB call_center_logs write failed", err);
+      }
     }
 
     // Reset call screen

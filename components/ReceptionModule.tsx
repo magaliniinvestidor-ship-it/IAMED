@@ -341,6 +341,7 @@ export default function ReceptionModule({
     addAuditLog('Admitiu Paciente', newPatient.name);
 
     // Save to Supabase (dynamic fields included)
+    if (!supabase) return;
     try {
       await supabase.from('patients').insert({
         id: newPatient.id,
@@ -479,6 +480,7 @@ export default function ReceptionModule({
     addAuditLog('Mesclou e Fusio Fichas de Paciente', duplicatePatient.name);
 
     // Save to Supabase
+    if (!supabase) return;
     try {
       await supabase.from('patients').update({
         name: mergedPatient.name,
@@ -641,27 +643,29 @@ export default function ReceptionModule({
     );
 
     // Persist to Supabase
-    try {
-      await supabase.from('appointments').insert({
-        id: newApp.id,
-        patient_id: newApp.patientId,
-        patient_name: newApp.patientName,
-        doctor_name: newApp.doctorName,
-        specialty: newApp.specialty,
-        date: newApp.date,
-        time: newApp.time,
-        status: newApp.status,
-        branch: newApp.branch,
-        room: newApp.room,
-        resource: newApp.resource,
-        type: newApp.type,
-        modality: newApp.modality,
-        is_overturn: newApp.is_overturn || false,
-        overturn_reason: newApp.overturn_reason || null,
-        insurance: newApp.insurance
-      });
-    } catch (err) {
-      console.warn("Failed to persist appointment:", err);
+    if (supabase) {
+      try {
+        await supabase.from('appointments').insert({
+          id: newApp.id,
+          patient_id: newApp.patientId,
+          patient_name: newApp.patientName,
+          doctor_name: newApp.doctorName,
+          specialty: newApp.specialty,
+          date: newApp.date,
+          time: newApp.time,
+          status: newApp.status,
+          branch: newApp.branch,
+          room: newApp.room,
+          resource: newApp.resource,
+          type: newApp.type,
+          modality: newApp.modality,
+          is_overturn: newApp.is_overturn || false,
+          overturn_reason: newApp.overturn_reason || null,
+          insurance: newApp.insurance
+        });
+      } catch (err) {
+        console.warn("Failed to persist appointment:", err);
+      }
     }
 
     // Reset patient select
@@ -757,10 +761,12 @@ export default function ReceptionModule({
       }
       return p;
     }));
-    try {
-      await supabase.from('patients').update({ status }).eq('id', id);
-    } catch (err) {
-      console.warn("Failed to update status on Supabase:", err);
+    if (supabase) {
+      try {
+        await supabase.from('patients').update({ status }).eq('id', id);
+      } catch (err) {
+        console.warn("Failed to update status on Supabase:", err);
+      }
     }
   };
 
@@ -772,10 +778,12 @@ export default function ReceptionModule({
       }
       return a;
     }));
-    try {
-      await supabase.from('appointments').update({ status }).eq('id', id);
-    } catch (err) {
-      console.warn("Failed to update status on Supabase:", err);
+    if (supabase) {
+      try {
+        await supabase.from('appointments').update({ status }).eq('id', id);
+      } catch (err) {
+        console.warn("Failed to update status on Supabase:", err);
+      }
     }
   };
 
@@ -2405,24 +2413,26 @@ export default function ReceptionModule({
                     );
 
                     // Persist to Supabase
-                    try {
-                      await supabase.from('clinical_history').insert({
-                        id: triageEntry.id,
-                        patient_id: triagePatient.id,
-                        date: triageEntry.date,
-                        type: triageEntry.type,
-                        diagnosis: triageEntry.diagnosis,
-                        cid10: triageEntry.cid10,
-                        prescriptions: triageEntry.prescriptions,
-                        notes: triageEntry.notes,
-                        doctor: triageEntry.doctor,
-                      });
-                      await supabase.from('patients').update({
-                        status: 'atendimento',
-                        priority: newPriority,
-                      }).eq('id', triagePatient.id);
-                    } catch (err) {
-                      console.warn('Triage persist error:', err);
+                    if (supabase) {
+                      try {
+                        await supabase.from('clinical_history').insert({
+                          id: triageEntry.id,
+                          patient_id: triagePatient.id,
+                          date: triageEntry.date,
+                          type: triageEntry.type,
+                          diagnosis: triageEntry.diagnosis,
+                          cid10: triageEntry.cid10,
+                          prescriptions: triageEntry.prescriptions,
+                          notes: triageEntry.notes,
+                          doctor: triageEntry.doctor,
+                        });
+                        await supabase.from('patients').update({
+                          status: 'atendimento',
+                          priority: newPriority,
+                        }).eq('id', triagePatient.id);
+                      } catch (err) {
+                        console.warn('Triage persist error:', err);
+                      }
                     }
 
                     setShowTriageModal(false);
