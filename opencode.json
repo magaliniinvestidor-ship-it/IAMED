@@ -3,10 +3,13 @@
   "mcp": {
     "testsprite": {
       "type": "local",
-      "command": ["npx", "@testsprite/testsprite-mcp@latest"],
+      "command": [
+        "npx",
+        "@testsprite/testsprite-mcp@latest"
+      ],
       "enabled": true,
-      "env": {
-        "API_KEY": "sk-user-DOljKgQf9tABejwSYYyL10KLUTf09HVQ53Ps7BqwZWz2Thg3lsXSTrDIEFZR-XykQRTAl9YNzVJRz_9eaXfao9gwVCIx5fd-FNrHKHzlxbKKfGaxSUbvrr3kLTdLxG0ZH0w"
+      "environment": {
+        "API_KEY": "sk-user-XF96ayzrGb-4mDqNE1drLnRvBTLfHxwX7h_mt-5KfKdMZodc3JMr5KNMKnlvCKU_Uc_sOdu4MSA8zPICL4TdPfcfYXHL22eBG8CsTDb9WkSN7E44xkHJpQTOZkvS-fcKCbo"
       }
     }
   }

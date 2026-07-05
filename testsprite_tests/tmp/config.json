@@ -1,0 +1,23 @@
+{
+  "status": "commited",
+  "type": "frontend",
+  "scope": "codebase",
+  "localEndpoint": "http://localhost:3000",
+  "loginUser": "testesprite@gmail.com",
+  "loginPassword": "testesprite123",
+  "executionArgs": {
+    "projectName": "iamed",
+    "projectPath": "C:\\Users\\gabri\\OneDrive\\Área de Trabalho\\iamed",
+    "testIds": [
+      "TC022",
+      "TC025",
+      "TC028"
+    ],
+    "additionalInstruction": "Quando o navegador precisar ser aberto para confirmação, use o Brave browser. O projeto está em português brasileiro mas os testes usam labels em inglês (locale en). Execute APENAS os testes que falharam: TC022, TC025, TC028. Os scripts já foram escritos corretamente — por favor NÃO regenere os scripts, apenas execute os existentes em testsprite_tests/.",
+    "serverMode": "production",
+    "envs": {
+      "API_KEY": "sk-user-XF96ayzrGb-4mDqNE1drLnRvBTLfHxwX7h_mt-5KfKdMZodc3JMr5KNMKnlvCKU_Uc_sOdu4MSA8zPICL4TdPfcfYXHL22eBG8CsTDb9WkSN7E44xkHJpQTOZkvS-fcKCbo"
+    }
+  },
+  "serverPort": 49936
+}

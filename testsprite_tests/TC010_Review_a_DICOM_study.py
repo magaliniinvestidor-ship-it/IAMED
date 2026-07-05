@@ -1,0 +1,88 @@
+import asyncio
+import re
+from playwright import async_api
+from playwright.async_api import expect
+
+async def run_test():
+    pw = None
+    browser = None
+    context = None
+
+    try:
+        # Start a Playwright session in asynchronous mode
+        pw = await async_api.async_playwright().start()
+
+        # Launch a Chromium browser in headless mode with custom arguments
+        browser = await pw.chromium.launch(
+            headless=True,
+            args=[
+                "--window-size=1280,720",
+                "--disable-dev-shm-usage",
+                "--ipc=host",
+                "--single-process"
+            ],
+        )
+
+        # Create a new browser context (like an incognito window)
+        context = await browser.new_context()
+        # Wider default timeout to match the agent's DOM-stability budget;
+        # auto-waiting Playwright APIs (expect, locator.wait_for) inherit this.
+        context.set_default_timeout(15000)
+
+        # Open a new page in the browser context
+        page = await context.new_page()
+
+        # Interact with the page elements to simulate user flow
+        # -> navigate
+        await page.goto("http://localhost:3000")
+        try:
+            await page.wait_for_load_state("domcontentloaded", timeout=5000)
+        except Exception:
+            pass
+        
+        # -> Fill the Operator Email field with 'testesprite@gmail.com', fill the Password field with 'testesprite123', then click the 'SIGN IN' button.
+        # operator@iamed.com email field
+        elem = page.locator('[id="login-email"]')
+        await elem.wait_for(state="visible", timeout=10000)
+        await elem.fill("testesprite@gmail.com")
+        
+        # -> Fill the Operator Email field with 'testesprite@gmail.com', fill the Password field with 'testesprite123', then click the 'SIGN IN' button.
+        # •••••••• password field
+        elem = page.locator('[id="login-password"]')
+        await elem.wait_for(state="visible", timeout=10000)
+        await elem.fill("testesprite123")
+        
+        # -> Fill the Operator Email field with 'testesprite@gmail.com', fill the Password field with 'testesprite123', then click the 'SIGN IN' button.
+        # Sign In button
+        elem = page.get_by_role('button', name='Sign In', exact=True)
+        await elem.click(timeout=10000)
+        
+        # -> Click the '4. PACS DIAGNOSTIC IMAGING AND LABORATORY' tile to open Diagnostic Imaging.
+        # 4. PACS Diagnostic Imaging and Laboratory button
+        elem = page.get_by_role('button', name='4. PACS Diagnostic Imaging and Laboratory', exact=True)
+        await elem.click(timeout=10000)
+        
+        # -> Click the 'Carlos Eduardo Almeida' study in the 'Estudios DICOM' list to select and load that study into the viewer.
+        # RX PEND. LAUDO
+        elem = page.get_by_text('RX PEND. LAUDO', exact=True)
+        await elem.click(timeout=10000)
+        
+        # --> Assertions to verify final state
+        
+        # --> Verify the study is displayed in the image viewer
+        # Assert: Window (W) value is 400 in the viewer controls, indicating the image viewer is active.
+        await expect(page.locator("xpath=/html/body/div[2]/main/div/div[2]/div/div[2]/div[2]/div[1]/div[3]/div[2]/div[3]/div/input[1]").nth(0)).to_have_value("400", timeout=15000), "Window (W) value is 400 in the viewer controls, indicating the image viewer is active."
+        # Assert: The viewer details panel displays 'UID:', confirming study metadata is shown.
+        await expect(page.locator("xpath=/html/body/div[2]/main/div/div[2]/div/div[2]/div[2]/div[2]/div/div[5]/span[1]").nth(0)).to_have_text("UID:", timeout=15000), "The viewer details panel displays 'UID:', confirming study metadata is shown."
+        await asyncio.sleep(5)
+
+    finally:
+        if context:
+            await context.close()
+        if browser:
+            await browser.close()
+        if pw:
+            await pw.stop()
+
+asyncio.run(run_test())
+    

@@ -1,0 +1,2056 @@
+[
+  {
+    "id": "TC001",
+    "title": "Successful login lands in the main workspace",
+    "description": "Verifies that a user can sign in from the login screen and reach the authenticated workspace with the main module visible.",
+    "category": "User Authentication",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Select English from the language selector"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the authenticated workspace is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the main module navigation is available"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC002",
+    "title": "Authenticate and land in the correct workspace",
+    "description": "This verifies that a user can sign in successfully from the home page and reach the main workspace after authentication.",
+    "category": "Authentication and session control",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_USER}} into the user field"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the main workspace is displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC003",
+    "title": "Log in and reach the main workspace",
+    "description": "This verifies that a valid user can sign in from the entry screen and land in the authenticated workspace with the correct module available.",
+    "category": "Patient Admission",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the sign-in form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the main workspace is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the patient admission module is available"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC004",
+    "title": "Five failed logins trigger account lockout",
+    "description": "Verifies that repeated invalid sign-in attempts lock the account and present a lockout message.",
+    "category": "User Authentication",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with invalid@example.com"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with WrongPassword1"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form four more times with the same invalid credentials"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a lockout message is visible"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC005",
+    "title": "Switch between modules from the authenticated header",
+    "description": "This verifies that a signed-in user can open another module from the authenticated header and see that module displayed.",
+    "category": "Authentication and session control",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_USER}} into the user field"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open one module from the authenticated header"
+      },
+      {
+        "type": "action",
+        "description": "Switch to a different module from the authenticated header"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the newly selected module is displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC006",
+    "title": "Invalid login shows an error and failed attempt count",
+    "description": "Verifies that invalid credentials are rejected and the user sees an error with the failed attempt count updated.",
+    "category": "User Authentication",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with invalid@example.com"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with WrongPassword1"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify an invalid credentials message is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the failed attempt count is displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC007",
+    "title": "Change the login language and keep it on refresh",
+    "description": "This verifies that the login screen language selection can be changed and remains selected after refreshing the page.",
+    "category": "Authentication and session control",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Select a different language on the login screen"
+      },
+      {
+        "type": "action",
+        "description": "Refresh the page"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the selected language remains active on the login screen"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC008",
+    "title": "Document an encounter with anamnesis, SOAP notes, diagnosis, and signature",
+    "description": "This verifies that a clinician can build a complete encounter record and save it to the patient history.",
+    "category": "Electronic Health Record",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the sign-in form"
+      },
+      {
+        "type": "action",
+        "description": "Open the electronic health record module"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the anamnesis fields"
+      },
+      {
+        "type": "action",
+        "description": "Record the vital signs"
+      },
+      {
+        "type": "action",
+        "description": "Write the SOAP notes"
+      },
+      {
+        "type": "action",
+        "description": "Search and select a CID-10 diagnosis"
+      },
+      {
+        "type": "action",
+        "description": "Save the encounter"
+      },
+      {
+        "type": "action",
+        "description": "Sign the clinical document"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the clinical record is added to the patient history"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the document is signed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC009",
+    "title": "Register a new adult patient admission",
+    "description": "This verifies that a receptionist can complete a new patient admission and see the patient saved in the list.",
+    "category": "Patient Admission",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the sign-in form"
+      },
+      {
+        "type": "action",
+        "description": "Open the patient admission module"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the patient identification fields"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the contact and address fields"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the insurance data fields"
+      },
+      {
+        "type": "action",
+        "description": "Save the patient record"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the new patient appears in the patient list"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC010",
+    "title": "Review a DICOM study",
+    "description": "A clinician can open diagnostic imaging and load a study into the viewer for review.",
+    "category": "Diagnostic Imaging",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_USER}} into the username field"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open diagnostic imaging from the main workspace"
+      },
+      {
+        "type": "action",
+        "description": "Select a DICOM study"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the study is displayed in the image viewer"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC011",
+    "title": "Book an appointment from the patient portal",
+    "description": "This verifies that a patient can book an appointment end-to-end and see it confirmed in the portal.",
+    "category": "Patient Portal",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_USER}} into the user field"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open the patient portal from the main workspace"
+      },
+      {
+        "type": "action",
+        "description": "Book an appointment for a valid future slot"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the appointment confirmation is visible"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC012",
+    "title": "Create a standard appointment for an existing patient",
+    "description": "This verifies that a user can schedule an appointment end to end and see it on the agenda.",
+    "category": "Appointment Scheduling",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the sign-in form"
+      },
+      {
+        "type": "action",
+        "description": "Open the appointment scheduling module"
+      },
+      {
+        "type": "action",
+        "description": "Select a valid date and time slot"
+      },
+      {
+        "type": "action",
+        "description": "Select a doctor and modality"
+      },
+      {
+        "type": "action",
+        "description": "Select an existing patient"
+      },
+      {
+        "type": "action",
+        "description": "Save the appointment"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the appointment appears on the agenda"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC013",
+    "title": "Generate a DTE billing document",
+    "description": "A finance user can generate a billing document and see the created document details.",
+    "category": "Electronic Billing",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_USER}} into the username field"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open electronic billing from the main workspace"
+      },
+      {
+        "type": "action",
+        "description": "Generate a DTE document"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the new billing document is created with XML and CDC data"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC014",
+    "title": "Short password shows validation feedback",
+    "description": "Verifies that the login form blocks passwords that are too short and shows a validation message.",
+    "category": "User Authentication",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with ab"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a password validation message is visible"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC015",
+    "title": "View pharmacy items and lot details",
+    "description": "A pharmacy staff user can open the inventory workspace and see stocked items with lot-level information.",
+    "category": "Pharmacy and Inventory",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open the pharmacy and inventory module"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify pharmacy items are displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify lot details are displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC016",
+    "title": "Session warning can be dismissed by user activity",
+    "description": "Verifies that an inactivity warning appears after sign-in and disappears when the user interacts with the app.",
+    "category": "Session Control",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Wait for the session timeout warning modal to appear"
+      },
+      {
+        "type": "action",
+        "description": "Move the mouse or press a key"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the warning modal is dismissed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the session remains active"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC017",
+    "title": "Record a stock movement",
+    "description": "A pharmacy staff user can create a stock movement and see the inventory reflect the updated quantity.",
+    "category": "Pharmacy and Inventory",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open the pharmacy and inventory module"
+      },
+      {
+        "type": "action",
+        "description": "Start a new stock movement"
+      },
+      {
+        "type": "action",
+        "description": "Select a valid movement type"
+      },
+      {
+        "type": "action",
+        "description": "Complete the stock movement details"
+      },
+      {
+        "type": "action",
+        "description": "Save the stock movement"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the inventory quantity is updated"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the movement is recorded in the history"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC018",
+    "title": "Save a radiology report for a study",
+    "description": "A reviewer can write and save a radiology report so it becomes associated with the selected study.",
+    "category": "Diagnostic Imaging",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_USER}} into the username field"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open diagnostic imaging from the main workspace"
+      },
+      {
+        "type": "action",
+        "description": "Open the radiology report editor for a study"
+      },
+      {
+        "type": "action",
+        "description": "Write the report"
+      },
+      {
+        "type": "action",
+        "description": "Save the report"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the saved report is associated with the study"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC019",
+    "title": "Register a minor patient with guardian details",
+    "description": "This verifies that a receptionist can admit a minor patient and preserve the guardian information in the saved record.",
+    "category": "Patient Admission",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the sign-in form"
+      },
+      {
+        "type": "action",
+        "description": "Open the patient admission module"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the minor patient identification fields"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the guardian data fields"
+      },
+      {
+        "type": "action",
+        "description": "Save the patient record"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the admission is recorded"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify guardian information is displayed in the saved record"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC020",
+    "title": "Logout returns the user to the login screen",
+    "description": "Verifies that a signed-in user can end the session and return to the login screen.",
+    "category": "Session Control",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Select logout from the authenticated interface"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the login screen is displayed again"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC021",
+    "title": "Attach prescribed medication and review interaction warnings",
+    "description": "This verifies that a clinician can add prescriptions and see interaction checking results before saving them.",
+    "category": "Electronic Health Record",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the sign-in form"
+      },
+      {
+        "type": "action",
+        "description": "Open the electronic health record module"
+      },
+      {
+        "type": "action",
+        "description": "Create a new encounter"
+      },
+      {
+        "type": "action",
+        "description": "Add prescribed medications"
+      },
+      {
+        "type": "action",
+        "description": "Review the interaction checking results"
+      },
+      {
+        "type": "action",
+        "description": "Save the prescription"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the prescription is attached to the encounter"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC022",
+    "title": "Complete an online payment in the patient portal",
+    "description": "This verifies that a patient can submit an online payment and see it completed in the portal.",
+    "category": "Patient Portal",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_USER}} into the user field"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open the patient portal from the main workspace"
+      },
+      {
+        "type": "action",
+        "description": "Start a payment for an outstanding balance"
+      },
+      {
+        "type": "action",
+        "description": "Submit the payment"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the payment submission confirmation is visible"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC023",
+    "title": "Reconcile a payment for billing",
+    "description": "A finance user can reconcile a payment through a gateway and see the billing status update.",
+    "category": "Electronic Billing",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_USER}} into the username field"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open electronic billing from the main workspace"
+      },
+      {
+        "type": "action",
+        "description": "Select a payment gateway"
+      },
+      {
+        "type": "action",
+        "description": "Reconcile the payment"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the billing status changes to reconciled"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC024",
+    "title": "Cancel a billing document",
+    "description": "A finance user can cancel a DTE and see its status update accordingly.",
+    "category": "Electronic Billing",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_USER}} into the username field"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open electronic billing from the main workspace"
+      },
+      {
+        "type": "action",
+        "description": "Open a DTE"
+      },
+      {
+        "type": "action",
+        "description": "Cancel the document"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the billing document status changes to canceled"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC025",
+    "title": "Create a company record in occupational medicine",
+    "description": "This verifies that an occupational medicine user can register a company and see it saved.",
+    "category": "Occupational Medicine",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_USER}} into the user field"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open occupational medicine from the main workspace"
+      },
+      {
+        "type": "action",
+        "description": "Register a company with valid data"
+      },
+      {
+        "type": "action",
+        "description": "Save the company record"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the company record is displayed"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC026",
+    "title": "Create a financial posting",
+    "description": "A finance user can add a revenue or expense posting and see it appear in the ledger.",
+    "category": "Financial Management",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_USER}} into the username field"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open financial management from the main workspace"
+      },
+      {
+        "type": "action",
+        "description": "Create a financial posting for revenue or expense"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the posting appears in the ledger"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC027",
+    "title": "Review bed status map",
+    "description": "A hospital staff user can open hospital management and see the color-coded bed map.",
+    "category": "Hospital Management",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open the hospital management module"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the bed map is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify color-coded bed status is visible"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC028",
+    "title": "Save a patient photo during admission",
+    "description": "This verifies that a receptionist can associate a photo with a patient admission and see it stored on the record.",
+    "category": "Patient Admission",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the sign-in form"
+      },
+      {
+        "type": "action",
+        "description": "Open the patient admission module"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the patient identification fields"
+      },
+      {
+        "type": "action",
+        "description": "Capture or upload a patient photo"
+      },
+      {
+        "type": "action",
+        "description": "Save the patient record"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the patient record is saved"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the photo is associated with the record"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC029",
+    "title": "Perform an inventory count",
+    "description": "A pharmacy staff user can complete an inventory count and see the counted stock reflected in the item records.",
+    "category": "Pharmacy and Inventory",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open the pharmacy and inventory module"
+      },
+      {
+        "type": "action",
+        "description": "Start an inventory count"
+      },
+      {
+        "type": "action",
+        "description": "Enter a counted quantity for an item"
+      },
+      {
+        "type": "action",
+        "description": "Save the inventory count"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the counted stock is reflected in the item records"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC030",
+    "title": "View prescription details in the patient portal",
+    "description": "This verifies that a patient can open the portal and view prescription details.",
+    "category": "Patient Portal",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_USER}} into the user field"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open the patient portal from the main workspace"
+      },
+      {
+        "type": "action",
+        "description": "Open the prescriptions view"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify prescription details are displayed"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC031",
+    "title": "Adjust image viewing controls",
+    "description": "A clinician can adjust key viewing controls and see the diagnostic image update accordingly.",
+    "category": "Diagnostic Imaging",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_USER}} into the username field"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open diagnostic imaging from the main workspace"
+      },
+      {
+        "type": "action",
+        "description": "Select a study"
+      },
+      {
+        "type": "action",
+        "description": "Adjust brightness, contrast, zoom, and rotation"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the image viewer reflects the applied adjustments"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC032",
+    "title": "Schedule a surgery and track its status",
+    "description": "A hospital staff user can create a surgery schedule and see it move through the surgery workflow.",
+    "category": "Hospital Management",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open the hospital management module"
+      },
+      {
+        "type": "action",
+        "description": "Start a new surgery schedule"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the surgery details"
+      },
+      {
+        "type": "action",
+        "description": "Save the surgery schedule"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the surgery appears in the workflow"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the surgery status is displayed"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC033",
+    "title": "Record a worker exam in occupational medicine",
+    "description": "This verifies that an occupational medicine user can add a worker exam and see it appear in the exam list.",
+    "category": "Occupational Medicine",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_USER}} into the user field"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open occupational medicine from the main workspace"
+      },
+      {
+        "type": "action",
+        "description": "Record a worker exam with valid data"
+      },
+      {
+        "type": "action",
+        "description": "Save the exam"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the exam appears in the list"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC034",
+    "title": "Add requested exams, a procedure, and attachments to the encounter",
+    "description": "This verifies that a clinician can enrich the encounter with requested studies, a procedure, and attachments before saving.",
+    "category": "Electronic Health Record",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the sign-in form"
+      },
+      {
+        "type": "action",
+        "description": "Open the electronic health record module"
+      },
+      {
+        "type": "action",
+        "description": "Create a new encounter"
+      },
+      {
+        "type": "action",
+        "description": "Request lab and imaging exams"
+      },
+      {
+        "type": "action",
+        "description": "Record a procedure"
+      },
+      {
+        "type": "action",
+        "description": "Attach a file to the encounter"
+      },
+      {
+        "type": "action",
+        "description": "Save the encounter"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the requested items are recorded"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the attachment is shown in the record"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC035",
+    "title": "Record a journal entry",
+    "description": "A finance user can create an accounting journal entry and see it added to records.",
+    "category": "Financial Management",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_USER}} into the username field"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open financial management from the main workspace"
+      },
+      {
+        "type": "action",
+        "description": "Record an accounting journal entry"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the journal entry is added to accounting records"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC036",
+    "title": "Create a marketing campaign",
+    "description": "A CRM user can create a marketing campaign and see it recorded in the campaign list.",
+    "category": "CRM and Marketing",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open the CRM and marketing module"
+      },
+      {
+        "type": "action",
+        "description": "Start a new campaign"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the campaign details"
+      },
+      {
+        "type": "action",
+        "description": "Save the campaign"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the campaign appears in the list"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC037",
+    "title": "Warn on conflicting appointment and allow overbooking with PIN",
+    "description": "This verifies that a schedule conflict is detected and that authorized overbooking still creates the appointment.",
+    "category": "Appointment Scheduling",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the sign-in form"
+      },
+      {
+        "type": "action",
+        "description": "Open the appointment scheduling module"
+      },
+      {
+        "type": "action",
+        "description": "Create an initial appointment in a valid slot"
+      },
+      {
+        "type": "action",
+        "description": "Select the same conflicting slot for a second appointment"
+      },
+      {
+        "type": "action",
+        "description": "Select an existing patient"
+      },
+      {
+        "type": "action",
+        "description": "Enter the overbooking PIN"
+      },
+      {
+        "type": "action",
+        "description": "Save the appointment"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the overbooked appointment is scheduled"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a conflict warning was shown before saving"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC038",
+    "title": "View exam results in the patient portal",
+    "description": "This verifies that a patient can open the portal and view exam results.",
+    "category": "Patient Portal",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_USER}} into the user field"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open the patient portal from the main workspace"
+      },
+      {
+        "type": "action",
+        "description": "Open the exam results view"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify exam results are displayed"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC039",
+    "title": "View the KuDE for a billing document",
+    "description": "A finance user can open a DTE and inspect its KuDE visualization.",
+    "category": "Electronic Billing",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_USER}} into the username field"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open electronic billing from the main workspace"
+      },
+      {
+        "type": "action",
+        "description": "Open a DTE"
+      },
+      {
+        "type": "action",
+        "description": "View the KuDE visualization"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the graphical document view is displayed"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC040",
+    "title": "Transfer a patient to another bed",
+    "description": "A hospital staff user can transfer a patient between beds and see the new bed assignment reflected.",
+    "category": "Hospital Management",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open the hospital management module"
+      },
+      {
+        "type": "action",
+        "description": "Start a bed transfer"
+      },
+      {
+        "type": "action",
+        "description": "Select a destination bed"
+      },
+      {
+        "type": "action",
+        "description": "Confirm the transfer"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the bed assignment is updated"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC041",
+    "title": "Capture a web form lead",
+    "description": "A CRM user can capture a lead from a web form and see it added to the sales funnel.",
+    "category": "CRM and Marketing",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open the CRM and marketing module"
+      },
+      {
+        "type": "action",
+        "description": "Start a new lead entry"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the lead details"
+      },
+      {
+        "type": "action",
+        "description": "Save the lead"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the lead appears in the sales funnel"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC042",
+    "title": "Attach workstation risks to a company",
+    "description": "This verifies that an occupational medicine user can define a workstation and see its risk profile attached.",
+    "category": "Occupational Medicine",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_USER}} into the user field"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open occupational medicine from the main workspace"
+      },
+      {
+        "type": "action",
+        "description": "Define a workstation with associated risks"
+      },
+      {
+        "type": "action",
+        "description": "Save the workstation risk profile"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the risk profile is attached"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC043",
+    "title": "Update patient profile information",
+    "description": "This verifies that a patient can update profile information and see the saved changes.",
+    "category": "Patient Portal",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_USER}} into the user field"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open the patient portal from the main workspace"
+      },
+      {
+        "type": "action",
+        "description": "Update profile information with valid changes"
+      },
+      {
+        "type": "action",
+        "description": "Save the profile changes"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the profile changes are saved"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC044",
+    "title": "Authenticated header shows user context after login",
+    "description": "Verifies that after signing in, the authenticated header displays the current user and role context.",
+    "category": "Session Control",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the authenticated header is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify user context information is displayed in the header"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC045",
+    "title": "Reject an invalid Paraguay CI document",
+    "description": "This verifies that invalid identity data is blocked during admission and a validation error is shown.",
+    "category": "Patient Admission",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the sign-in form"
+      },
+      {
+        "type": "action",
+        "description": "Open the patient admission module"
+      },
+      {
+        "type": "action",
+        "description": "Fill in an invalid Paraguay CI document"
+      },
+      {
+        "type": "action",
+        "description": "Attempt to validate the document"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a document validation error is visible"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC046",
+    "title": "Filter accounts by status",
+    "description": "A finance user can open receivables or payables and see the list filtered by status.",
+    "category": "Financial Management",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_USER}} into the username field"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open financial management from the main workspace"
+      },
+      {
+        "type": "action",
+        "description": "Open accounts payable or receivable"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the list is filtered by status"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC047",
+    "title": "Review expiry alerts",
+    "description": "A pharmacy staff user can review expiry alerts and see items nearing expiration highlighted.",
+    "category": "Pharmacy and Inventory",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open the pharmacy and inventory module"
+      },
+      {
+        "type": "action",
+        "description": "Open the expiry alerts view"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify items nearing expiration are displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify color-coded alerts are visible"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC048",
+    "title": "Complete the surgical checklist",
+    "description": "A hospital staff user can complete the surgical checklist and see it recorded for the case.",
+    "category": "Hospital Management",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open the hospital management module"
+      },
+      {
+        "type": "action",
+        "description": "Open a surgery case"
+      },
+      {
+        "type": "action",
+        "description": "Complete the surgical checklist"
+      },
+      {
+        "type": "action",
+        "description": "Save the checklist"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the checklist is recorded for the case"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC049",
+    "title": "Start a telemedicine call from the patient portal",
+    "description": "This verifies that a patient can start a telemedicine session from the portal and see it begin.",
+    "category": "Patient Portal",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_USER}} into the user field"
+      },
+      {
+        "type": "action",
+        "description": "Fill in {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open the patient portal from the main workspace"
+      },
+      {
+        "type": "action",
+        "description": "Start a telemedicine session"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the video consultation begins"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC050",
+    "title": "Generate an AI clinical summary for the encounter",
+    "description": "This verifies that a clinician can request an AI summary and see the generated summary displayed in the record.",
+    "category": "Electronic Health Record",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the sign-in form"
+      },
+      {
+        "type": "action",
+        "description": "Open the electronic health record module"
+      },
+      {
+        "type": "action",
+        "description": "Create or open an encounter"
+      },
+      {
+        "type": "action",
+        "description": "Generate an AI clinical summary"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the AI summary is displayed"
+      }
+    ],
+    "priority": "Medium"
+  }
+]

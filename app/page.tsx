@@ -146,6 +146,7 @@ function HomeContent() {
   // eslint-disable-next-line react-hooks/purity
   const lastActivityRef = useRef(Date.now());
   const showInactivityWarningRef = useRef(false);
+  const lastWarningDismissedAtRef = useRef(0);
   const [showInactivityWarning, setShowInactivityWarning] = useState(false);
   // Suporta override via URL param ?timeout_ms=180000 para testes
   const getTimeoutMs = () => {
@@ -153,7 +154,7 @@ function HomeContent() {
       const p = new URLSearchParams(window.location.search).get('timeout_ms');
       if (p) return Math.max(30000, parseInt(p, 10));
     }
-    return 7 * 60 * 1000; // 7 minutos default (420s)
+    return 3 * 60 * 1000; // 3 minutos default (180s)
   };
   const SESSION_TIMEOUT_MS = getTimeoutMs();
   const INACTIVITY_WARNING_MS = SESSION_TIMEOUT_MS - 60000; // warning 1 min antes
@@ -212,7 +213,9 @@ function HomeContent() {
 
     const interval = setInterval(() => {
       const elapsed = Date.now() - lastActivityRef.current;
-      if (elapsed >= SESSION_TIMEOUT_MS) {
+      // Grace period: if warning was dismissed in the last 5 seconds, skip logout check
+      const dismissedRecently = Date.now() - lastWarningDismissedAtRef.current < 5000;
+      if (elapsed >= SESSION_TIMEOUT_MS && !dismissedRecently) {
         // eslint-disable-next-line react-hooks/immutability
         addAuditLog('Sessão Expirada por Inatividade', activeOperator);
         // eslint-disable-next-line react-hooks/immutability
@@ -221,7 +224,7 @@ function HomeContent() {
         showInactivityWarningRef.current = true;
         setShowInactivityWarning(true);
       }
-    }, 30000);
+    }, 10000);
 
     return () => {
       window.removeEventListener('mousemove', handleUserActivity);
@@ -1456,7 +1459,7 @@ function HomeContent() {
                 </p>
               </div>
               <button
-                onClick={() => { setShowInactivityWarning(false); lastActivityRef.current = Date.now(); showInactivityWarningRef.current = false; }}
+                onClick={() => { setShowInactivityWarning(false); lastActivityRef.current = Date.now(); showInactivityWarningRef.current = false; lastWarningDismissedAtRef.current = Date.now(); }}
                 className="w-full py-3 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-xs cursor-pointer transition"
               >
                 Continuar Sessão

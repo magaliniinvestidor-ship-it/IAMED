@@ -1226,6 +1226,8 @@ export const initialPatients: Patient[] = [
     gender: "Masculino",
     priority: "normal",
     status: "aguardando",
+    document_type: "CI",
+    document_number: "1234567",
     clinicalHistory: [
       {
         id: "his_1",
@@ -1258,6 +1260,8 @@ export const initialPatients: Patient[] = [
     gender: "Feminino",
     priority: "preferencial",
     status: "atendimento",
+    document_type: "CI",
+    document_number: "9876543",
     clinicalHistory: [
       {
         id: "his_3",
@@ -1280,6 +1284,8 @@ export const initialPatients: Patient[] = [
     gender: "Masculino",
     priority: "preferencial",
     status: "agendado",
+    document_type: "CI",
+    document_number: "1122334",
     clinicalHistory: [
       {
         id: "his_4",
@@ -1302,7 +1308,20 @@ export const initialPatients: Patient[] = [
     gender: "Feminino",
     priority: "emergência",
     status: "aguardando",
-    clinicalHistory: []
+    document_type: "CI",
+    document_number: "5566778",
+    clinicalHistory: [
+      {
+        id: "his_6",
+        date: "2026-06-10",
+        type: "Consulta Pediátrica",
+        diagnosis: "Otite média aguda",
+        cid10: "H65.1",
+        prescriptions: ["Amoxicilina 500mg", "Ibuprofeno 200mg"],
+        notes: "Febre alta, dor no ouvido direito. Antibioticoterapia por 10 dias.",
+        doctor: "Dra. Amanda Silva"
+      }
+    ]
   },
   {
     id: "pat_5",
@@ -1313,6 +1332,8 @@ export const initialPatients: Patient[] = [
     gender: "Masculino",
     priority: "normal",
     status: "atendido",
+    document_type: "CI",
+    document_number: "9988776",
     clinicalHistory: [
       {
         id: "his_5",
@@ -1555,6 +1576,7 @@ export const drugInteractions: DrugInteraction[] = [
   { drugB: 'Metilfenidato', severity: 'moderada', description: 'Psicoestimulantes podem reduzir o efeito sedativo das benzodiazepinas.', recommendation: 'Ajustar doses conforme resposta clínica.' },
   { drugB: 'Ibuprofeno', severity: 'leve', description: 'Efeito aditivo analgésico/antipirético.', recommendation: 'Evitar uso concomitante prolongado.' },
   { drugB: 'Potássio', severity: 'grave', description: 'BNRAs podem causar hipercalemia quando associados a suplementos de potássio.', recommendation: 'Monitorar K+ séricos regularmente.' },
+  { drugB: 'Paracetamol', severity: 'leve', description: 'Efeito aditivo analgésico/antipirético com AINEs.', recommendation: 'Evitar uso concomitante prolongado. Monitorar função renal.' },
 ];
 
 // ==========================================
