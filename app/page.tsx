@@ -311,20 +311,27 @@ function HomeContent() {
         dtesRes.error || professionalsRes.error || pharmacyHasError
       );
 
-      if (patientsRes.data && !patientsRes.error) {
-        const mapped = patientsRes.data.map((p: any) => ({
-          ...p,
-          clinicalHistory: (p.clinical_history || []).map((h: any) => ({
-            id: h.id,
-            date: h.date,
-            type: h.type,
-            diagnosis: h.diagnosis || '',
-            cid10: h.cid10 || '',
-            prescriptions: h.prescriptions || [],
-            notes: h.notes,
-            doctor: h.doctor,
-          })),
-        }));
+      if (patientsRes.data && !patientsRes.error && patientsRes.data.length > 0) {
+        const mapped = patientsRes.data.map((p: any) => {
+          const mock = initialPatients.find(m => m.id === p.id);
+          return {
+            ...p,
+            ...(mock || {}),
+            ...p,
+            document_type: p.document_type || mock?.document_type,
+            document_number: p.document_number || mock?.document_number,
+            clinicalHistory: (p.clinical_history || mock?.clinicalHistory || []).map((h: any) => ({
+              id: h.id,
+              date: h.date,
+              type: h.type,
+              diagnosis: h.diagnosis || '',
+              cid10: h.cid10 || '',
+              prescriptions: h.prescriptions || [],
+              notes: h.notes,
+              doctor: h.doctor,
+            })),
+          };
+        });
         setPatients(mapped);
       } else {
         setPatients(initialPatients);

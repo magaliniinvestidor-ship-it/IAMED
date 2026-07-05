@@ -407,7 +407,7 @@ export default function PatientPortalModule({
                       placeholder="Ex: 1234567" />
                   </div>
                   <div>
-                    <label className="text-[10px] font-bold text-slate-500 uppercase">{t('login.password')}</label>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase">{t('password', 'login')}</label>
                     <div className="relative mt-1">
                       <input type={showPassword ? 'text' : 'password'} value={loginPassword}
                         onChange={e => setLoginPassword(e.target.value)}
@@ -427,7 +427,7 @@ export default function PatientPortalModule({
                   <button type="submit" disabled={loginLoading}
                     className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer">
                     {loginLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Shield className="w-3.5 h-3.5" />}
-                    {loginLoading ? t('login.authenticating') : t('app.system_admin')}
+                    {loginLoading ? t('authenticating', 'login') : t('system_admin', 'app')}
                   </button>
                 </form>
                 <div className="mt-4 text-center">
@@ -437,7 +437,7 @@ export default function PatientPortalModule({
                   </button>
                 </div>
                 <div className="mt-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
-                  <p className="text-[9px] text-slate-400 font-medium">{t('app.demo_mode')}</p>
+                  <p className="text-[9px] text-slate-400 font-medium">{t('demo_mode', 'app')}</p>
                   <p className="text-[10px] text-slate-500 mt-0.5">Use CI do paciente (ex: 1234567, 9876543) para simular. Qualquer senha com 4+ caracteres.</p>
                 </div>
               </>
@@ -447,7 +447,7 @@ export default function PatientPortalModule({
                 <form onSubmit={handleRegister} className="space-y-4">
                   <div className="grid grid-cols-2 gap-3">
                     <div className="col-span-2">
-                      <label className="text-[10px] font-bold text-slate-500 uppercase">{t('app.patient')}</label>
+                      <label className="text-[10px] font-bold text-slate-500 uppercase">{t('patient', 'app')}</label>
                       <input type="text" value={regForm.name} onChange={e => setRegForm(p => ({ ...p, name: e.target.value }))} required
                         className="w-full p-2.5 border border-slate-200 rounded-lg text-xs mt-1 focus:ring-2 focus:ring-indigo-500 outline-none" />
                     </div>
@@ -457,22 +457,22 @@ export default function PatientPortalModule({
                         className="w-full p-2.5 border border-slate-200 rounded-lg text-xs mt-1 focus:ring-2 focus:ring-indigo-500 outline-none" />
                     </div>
                     <div>
-                      <label className="text-[10px] font-bold text-slate-500 uppercase">{t('terms.date_of_birth')}</label>
+                      <label className="text-[10px] font-bold text-slate-500 uppercase">{t('date_of_birth', 'terms')}</label>
                       <input type="date" value={regForm.birthdate} onChange={e => setRegForm(p => ({ ...p, birthdate: e.target.value }))} required
                         className="w-full p-2.5 border border-slate-200 rounded-lg text-xs mt-1 focus:ring-2 focus:ring-indigo-500 outline-none" />
                     </div>
                     <div className="col-span-2">
-                      <label className="text-[10px] font-bold text-slate-500 uppercase">{t('app.address')}</label>
+                      <label className="text-[10px] font-bold text-slate-500 uppercase">{t('address', 'app')}</label>
                       <input type="email" value={regForm.email} onChange={e => setRegForm(p => ({ ...p, email: e.target.value }))} required
                         className="w-full p-2.5 border border-slate-200 rounded-lg text-xs mt-1 focus:ring-2 focus:ring-indigo-500 outline-none" />
                     </div>
                     <div className="col-span-2">
-                      <label className="text-[10px] font-bold text-slate-500 uppercase">{t('app.phone')}</label>
+                      <label className="text-[10px] font-bold text-slate-500 uppercase">{t('phone', 'app')}</label>
                       <input type="tel" value={regForm.phone} onChange={e => setRegForm(p => ({ ...p, phone: e.target.value }))} required
                         className="w-full p-2.5 border border-slate-200 rounded-lg text-xs mt-1 focus:ring-2 focus:ring-indigo-500 outline-none" />
                     </div>
                     <div>
-                      <label className="text-[10px] font-bold text-slate-500 uppercase">{t('login.password')}</label>
+                      <label className="text-[10px] font-bold text-slate-500 uppercase">{t('password', 'login')}</label>
                       <input type="password" value={regForm.password} onChange={e => setRegForm(p => ({ ...p, password: e.target.value }))} required
                         className="w-full p-2.5 border border-slate-200 rounded-lg text-xs mt-1 focus:ring-2 focus:ring-indigo-500 outline-none" />
                     </div>
@@ -794,7 +794,7 @@ export default function PatientPortalModule({
                 </button>
                 <button onClick={() => setCancelModal(null)}
                   className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs rounded-lg cursor-pointer">
-                  {t('app.cancel')}
+                  {t('cancel', 'app')}
                 </button>
               </div>
             </div>
@@ -1061,7 +1061,7 @@ export default function PatientPortalModule({
                   </button>
                   <button onClick={() => { setShowPaymentModal(false); setPaymentSuccess(null); }}
                     className="w-full py-2.5 mt-2 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs rounded-lg cursor-pointer">
-                    {t('app.cancel')}
+                    {t('cancel', 'app')}
                   </button>
                 </>
               )}
@@ -1310,12 +1310,12 @@ export default function PatientPortalModule({
         </h3>
         <div className="grid grid-cols-2 gap-4 text-xs">
           {[
-            { label: t('app.patient'), value: loggedPatient?.name },
-            { label: t('app.address'), value: loggedPatient?.email },
-            { label: t('app.phone'), value: loggedPatient?.phone },
-            { label: t('terms.date_of_birth'), value: loggedPatient?.birthdate },
+            { label: t('patient', 'app'), value: loggedPatient?.name },
+            { label: t('address', 'app'), value: loggedPatient?.email },
+            { label: t('phone', 'app'), value: loggedPatient?.phone },
+            { label: t('date_of_birth', 'terms'), value: loggedPatient?.birthdate },
             { label: 'Gênero', value: loggedPatient?.gender },
-            { label: t('terms.id_document'), value: loggedPatient?.document_number ? `${loggedPatient?.document_type || 'CI'}: ${loggedPatient?.document_number}` : '-' },
+            { label: t('id_document', 'terms'), value: loggedPatient?.document_number ? `${loggedPatient?.document_type || 'CI'}: ${loggedPatient?.document_number}` : '-' },
           ].map((item, idx) => (
             <div key={idx}>
               <p className="text-[9px] font-bold text-slate-400 uppercase">{item.label}</p>
@@ -1339,7 +1339,7 @@ export default function PatientPortalModule({
           </div>
           <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
             <div>
-              <p className="text-xs font-medium text-slate-700">{t('login.password')}</p>
+              <p className="text-xs font-medium text-slate-700">{t('password', 'login')}</p>
               <p className="text-[10px] text-slate-500">••••••••</p>
             </div>
             <button className="px-3 py-1.5 bg-indigo-50 text-indigo-600 border border-indigo-200 rounded-lg text-[9px] font-bold hover:bg-indigo-100 cursor-pointer">
@@ -1398,7 +1398,7 @@ export default function PatientPortalModule({
               <p className="text-sm font-bold text-emerald-700">{t('portal_booking_success', 'app')}</p>
               <button onClick={() => { setShowBookingModal(false); setBookingSuccess(false); }}
                 className="mt-4 px-5 py-2 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold cursor-pointer">
-                {t('app.back_to_portal')}
+                {t('back_to_portal', 'app')}
               </button>
             </div>
           ) : (
@@ -1462,7 +1462,7 @@ export default function PatientPortalModule({
               <button onClick={handleBookAppointment} disabled={bookingLoading || !bookingForm.specialty || !bookingForm.doctorId || !bookingForm.date || !bookingForm.time}
                 className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer">
                 {bookingLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CalendarDays className="w-4 h-4" />}
-                {bookingLoading ? t('app.syncing') : t('create_appointment')}
+                {bookingLoading ? t('syncing', 'app') : t('create_appointment', 'app')}
               </button>
             </div>
           )}

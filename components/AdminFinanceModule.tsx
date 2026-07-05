@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { FinancialPosting, StockItem, AuditLog, Dte, DteItem, Patient, Professional, ProfessionalRole, ProfessionalCouncil, ProfessionalShift, FeeSchedule, InsuranceCompany, PreAuthorization, BatchInvoice, EligibilityCheck, ProfessionalSettlement, ForeignBilling, AccountPayable, AccountReceivable, CashFlowProjection, BankReconciliation, CostCenter, IncomeStatement, TaxCalculation, PurchaseBookEntry, SalesBookEntry, ExchangeRate, ChartOfAccount, AccountingEntry, initialInsurances, initialFeeSchedules, initialPreAuthorizations, initialBatchInvoices, initialEligibilityChecks, initialSettlements, initialForeignBillings, initialAccountsPayable, initialAccountsReceivable, initialCashFlows, initialBankReconciliations, initialCostCenters, initialIncomeStatements, initialTaxCalculations, initialPurchaseBook, initialSalesBook, initialExchangeRates, initialChartOfAccounts, initialAccountingEntries,
   SystemUser, PasswordPolicy, UserSession, LoginAttempt, SSOProvider, SystemRole,
+  InsuranceType,
   initialSystemUsers, initialPasswordPolicy, initialUserSessions, initialLoginAttempts, initialSSOProviders,
 } from '@/lib/mockData';
 import { supabase } from '@/lib/supabaseClient';
@@ -516,6 +517,24 @@ export default function AdminFinanceModule({
   const [chartOfAccounts, setChartOfAccounts] = useState<ChartOfAccount[]>(chartOfAccountsProp || initialChartOfAccounts);
   const [accountingEntries, setAccountingEntries] = useState<AccountingEntry[]>(accountingEntriesProp || initialAccountingEntries);
 
+  // Insurance form state
+  const [showInsuranceForm, setShowInsuranceForm] = useState(false);
+  const [editingInsuranceId, setEditingInsuranceId] = useState<string | null>(null);
+  const [insuranceForm, setInsuranceForm] = useState({
+    name: '',
+    type: 'IPS' as InsuranceType,
+    ruc: '',
+    contact: '',
+    phone: '',
+    email: '',
+    has_webservice: false,
+    webservice_url: '',
+    requires_authorization: true,
+    requires_pre_approval: false,
+    copay_rules: '',
+    coverage_ceiling: 0,
+  });
+
   // eslint-disable-next-line react-hooks/set-state-in-effect
   React.useEffect(() => { if (accountsPayableProp) setAccountsPayable(accountsPayableProp); }, [accountsPayableProp]);
   // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -937,9 +956,17 @@ export default function AdminFinanceModule({
       {activeSubmodule === 15 && (
         <div className="space-y-5">
           <div className="bg-white rounded-xl border border-slate-200/80 shadow-xs p-4">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-9 h-9 bg-emerald-600 rounded-xl flex items-center justify-center"><Building2 className="w-5 h-5 text-white" /></div>
-              <div><h3 className="font-black text-slate-800 text-sm">Convênios y Cobertura</h3><p className="text-[10px] text-slate-500">Gestión de aseguradoras, IPS, Sanidad, EMP y convenios corporativos</p></div>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 bg-emerald-600 rounded-xl flex items-center justify-center"><Building2 className="w-5 h-5 text-white" /></div>
+                <div><h3 className="font-black text-slate-800 text-sm">Convênios y Cobertura</h3><p className="text-[10px] text-slate-500">Gestión de aseguradoras, IPS, Sanidad, EMP y convenios corporativos</p></div>
+              </div>
+              <button
+                onClick={() => { setShowInsuranceForm(true); setEditingInsuranceId(null); setInsuranceForm({ name: '', type: 'IPS', ruc: '', contact: '', phone: '', email: '', has_webservice: false, webservice_url: '', requires_authorization: true, requires_pre_approval: false, copay_rules: '', coverage_ceiling: 0 }); }}
+                className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg cursor-pointer transition"
+              >
+                <Plus className="w-3.5 h-3.5" /> Novo Convênio
+              </button>
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               {insurances.map(ins => (
@@ -958,10 +985,125 @@ export default function AdminFinanceModule({
                     <p className="text-[10px] text-slate-400 italic mt-1">{ins.copay_rules}</p>
                     {ins.has_webservice && ins.webservice_url && <p className="text-[9px] font-mono text-slate-400 truncate mt-1">WS: {ins.webservice_url}</p>}
                   </div>
+                  <div className="flex gap-2 mt-3 pt-3 border-t border-slate-100">
+                    <button
+                      onClick={() => {
+                        setEditingInsuranceId(ins.id);
+                        setInsuranceForm({ name: ins.name, type: ins.type, ruc: ins.ruc, contact: ins.contact, phone: ins.phone, email: ins.email, has_webservice: ins.has_webservice, webservice_url: ins.webservice_url, requires_authorization: ins.requires_authorization, requires_pre_approval: ins.requires_pre_approval, copay_rules: ins.copay_rules, coverage_ceiling: ins.coverage_ceiling });
+                        setShowInsuranceForm(true);
+                      }}
+                      className="flex-1 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold rounded-lg cursor-pointer transition"
+                    >
+                      Editar
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (!confirm(`Excluir convênio "${ins.name}"?`)) return;
+                        setInsurances(prev => prev.filter(i => i.id !== ins.id));
+                        addAuditLog('Convênio excluído', ins.name);
+                      }}
+                      className="py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 text-[10px] font-bold rounded-lg cursor-pointer transition"
+                    >
+                      Excluir
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
           </div>
+
+          {/* Insurance Form Modal */}
+          {showInsuranceForm && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+              <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto">
+                <div className="bg-gradient-to-r from-emerald-600 to-teal-600 p-4 text-white rounded-t-2xl">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-black text-sm">{editingInsuranceId ? 'Editar Convênio' : 'Novo Convênio'}</h3>
+                    <button onClick={() => { setShowInsuranceForm(false); setEditingInsuranceId(null); }} className="text-white/80 hover:text-white cursor-pointer"><X className="w-5 h-5" /></button>
+                  </div>
+                </div>
+                <div className="p-5 space-y-4">
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Nome / Razão Social *</label>
+                    <input type="text" value={insuranceForm.name} onChange={e => setInsuranceForm(prev => ({ ...prev, name: e.target.value }))} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" placeholder="Ex: Instituto de Previsión Social" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Tipo *</label>
+                      <select value={insuranceForm.type} onChange={e => setInsuranceForm(prev => ({ ...prev, type: e.target.value as InsuranceType }))} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs">
+                        {['IPS', 'Sanidade Militar', 'Sanidade Policial', 'EMP', 'Seguro Privado', 'Corporativo', 'Particular', 'Mercosul'].map(t => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">RUC *</label>
+                      <input type="text" value={insuranceForm.ruc} onChange={e => setInsuranceForm(prev => ({ ...prev, ruc: e.target.value }))} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" placeholder="Ex: 80005123-1" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Contacto</label>
+                      <input type="text" value={insuranceForm.contact} onChange={e => setInsuranceForm(prev => ({ ...prev, contact: e.target.value }))} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" placeholder="Ex: Lic. María González" />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Telefone</label>
+                      <input type="text" value={insuranceForm.phone} onChange={e => setInsuranceForm(prev => ({ ...prev, phone: e.target.value }))} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" placeholder="Ex: +59521234567" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">E-mail</label>
+                    <input type="email" value={insuranceForm.email} onChange={e => setInsuranceForm(prev => ({ ...prev, email: e.target.value }))} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" placeholder="Ex: facturacion@ips.gov.py" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Regras de Copago</label>
+                    <input type="text" value={insuranceForm.copay_rules} onChange={e => setInsuranceForm(prev => ({ ...prev, copay_rules: e.target.value }))} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" placeholder="Ex: Copago 5% sobre nomenclador" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Techo de Cobertura (Gs.)</label>
+                    <input type="number" value={insuranceForm.coverage_ceiling || ''} onChange={e => setInsuranceForm(prev => ({ ...prev, coverage_ceiling: parseInt(e.target.value) || 0 }))} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" placeholder="0 = Sin techo" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className="flex items-center gap-2 cursor-pointer p-2.5 bg-slate-50 border border-slate-200 rounded-lg">
+                      <input type="checkbox" checked={insuranceForm.has_webservice} onChange={e => setInsuranceForm(prev => ({ ...prev, has_webservice: e.target.checked }))} className="rounded" />
+                      <span className="text-xs font-semibold text-slate-700">Web Service Ativo</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer p-2.5 bg-slate-50 border border-slate-200 rounded-lg">
+                      <input type="checkbox" checked={insuranceForm.requires_authorization} onChange={e => setInsuranceForm(prev => ({ ...prev, requires_authorization: e.target.checked }))} className="rounded" />
+                      <span className="text-xs font-semibold text-slate-700">Requer Autorização</span>
+                    </label>
+                  </div>
+                  {insuranceForm.has_webservice && (
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">URL do Web Service</label>
+                      <input type="url" value={insuranceForm.webservice_url} onChange={e => setInsuranceForm(prev => ({ ...prev, webservice_url: e.target.value }))} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" placeholder="Ex: https://ws.ips.gov.py/elegibilidad" />
+                    </div>
+                  )}
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      onClick={() => {
+                        if (!insuranceForm.name.trim() || !insuranceForm.ruc.trim()) { alert('Nome e RUC são obrigatórios.'); return; }
+                        if (editingInsuranceId) {
+                          setInsurances(prev => prev.map(i => i.id === editingInsuranceId ? { ...i, ...insuranceForm } : i));
+                          addAuditLog('Convênio atualizado', insuranceForm.name);
+                        } else {
+                          const newIns: InsuranceCompany = { id: `ins_${Date.now()}`, ...insuranceForm, active: true };
+                          setInsurances(prev => [...prev, newIns]);
+                          addAuditLog('Novo convênio cadastrado', insuranceForm.name);
+                        }
+                        setShowInsuranceForm(false);
+                        setEditingInsuranceId(null);
+                      }}
+                      className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg cursor-pointer transition"
+                    >
+                      {editingInsuranceId ? 'Salvar Alterações' : 'Cadastrar Convênio'}
+                    </button>
+                    <button onClick={() => { setShowInsuranceForm(false); setEditingInsuranceId(null); }} className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-lg cursor-pointer transition">
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
           {/* Pre-Authorizations */}
           <div className="bg-white rounded-xl border border-slate-200/80 shadow-xs overflow-hidden">
             <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
