@@ -666,10 +666,11 @@ export default function AdminFinanceModule({
   const [profPhone, setProfPhone] = useState('');
   const [profAdmission, setProfAdmission] = useState('');
   const [profStatus, setProfStatus] = useState<'ativo' | 'inativo' | 'férias'>('ativo');
+  const [profLocationId, setProfLocationId] = useState('');
 
   const profColors = ['bg-teal-500', 'bg-indigo-500', 'bg-rose-500', 'bg-sky-500', 'bg-violet-500', 'bg-amber-500', 'bg-emerald-500', 'bg-pink-500'];
 
-  const resetProfForm = () => {
+const resetProfForm = () => {
     setEditingProfId(null);
     setProfName('');
     setProfRole('Médico(a)');
@@ -681,12 +682,13 @@ export default function AdminFinanceModule({
     setProfPhone('');
     setProfAdmission('');
     setProfStatus('ativo');
+    setProfLocationId('');
   };
 
   const handleSaveProfessional = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!profName.trim() || !profSpecialty.trim() || !profCouncilNumber.trim()) {
-      alert('Preencha todos os campos obrigatórios: Nome, Especialidade e Número do Registro.');
+    if (!profName.trim() || !profSpecialty.trim() || !profCouncilNumber.trim() || !profAdmission.trim() || !profLocationId.trim()) {
+      alert('Preencha todos os campos obrigatórios: Nome, Especialidade, Número do Registro, Data de Admissão e Sede.');
       return;
     }
     if (!setProfessionals) return;
@@ -697,6 +699,7 @@ export default function AdminFinanceModule({
         council: profCouncil, councilNumber: profCouncilNumber,
         shift: profShift, email: profEmail, phone: profPhone,
         admissionDate: profAdmission, status: profStatus,
+        locationId: profLocationId,
       } : p));
       addAuditLog('Editou Profissional', profName);
 
@@ -712,6 +715,7 @@ export default function AdminFinanceModule({
           phone: profPhone,
           admission_date: profAdmission,
           status: profStatus,
+          location_id: profLocationId,
         }).eq('id', editingProfId);
       }
     } else {
@@ -728,8 +732,8 @@ export default function AdminFinanceModule({
         name: profName, role: profRole, specialty: profSpecialty,
         council: profCouncil, councilNumber: profCouncilNumber,
         shift: profShift, email: profEmail, phone: profPhone,
-        admissionDate: profAdmission || new Date().toISOString().split('T')[0],
-        status: profStatus,
+        admissionDate: profAdmission, status: profStatus,
+        locationId: profLocationId,
         color: profColors[professionals.length % profColors.length],
         permissions: [],
       };
@@ -750,6 +754,7 @@ export default function AdminFinanceModule({
           status: newProf.status,
           admission_date: newProf.admissionDate,
           color: newProf.color,
+          location_id: newProf.locationId,
         });
       }
     }
@@ -769,6 +774,7 @@ export default function AdminFinanceModule({
     setProfPhone(prof.phone);
     setProfAdmission(prof.admissionDate);
     setProfStatus(prof.status);
+    setProfLocationId(prof.locationId || '');
     setProfFormOpen(true);
   };
 
@@ -783,6 +789,90 @@ export default function AdminFinanceModule({
     }));
     if (supabase) {
       await supabase.from('professionals').update({ status: nextStatus }).eq('id', profId);
+    }
+  };
+
+  const handleCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userName.trim() || !userEmail.trim() || !userCi.trim() || !userPassword || !userLocation) {
+      alert('Preencha todos os campos obrigatórios: Nome, E-mail, CI/Documento, Senha e Sede.');
+      return;
+    }
+    if (userPassword !== userPasswordConfirm) {
+      alert('As senhas não coincidem.');
+      return;
+    }
+    if (userPassword.length < 6) {
+      alert('A senha deve ter pelo menos 6 caracteres.');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/admin/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: userEmail,
+          password: userPassword,
+          name: userName,
+          role: userRole,
+          location: userLocation,
+          ci: userCi,
+          professionalId: userProfessionalId,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Erro ao criar usuário');
+      }
+
+      // Create user in local state
+      const newUser: SystemUser = {
+        id: data.user.id,
+        authUserId: data.user.id,
+        professionalId: userProfessionalId || undefined,
+        name: userName,
+        email: userEmail,
+        ci: userCi,
+        systemRole: userRole,
+        permissions: [],
+        location: userLocation,
+        status: userStatus,
+        twoFactorEnabled: false,
+        twoFactorMethod: 'none',
+        lastLogin: null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      setSystemUsers(prev => [...prev, newUser]);
+      addAuditLog('Cadastrou Usuário via Auth', userName);
+
+      // Link professional if applicable
+      if (userProfessionalId && setProfessionals) {
+        setProfessionals(prev => prev.map(p => p.id === userProfessionalId ? { ...p, userId: data.user.id } : p));
+        addAuditLog('Vinculou Usuário a Profissional', userName);
+        if (supabase) {
+          await supabase.from('professionals').update({ user_id: data.user.id }).eq('id', userProfessionalId);
+        }
+      }
+
+      alert('Usuário criado com sucesso no Supabase Auth!');
+      setEditingUserId(null);
+      setUserProfessionalId(null);
+      setUserName('');
+      setUserEmail('');
+      setUserCi('');
+      setUserPassword('');
+      setUserPasswordConfirm('');
+      setUserRole('Visualizador');
+      setUserLocation('');
+      setUserStatus('ativo');
+      setUser2FA(false);
+      setUser2FAMethod('none');
+      setUserFormOpen(false);
+    } catch (error: any) {
+      alert(`Erro: ${error.message}`);
     }
   };
 
@@ -983,7 +1073,7 @@ export default function AdminFinanceModule({
   };
 
   // ── 14. Admin State ─────────────────────────────────────────────────────────
-  const [currentSelectedUser, setCurrentSelectedUser] = useState('Marcela Ramos - Recepcionista');
+  const [activeOperatorProfile, setActiveOperatorProfile] = useState<'recepcao' | 'medico' | 'gestor'>('recepcao');
   const [rbacSelectedProfId, setRbacSelectedProfId] = useState<string>('');
   const [systemUsers, setSystemUsers] = useState<SystemUser[]>(initialSystemUsers);
   const [passwordPolicy, setPasswordPolicy] = useState<PasswordPolicy>(passwordPolicyProp || initialPasswordPolicy);
@@ -995,12 +1085,15 @@ export default function AdminFinanceModule({
   // User form state
   const [userFormOpen, setUserFormOpen] = useState(false);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [userProfessionalId, setUserProfessionalId] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState('');
   const [userName, setUserName] = useState('');
   const [userCi, setUserCi] = useState('');
   const [userRole, setUserRole] = useState<SystemRole>('Visualizador');
   const [userLocation, setUserLocation] = useState('');
   const [userStatus, setUserStatus] = useState<'ativo' | 'inativo' | 'bloqueado'>('ativo');
+  const [userPassword, setUserPassword] = useState('');
+  const [userPasswordConfirm, setUserPasswordConfirm] = useState('');
   const [user2FA, setUser2FA] = useState(false);
   const [user2FAMethod, setUser2FAMethod] = useState<'totp' | 'sms' | 'email' | 'none'>('none');
 
@@ -1834,7 +1927,7 @@ export default function AdminFinanceModule({
                           <td className="py-1.5 text-center">{it.iva_rate}%</td>
                           <td className="py-1.5 text-center">
                             <button onClick={() => removeItem(it.code)} className="text-rose-400 hover:text-rose-600">
-                              <X className="w-3.5 h-3.5" />
+                              <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </td>
                         </tr>
@@ -2617,7 +2710,7 @@ export default function AdminFinanceModule({
               <Stethoscope className="w-3.5 h-3.5" /> Profissionais
             </button>
             <button onClick={() => setAdminTab('locations')} className={`pb-2.5 px-3 text-sm font-semibold transition-all border-b-2 flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${adminTab === 'locations' ? 'border-teal-600 text-teal-600 font-bold' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
-              <Building2 className="w-3.5 h-3.5" /> Locais
+              <Building2 className="w-3.5 h-3.5" /> Sede
             </button>
             <button onClick={() => setAdminTab('rooms')} className={`pb-2.5 px-3 text-sm font-semibold transition-all border-b-2 flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${adminTab === 'rooms' ? 'border-teal-600 text-teal-600 font-bold' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
               <DoorOpen className="w-3.5 h-3.5" /> Salas
@@ -2626,14 +2719,37 @@ export default function AdminFinanceModule({
 
           {adminTab === 'users' && (
             <div className="space-y-6">
+              {/* Mensagem se não houver profissionais */}
+              {professionals.length === 0 && !editingUserId && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-6 text-center">
+                  <UserX className="w-12 h-12 text-amber-500 mx-auto mb-3" />
+                  <h3 className="font-bold text-amber-800 text-lg mb-2">Cadastre um Profissional Primeiro</h3>
+                  <p className="text-amber-700 text-sm mb-4">
+                    Para criar usuários do sistema, é necessário ter ao menos um profissional cadastrado.
+                    Vá na aba <strong>Profissionais</strong> e cadastre um antes.
+                  </p>
+                  <button onClick={() => setAdminTab('professionals')} className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-sm transition">
+                    Ir para Profissionais
+                  </button>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Formulário de Usuário */}
-                <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs lg:col-span-1 space-y-4">
-                  <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-                    <UserPlus className="w-5 h-5 text-teal-600" />
-                    <h3 className="font-semibold text-slate-800 text-base">{editingUserId ? 'Editar Usuário' : 'Novo Usuário'}</h3>
-                  </div>
-                  <form onSubmit={(e) => { e.preventDefault(); if (!userName.trim()) return; const exists = systemUsers.find(u => u.id === editingUserId); if (exists) { setSystemUsers(prev => prev.map(u => u.id === editingUserId ? { ...u, name: userName, email: userEmail, ci: userCi, systemRole: userRole, location: userLocation, status: userStatus, twoFactorEnabled: user2FA, twoFactorMethod: user2FAMethod, updatedAt: new Date().toISOString() } : u)); addAuditLog('Editou Usuário', userName); } else { const newId = `usr_${Date.now()}`; setSystemUsers(prev => [...prev, { id: newId, name: userName, email: userEmail, ci: userCi, systemRole: userRole, permissions: [], location: userLocation, status: 'ativo', twoFactorEnabled: false, twoFactorMethod: 'none', lastLogin: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }]); addAuditLog('Cadastrou Usuário', userName); } setEditingUserId(null); setUserFormOpen(false); setUserName(''); setUserEmail(''); setUserCi(''); }} className="space-y-3 text-xs font-sans">
+                {/* Formulário de Usuário - só aparece ao editar ou criar a partir de profissional */}
+                {(editingUserId || userProfessionalId) && professionals.length > 0 && (
+                  <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs lg:col-span-1 space-y-4">
+                    <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                      <UserPlus className="w-5 h-5 text-teal-600" />
+                      <h3 className="font-semibold text-slate-800 text-base">
+                        {editingUserId ? 'Editar Usuário' : 'Criar Usuário para Profissional'}
+                      </h3>
+                    </div>
+                    {userProfessionalId && !editingUserId && (
+                      <div className="p-3 bg-teal-50 border border-teal-200 rounded-lg text-xs text-teal-800">
+                        <strong>Vinculado ao profissional:</strong> {professionals.find(p => p.id === userProfessionalId)?.name}
+                      </div>
+                    )}
+                    <form onSubmit={handleCreateUser} className="space-y-3 text-xs font-sans">
                     <div className="grid grid-cols-2 gap-2">
                       <div className="col-span-2">
                         <label className="block text-xs font-semibold text-slate-600 mb-1">Nome Completo *</label>
@@ -2646,28 +2762,64 @@ export default function AdminFinanceModule({
                         <input type="email" value={userEmail} onChange={e => setUserEmail(e.target.value)} placeholder="email@iamed.med.br" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" required />
                       </div>
                       <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">CI / Documento</label>
-                        <input type="text" value={userCi} onChange={e => setUserCi(e.target.value)} placeholder="1234567-8" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">CI / Documento *</label>
+                        <input type="text" value={userCi} onChange={e => setUserCi(e.target.value)} placeholder="1234567-8" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" required />
                       </div>
                     </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">Função / Perfil</label>
-                      <select value={userRole} onChange={e => setUserRole(e.target.value as SystemRole)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg font-medium text-xs">
-                        <option value="SuperAdmin">SuperAdmin</option>
-                        <option value="Administrador">Administrador</option>
-                        <option value="Gestor">Gestor</option>
-                        <option value="Diretor Clínico">Diretor Clínico</option>
-                        <option value="Médico">Médico</option>
-                        <option value="Enfermeiro">Enfermeiro</option>
-                        <option value="Recepcionista">Recepcionista</option>
-                        <option value="Financeiro">Financeiro</option>
-                        <option value="Farmacêutico">Farmacêutico</option>
-                        <option value="Visualizador">Visualizador</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">Sede / Localização</label>
-                      <input type="text" value={userLocation} onChange={e => setUserLocation(e.target.value)} placeholder="Sede Central" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
+                    {!editingUserId && (
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-600 mb-1">Senha *</label>
+                          <input type="password" value={userPassword} onChange={e => setUserPassword(e.target.value)} placeholder="Mín. 6 caracteres" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" required minLength={6} />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-600 mb-1">Confirmar Senha *</label>
+                          <input type="password" value={userPasswordConfirm} onChange={e => setUserPasswordConfirm(e.target.value)} placeholder="Confirme a senha" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" required minLength={6} />
+                        </div>
+                      </div>
+                    )}
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Função / Perfil *</label>
+                        <select value={userRole} onChange={e => setUserRole(e.target.value as SystemRole)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg font-medium text-xs" required>
+                          <option value="SuperAdmin">SuperAdmin</option>
+                          <option value="Administrador">Administrador</option>
+                          <option value="Gestor">Gestor</option>
+                          <option value="Diretor Clínico">Diretor Clínico</option>
+                          <option value="Médico">Médico</option>
+                          <option value="Enfermeiro">Enfermeiro</option>
+                          <option value="Recepcionista">Recepcionista</option>
+                          <option value="Financeiro">Financeiro</option>
+                          <option value="Farmacêutico">Farmacêutico</option>
+                          <option value="Visualizador">Visualizador</option>
+                          <option value="Auxiliar de Enfermagem">Auxiliar de Enfermagem</option>
+                          <option value="Anestesiologista">Anestesiologista</option>
+                          <option value="Cirurgião(ã)">Cirurgião(ã)</option>
+                          <option value="Terapeuta Ocupacional">Terapeuta Ocupacional</option>
+                          <option value="Educador Físico">Educador Físico</option>
+                          <option value="Assistente Social">Assistente Social</option>
+                          <option value="Fonoaudiólogo(a)">Fonoaudiólogo(a)</option>
+                          <option value="Dentista">Dentista</option>
+                          <option value="Biomédico(a)">Biomédico(a)</option>
+                          <option value="Técnico(a) em Radiologia">Técnico(a) em Radiologia</option>
+                          <option value="Técnico(a) em Farmácia">Técnico(a) em Farmácia</option>
+                          <option value="Técnico(a) de Laboratório">Técnico(a) de Laboratório</option>
+                          <option value="Nutricionista">Nutricionista</option>
+                          <option value="Psicólogo(a)">Psicólogo(a)</option>
+                          <option value="Técnico(a) de Enfermagem">Técnico(a) de Enfermagem</option>
+                          <option value="Fisioterapeuta">Fisioterapeuta</option>
+                          <option value="Administrador(a)">Administrador(a)</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Sede *</label>
+                        <select value={userLocation} onChange={e => setUserLocation(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" required>
+                          <option value="">Selecione a sede</option>
+                          {locations.filter(l => l.status === 'ativo').map(loc => (
+                            <option key={loc.id} value={loc.name}>{loc.name}</option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
@@ -2695,13 +2847,26 @@ export default function AdminFinanceModule({
                         {editingUserId ? 'Atualizar Usuário' : 'Criar Usuário'}
                       </button>
                       {editingUserId && (
-                        <button type="button" onClick={() => { setEditingUserId(null); setUserName(''); setUserEmail(''); setUserCi(''); setUserRole('Visualizador'); setUserLocation(''); setUserStatus('ativo'); setUser2FA(false); setUser2FAMethod('none'); }} className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs cursor-pointer transition">
+                        <button type="button" onClick={() => { setEditingUserId(null); setUserProfessionalId(null); setUserName(''); setUserEmail(''); setUserCi(''); setUserRole('Visualizador'); setUserLocation(''); setUserStatus('ativo'); setUser2FA(false); setUser2FAMethod('none'); }} className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs cursor-pointer transition">
                           Cancelar
                         </button>
                       )}
                     </div>
                   </form>
                 </div>
+                )}
+
+                {/* Mensagem quando não está criando/Editando */}
+                {!editingUserId && !userProfessionalId && (
+                  <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs lg:col-span-1 space-y-4 text-center py-10">
+                    <Users className="w-12 h-12 text-slate-300 mx-auto" />
+                    <h3 className="font-semibold text-slate-700">Criar Usuário a partir de Profissional</h3>
+                    <p className="text-xs text-slate-500 max-w-xs mx-auto">
+                      Usuários do sistema são criados vinculando a um profissional.<br />
+                      Vá na aba <strong className="text-teal-600">Profissionais</strong>, clique no ícone <UserPlus className="w-3.5 h-3.5 inline text-teal-600" /> <strong>Criar Usuário</strong> no profissional desejado.
+                    </p>
+                  </div>
+                )}
 
                 {/* Lista de Usuários */}
                 <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs lg:col-span-2 space-y-4">
@@ -3196,20 +3361,6 @@ export default function AdminFinanceModule({
                       </select>
                     </div>
 
-                    {/* Perfil de Operador Ativo simulador */}
-                    <div>
-                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Perfil de Operador Ativo</label>
-                      <select
-                        value={currentSelectedUser}
-                        onChange={e => setCurrentSelectedUser(e.target.value)}
-                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 font-bold"
-                      >
-                        <option value="Marcela Ramos - Recepcionista">Marcela Ramos (Recepcionista Principal)</option>
-                        <option value="Dra. Amanda Silva - Cardiologista">Dra. Amanda Silva (Diretora Médica)</option>
-                        <option value="Dr. Adriano Lima - Gestor">Dr. Adriano Lima (Gestão Administrador)</option>
-                      </select>
-                    </div>
-
                     <div className="p-4 bg-teal-50/50 border border-teal-200 rounded-xl space-y-2 text-teal-900 leading-relaxed">
                       <span className="flex items-center gap-1.5 font-bold"><ShieldCheck className="w-4 h-4 text-teal-700" /> Encriptação de Logs Ativada</span>
                       <p className="text-[11px] text-teal-800 font-medium">
@@ -3475,7 +3626,7 @@ export default function AdminFinanceModule({
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">{t('professional_role', 'app')}</label>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">{t('professional_role', 'app')} *</label>
                       <select
                         value={profRole}
                         onChange={e => {
@@ -3497,6 +3648,7 @@ export default function AdminFinanceModule({
                           else setProfCouncil('N/A');
                         }}
                         className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg font-medium"
+                        required
                       >
                         <option value="Médico(a)">Médico(a)</option>
                         <option value="Enfermeiro(a)">Enfermeiro(a)</option>
@@ -3576,11 +3728,12 @@ export default function AdminFinanceModule({
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">{t('professional_shift', 'app')}</label>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">{t('professional_shift', 'app')} *</label>
                       <select
                         value={profShift}
                         onChange={e => setProfShift(e.target.value as ProfessionalShift)}
                         className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg font-sans"
+                        required
                       >
                         <option value="Manhã">Manhã</option>
                         <option value="Tarde">Tarde</option>
@@ -3592,46 +3745,65 @@ export default function AdminFinanceModule({
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">{t('professional_admission', 'app')}</label>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">{t('professional_admission', 'app')} *</label>
                       <input
                         type="date"
                         value={profAdmission}
                         onChange={e => setProfAdmission(e.target.value)}
                         className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
+                        required
                       />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Sede *</label>
+                      <select
+                        value={profLocationId}
+                        onChange={e => setProfLocationId(e.target.value)}
+                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg font-medium"
+                        required
+                      >
+                        <option value="">Selecione a sede</option>
+                        {locations.filter(l => l.status === 'ativo').map(loc => (
+                          <option key={loc.id} value={loc.id}>{loc.name}</option>
+                        ))}
+                      </select>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">{t('professional_email', 'app')}</label>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">{t('professional_email', 'app')} *</label>
                       <input
                         type="email"
                         value={profEmail}
                         onChange={e => setProfEmail(e.target.value)}
                         placeholder="email@iamed.com.br"
                         className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
+                        required
                       />
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">{t('professional_phone', 'app')}</label>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">{t('professional_phone', 'app')} *</label>
                       <input
                         type="text"
                         value={profPhone}
                         onChange={e => setProfPhone(e.target.value)}
                         placeholder="+55 11 99999-9999"
                         className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
+                        required
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">{t('professional_status', 'app')}</label>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">{t('professional_status', 'app')} *</label>
                     <select
                       value={profStatus}
                       onChange={e => setProfStatus(e.target.value as any)}
                       className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg font-semibold"
+                      required
                     >
                       <option value="ativo">🟢 {t('prof_status_active', 'app')}</option>
                       <option value="inativo">🔴 {t('prof_status_inactive', 'app')}</option>
@@ -3726,6 +3898,52 @@ export default function AdminFinanceModule({
                         >
                           <Edit2 className="w-3.5 h-3.5" />
                         </button>
+
+                        {!prof.userId && (
+                          <button
+                            onClick={() => {
+                              const roleMap: Record<ProfessionalRole, SystemRole> = {
+                                'Médico(a)': 'Médico',
+                                'Enfermeiro(a)': 'Enfermeiro',
+                                'Fisioterapeuta': 'Visualizador',
+                                'Psicólogo(a)': 'Psicólogo(a)',
+                                'Nutricionista': 'Nutricionista',
+                                'Técnico(a) de Enfermagem': 'Técnico(a) de Enfermagem',
+                                'Auxiliar de Enfermagem': 'Auxiliar de Enfermagem',
+                                'Anestesiologista': 'Anestesiologista',
+                                'Cirurgião(ã)': 'Cirurgião(ã)',
+                                'Terapeuta Ocupacional': 'Terapeuta Ocupacional',
+                                'Educador Físico': 'Educador Físico',
+                                'Assistente Social': 'Assistente Social',
+                                'Fonoaudiólogo(a)': 'Fonoaudiólogo(a)',
+                                'Farmacêutico(a)': 'Farmacêutico',
+                                'Dentista': 'Dentista',
+                                'Biomédico(a)': 'Biomédico(a)',
+                                'Técnico(a) em Radiologia': 'Técnico(a) em Radiologia',
+                                'Técnico(a) em Farmácia': 'Técnico(a) em Farmácia',
+                                'Técnico(a) de Laboratório': 'Técnico(a) de Laboratório',
+                                'Administrador(a)': 'Administrador',
+                                'Recepcionista': 'Recepcionista',
+                              };
+                              setAdminTab('users');
+                              setEditingUserId(null);
+                              setUserProfessionalId(prof.id);
+                              setUserName(prof.name);
+                              setUserEmail(prof.email || '');
+                              setUserRole(roleMap[prof.role] || 'Visualizador');
+                              setUserLocation(prof.locationId ? locations.find(l => l.id === prof.locationId)?.name || '' : '');
+                              setUserStatus('ativo');
+                              setUserCi('');
+                              setUser2FA(false);
+                              setUser2FAMethod('none');
+                              setUserFormOpen(true);
+                            }}
+                            className="p-2 rounded-lg hover:bg-teal-50 text-teal-600 hover:text-teal-800 transition cursor-pointer"
+                            title="Criar Usuário"
+                          >
+                            <UserPlus className="w-3.5 h-3.5" />
+                          </button>
+                        )}
 
                         <button
                           onClick={() => handleToggleProfStatus(prof.id)}
@@ -3932,7 +4150,7 @@ export default function AdminFinanceModule({
                               }
                               addAuditLog('Removeu Sala', room.name);
                             }
-                          }} className="p-2 rounded-lg hover:bg-rose-50 text-rose-500 transition cursor-pointer" title="Remover"><X className="w-3.5 h-3.5" /></button>
+                          }} className="p-2 rounded-lg hover:bg-rose-50 text-rose-500 transition cursor-pointer" title="Remover"><Trash2 className="w-3.5 h-3.5" /></button>
                         </div>
                       </div>
                     );
