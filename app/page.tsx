@@ -20,6 +20,7 @@ import {
   PharmacyItem, StockMovement, InventoryCount, AdverseEvent, QualityDeviation, BatchRecall,
   initialPharmacyItems, initialStockMovements, initialInventoryCounts,
   initialAdverseEvents, initialQualityDeviations, initialBatchRecalls,
+  Location, ClinicalRoom, initialLocations, initialClinicalRooms,
 } from '@/lib/mockData';
 
 // Modular Component Screens
@@ -130,6 +131,8 @@ function HomeContent() {
   const [adverseEvents, setAdverseEvents] = useState<AdverseEvent[]>([]);
   const [qualityDeviations, setQualityDeviations] = useState<QualityDeviation[]>([]);
   const [batchRecalls, setBatchRecalls] = useState<BatchRecall[]>([]);
+  const [locations, setLocations] = useState<Location[]>(initialLocations);
+  const [clinicalRooms, setClinicalRooms] = useState<ClinicalRoom[]>(initialClinicalRooms);
   const [isDbConnected, setIsDbConnected] = useState<boolean | null>(null);
   const [dataLoading, setDataLoading] = useState(false);
 
@@ -175,8 +178,8 @@ function HomeContent() {
   // ──────────────────────────────────────────────
   useEffect(() => {
     if (!supabase) {
-      setAuthLoading(false);
-      return;
+      const t = setTimeout(() => setAuthLoading(false), 0);
+      return () => clearTimeout(t);
     }
 
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -737,28 +740,6 @@ function HomeContent() {
     setLoginLoading(true);
     setLoginError('');
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-    const isPlaceholder = supabaseUrl.includes('your-supabase-url') || supabaseUrl === '';
-
-    if (!supabase) {
-      // Fallback for no Supabase config
-      const mockSession = {
-        user: {
-          id: 'mock_user_id',
-          email: loginEmail,
-        }
-      } as any;
-      setSession(mockSession);
-      setProfile({
-        id: 'mock_user_id',
-        name: loginEmail.split('@')[0],
-        role: 'Gestor'
-      });
-      setIsDbConnected(false);
-      setLoginLoading(false);
-      return;
-    }
-
     const { data, error } = await supabase.auth.signInWithPassword({
       email: loginEmail,
       password: loginPassword,
@@ -780,25 +761,6 @@ function HomeContent() {
       } else {
         const remaining = 5 - newCount;
         setLoginError(`Credenciais inválidas. Tentativa ${newCount}/5. Restam ${remaining} tentativa(s).`);
-      }
-
-      if (isPlaceholder) {
-        // Fallback for placeholder configs: allow bypass login
-        const mockSession = {
-          user: {
-            id: 'mock_user_id',
-            email: loginEmail,
-          }
-        } as any;
-        setSession(mockSession);
-        setProfile({
-          id: 'mock_user_id',
-          name: loginEmail.split('@')[0],
-          role: 'Gestor'
-        });
-        setIsDbConnected(false);
-        setLoginAttemptCount(0);
-        setLockedUntil(null);
       }
     } else {
       // Successful login - reset counters
@@ -1382,6 +1344,10 @@ function HomeContent() {
                     setChartOfAccounts={setChartOfAccounts}
                     accountingEntries={accountingEntries}
                     setAccountingEntries={setAccountingEntries}
+                    locations={locations}
+                    setLocations={setLocations}
+                    clinicalRooms={clinicalRooms}
+                    setClinicalRooms={setClinicalRooms}
                   />
                 )}
                 {activeSubmodule === 11 && (

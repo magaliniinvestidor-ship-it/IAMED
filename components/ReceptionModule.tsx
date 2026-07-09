@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Patient, Appointment, Professional } from '@/lib/mockData';
@@ -10,7 +10,7 @@ import {
   Upload, ShieldCheck, Mail, MapPin, Phone, User, 
   AlertCircle, ChevronRight, ChevronLeft, Languages, 
   HeartPulse, Shield, KeyRound, Sparkles,
-  Sliders, Smartphone, Trash2, FileText, Scan, CheckCircle2, XCircle
+  Sliders, Smartphone, Trash2, FileText, Scan, CheckCircle2, XCircle, X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import AgendaModule from '@/components/AgendaModule';
@@ -80,11 +80,14 @@ export default function ReceptionModule({
   const [preferredLanguage, setPreferredLanguage] = useState<'es' | 'gn' | 'pt' | 'en' | 'outros'>('es');
   const [photoUrl, setPhotoUrl] = useState('');
 
-  // --- Photo states (webcam simulation) ---
+  // --- Photo states (webcam) ---
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [cameraCountdown, setCameraCountdown] = useState<number | null>(null);
   const [webcamPlaceholder, setWebcamPlaceholder] = useState<string | null>(null);
   const videoSimRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
   // --- Validation & Alerts (derived state) ---
   const calculatedDV = useMemo(() => {
@@ -238,7 +241,42 @@ export default function ReceptionModule({
     }
   };
 
-  const handleSimulateWebcam = () => {
+  const handleSimulateWebcam = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: 'user', width: 320, height: 240 } 
+      });
+      streamRef.current = stream;
+      setIsCameraActive(true);
+      setCameraCountdown(3);
+      
+      // Wait for video element to be available
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.play();
+        }
+      }, 100);
+      
+      const interval = setInterval(() => {
+        setCameraCountdown(prev => {
+          if (prev === null) return null;
+          if (prev <= 1) {
+            clearInterval(interval);
+            capturePhoto();
+            return null;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } catch (err) {
+      console.warn('Camera access denied:', err);
+      // Fallback to simulation
+      handleSimulateWebcamFallback();
+    }
+  };
+
+  const handleSimulateWebcamFallback = () => {
     setIsCameraActive(true);
     setCameraCountdown(3);
     
@@ -247,7 +285,6 @@ export default function ReceptionModule({
         if (prev === null) return null;
         if (prev <= 1) {
           clearInterval(interval);
-          // Generate a custom SVG avatar representing captured photo
           const initials = newName ? newName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'PT';
           const randomHue = Math.floor(Math.random() * 360);
           const svgData = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200"><rect width="200" height="200" fill="hsl(${randomHue}, 45%, 90%)"/><circle cx="100" cy="80" r="40" fill="hsl(${randomHue}, 45%, 45%)"/><path d="M40 160 C 40 120, 160 120, 160 160" fill="hsl(${randomHue}, 45%, 45%)"/><text x="100" y="180" font-family="sans-serif" font-size="14" font-weight="bold" fill="hsl(${randomHue}, 45%, 25%)" text-anchor="middle">Foto Capturada (${initials})</text></svg>`;
@@ -260,6 +297,33 @@ export default function ReceptionModule({
         return prev - 1;
       });
     }, 1000);
+  };
+
+  const capturePhoto = () => {
+    if (videoRef.current && canvasRef.current) {
+      const canvas = canvasRef.current;
+      const video = videoRef.current;
+      canvas.width = video.videoWidth || 320;
+      canvas.height = video.videoHeight || 240;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const photoData = canvas.toDataURL('image/jpeg', 0.8);
+        setWebcamPlaceholder(photoData);
+        setPhotoUrl(photoData);
+        addAuditLog('Capturou foto do Paciente via Câmera', newName || 'Pendente');
+      }
+    }
+    stopCamera();
+  };
+
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+    setIsCameraActive(false);
+    setCameraCountdown(null);
   };
 
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1024,26 +1088,46 @@ export default function ReceptionModule({
                       <label className="block text-xs font-semibold text-slate-600">Foto do Paciente</label>
                       <div className="flex items-center gap-4">
                         <div className="w-16 h-16 bg-slate-100 rounded-lg border border-slate-300 overflow-hidden flex items-center justify-center relative">
-                          {webcamPlaceholder ? (
+                          {isCameraActive ? (
+                            <video 
+                              ref={videoRef} 
+                              className="w-full h-full object-cover" 
+                              autoPlay 
+                              playsInline 
+                              muted
+                            />
+                          ) : webcamPlaceholder ? (
                             <img src={webcamPlaceholder} className="w-full h-full object-cover" alt="Patient Capture" />
                           ) : (
                             <User className="w-8 h-8 text-slate-300" />
                           )}
-                          {isCameraActive && (
+                          {isCameraActive && cameraCountdown !== null && (
                             <div className="absolute inset-0 bg-slate-900/80 flex items-center justify-center text-white text-xs font-bold font-sans">
-                              {cameraCountdown !== null ? cameraCountdown : '...'}
+                              {cameraCountdown}
                             </div>
                           )}
                         </div>
                         <div className="flex-1 space-y-2">
                           <button
                             type="button"
-                            onClick={handleSimulateWebcam}
-                            disabled={isCameraActive}
-                            className="w-full py-1.5 px-3 bg-teal-50 text-teal-700 hover:bg-teal-100 border border-teal-200 font-bold text-xs rounded-lg flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                            onClick={isCameraActive ? stopCamera : handleSimulateWebcam}
+                            className={`w-full py-1.5 px-3 font-bold text-xs rounded-lg flex items-center justify-center gap-1.5 cursor-pointer transition ${
+                              isCameraActive 
+                                ? 'bg-red-50 text-red-700 hover:bg-red-100 border border-red-200' 
+                                : 'bg-teal-50 text-teal-700 hover:bg-teal-100 border border-teal-200'
+                            }`}
                           >
-                            <Camera className="w-3.5 h-3.5" />
-                            {isCameraActive ? 'Posicione rosto...' : 'Capturar via Câmera'}
+                            {isCameraActive ? (
+                              <>
+                                <X className="w-3.5 h-3.5" />
+                                Cancelar
+                              </>
+                            ) : (
+                              <>
+                                <Camera className="w-3.5 h-3.5" />
+                                Capturar via Câmera
+                              </>
+                            )}
                           </button>
                           
                           <label className="w-full py-1.5 px-3 bg-slate-200 hover:bg-slate-300 border border-slate-300 font-semibold text-xs rounded-lg flex items-center justify-center gap-1.5 cursor-pointer text-slate-700 transition text-center">
@@ -1058,6 +1142,7 @@ export default function ReceptionModule({
                           </label>
                         </div>
                       </div>
+                      <canvas ref={canvasRef} className="hidden" />
                     </div>
 
                   </motion.div>

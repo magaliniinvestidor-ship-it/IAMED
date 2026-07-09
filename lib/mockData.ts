@@ -3540,3 +3540,132 @@ export const initialTelemedicineRequests: TelemedicineRequest[] = [
   { id: 'tel_2', patientId: 'pat_2', patientName: 'Mariana Rosa Santos', doctorName: 'Dra. Amanda Silva', specialty: 'Ginecologia', scheduledDate: '2026-06-28', scheduledTime: '09:30', status: 'solicitado', notes: 'Acompanhamento pré-natal', createdAt: '2026-06-21T09:00:00' },
 ];
 
+// ==========================================
+// LOCAIS (SEDES) E SALAS/CONSULTÓRIOS
+// ==========================================
+
+export interface Location {
+  id: string;
+  name: string;
+  address: string;
+  phone: string;
+  city: string;
+  country: string;
+  timezone: string;
+  status: string;
+}
+
+export interface ClinicalRoom {
+  id: string;
+  name: string;
+  type: string;
+  location_id: string;
+  status: string;
+  capacity: number;
+  equipment: string[];
+}
+
+export const initialLocations: Location[] = [
+  { id: 'loc_1', name: 'Sede Central',          address: 'Av. Brasil, 1234',           phone: '+595 21 555-1234', city: 'Encarnación',         country: 'Paraguay', timezone: 'America/Asuncion', status: 'ativo' },
+  { id: 'loc_2', name: 'Filial Ciudad del Este', address: 'Av. Kennedy, 567',           phone: '+595 61 555-5678', city: 'Ciudad del Este',     country: 'Paraguay', timezone: 'America/Asuncion', status: 'ativo' },
+  { id: 'loc_3', name: 'Filial Asunción',       address: 'Av. Mariscal López, 890',    phone: '+595 21 555-9012', city: 'Asunción',            country: 'Paraguay', timezone: 'America/Asuncion', status: 'ativo' },
+  { id: 'loc_4', name: 'Filial Encarnación',    address: 'Calle Pte. Franco, 456',      phone: '+595 67 555-3456', city: 'Encarnación',         country: 'Paraguay', timezone: 'America/Asuncion', status: 'ativo' },
+  { id: 'loc_5', name: 'Filial Pedro Juan',     address: 'Av. Mcal. Estigarribia, 321', phone: '+595 491 555-7890', city: 'Pedro Juan Caballero', country: 'Paraguay', timezone: 'America/Asuncion', status: 'ativo' },
+];
+
+export const initialClinicalRooms: ClinicalRoom[] = [
+  { id: 'room_1', name: 'Consultório 101',     type: 'consultório',          location_id: 'loc_1', status: 'ativo', capacity: 1, equipment: ['Otoscópio', 'Oftalmoscópio', 'Balança'] },
+  { id: 'room_2', name: 'Consultório 102',     type: 'consultório',          location_id: 'loc_1', status: 'ativo', capacity: 1, equipment: ['Otoscópio', 'Ecógrafo'] },
+  { id: 'room_3', name: 'Sala de Exames 1',    type: 'sala de exames',       location_id: 'loc_1', status: 'ativo', capacity: 1, equipment: ['Ecógrafo', 'Raio-X'] },
+  { id: 'room_4', name: 'Sala Procedimentos A', type: 'sala de procedimentos', location_id: 'loc_1', status: 'ativo', capacity: 2, equipment: ['Mesa cirúrgica', 'Autoclave'] },
+  { id: 'room_5', name: 'Consultório 201',     type: 'consultório',          location_id: 'loc_2', status: 'ativo', capacity: 1, equipment: ['Otoscópio', 'Balança'] },
+  { id: 'room_6', name: 'Consultório 202',     type: 'consultório',          location_id: 'loc_2', status: 'ativo', capacity: 1, equipment: ['Ecógrafo'] },
+  { id: 'room_7', name: 'Consultório 301',     type: 'consultório',          location_id: 'loc_4', status: 'ativo', capacity: 1, equipment: ['Otoscópio'] },
+];
+
+// ==========================================
+// BLOQUEIOS DE AGENDA
+// ==========================================
+export interface BlockedSlot {
+  id: string;
+  doctor_name: string;
+  branch?: string;
+  start_date: string;
+  end_date: string;
+  start_time?: string;
+  end_time?: string;
+  reason: string;
+  description?: string;
+}
+
+export const initialBlockedSlots: BlockedSlot[] = [
+  { id: 'bs_1', doctor_name: 'Dr. Adriano Lima', branch: 'Sede Central', start_date: '2026-07-01', end_date: '2026-07-05', start_time: '08:00', end_time: '12:00', reason: 'Férias', description: 'Férias programadas de verão' },
+  { id: 'bs_2', doctor_name: 'Dra. Amanda Silva', branch: 'Filial Ciudad del Este', start_date: '2026-07-10', end_date: '2026-07-10', reason: 'Congresso', description: 'Congresso de Cardiologia em Asunción' },
+];
+
+// ==========================================
+// LISTA DE ESPERA
+// ==========================================
+export interface WaitingListEntry {
+  id: string;
+  patient_id?: string;
+  patient_name: string;
+  phone?: string;
+  specialty?: string;
+  doctor_name?: string;
+  priority_criteria?: string;
+  priority_score: number;
+  preferred_days: string[];
+  preferred_hours: string[];
+  status: string;
+}
+
+export const initialWaitingList: WaitingListEntry[] = [
+  { id: 'wl_p_1', patient_id: 'pat_3', patient_name: 'Joaquim Bento Pereira', phone: '(21) 99888-7766', specialty: 'Ortopedia', doctor_name: 'Dr. Adriano Lima', priority_criteria: 'Idoso 65+', priority_score: 8, preferred_days: ['Segunda', 'Quarta'], preferred_hours: ['08:00', '09:00'], status: 'ativo' },
+  { id: 'wl_p_2', patient_name: 'Roberto Oliveira', phone: '+595 986 111 222', specialty: 'Cardiologia', doctor_name: 'Dra. Amanda Silva', priority_criteria: 'Retorno urgente', priority_score: 7, preferred_days: ['Terça', 'Quinta'], preferred_hours: ['14:00'], status: 'ativo' },
+];
+
+// ==========================================
+// LEMBRETES WHATSAPP
+// ==========================================
+export interface WhatsappReminder {
+  id: string;
+  appointment_id?: string;
+  patient_name: string;
+  patient_phone: string;
+  message_template?: string;
+  language: string;
+  status: string;
+  scheduled_for?: string;
+  sent_at?: string;
+  response_received?: string;
+}
+
+export const initialWhatsappReminders: WhatsappReminder[] = [
+  { id: 'wa_1', appointment_id: 'app_1', patient_name: 'Joaquim Bento Pereira', patient_phone: '(21) 99888-7766', message_template: 'Lembrete de consulta', language: 'es', status: 'enviado', scheduled_for: '2026-06-21T20:00:00', sent_at: '2026-06-21T20:00:00' },
+  { id: 'wa_2', appointment_id: 'app_2', patient_name: 'Carlos Eduardo Almeida', patient_phone: '(11) 98765-4321', message_template: 'Lembrete de consulta', language: 'es', status: 'enviado', scheduled_for: '2026-06-21T20:00:00', sent_at: '2026-06-21T20:00:00' },
+  { id: 'wa_3', patient_name: 'Mariana Rosa Santos', patient_phone: '(11) 91234-5678', message_template: 'Confirmação de consulta', language: 'pt', status: 'pendente', scheduled_for: '2026-06-22T18:00:00' },
+];
+
+// ==========================================
+// LOGS DE CALL CENTER
+// ==========================================
+export interface CallCenterLog {
+  id: string;
+  operator_name: string;
+  patient_id?: string;
+  patient_name: string;
+  patient_phone: string;
+  type: string;
+  reason: string;
+  notes?: string;
+  duration_seconds?: number;
+  recording_url?: string;
+}
+
+export const initialCallCenterLogs: CallCenterLog[] = [
+  { id: 'cc_1', operator_name: 'Marcela Ramos', patient_id: 'pat_1', patient_name: 'Carlos Eduardo Almeida', patient_phone: '(11) 98765-4321', type: 'saída', reason: 'Confirmação de horário', notes: 'Paciente confirmou presença para 22/06 às 10:30', duration_seconds: 120 },
+  { id: 'cc_2', operator_name: 'Marcela Ramos', patient_name: 'Roberto Oliveira', patient_phone: '+595 986 111 222', type: 'entrada', reason: 'Agendamento de retorno', notes: 'Paciente solicitou retorno com cardiologista', duration_seconds: 180 },
+  { id: 'cc_3', operator_name: 'Recepcionista', patient_name: 'Sofia Mendoza', patient_phone: '+595 987 333 444', type: 'entrada', reason: 'Dúvidas sobre valores', notes: 'Informado valores de consulta e exames', duration_seconds: 240 },
+];
+

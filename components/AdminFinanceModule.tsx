@@ -5,6 +5,7 @@ import { FinancialPosting, StockItem, AuditLog, Dte, DteItem, Patient, Professio
   SystemUser, PasswordPolicy, UserSession, LoginAttempt, SSOProvider, SystemRole,
   InsuranceType,
   initialSystemUsers, initialPasswordPolicy, initialUserSessions, initialLoginAttempts, initialSSOProviders,
+  Location, ClinicalRoom, initialLocations, initialClinicalRooms,
 } from '@/lib/mockData';
 import { supabase } from '@/lib/supabaseClient';
 import { useI18n } from '@/lib/i18n/I18nContext';
@@ -72,6 +73,10 @@ interface AdminFinanceModuleProps {
   setChartOfAccounts?: React.Dispatch<React.SetStateAction<ChartOfAccount[]>>;
   accountingEntries?: AccountingEntry[];
   setAccountingEntries?: React.Dispatch<React.SetStateAction<AccountingEntry[]>>;
+  locations?: Location[];
+  setLocations?: React.Dispatch<React.SetStateAction<Location[]>>;
+  clinicalRooms?: ClinicalRoom[];
+  setClinicalRooms?: React.Dispatch<React.SetStateAction<ClinicalRoom[]>>;
 }
 
 const GS = (v: number) => `Gs. ${v.toLocaleString('es-PY')}`;
@@ -473,6 +478,10 @@ export default function AdminFinanceModule({
   setChartOfAccounts: setChartOfAccountsProp,
   accountingEntries: accountingEntriesProp,
   setAccountingEntries: setAccountingEntriesProp,
+  locations: locationsProp,
+  setLocations: setLocationsProp,
+  clinicalRooms: clinicalRoomsProp,
+  setClinicalRooms: setClinicalRoomsProp,
 }: AdminFinanceModuleProps) {
   const { t } = useI18n();
 
@@ -561,8 +570,85 @@ export default function AdminFinanceModule({
   React.useEffect(() => { if (accountingEntriesProp) setAccountingEntries(accountingEntriesProp); }, [accountingEntriesProp]);
 
   // ── Admin tab (submodule 14) ────────────────────────────────────────────────────────
-  type AdminTab = 'users' | 'security' | 'password-policy' | 'two-factor' | 'sso' | 'sessions' | 'professionals';
+  type AdminTab = 'users' | 'security' | 'password-policy' | 'two-factor' | 'sso' | 'sessions' | 'professionals' | 'locations' | 'rooms';
   const [adminTab, setAdminTab] = useState<AdminTab>('users');
+
+  // ── Locations & Rooms State ────────────────────────────────────────────────────────
+  const [locations, setLocations] = useState<Location[]>(locationsProp || initialLocations);
+  const [clinicalRooms, setClinicalRooms] = useState<ClinicalRoom[]>(clinicalRoomsProp || initialClinicalRooms);
+  const [locFormOpen, setLocFormOpen] = useState(false);
+  const [editingLocId, setEditingLocId] = useState<string | null>(null);
+  const [locName, setLocName] = useState('');
+  const [locAddress, setLocAddress] = useState('');
+  const [locPhone, setLocPhone] = useState('');
+  const [locCity, setLocCity] = useState('');
+  const [locCountry, setLocCountry] = useState('Paraguay');
+  const [locTimezone, setLocTimezone] = useState('America/Asuncion');
+  const [locStatus, setLocStatus] = useState<'ativo' | 'inativo'>('ativo');
+  const [roomFormOpen, setRoomFormOpen] = useState(false);
+  const [editingRoomId, setEditingRoomId] = useState<string | null>(null);
+  const [roomName, setRoomName] = useState('');
+  const [roomType, setRoomType] = useState<string>('consultório');
+  const [roomLocationId, setRoomLocationId] = useState('');
+  const [roomCapacity, setRoomCapacity] = useState(1);
+  const [roomEquipment, setRoomEquipment] = useState<string[]>([]);
+  const [roomStatus, setRoomStatus] = useState<'ativo' | 'inativo' | 'manutenção'>('ativo');
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  React.useEffect(() => { if (locationsProp) setLocations(locationsProp); }, [locationsProp]);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  React.useEffect(() => { if (clinicalRoomsProp) setClinicalRooms(clinicalRoomsProp); }, [clinicalRoomsProp]);
+
+  const resetLocForm = () => {
+    setEditingLocId(null);
+    setLocName('');
+    setLocAddress('');
+    setLocPhone('');
+    setLocCity('');
+    setLocCountry('Paraguay');
+    setLocTimezone('America/Asuncion');
+    setLocStatus('ativo');
+    setLocFormOpen(false);
+  };
+
+  const resetRoomForm = () => {
+    setEditingRoomId(null);
+    setRoomName('');
+    setRoomType('consultório');
+    setRoomLocationId('');
+    setRoomCapacity(1);
+    setRoomEquipment([]);
+    setRoomStatus('ativo');
+    setRoomFormOpen(false);
+  };
+
+  const handleSaveLocation = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!locName.trim()) return;
+    if (editingLocId) {
+      setLocations(prev => prev.map(l => l.id === editingLocId ? { ...l, name: locName, address: locAddress, phone: locPhone, city: locCity, country: locCountry, timezone: locTimezone, status: locStatus } : l));
+      addAuditLog('Editou Local', locName);
+    } else {
+      const newLoc: Location = { id: `loc_${Date.now()}`, name: locName, address: locAddress, phone: locPhone, city: locCity, country: locCountry, timezone: locTimezone, status: locStatus };
+      setLocations(prev => [...prev, newLoc]);
+      addAuditLog('Cadastrou Local', locName);
+    }
+    resetLocForm();
+  };
+
+  const handleSaveRoom = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!roomName.trim() || !roomLocationId) return;
+    if (editingRoomId) {
+      setClinicalRooms(prev => prev.map(r => r.id === editingRoomId ? { ...r, name: roomName, type: roomType, location_id: roomLocationId, capacity: roomCapacity, equipment: roomEquipment, status: roomStatus } : r));
+      addAuditLog('Editou Sala', roomName);
+    } else {
+      const newRoom: ClinicalRoom = { id: `room_${Date.now()}`, name: roomName, type: roomType, location_id: roomLocationId, capacity: roomCapacity, equipment: roomEquipment, status: roomStatus };
+      setClinicalRooms(prev => [...prev, newRoom]);
+      addAuditLog('Cadastrou Sala', roomName);
+    }
+    resetRoomForm();
+  };
 
   // ── Professional Form States ────────────────────────────────────────────────────────
   const [profFormOpen, setProfFormOpen] = useState(false);
@@ -2530,6 +2616,12 @@ export default function AdminFinanceModule({
             <button onClick={() => setAdminTab('professionals')} className={`pb-2.5 px-3 text-sm font-semibold transition-all border-b-2 flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${adminTab === 'professionals' ? 'border-teal-600 text-teal-600 font-bold' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
               <Stethoscope className="w-3.5 h-3.5" /> Profissionais
             </button>
+            <button onClick={() => setAdminTab('locations')} className={`pb-2.5 px-3 text-sm font-semibold transition-all border-b-2 flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${adminTab === 'locations' ? 'border-teal-600 text-teal-600 font-bold' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+              <Building2 className="w-3.5 h-3.5" /> Locais
+            </button>
+            <button onClick={() => setAdminTab('rooms')} className={`pb-2.5 px-3 text-sm font-semibold transition-all border-b-2 flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${adminTab === 'rooms' ? 'border-teal-600 text-teal-600 font-bold' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+              <DoorOpen className="w-3.5 h-3.5" /> Salas
+            </button>
           </div>
 
           {adminTab === 'users' && (
@@ -3656,6 +3748,178 @@ export default function AdminFinanceModule({
                       {t('no_professionals', 'app')}
                     </div>
                   )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {adminTab === 'locations' && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs lg:col-span-1 space-y-4">
+                <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                  <Building2 className="w-5 h-5 text-teal-600" />
+                  <h3 className="font-semibold text-slate-800 text-base">{editingLocId ? 'Editar Local' : 'Novo Local'}</h3>
+                </div>
+                <form onSubmit={handleSaveLocation} className="space-y-3 text-xs font-sans">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Nome da Sede *</label>
+                    <input type="text" value={locName} onChange={e => setLocName(e.target.value)} placeholder="Ex: Sede Central" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" required />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Endereço</label>
+                    <input type="text" value={locAddress} onChange={e => setLocAddress(e.target.value)} placeholder="Av. Principal 1234" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Cidade</label>
+                      <input type="text" value={locCity} onChange={e => setLocCity(e.target.value)} placeholder="Asunción" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Telefone</label>
+                      <input type="text" value={locPhone} onChange={e => setLocPhone(e.target.value)} placeholder="+595 21 123456" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">País</label>
+                      <select value={locCountry} onChange={e => setLocCountry(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs">
+                        <option value="Paraguay">Paraguay</option>
+                        <option value="Brasil">Brasil</option>
+                        <option value="Argentina">Argentina</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Fuso Horário</label>
+                      <select value={locTimezone} onChange={e => setLocTimezone(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs">
+                        <option value="America/Asuncion">America/Asuncion</option>
+                        <option value="America/Sao_Paulo">America/Sao_Paulo</option>
+                        <option value="America/Argentina/Buenos_Aires">America/Argentina/Buenos_Aires</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Status</label>
+                    <select value={locStatus} onChange={e => setLocStatus(e.target.value as 'ativo' | 'inativo')} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs">
+                      <option value="ativo">Ativo</option>
+                      <option value="inativo">Inativo</option>
+                    </select>
+                  </div>
+                  <div className="flex gap-2 pt-2">
+                    <button type="submit" className="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-lg text-xs transition">{editingLocId ? 'Salvar' : 'Cadastrar'}</button>
+                    {editingLocId && <button type="button" onClick={resetLocForm} className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs transition">Cancelar</button>}
+                  </div>
+                </form>
+              </div>
+              <div className="lg:col-span-2 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2"><Building2 className="w-4 h-4" /> Locais Cadastrados ({locations.length})</h3>
+                </div>
+                <div className="space-y-2">
+                  {locations.map(loc => (
+                    <div key={loc.id} className={`p-4 bg-slate-50 hover:bg-slate-100/70 border border-slate-200/80 rounded-xl flex items-center justify-between text-xs transition ${loc.status === 'inativo' ? 'opacity-60' : ''}`}>
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-teal-100 flex items-center justify-center text-teal-700 font-bold text-sm"><Building2 className="w-5 h-5" /></div>
+                        <div>
+                          <p className="font-black text-slate-800 text-sm">{loc.name}</p>
+                          <p className="text-slate-500 font-medium">{loc.address}{loc.city ? `, ${loc.city}` : ''} — {loc.country}</p>
+                          {loc.phone && <p className="text-slate-400 text-[10px]">{loc.phone}</p>}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`px-2 py-0.5 text-[10px] font-bold rounded border ${loc.status === 'ativo' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'}`}>{loc.status === 'ativo' ? 'Ativo' : 'Inativo'}</span>
+                        <button onClick={() => { setEditingLocId(loc.id); setLocName(loc.name); setLocAddress(loc.address); setLocPhone(loc.phone); setLocCity(loc.city); setLocCountry(loc.country); setLocTimezone(loc.timezone); setLocStatus(loc.status as 'ativo' | 'inativo'); setLocFormOpen(true); }} className="p-2 rounded-lg hover:bg-slate-200 text-slate-600 hover:text-slate-800 transition cursor-pointer" title="Editar"><Edit2 className="w-3.5 h-3.5" /></button>
+                        <button onClick={() => { setLocations(prev => prev.filter(l => l.id !== loc.id)); addAuditLog('Removeu Local', loc.name); }} className="p-2 rounded-lg hover:bg-rose-50 text-rose-500 transition cursor-pointer" title="Remover"><X className="w-3.5 h-3.5" /></button>
+                      </div>
+                    </div>
+                  ))}
+                  {locations.length === 0 && <div className="text-center py-10 text-slate-400 font-semibold">Nenhum local cadastrado</div>}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {adminTab === 'rooms' && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs lg:col-span-1 space-y-4">
+                <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                  <DoorOpen className="w-5 h-5 text-teal-600" />
+                  <h3 className="font-semibold text-slate-800 text-base">{editingRoomId ? 'Editar Sala' : 'Nova Sala'}</h3>
+                </div>
+                <form onSubmit={handleSaveRoom} className="space-y-3 text-xs font-sans">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Nome da Sala *</label>
+                    <input type="text" value={roomName} onChange={e => setRoomName(e.target.value)} placeholder="Ex: Consultório 101" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" required />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Tipo</label>
+                      <select value={roomType} onChange={e => setRoomType(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs">
+                        <option value="consultório">Consultório</option>
+                        <option value="sala de exame">Sala de Exame</option>
+                        <option value="sala de procedimento">Sala de Procedimento</option>
+                        <option value="sala de cirurgia">Sala de Cirurgia</option>
+                        <option value="enfermaria">Enfermaria</option>
+                        <option value="covida">Cozinha</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Sede *</label>
+                      <select value={roomLocationId} onChange={e => setRoomLocationId(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" required>
+                        <option value="">Selecione...</option>
+                        {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Capacidade</label>
+                      <input type="number" value={roomCapacity} onChange={e => setRoomCapacity(Number(e.target.value))} min={1} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Status</label>
+                      <select value={roomStatus} onChange={e => setRoomStatus(e.target.value as 'ativo' | 'inativo' | 'manutenção')} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs">
+                        <option value="ativo">Ativo</option>
+                        <option value="inativo">Inativo</option>
+                        <option value="manutenção">Manutenção</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Equipamentos (separados por vírgula)</label>
+                    <input type="text" value={roomEquipment.join(', ')} onChange={e => setRoomEquipment(e.target.value.split(',').map(s => s.trim()).filter(Boolean))} placeholder="Ex: Ecógrafo, Microscópio" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
+                  </div>
+                  <div className="flex gap-2 pt-2">
+                    <button type="submit" className="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-lg text-xs transition">{editingRoomId ? 'Salvar' : 'Cadastrar'}</button>
+                    {editingRoomId && <button type="button" onClick={resetRoomForm} className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs transition">Cancelar</button>}
+                  </div>
+                </form>
+              </div>
+              <div className="lg:col-span-2 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2"><DoorOpen className="w-4 h-4" /> Salas Cadastradas ({clinicalRooms.length})</h3>
+                </div>
+                <div className="space-y-2">
+                  {clinicalRooms.map(room => {
+                    const loc = locations.find(l => l.id === room.location_id);
+                    return (
+                      <div key={room.id} className={`p-4 bg-slate-50 hover:bg-slate-100/70 border border-slate-200/80 rounded-xl flex items-center justify-between text-xs transition ${room.status === 'inativo' ? 'opacity-60' : ''}`}>
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-sm"><DoorOpen className="w-5 h-5" /></div>
+                          <div>
+                            <p className="font-black text-slate-800 text-sm">{room.name}</p>
+                            <p className="text-slate-500 font-medium">{room.type} — {loc?.name || 'Sem sede'}</p>
+                            {room.equipment.length > 0 && <p className="text-slate-400 text-[10px]">{room.equipment.join(', ')}</p>}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-0.5 text-[10px] font-bold rounded border ${room.status === 'ativo' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : room.status === 'manutenção' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-rose-50 text-rose-700 border-rose-200'}`}>{room.status === 'ativo' ? 'Ativo' : room.status === 'manutenção' ? 'Manutenção' : 'Inativo'}</span>
+                          <button onClick={() => { setEditingRoomId(room.id); setRoomName(room.name); setRoomType(room.type); setRoomLocationId(room.location_id); setRoomCapacity(room.capacity); setRoomEquipment(room.equipment); setRoomStatus(room.status as 'ativo' | 'inativo' | 'manutenção'); setRoomFormOpen(true); }} className="p-2 rounded-lg hover:bg-slate-200 text-slate-600 hover:text-slate-800 transition cursor-pointer" title="Editar"><Edit2 className="w-3.5 h-3.5" /></button>
+                          <button onClick={() => { setClinicalRooms(prev => prev.filter(r => r.id !== room.id)); addAuditLog('Removeu Sala', room.name); }} className="p-2 rounded-lg hover:bg-rose-50 text-rose-500 transition cursor-pointer" title="Remover"><X className="w-3.5 h-3.5" /></button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {clinicalRooms.length === 0 && <div className="text-center py-10 text-slate-400 font-semibold">Nenhuma sala cadastrada</div>}
                 </div>
               </div>
             </div>
