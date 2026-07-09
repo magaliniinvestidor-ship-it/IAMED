@@ -21,6 +21,7 @@ import {
   initialPharmacyItems, initialStockMovements, initialInventoryCounts,
   initialAdverseEvents, initialQualityDeviations, initialBatchRecalls,
   Location, ClinicalRoom, initialLocations, initialClinicalRooms,
+  PasswordPolicy, initialPasswordPolicy,
 } from '@/lib/mockData';
 
 // Modular Component Screens
@@ -133,6 +134,7 @@ function HomeContent() {
   const [batchRecalls, setBatchRecalls] = useState<BatchRecall[]>([]);
   const [locations, setLocations] = useState<Location[]>(initialLocations);
   const [clinicalRooms, setClinicalRooms] = useState<ClinicalRoom[]>(initialClinicalRooms);
+  const [passwordPolicy, setPasswordPolicy] = useState<PasswordPolicy>(initialPasswordPolicy);
   const [isDbConnected, setIsDbConnected] = useState<boolean | null>(null);
   const [dataLoading, setDataLoading] = useState(false);
 
@@ -157,7 +159,7 @@ function HomeContent() {
       const p = new URLSearchParams(window.location.search).get('timeout_ms');
       if (p) return Math.max(30000, parseInt(p, 10));
     }
-    return 3 * 60 * 1000; // 3 minutos default (180s)
+    return passwordPolicy.sessionTimeoutMinutes * 60 * 1000;
   };
   const SESSION_TIMEOUT_MS = getTimeoutMs();
   const INACTIVITY_WARNING_MS = SESSION_TIMEOUT_MS - 60000; // warning 1 min antes
@@ -286,7 +288,7 @@ function HomeContent() {
     setDataLoading(true);
     try {
       const [patientsRes, appointmentsRes, bedsRes, logsRes, financeRes, stockRes, asosRes, dtesRes, professionalsRes, pharmacyItemsRes, stockMovementsRes, inventoryCountsRes, adverseEventsRes, qualityDeviationsRes, batchRecallsRes] = await Promise.all([
-        supabase.from('patients').select('*, clinical_history(*)').order('created_at', { ascending: false }),
+        supabase.from('patients').select('*').order('created_at', { ascending: false }),
         supabase.from('appointments').select('*').order('date', { ascending: true }),
         supabase.from('beds').select('*').order('name'),
         supabase.from('audit_logs').select('*').order('timestamp', { ascending: false }).limit(20),
@@ -295,7 +297,7 @@ function HomeContent() {
         supabase.from('aso_exams').select('*').order('date', { ascending: false }),
         supabase.from('dtes').select('*').order('created_at', { ascending: false }),
         supabase.from('professionals').select('*').order('name', { ascending: true }),
-        supabase.from('pharmacy_items').select('*, lot_controls(*)').order('name', { ascending: true }),
+        supabase.from('pharmacy_items').select('*').order('name', { ascending: true }),
         supabase.from('stock_movements').select('*').order('date', { ascending: false }),
         supabase.from('inventory_counts').select('*').order('date', { ascending: false }),
         supabase.from('adverse_events').select('*').order('notification_date', { ascending: false }),
@@ -1348,6 +1350,8 @@ function HomeContent() {
                     setLocations={setLocations}
                     clinicalRooms={clinicalRooms}
                     setClinicalRooms={setClinicalRooms}
+                    passwordPolicy={passwordPolicy}
+                    onPasswordPolicyChange={setPasswordPolicy}
                   />
                 )}
                 {activeSubmodule === 11 && (

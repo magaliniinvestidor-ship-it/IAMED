@@ -88,6 +88,9 @@ export default function ReceptionModule({
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const photoCounterRef = useRef(0);
+  const pendingCaptureRef = useRef<'real' | 'simulation' | null>(null);
+  const simulationFileRef = useRef('');
 
   // --- Validation & Alerts (derived state) ---
   const calculatedDV = useMemo(() => {
@@ -263,7 +266,7 @@ export default function ReceptionModule({
           if (prev === null) return null;
           if (prev <= 1) {
             clearInterval(interval);
-            capturePhoto();
+            pendingCaptureRef.current = 'real';
             return null;
           }
           return prev - 1;
@@ -279,19 +282,14 @@ export default function ReceptionModule({
   const handleSimulateWebcamFallback = () => {
     setIsCameraActive(true);
     setCameraCountdown(3);
+    simulationFileRef.current = `patient_${++photoCounterRef.current}.svg`;
     
     const interval = setInterval(() => {
       setCameraCountdown(prev => {
         if (prev === null) return null;
         if (prev <= 1) {
           clearInterval(interval);
-          const initials = newName ? newName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'PT';
-          const randomHue = Math.floor(Math.random() * 360);
-          const svgData = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200"><rect width="200" height="200" fill="hsl(${randomHue}, 45%, 90%)"/><circle cx="100" cy="80" r="40" fill="hsl(${randomHue}, 45%, 45%)"/><path d="M40 160 C 40 120, 160 120, 160 160" fill="hsl(${randomHue}, 45%, 45%)"/><text x="100" y="180" font-family="sans-serif" font-size="14" font-weight="bold" fill="hsl(${randomHue}, 45%, 25%)" text-anchor="middle">Foto Capturada (${initials})</text></svg>`;
-          setWebcamPlaceholder(svgData);
-          setPhotoUrl(svgData);
-          setIsCameraActive(false);
-          addAuditLog('Capturou foto do Paciente via Webcam', newName || 'Pendente');
+          pendingCaptureRef.current = 'simulation';
           return null;
         }
         return prev - 1;
@@ -299,7 +297,30 @@ export default function ReceptionModule({
     }, 1000);
   };
 
-  const capturePhoto = () => {
+  const uploadPhotoToStorage = async (dataUrl: string, fileName: string): Promise<string | null> => {
+    if (!supabase) return null;
+    try {
+      const res = await fetch(dataUrl);
+      const blob = await res.blob();
+      const { data, error } = await supabase.storage
+        .from('patient-photos')
+        .upload(fileName, blob, { contentType: 'image/jpeg', upsert: true });
+      if (error) {
+        console.warn('Upload failed:', error.message);
+        return null;
+      }
+      const { data: urlData } = supabase.storage
+        .from('patient-photos')
+        .getPublicUrl(data.path);
+      return urlData.publicUrl;
+    } catch (err) {
+      console.warn('Upload error:', err);
+      return null;
+    }
+  };
+
+  const capturePhoto = async () => {
+    const fileName = `patient_${++photoCounterRef.current}.jpg`;
     if (videoRef.current && canvasRef.current) {
       const canvas = canvasRef.current;
       const video = videoRef.current;
@@ -310,8 +331,9 @@ export default function ReceptionModule({
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         const photoData = canvas.toDataURL('image/jpeg', 0.8);
         setWebcamPlaceholder(photoData);
-        setPhotoUrl(photoData);
         addAuditLog('Capturou foto do Paciente via Câmera', newName || 'Pendente');
+        const uploadedUrl = await uploadPhotoToStorage(photoData, fileName);
+        if (uploadedUrl) setPhotoUrl(uploadedUrl);
       }
     }
     stopCamera();
@@ -326,15 +348,38 @@ export default function ReceptionModule({
     setCameraCountdown(null);
   };
 
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Trigger capture when countdown finishes (outside setState updater)
+  useEffect(() => {
+    if (cameraCountdown !== null) return;
+    if (pendingCaptureRef.current === 'real') {
+      pendingCaptureRef.current = null;
+      capturePhoto();
+    } else if (pendingCaptureRef.current === 'simulation') {
+      pendingCaptureRef.current = null;
+      const initials = newName ? newName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'PT';
+      const randomHue = Math.floor(Math.random() * 360);
+      const svgData = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200"><rect width="200" height="200" fill="hsl(${randomHue}, 45%, 90%)"/><circle cx="100" cy="80" r="40" fill="hsl(${randomHue}, 45%, 45%)"/><path d="M40 160 C 40 120, 160 120, 160 160" fill="hsl(${randomHue}, 45%, 45%)"/><text x="100" y="180" font-family="sans-serif" font-size="14" font-weight="bold" fill="hsl(${randomHue}, 45%, 25%)" text-anchor="middle">Foto Capturada (${initials})</text></svg>`;
+      setWebcamPlaceholder(svgData);
+      setIsCameraActive(false);
+      addAuditLog('Capturou foto do Paciente via Webcam (Simulação)', newName || 'Pendente');
+      uploadPhotoToStorage(svgData, simulationFileRef.current).then(url => {
+        if (url) setPhotoUrl(url);
+      });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cameraCountdown]);
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+    const fileName = `patient_${++photoCounterRef.current}.jpg`;
       const reader = new FileReader();
-      reader.onloadend = () => {
+      reader.onloadend = async () => {
         const result = reader.result as string;
         setWebcamPlaceholder(result);
-        setPhotoUrl(result);
         addAuditLog('Carregou foto do Paciente', newName || 'Pendente');
+        const uploadedUrl = await uploadPhotoToStorage(result, fileName);
+        if (uploadedUrl) setPhotoUrl(uploadedUrl);
       };
       reader.readAsDataURL(file);
     }

@@ -461,6 +461,7 @@ export interface StockItem {
   quantity: number;
   minQuantity: number;
   unit: string;
+  createdAt?: string;
 }
 
 export interface Bed {
@@ -492,8 +493,8 @@ export interface AsoExam {
   doctor: string;
 }
 
-export type ProfessionalRole = 'Médico(a)' | 'Enfermeiro(a)' | 'Fisioterapeuta' | 'Psicólogo(a)' | 'Nutricionista' | 'Técnico(a) de Enfermagem' | 'Administrador(a)' | 'Recepcionista';
-export type ProfessionalCouncil = 'CRM' | 'COREN' | 'CREFITO' | 'CFP' | 'CFN' | 'CRO' | 'N/A';
+export type ProfessionalRole = 'Médico(a)' | 'Enfermeiro(a)' | 'Fisioterapeuta' | 'Psicólogo(a)' | 'Nutricionista' | 'Técnico(a) de Enfermagem' | 'Administrador(a)' | 'Recepcionista' | 'Auxiliar de Enfermagem' | 'Anestesiologista' | 'Cirurgião(ã)' | 'Terapeuta Ocupacional' | 'Educador Físico' | 'Assistente Social' | 'Fonoaudiólogo(a)' | 'Farmacêutico(a)' | 'Dentista' | 'Biomédico(a)' | 'Técnico(a) em Radiologia' | 'Técnico(a) em Farmácia' | 'Técnico(a) de Laboratório';
+export type ProfessionalCouncil = 'CRM' | 'COREN' | 'CREFITO' | 'CFP' | 'CFN' | 'CRO' | 'N/A' | 'CRESS' | 'CRFa' | 'CRF' | 'CRBM' | 'CREF' | 'CRA' | 'CREFONO' | 'CRTR';
 export type ProfessionalShift = 'Manhã' | 'Tarde' | 'Noite' | 'Integral' | 'Plantão 12h' | 'Plantão 24h';
 
 export interface Professional {
@@ -508,36 +509,35 @@ export interface Professional {
   phone: string;
   status: 'ativo' | 'inativo' | 'férias';
   admissionDate: string;
-  color?: string; // for UI avatar
+  color?: string;
   permissions?: string[];
+  locationId?: string;
+  userId?: string;
+  updatedAt?: string;
 }
 
 // ==========================================
 // ADMINISTRAÇÃO DO SISTEMA E SEGURANÇA
 // ==========================================
 
-export type SystemRole = 'SuperAdmin' | 'Administrador' | 'Gestor' | 'Diretor Clínico' | 'Médico' | 'Enfermeiro' | 'Recepcionista' | 'Financeiro' | 'Farmacêutico' | 'Visualizador';
+export type SystemRole = 'SuperAdmin' | 'Administrador' | 'Gestor' | 'Diretor Clínico' | 'Médico' | 'Enfermeiro' | 'Recepcionista' | 'Financeiro' | 'Farmacêutico' | 'Visualizador' | 'Auxiliar de Enfermagem' | 'Anestesiologista' | 'Cirurgião(ã)' | 'Terapeuta Ocupacional' | 'Educador Físico' | 'Assistente Social' | 'Fonoaudiólogo(a)' | 'Dentista' | 'Biomédico(a)' | 'Técnico(a) em Radiologia' | 'Técnico(a) em Farmácia' | 'Técnico(a) de Laboratório' | 'Nutricionista' | 'Psicólogo(a)' | 'Técnico(a) de Enfermagem';
 
 export interface SystemUser {
   id: string;
-  email: string;
+  authUserId?: string;
+  professionalId?: string;
   name: string;
-  ci: string;
-  role: SystemRole;
-  profession: string;
-  professionalRegistry: string;
-  councilType: string;
-  location: string;
-  specialties: string[];
-  phone: string;
+  email?: string;
+  ci?: string;
+  systemRole: SystemRole;
+  permissions: string[];
+  location?: string;
   status: 'ativo' | 'inativo' | 'bloqueado';
-  twoFactorEnabled: boolean;
-  twoFactorMethod: 'totp' | 'sms' | 'email' | 'none';
-  lastLogin: string | null;
-  passwordChangedAt: string;
-  mustChangePassword: boolean;
+  twoFactorEnabled?: boolean;
+  twoFactorMethod?: 'totp' | 'sms' | 'email' | 'none';
+  lastLogin?: string | null;
   createdAt: string;
-  updatedAt: string;
+  updatedAt?: string;
 }
 
 export interface PasswordPolicy {
@@ -611,11 +611,11 @@ const DEFAULT_PASSWORD_POLICY: PasswordPolicy = {
 };
 
 export const initialSystemUsers: SystemUser[] = [
-  { id: 'usr_1', email: 'admin@iamed.med.br', name: 'Dr. Adriano Lima', ci: '1234567-8', role: 'SuperAdmin', profession: 'Médico', professionalRegistry: 'CRM-SP 234567', councilType: 'CRM', location: 'Matriz - Encarnación', specialties: ['Ortopedia', 'Traumatologia'], phone: '+55 11 99765-4321', status: 'ativo', twoFactorEnabled: true, twoFactorMethod: 'totp', lastLogin: '2026-07-02 08:30:00', passwordChangedAt: '2026-06-01', mustChangePassword: false, createdAt: '2024-01-15', updatedAt: '2026-07-01' },
-  { id: 'usr_2', email: 'amanda.silva@iamed.med.br', name: 'Dra. Amanda Silva', ci: '2345678-9', role: 'Diretor Clínico', profession: 'Médico', professionalRegistry: 'CRM-SP 112345', councilType: 'CRM', location: 'Filial - Centro', specialties: ['Cardiologia', 'Clínica Geral'], phone: '+55 11 99876-5432', status: 'ativo', twoFactorEnabled: true, twoFactorMethod: 'totp', lastLogin: '2026-07-02 09:15:00', passwordChangedAt: '2026-06-15', mustChangePassword: false, createdAt: '2024-01-15', updatedAt: '2026-06-30' },
-  { id: 'usr_3', email: 'marcela.ramos@iamed.med.br', name: 'Enf. Marcela Ramos', ci: '3456789-0', role: 'Recepcionista', profession: 'Enfermeiro', professionalRegistry: 'COREN-SP 456789', councilType: 'COREN', location: 'Matriz - Encarnación', specialties: ['Enfermagem Clínica'], phone: '+55 11 97543-2109', status: 'ativo', twoFactorEnabled: false, twoFactorMethod: 'none', lastLogin: '2026-07-02 07:45:00', passwordChangedAt: '2026-05-20', mustChangePassword: false, createdAt: '2024-03-01', updatedAt: '2026-06-28' },
-  { id: 'usr_4', email: 'bruno.castro@iamed.med.br', name: 'Dr. Bruno Castro', ci: '4567890-1', role: 'Médico', profession: 'Médico', professionalRegistry: 'CRM-SP 345678', councilType: 'CRM', location: 'Filial - Centro', specialties: ['Medicina do Trabalho'], phone: '+55 11 98654-3210', status: 'ativo', twoFactorEnabled: true, twoFactorMethod: 'sms', lastLogin: '2026-07-01 14:00:00', passwordChangedAt: '2026-04-10', mustChangePassword: false, createdAt: '2024-01-15', updatedAt: '2026-06-25' },
-  { id: 'usr_5', email: 'financeiro@iamed.med.br', name: 'Carlos Mendes', ci: '5678901-2', role: 'Financeiro', profession: 'Contador', professionalRegistry: 'CRC-SP 78901', councilType: 'CRC', location: 'Matriz - Encarnación', specialties: ['Contabilidade', 'Faturamento'], phone: '+55 11 91234-5678', status: 'ativo', twoFactorEnabled: true, twoFactorMethod: 'email', lastLogin: '2026-07-02 08:00:00', passwordChangedAt: '2026-06-20', mustChangePassword: false, createdAt: '2024-06-01', updatedAt: '2026-06-30' },
+  { id: 'usr_1', authUserId: 'auth_usr_1', professionalId: 'prof_1', name: 'Dr. Adriano Lima', email: 'admin@iamed.med.br', ci: '1234567-8', systemRole: 'SuperAdmin', permissions: ['admin:*', 'clinical:*', 'billing:*', 'pharmacy:*', 'hr:*', 'reports:*', 'settings:*'], location: 'Sede Central', status: 'ativo', twoFactorEnabled: true, twoFactorMethod: 'totp', lastLogin: '2026-07-02 08:30:00', createdAt: '2024-01-15', updatedAt: '2026-07-01' },
+  { id: 'usr_2', authUserId: 'auth_usr_2', professionalId: 'prof_2', name: 'Dra. Amanda Silva', email: 'amanda.silva@iamed.med.br', ci: '2345678-9', systemRole: 'Diretor Clínico', permissions: ['clinical:*', 'billing:*', 'reports:*'], location: 'Filial Ciudad del Este', status: 'ativo', twoFactorEnabled: true, twoFactorMethod: 'totp', lastLogin: '2026-07-02 09:15:00', createdAt: '2024-01-15', updatedAt: '2026-06-30' },
+  { id: 'usr_3', authUserId: 'auth_usr_3', professionalId: 'prof_5', name: 'Enf. Marcela Ramos', email: 'marcela.ramos@iamed.med.br', ci: '3456789-0', systemRole: 'Recepcionista', permissions: ['reception:*', 'clinical:read'], location: 'Sede Central', status: 'ativo', twoFactorEnabled: false, twoFactorMethod: 'none', lastLogin: '2026-07-02 07:45:00', createdAt: '2024-03-01', updatedAt: '2026-06-28' },
+  { id: 'usr_4', authUserId: 'auth_usr_4', professionalId: 'prof_6', name: 'Dr. Bruno Castro', email: 'bruno.castro@iamed.med.br', ci: '4567890-1', systemRole: 'Médico', permissions: ['clinical:*', 'occupational_health:*'], location: 'Filial Ciudad del Este', status: 'ativo', twoFactorEnabled: true, twoFactorMethod: 'sms', lastLogin: '2026-07-01 14:00:00', createdAt: '2024-01-15', updatedAt: '2026-06-25' },
+  { id: 'usr_5', authUserId: 'auth_usr_5', name: 'Carlos Mendes', email: 'financeiro@iamed.med.br', ci: '5678901-2', systemRole: 'Financeiro', permissions: ['billing:*', 'accounting:*', 'reports:read'], location: 'Sede Central', status: 'ativo', twoFactorEnabled: true, twoFactorMethod: 'email', lastLogin: '2026-07-02 08:00:00', createdAt: '2024-06-01', updatedAt: '2026-06-30' },
 ];
 
 export const initialPasswordPolicy: PasswordPolicy = { ...DEFAULT_PASSWORD_POLICY };
@@ -3518,6 +3518,54 @@ export interface TelemedicineRequest {
   createdAt: string;
 }
 
+export interface PortalOtpToken {
+  id: string;
+  patientId: string;
+  phone?: string;
+  email?: string;
+  code: string;
+  method: 'sms' | 'email';
+  expiresAt: string;
+  used: boolean;
+  attempts: number;
+  createdAt: string;
+}
+
+export interface PortalSession {
+  id: string;
+  patientUserId: string;
+  ipAddress: string;
+  deviceInfo: string;
+  loginAt: string;
+  lastActivityAt: string;
+  expiresAt: string;
+  active: boolean;
+}
+
+export interface PortalDteDownload {
+  id: string;
+  patientId: string;
+  dteType: string;
+  dteNumber: string;
+  dteSerie: string;
+  amount: number;
+  description: string;
+  pdfUrl?: string;
+  xmlUrl?: string;
+  downloadedAt?: string;
+  createdAt: string;
+}
+
+export interface PortalConsentLog {
+  id: string;
+  patientId: string;
+  consentType: string;
+  granted: boolean;
+  version: string;
+  ipAddress?: string;
+  createdAt: string;
+}
+
 // ==========================================
 // PORTAL DO PACIENTE - Mock Data
 // ==========================================
@@ -3540,6 +3588,25 @@ export const initialTelemedicineRequests: TelemedicineRequest[] = [
   { id: 'tel_2', patientId: 'pat_2', patientName: 'Mariana Rosa Santos', doctorName: 'Dra. Amanda Silva', specialty: 'Ginecologia', scheduledDate: '2026-06-28', scheduledTime: '09:30', status: 'solicitado', notes: 'Acompanhamento pré-natal', createdAt: '2026-06-21T09:00:00' },
 ];
 
+export const initialPortalOtpTokens: PortalOtpToken[] = [
+  { id: 'otp_1', patientId: 'pat_1', phone: '+595 981 234 567', code: '482916', method: 'sms', expiresAt: '2026-07-02T10:15:00', used: true, attempts: 1, createdAt: '2026-07-02T10:00:00' },
+  { id: 'otp_2', patientId: 'pat_2', email: 'mariana@email.com', code: '735201', method: 'email', expiresAt: '2026-07-02T11:15:00', used: false, attempts: 0, createdAt: '2026-07-02T11:00:00' },
+];
+
+export const initialPortalSessions: PortalSession[] = [
+  { id: 'psess_1', patientUserId: 'ptu_1', ipAddress: '192.168.1.100', deviceInfo: 'Chrome 128 / Android 14', loginAt: '2026-07-02 08:30:00', lastActivityAt: '2026-07-02 10:00:00', expiresAt: '2026-07-02 20:30:00', active: true },
+];
+
+export const initialPortalDteDownloads: PortalDteDownload[] = [
+  { id: 'dtedl_1', patientId: 'pat_1', dteType: 'Factura Electrónica', dteNumber: '001-002-0000302', dteSerie: '001', amount: 350000, description: 'Consulta médica - Ortopedia', pdfUrl: '#', downloadedAt: '2026-06-21T12:00:00', createdAt: '2026-06-21T11:00:00' },
+  { id: 'dtedl_2', patientId: 'pat_1', dteType: 'Factura Electrónica', dteNumber: '001-002-0000303', dteSerie: '001', amount: 280000, description: 'Exame laboratorial', pdfUrl: '#', createdAt: '2026-06-20T15:00:00' },
+];
+
+export const initialPortalConsentLogs: PortalConsentLog[] = [
+  { id: 'cons_1', patientId: 'pat_1', consentType: 'dados_pessoais', granted: true, version: '2.0', ipAddress: '192.168.1.100', createdAt: '2026-07-01T10:00:00' },
+  { id: 'cons_2', patientId: 'pat_1', consentType: 'comunicacao_marketing', granted: false, version: '2.0', ipAddress: '192.168.1.100', createdAt: '2026-07-01T10:00:00' },
+];
+
 // ==========================================
 // LOCAIS (SEDES) E SALAS/CONSULTÓRIOS
 // ==========================================
@@ -3550,8 +3617,6 @@ export interface Location {
   address: string;
   phone: string;
   city: string;
-  country: string;
-  timezone: string;
   status: string;
 }
 
@@ -3566,11 +3631,11 @@ export interface ClinicalRoom {
 }
 
 export const initialLocations: Location[] = [
-  { id: 'loc_1', name: 'Sede Central',          address: 'Av. Brasil, 1234',           phone: '+595 21 555-1234', city: 'Encarnación',         country: 'Paraguay', timezone: 'America/Asuncion', status: 'ativo' },
-  { id: 'loc_2', name: 'Filial Ciudad del Este', address: 'Av. Kennedy, 567',           phone: '+595 61 555-5678', city: 'Ciudad del Este',     country: 'Paraguay', timezone: 'America/Asuncion', status: 'ativo' },
-  { id: 'loc_3', name: 'Filial Asunción',       address: 'Av. Mariscal López, 890',    phone: '+595 21 555-9012', city: 'Asunción',            country: 'Paraguay', timezone: 'America/Asuncion', status: 'ativo' },
-  { id: 'loc_4', name: 'Filial Encarnación',    address: 'Calle Pte. Franco, 456',      phone: '+595 67 555-3456', city: 'Encarnación',         country: 'Paraguay', timezone: 'America/Asuncion', status: 'ativo' },
-  { id: 'loc_5', name: 'Filial Pedro Juan',     address: 'Av. Mcal. Estigarribia, 321', phone: '+595 491 555-7890', city: 'Pedro Juan Caballero', country: 'Paraguay', timezone: 'America/Asuncion', status: 'ativo' },
+  { id: 'loc_1', name: 'Sede Central',          address: 'Av. Brasil, 1234',           phone: '+595 21 555-1234', city: 'Encarnación',         status: 'ativo' },
+  { id: 'loc_2', name: 'Filial Ciudad del Este', address: 'Av. Kennedy, 567',           phone: '+595 61 555-5678', city: 'Ciudad del Este',     status: 'ativo' },
+  { id: 'loc_3', name: 'Filial Asunción',       address: 'Av. Mariscal López, 890',    phone: '+595 21 555-9012', city: 'Asunción',            status: 'ativo' },
+  { id: 'loc_4', name: 'Filial Encarnación',    address: 'Calle Pte. Franco, 456',      phone: '+595 67 555-3456', city: 'Encarnación',         status: 'ativo' },
+  { id: 'loc_5', name: 'Filial Pedro Juan',     address: 'Av. Mcal. Estigarribia, 321', phone: '+595 491 555-7890', city: 'Pedro Juan Caballero', status: 'ativo' },
 ];
 
 export const initialClinicalRooms: ClinicalRoom[] = [

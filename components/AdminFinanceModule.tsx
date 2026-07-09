@@ -16,7 +16,7 @@ import {
   ChevronDown, ChevronRight, RefreshCw, Send, Ban, Eye,
   Building2, Hash, Globe, CheckCircle2, XCircle, Clock,
   AlertCircle, Banknote, Zap, Shield, FileCheck, Printer,
-  Stethoscope, UserPlus, UserCheck, UserX, Mail, Phone, Briefcase, Calendar, Edit2, Users,
+  Stethoscope, UserPlus, UserCheck, UserX, Mail, Phone, Briefcase, Calendar, Edit2, Users, Trash2,
   Lock, KeyRound, Fingerprint, DoorOpen, LogOut, Gauge,
   Smartphone as SmartphoneIcon, ScanLine, Copy, CheckCheck,
   IdCard, MapPin, Star, ToggleLeft, ToggleRight,
@@ -77,6 +77,8 @@ interface AdminFinanceModuleProps {
   setLocations?: React.Dispatch<React.SetStateAction<Location[]>>;
   clinicalRooms?: ClinicalRoom[];
   setClinicalRooms?: React.Dispatch<React.SetStateAction<ClinicalRoom[]>>;
+  passwordPolicy?: PasswordPolicy;
+  onPasswordPolicyChange?: (policy: PasswordPolicy) => void;
 }
 
 const GS = (v: number) => `Gs. ${v.toLocaleString('es-PY')}`;
@@ -482,6 +484,8 @@ export default function AdminFinanceModule({
   setLocations: setLocationsProp,
   clinicalRooms: clinicalRoomsProp,
   setClinicalRooms: setClinicalRoomsProp,
+  passwordPolicy: passwordPolicyProp,
+  onPasswordPolicyChange,
 }: AdminFinanceModuleProps) {
   const { t } = useI18n();
 
@@ -582,8 +586,6 @@ export default function AdminFinanceModule({
   const [locAddress, setLocAddress] = useState('');
   const [locPhone, setLocPhone] = useState('');
   const [locCity, setLocCity] = useState('');
-  const [locCountry, setLocCountry] = useState('Paraguay');
-  const [locTimezone, setLocTimezone] = useState('America/Asuncion');
   const [locStatus, setLocStatus] = useState<'ativo' | 'inativo'>('ativo');
   const [roomFormOpen, setRoomFormOpen] = useState(false);
   const [editingRoomId, setEditingRoomId] = useState<string | null>(null);
@@ -605,8 +607,6 @@ export default function AdminFinanceModule({
     setLocAddress('');
     setLocPhone('');
     setLocCity('');
-    setLocCountry('Paraguay');
-    setLocTimezone('America/Asuncion');
     setLocStatus('ativo');
     setLocFormOpen(false);
   };
@@ -624,12 +624,15 @@ export default function AdminFinanceModule({
 
   const handleSaveLocation = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!locName.trim()) return;
+    if (!locName.trim() || !locAddress.trim() || !locCity.trim() || !locPhone.trim()) {
+      alert('Preencha todos os campos obrigatórios: Nome, Endereço, Cidade e Telefone.');
+      return;
+    }
     if (editingLocId) {
-      setLocations(prev => prev.map(l => l.id === editingLocId ? { ...l, name: locName, address: locAddress, phone: locPhone, city: locCity, country: locCountry, timezone: locTimezone, status: locStatus } : l));
+      setLocations(prev => prev.map(l => l.id === editingLocId ? { ...l, name: locName, address: locAddress, phone: locPhone, city: locCity, status: locStatus } : l));
       addAuditLog('Editou Local', locName);
     } else {
-      const newLoc: Location = { id: `loc_${Date.now()}`, name: locName, address: locAddress, phone: locPhone, city: locCity, country: locCountry, timezone: locTimezone, status: locStatus };
+      const newLoc: Location = { id: `loc_${Date.now()}`, name: locName, address: locAddress, phone: locPhone, city: locCity, status: locStatus };
       setLocations(prev => [...prev, newLoc]);
       addAuditLog('Cadastrou Local', locName);
     }
@@ -682,7 +685,10 @@ export default function AdminFinanceModule({
 
   const handleSaveProfessional = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!profName.trim() || !profSpecialty.trim()) return;
+    if (!profName.trim() || !profSpecialty.trim() || !profCouncilNumber.trim()) {
+      alert('Preencha todos os campos obrigatórios: Nome, Especialidade e Número do Registro.');
+      return;
+    }
     if (!setProfessionals) return;
     if (editingProfId) {
       setProfessionals(prev => prev.map(p => p.id === editingProfId ? {
@@ -980,7 +986,7 @@ export default function AdminFinanceModule({
   const [currentSelectedUser, setCurrentSelectedUser] = useState('Marcela Ramos - Recepcionista');
   const [rbacSelectedProfId, setRbacSelectedProfId] = useState<string>('');
   const [systemUsers, setSystemUsers] = useState<SystemUser[]>(initialSystemUsers);
-  const [passwordPolicy, setPasswordPolicy] = useState<PasswordPolicy>(initialPasswordPolicy);
+  const [passwordPolicy, setPasswordPolicy] = useState<PasswordPolicy>(passwordPolicyProp || initialPasswordPolicy);
   const [userSessions, setUserSessions] = useState<UserSession[]>(initialUserSessions);
   const [loginAttempts, setLoginAttempts] = useState<LoginAttempt[]>(initialLoginAttempts);
   const [ssoProviders, setSSOProviders] = useState<SSOProvider[]>(initialSSOProviders);
@@ -993,16 +999,10 @@ export default function AdminFinanceModule({
   const [userName, setUserName] = useState('');
   const [userCi, setUserCi] = useState('');
   const [userRole, setUserRole] = useState<SystemRole>('Visualizador');
-  const [userProfession, setUserProfession] = useState('');
-  const [userRegistry, setUserRegistry] = useState('');
-  const [userCouncilType, setUserCouncilType] = useState('');
   const [userLocation, setUserLocation] = useState('');
-  const [userSpecialties, setUserSpecialties] = useState<string[]>([]);
-  const [userPhone, setUserPhone] = useState('');
   const [userStatus, setUserStatus] = useState<'ativo' | 'inativo' | 'bloqueado'>('ativo');
   const [user2FA, setUser2FA] = useState(false);
   const [user2FAMethod, setUser2FAMethod] = useState<'totp' | 'sms' | 'email' | 'none'>('none');
-  const [specialtyInput, setSpecialtyInput] = useState('');
 
   // 2FA simulation state
   const [twoFactorCode, setTwoFactorCode] = useState('');
@@ -2633,7 +2633,7 @@ export default function AdminFinanceModule({
                     <UserPlus className="w-5 h-5 text-teal-600" />
                     <h3 className="font-semibold text-slate-800 text-base">{editingUserId ? 'Editar Usuário' : 'Novo Usuário'}</h3>
                   </div>
-                  <form onSubmit={(e) => { e.preventDefault(); if (!userName.trim() || !userEmail.trim()) return; const exists = systemUsers.find(u => u.id === editingUserId); if (exists) { setSystemUsers(prev => prev.map(u => u.id === editingUserId ? { ...u, email: userEmail, name: userName, ci: userCi, role: userRole, profession: userProfession, professionalRegistry: userRegistry, councilType: userCouncilType, location: userLocation, specialties: userSpecialties, phone: userPhone, status: userStatus, twoFactorEnabled: user2FA, twoFactorMethod: user2FAMethod } : u)); addAuditLog('Editou Usuário', userName); } else { const newId = `usr_${Date.now()}`; setSystemUsers(prev => [...prev, { id: newId, email: userEmail, name: userName, ci: userCi, role: userRole, profession: userProfession, professionalRegistry: userRegistry, councilType: userCouncilType, location: userLocation, specialties: userSpecialties, phone: userPhone, status: 'ativo', twoFactorEnabled: false, twoFactorMethod: 'none', lastLogin: null, passwordChangedAt: new Date().toISOString(), mustChangePassword: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }]); addAuditLog('Cadastrou Usuário', userName); } setEditingUserId(null); setUserFormOpen(false); setUserName(''); setUserEmail(''); setUserCi(''); setUserSpecialties([]); }} className="space-y-3 text-xs font-sans">
+                  <form onSubmit={(e) => { e.preventDefault(); if (!userName.trim()) return; const exists = systemUsers.find(u => u.id === editingUserId); if (exists) { setSystemUsers(prev => prev.map(u => u.id === editingUserId ? { ...u, name: userName, email: userEmail, ci: userCi, systemRole: userRole, location: userLocation, status: userStatus, twoFactorEnabled: user2FA, twoFactorMethod: user2FAMethod, updatedAt: new Date().toISOString() } : u)); addAuditLog('Editou Usuário', userName); } else { const newId = `usr_${Date.now()}`; setSystemUsers(prev => [...prev, { id: newId, name: userName, email: userEmail, ci: userCi, systemRole: userRole, permissions: [], location: userLocation, status: 'ativo', twoFactorEnabled: false, twoFactorMethod: 'none', lastLogin: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }]); addAuditLog('Cadastrou Usuário', userName); } setEditingUserId(null); setUserFormOpen(false); setUserName(''); setUserEmail(''); setUserCi(''); }} className="space-y-3 text-xs font-sans">
                     <div className="grid grid-cols-2 gap-2">
                       <div className="col-span-2">
                         <label className="block text-xs font-semibold text-slate-600 mb-1">Nome Completo *</label>
@@ -2665,43 +2665,11 @@ export default function AdminFinanceModule({
                         <option value="Visualizador">Visualizador</option>
                       </select>
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">Profissão</label>
-                        <input type="text" value={userProfession} onChange={e => setUserProfession(e.target.value)} placeholder="Médico" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">Conselho</label>
-                        <input type="text" value={userCouncilType} onChange={e => setUserCouncilType(e.target.value)} placeholder="CRM" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">Registro Profissional</label>
-                      <input type="text" value={userRegistry} onChange={e => setUserRegistry(e.target.value)} placeholder="CRM-SP 12345" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
-                    </div>
                     <div>
                       <label className="block text-xs font-semibold text-slate-600 mb-1">Sede / Localização</label>
-                      <input type="text" value={userLocation} onChange={e => setUserLocation(e.target.value)} placeholder="Matriz - Encarnación" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">Especialidades</label>
-                      <div className="flex gap-1 mb-1 flex-wrap">
-                        {userSpecialties.map((s, i) => (
-                          <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 bg-teal-50 text-teal-700 rounded-full text-[10px] font-bold border border-teal-200">
-                            {s} <button type="button" onClick={() => setUserSpecialties(prev => prev.filter((_, j) => j !== i))} className="text-teal-500 hover:text-teal-700">&times;</button>
-                          </span>
-                        ))}
-                      </div>
-                      <div className="flex gap-1">
-                        <input type="text" value={specialtyInput} onChange={e => setSpecialtyInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (specialtyInput.trim() && !userSpecialties.includes(specialtyInput.trim())) { setUserSpecialties(prev => [...prev, specialtyInput.trim()]); setSpecialtyInput(''); } } }} placeholder="Digite e pressione Enter" className="flex-1 p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
-                        <button type="button" onClick={() => { if (specialtyInput.trim() && !userSpecialties.includes(specialtyInput.trim())) { setUserSpecialties(prev => [...prev, specialtyInput.trim()]); setSpecialtyInput(''); } }} className="px-3 py-2 bg-teal-100 text-teal-700 rounded-lg text-xs font-bold cursor-pointer hover:bg-teal-200">+</button>
-                      </div>
+                      <input type="text" value={userLocation} onChange={e => setUserLocation(e.target.value)} placeholder="Sede Central" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
                     </div>
                     <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">Telefone</label>
-                        <input type="text" value={userPhone} onChange={e => setUserPhone(e.target.value)} placeholder="+55 11 99999-9999" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
-                      </div>
                       <div>
                         <label className="block text-xs font-semibold text-slate-600 mb-1">Status</label>
                         <select value={userStatus} onChange={e => setUserStatus(e.target.value as any)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs">
@@ -2727,7 +2695,7 @@ export default function AdminFinanceModule({
                         {editingUserId ? 'Atualizar Usuário' : 'Criar Usuário'}
                       </button>
                       {editingUserId && (
-                        <button type="button" onClick={() => { setEditingUserId(null); setUserName(''); setUserEmail(''); setUserCi(''); setUserRole('Visualizador'); setUserProfession(''); setUserRegistry(''); setUserCouncilType(''); setUserLocation(''); setUserSpecialties([]); setUserPhone(''); setUserStatus('ativo'); setUser2FA(false); setUser2FAMethod('none'); }} className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs cursor-pointer transition">
+                        <button type="button" onClick={() => { setEditingUserId(null); setUserName(''); setUserEmail(''); setUserCi(''); setUserRole('Visualizador'); setUserLocation(''); setUserStatus('ativo'); setUser2FA(false); setUser2FAMethod('none'); }} className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs cursor-pointer transition">
                           Cancelar
                         </button>
                       )}
@@ -2747,22 +2715,23 @@ export default function AdminFinanceModule({
                     {systemUsers.map(u => (
                       <div key={u.id} className={`p-3 bg-slate-50 hover:bg-slate-100/70 border border-slate-200/80 rounded-xl flex items-center justify-between gap-3 text-xs transition ${u.status === 'inativo' ? 'opacity-60' : ''} ${u.status === 'bloqueado' ? 'opacity-50 border-rose-200 bg-rose-50/30' : ''}`}>
                         <div className="flex items-start gap-3 flex-1 min-w-0">
-                          <div className={`w-9 h-9 rounded-full shrink-0 flex items-center justify-center text-white font-bold text-sm ${u.role === 'SuperAdmin' ? 'bg-rose-600' : u.role === 'Administrador' || u.role === 'Gestor' ? 'bg-teal-600' : u.role === 'Médico' || u.role === 'Diretor Clínico' ? 'bg-indigo-500' : 'bg-slate-500'}`}>
+                          <div className={`w-9 h-9 rounded-full shrink-0 flex items-center justify-center text-white font-bold text-sm ${u.systemRole === 'SuperAdmin' ? 'bg-rose-600' : u.systemRole === 'Administrador' || u.systemRole === 'Gestor' ? 'bg-teal-600' : u.systemRole === 'Médico' || u.systemRole === 'Diretor Clínico' ? 'bg-indigo-500' : 'bg-slate-500'}`}>
                             {u.name.split(' ').map(n => n[0]).filter((_, i) => i < 2).join('').toUpperCase()}
                           </div>
                           <div className="space-y-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
                               <p className="font-black text-slate-800 text-sm truncate">{u.name}</p>
-                              <span className={`text-[9px] py-0.5 px-2 rounded-full border font-bold whitespace-nowrap ${u.role === 'SuperAdmin' ? 'bg-rose-50 text-rose-700 border-rose-200' : u.role === 'Administrador' || u.role === 'Gestor' ? 'bg-teal-50 text-teal-700 border-teal-200' : u.role === 'Médico' || u.role === 'Diretor Clínico' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>{u.role}</span>
+                              <span className={`text-[9px] py-0.5 px-2 rounded-full border font-bold whitespace-nowrap ${u.systemRole === 'SuperAdmin' ? 'bg-rose-50 text-rose-700 border-rose-200' : u.systemRole === 'Administrador' || u.systemRole === 'Gestor' ? 'bg-teal-50 text-teal-700 border-teal-200' : u.systemRole === 'Médico' || u.systemRole === 'Diretor Clínico' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>{u.systemRole}</span>
                             </div>
                             <div className="flex items-center gap-3 text-slate-500 font-medium flex-wrap text-[10px]">
                               <span className="flex items-center gap-1"><Mail className="w-3 h-3" /> {u.email}</span>
                               {u.ci && <span className="flex items-center gap-1"><IdCard className="w-3 h-3" /> {u.ci}</span>}
                               {u.location && <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {u.location}</span>}
                             </div>
-                            {u.specialties.length > 0 && (
+                            {u.permissions && u.permissions.length > 0 && (
                               <div className="flex gap-1 flex-wrap">
-                                {u.specialties.map((s, i) => <span key={i} className="text-[9px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-medium">{s}</span>)}
+                                {u.permissions.slice(0, 5).map((s, i) => <span key={i} className="text-[9px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-medium">{s}</span>)}
+                                {u.permissions.length > 5 && <span className="text-[9px] text-slate-400">+{u.permissions.length - 5}</span>}
                               </div>
                             )}
                           </div>
@@ -2770,7 +2739,7 @@ export default function AdminFinanceModule({
                         <div className="flex items-center gap-1.5 shrink-0">
                           {u.twoFactorEnabled && <Fingerprint className="w-3 h-3 text-teal-500" />}
                           <span className={`px-1.5 py-0.5 text-[9px] font-bold rounded border ${u.status === 'ativo' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : u.status === 'bloqueado' ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>{u.status}</span>
-                          <button onClick={() => { setEditingUserId(u.id); setUserName(u.name); setUserEmail(u.email); setUserCi(u.ci); setUserRole(u.role); setUserProfession(u.profession); setUserRegistry(u.professionalRegistry); setUserCouncilType(u.councilType); setUserLocation(u.location); setUserSpecialties(u.specialties); setUserPhone(u.phone); setUserStatus(u.status); setUser2FA(u.twoFactorEnabled); setUser2FAMethod(u.twoFactorMethod); }} className="p-1.5 rounded-lg hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition cursor-pointer" title="Editar"><Edit2 className="w-3 h-3" /></button>
+                          <button onClick={() => { setEditingUserId(u.id); setUserName(u.name); setUserEmail(u.email || ''); setUserCi(u.ci || ''); setUserRole(u.systemRole); setUserLocation(u.location || ''); setUserStatus(u.status); setUser2FA(u.twoFactorEnabled || false); setUser2FAMethod(u.twoFactorMethod || 'none'); }} className="p-1.5 rounded-lg hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition cursor-pointer" title="Editar"><Edit2 className="w-3 h-3" /></button>
                           <button onClick={() => { if (confirm(`Desativar usuário ${u.name}?`)) { setSystemUsers(prev => prev.map(x => x.id === u.id ? { ...x, status: x.status === 'ativo' ? 'inativo' : 'ativo' } : x)); addAuditLog('Alterou Status Usuário', `${u.name} → ${u.status === 'ativo' ? 'inativo' : 'ativo'}`); } }} className="p-1.5 rounded-lg hover:bg-rose-50 text-slate-500 hover:text-rose-600 transition cursor-pointer" title="Ativar/Desativar">{u.status === 'ativo' ? <UserX className="w-3 h-3" /> : <UserCheck className="w-3 h-3" />}</button>
                         </div>
                       </div>
@@ -2855,7 +2824,7 @@ export default function AdminFinanceModule({
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-600 mb-1.5">Timeout de Sessão por Inatividade: {passwordPolicy.sessionTimeoutMinutes} minutos</label>
-                    <input type="range" min={5} max={480} value={passwordPolicy.sessionTimeoutMinutes} onChange={e => setPasswordPolicy(prev => ({ ...prev, sessionTimeoutMinutes: Number(e.target.value) }))} className="w-full accent-teal-600" />
+                    <input type="range" min={5} max={480} value={passwordPolicy.sessionTimeoutMinutes} onChange={e => { const updated = { ...passwordPolicy, sessionTimeoutMinutes: Number(e.target.value) }; setPasswordPolicy(updated); onPasswordPolicyChange?.(updated); }} className="w-full accent-teal-600" />
                     <div className="flex justify-between text-[9px] text-slate-400"><span>5 min</span><span>8 h</span></div>
                   </div>
 
@@ -2985,7 +2954,7 @@ export default function AdminFinanceModule({
                         </div>
                         <div className="min-w-0">
                           <p className="font-bold text-slate-700 text-[10px] truncate">{u.name}</p>
-                          <p className="text-[9px] text-slate-400 truncate">{u.role}</p>
+                          <p className="text-[9px] text-slate-400 truncate">{u.systemRole}</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
@@ -3512,12 +3481,19 @@ export default function AdminFinanceModule({
                         onChange={e => {
                           const role = e.target.value as ProfessionalRole;
                           setProfRole(role);
-                          // Auto set council based on role
-                          if (role === 'Médico(a)') setProfCouncil('CRM');
-                          else if (role === 'Enfermeiro(a)' || role === 'Técnico(a) de Enfermagem') setProfCouncil('COREN');
-                          else if (role === 'Fisioterapeuta') setProfCouncil('CREFITO');
+                          if (role === 'Médico(a)' || role === 'Cirurgião(ã)' || role === 'Anestesiologista') setProfCouncil('CRM');
+                          else if (role === 'Enfermeiro(a)' || role === 'Técnico(a) de Enfermagem' || role === 'Auxiliar de Enfermagem') setProfCouncil('COREN');
+                          else if (role === 'Fisioterapeuta' || role === 'Terapeuta Ocupacional') setProfCouncil('CREFITO');
                           else if (role === 'Psicólogo(a)') setProfCouncil('CFP');
                           else if (role === 'Nutricionista') setProfCouncil('CFN');
+                          else if (role === 'Dentista') setProfCouncil('CRO');
+                          else if (role === 'Farmacêutico(a)' || role === 'Técnico(a) em Farmácia' || role === 'Técnico(a) de Laboratório') setProfCouncil('CRF');
+                          else if (role === 'Biomédico(a)') setProfCouncil('CRBM');
+                          else if (role === 'Educador Físico') setProfCouncil('CREF');
+                          else if (role === 'Assistente Social') setProfCouncil('CRESS');
+                          else if (role === 'Administrador(a)') setProfCouncil('CRA');
+                          else if (role === 'Fonoaudiólogo(a)') setProfCouncil('CREFONO');
+                          else if (role === 'Técnico(a) em Radiologia') setProfCouncil('CRTR');
                           else setProfCouncil('N/A');
                         }}
                         className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg font-medium"
@@ -3528,6 +3504,19 @@ export default function AdminFinanceModule({
                         <option value="Psicólogo(a)">Psicólogo(a)</option>
                         <option value="Nutricionista">Nutricionista</option>
                         <option value="Técnico(a) de Enfermagem">Técnico(a) de Enfermagem</option>
+                        <option value="Auxiliar de Enfermagem">Auxiliar de Enfermagem</option>
+                        <option value="Anestesiologista">Anestesiologista</option>
+                        <option value="Cirurgião(ã)">Cirurgião(ã)</option>
+                        <option value="Terapeuta Ocupacional">Terapeuta Ocupacional</option>
+                        <option value="Educador Físico">Educador Físico</option>
+                        <option value="Assistente Social">Assistente Social</option>
+                        <option value="Fonoaudiólogo(a)">Fonoaudiólogo(a)</option>
+                        <option value="Farmacêutico(a)">Farmacêutico(a)</option>
+                        <option value="Dentista">Dentista</option>
+                        <option value="Biomédico(a)">Biomédico(a)</option>
+                        <option value="Técnico(a) em Radiologia">Técnico(a) em Radiologia</option>
+                        <option value="Técnico(a) em Farmácia">Técnico(a) em Farmácia</option>
+                        <option value="Técnico(a) de Laboratório">Técnico(a) de Laboratório</option>
                         <option value="Administrador(a)">Administrador(a)</option>
                         <option value="Recepcionista">Recepcionista</option>
                       </select>
@@ -3548,11 +3537,12 @@ export default function AdminFinanceModule({
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">{t('professional_council', 'app')}</label>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">{t('professional_council', 'app')} *</label>
                       <select
                         value={profCouncil}
                         onChange={e => setProfCouncil(e.target.value as ProfessionalCouncil)}
                         className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg font-medium"
+                        required
                       >
                         <option value="CRM">CRM</option>
                         <option value="COREN">COREN</option>
@@ -3560,18 +3550,26 @@ export default function AdminFinanceModule({
                         <option value="CFP">CFP</option>
                         <option value="CFN">CFN</option>
                         <option value="CRO">CRO</option>
+                        <option value="CRF">CRF</option>
+                        <option value="CRBM">CRBM</option>
+                        <option value="CREF">CREF</option>
+                        <option value="CRESS">CRESS</option>
+                        <option value="CRA">CRA</option>
+                        <option value="CREFONO">CREFONO</option>
+                        <option value="CRTR">CRTR</option>
                         <option value="N/A">N/A</option>
                       </select>
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">{t('professional_council_number', 'app')}</label>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">{t('professional_council_number', 'app')} *</label>
                       <input
                         type="text"
                         value={profCouncilNumber}
                         onChange={e => setProfCouncilNumber(e.target.value)}
                         placeholder="Ex: CRM-SP 12345"
                         className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
+                        required
                       />
                     </div>
                   </div>
@@ -3740,6 +3738,22 @@ export default function AdminFinanceModule({
                         >
                           {prof.status === 'ativo' ? <UserX className="w-3.5 h-3.5" /> : <UserCheck className="w-3.5 h-3.5" />}
                         </button>
+
+                        <button
+                          onClick={() => {
+                            if (confirm(`Tem certeza que deseja excluir o profissional "${prof.name}"? Esta ação não pode ser desfeita.`)) {
+                              setProfessionals?.(prev => prev.filter(p => p.id !== prof.id));
+                              if (supabase) {
+                                supabase.from('professionals').delete().eq('id', prof.id);
+                              }
+                              addAuditLog('Excluiu Profissional', prof.name);
+                            }
+                          }}
+                          className="p-2 rounded-lg hover:bg-rose-50 text-slate-500 hover:text-rose-600 transition cursor-pointer"
+                          title="Excluir"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -3766,35 +3780,17 @@ export default function AdminFinanceModule({
                     <input type="text" value={locName} onChange={e => setLocName(e.target.value)} placeholder="Ex: Sede Central" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" required />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">Endereço</label>
-                    <input type="text" value={locAddress} onChange={e => setLocAddress(e.target.value)} placeholder="Av. Principal 1234" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Endereço *</label>
+                    <input type="text" value={locAddress} onChange={e => setLocAddress(e.target.value)} placeholder="Av. Principal 1234" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" required />
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">Cidade</label>
-                      <input type="text" value={locCity} onChange={e => setLocCity(e.target.value)} placeholder="Asunción" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Cidade *</label>
+                      <input type="text" value={locCity} onChange={e => setLocCity(e.target.value)} placeholder="Asunción" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" required />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">Telefone</label>
-                      <input type="text" value={locPhone} onChange={e => setLocPhone(e.target.value)} placeholder="+595 21 123456" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">País</label>
-                      <select value={locCountry} onChange={e => setLocCountry(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs">
-                        <option value="Paraguay">Paraguay</option>
-                        <option value="Brasil">Brasil</option>
-                        <option value="Argentina">Argentina</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">Fuso Horário</label>
-                      <select value={locTimezone} onChange={e => setLocTimezone(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs">
-                        <option value="America/Asuncion">America/Asuncion</option>
-                        <option value="America/Sao_Paulo">America/Sao_Paulo</option>
-                        <option value="America/Argentina/Buenos_Aires">America/Argentina/Buenos_Aires</option>
-                      </select>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Telefone *</label>
+                      <input type="text" value={locPhone} onChange={e => setLocPhone(e.target.value)} placeholder="+595 21 123456" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" required />
                     </div>
                   </div>
                   <div>
@@ -3821,14 +3817,28 @@ export default function AdminFinanceModule({
                         <div className="w-10 h-10 rounded-lg bg-teal-100 flex items-center justify-center text-teal-700 font-bold text-sm"><Building2 className="w-5 h-5" /></div>
                         <div>
                           <p className="font-black text-slate-800 text-sm">{loc.name}</p>
-                          <p className="text-slate-500 font-medium">{loc.address}{loc.city ? `, ${loc.city}` : ''} — {loc.country}</p>
+                          <p className="text-slate-500 font-medium">{loc.address}{loc.city ? `, ${loc.city}` : ''}</p>
                           {loc.phone && <p className="text-slate-400 text-[10px]">{loc.phone}</p>}
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
                         <span className={`px-2 py-0.5 text-[10px] font-bold rounded border ${loc.status === 'ativo' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'}`}>{loc.status === 'ativo' ? 'Ativo' : 'Inativo'}</span>
-                        <button onClick={() => { setEditingLocId(loc.id); setLocName(loc.name); setLocAddress(loc.address); setLocPhone(loc.phone); setLocCity(loc.city); setLocCountry(loc.country); setLocTimezone(loc.timezone); setLocStatus(loc.status as 'ativo' | 'inativo'); setLocFormOpen(true); }} className="p-2 rounded-lg hover:bg-slate-200 text-slate-600 hover:text-slate-800 transition cursor-pointer" title="Editar"><Edit2 className="w-3.5 h-3.5" /></button>
-                        <button onClick={() => { setLocations(prev => prev.filter(l => l.id !== loc.id)); addAuditLog('Removeu Local', loc.name); }} className="p-2 rounded-lg hover:bg-rose-50 text-rose-500 transition cursor-pointer" title="Remover"><X className="w-3.5 h-3.5" /></button>
+                        <button onClick={() => { setEditingLocId(loc.id); setLocName(loc.name); setLocAddress(loc.address); setLocPhone(loc.phone); setLocCity(loc.city); setLocStatus(loc.status as 'ativo' | 'inativo'); setLocFormOpen(true); }} className="p-2 rounded-lg hover:bg-slate-200 text-slate-600 hover:text-slate-800 transition cursor-pointer" title="Editar"><Edit2 className="w-3.5 h-3.5" /></button>
+                        <button onClick={() => {
+                          const roomsCount = clinicalRooms.filter(r => r.location_id === loc.id).length;
+                          const msg = roomsCount > 0
+                            ? `Tem certeza que deseja excluir o local "${loc.name}"?\n\nATENÇÃO: Todas as ${roomsCount} sala(s) vinculadas a este local também serão excluídas. Esta ação não pode ser desfeita.`
+                            : `Tem certeza que deseja excluir o local "${loc.name}"? Esta ação não pode ser desfeita.`;
+                          if (confirm(msg)) {
+                            setClinicalRooms(prev => prev.filter(r => r.location_id !== loc.id));
+                            setLocations(prev => prev.filter(l => l.id !== loc.id));
+                            if (supabase) {
+                              supabase.from('clinical_rooms').delete().eq('location_id', loc.id);
+                              supabase.from('locations').delete().eq('id', loc.id);
+                            }
+                            addAuditLog('Removeu Local', loc.name);
+                          }
+                        }} className="p-2 rounded-lg hover:bg-rose-50 text-rose-500 transition cursor-pointer" title="Remover"><Trash2 className="w-3.5 h-3.5" /></button>
                       </div>
                     </div>
                   ))}
@@ -3914,7 +3924,15 @@ export default function AdminFinanceModule({
                         <div className="flex items-center gap-2">
                           <span className={`px-2 py-0.5 text-[10px] font-bold rounded border ${room.status === 'ativo' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : room.status === 'manutenção' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-rose-50 text-rose-700 border-rose-200'}`}>{room.status === 'ativo' ? 'Ativo' : room.status === 'manutenção' ? 'Manutenção' : 'Inativo'}</span>
                           <button onClick={() => { setEditingRoomId(room.id); setRoomName(room.name); setRoomType(room.type); setRoomLocationId(room.location_id); setRoomCapacity(room.capacity); setRoomEquipment(room.equipment); setRoomStatus(room.status as 'ativo' | 'inativo' | 'manutenção'); setRoomFormOpen(true); }} className="p-2 rounded-lg hover:bg-slate-200 text-slate-600 hover:text-slate-800 transition cursor-pointer" title="Editar"><Edit2 className="w-3.5 h-3.5" /></button>
-                          <button onClick={() => { setClinicalRooms(prev => prev.filter(r => r.id !== room.id)); addAuditLog('Removeu Sala', room.name); }} className="p-2 rounded-lg hover:bg-rose-50 text-rose-500 transition cursor-pointer" title="Remover"><X className="w-3.5 h-3.5" /></button>
+                          <button onClick={() => {
+                            if (confirm(`Tem certeza que deseja excluir a sala "${room.name}"? Esta ação não pode ser desfeita.`)) {
+                              setClinicalRooms(prev => prev.filter(r => r.id !== room.id));
+                              if (supabase) {
+                                supabase.from('clinical_rooms').delete().eq('id', room.id);
+                              }
+                              addAuditLog('Removeu Sala', room.name);
+                            }
+                          }} className="p-2 rounded-lg hover:bg-rose-50 text-rose-500 transition cursor-pointer" title="Remover"><X className="w-3.5 h-3.5" /></button>
                         </div>
                       </div>
                     );
