@@ -916,7 +916,7 @@ export default function ReceptionModule({
     <div className="space-y-6">
       <PermissionGate view="reception" userPermissions={userPermissions}>
         {activeSubmodule === 1 && (
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           
           {/* Admissão Form (Expanded & Organized) */}
           <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-md lg:col-span-1 flex flex-col justify-between">
@@ -1581,7 +1581,7 @@ export default function ReceptionModule({
           </div>
  
           {/* Fila de Triagem / Recepção Geral */}
-          <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-md lg:col-span-2 space-y-4">
+          <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-md lg:col-span-1 space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
               <div className="flex items-center gap-2">
                 <Contact className="w-5 h-5 text-teal-600 animate-pulse" />

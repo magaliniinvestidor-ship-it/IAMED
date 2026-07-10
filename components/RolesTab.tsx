@@ -13,8 +13,8 @@ interface ProfessionalRole {
 }
 
 interface RolesTabProps {
-  professionalRoles: {id: string; name: string; category?: string; active?: boolean}[];
-  setProfessionalRoles: React.Dispatch<React.SetStateAction<{id: string; name: string; category?: string; active?: boolean}[]>>;
+  professionalRoles: {id: string; name: string; description?: string; category?: string; active?: boolean}[];
+  setProfessionalRoles: React.Dispatch<React.SetStateAction<{id: string; name: string; description?: string; category?: string; active?: boolean}[]>>;
   supabase: SupabaseClient | null;
   addAuditLog: (action: string, target: string) => void;
 }
@@ -36,33 +36,33 @@ export default function RolesTab({ professionalRoles, setProfessionalRoles, supa
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!name.trim() || !description.trim()) return;
 
     if (editingId) {
       // Update
       if (supabase) {
         await supabase.from('professional_roles').update({
           name: name.trim(),
-          description: description.trim() || null,
+          description: description.trim(),
           category: category.trim() || null,
-          active,
+          active: true,
         }).eq('id', editingId);
       }
-      setProfessionalRoles(prev => prev.map(r => r.id === editingId ? { ...r, name: name.trim(), category: category.trim() || undefined } : r));
+      setProfessionalRoles(prev => prev.map(r => r.id === editingId ? { ...r, name: name.trim(), description: description.trim(), category: category.trim() || undefined, active: true } : r));
       addAuditLog('Editou Profissão', name);
     } else {
-      // Create
+      // Create — sempre ativa por padrão
       const newId = `role_${Date.now()}`;
       if (supabase) {
         await supabase.from('professional_roles').insert({
           id: newId,
           name: name.trim(),
-          description: description.trim() || null,
+          description: description.trim(),
           category: category.trim() || null,
-          active,
+          active: true,
         });
       }
-      setProfessionalRoles(prev => [...prev, { id: newId, name: name.trim(), category: category.trim() || undefined }]);
+      setProfessionalRoles(prev => [...prev, { id: newId, name: name.trim(), description: description.trim(), category: category.trim() || undefined, active: true }]);
       addAuditLog('Cadastrou Profissão', name);
     }
     resetForm();
@@ -130,24 +130,17 @@ export default function RolesTab({ professionalRoles, setProfessionalRoles, supa
             </datalist>
           </div>
           <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1">Descrição</label>
+            <label className="block text-xs font-semibold text-slate-600 mb-1">Descrição *</label>
             <input
               type="text"
               value={description}
               onChange={e => setDescription(e.target.value)}
-              placeholder="Descrição opcional"
+              placeholder="Ex: Responsável por realizar exames de imagem e diagnósticos..."
               className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
+              required
             />
           </div>
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={active}
-              onChange={e => setActive(e.target.checked)}
-              className="rounded border-slate-300 text-teal-600"
-            />
-            <label className="text-xs font-semibold text-slate-600">Ativa</label>
-          </div>
+
           <div className="flex gap-2 pt-2">
             <button type="submit" className="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-lg text-xs transition">
               {editingId ? 'Salvar' : 'Cadastrar'}
@@ -181,15 +174,23 @@ export default function RolesTab({ professionalRoles, setProfessionalRoles, supa
                 </div>
               </div>
               <div className="flex items-center gap-2">
+                {/* Toggle pill ativo/inativo */}
                 <button
                   onClick={() => handleToggleActive(role.id, role.active ?? true)}
-                  className={`p-1.5 rounded-lg transition cursor-pointer ${role.active ? 'hover:bg-emerald-50 text-emerald-600' : 'hover:bg-slate-200 text-slate-400'}`}
-                  title={role.active ? 'Desativar' : 'Ativar'}
+                  title={role.active ? 'Clique para desativar' : 'Clique para ativar'}
+                  className={`relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold tracking-wide transition-all duration-200 cursor-pointer select-none ${
+                    (role.active ?? true)
+                      ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 ring-1 ring-emerald-300'
+                      : 'bg-slate-100 text-slate-400 hover:bg-slate-200 ring-1 ring-slate-300'
+                  }`}
                 >
-                  {role.active ? <CheckCircle2 className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
+                  <span className={`w-2 h-2 rounded-full transition-colors duration-200 ${
+                    (role.active ?? true) ? 'bg-emerald-500' : 'bg-slate-400'
+                  }`} />
+                  {(role.active ?? true) ? 'Ativo' : 'Inativo'}
                 </button>
                 <button
-                  onClick={() => handleEdit({ ...role, description: '', active: role.active ?? true })}
+                  onClick={() => handleEdit({ id: role.id, name: role.name, description: role.description || '', category: role.category || '', active: role.active ?? true })}
                   className="p-2 rounded-lg hover:bg-slate-200 text-slate-600 hover:text-slate-800 transition cursor-pointer"
                   title="Editar"
                 >

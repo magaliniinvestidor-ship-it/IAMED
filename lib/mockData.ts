@@ -3630,8 +3630,8 @@ export const initialLocations: Location[] = [
 export const initialClinicalRooms: ClinicalRoom[] = [
   { id: 'room_1', name: 'Consultório 101',     type: 'consultório',          location_id: 'loc_1', status: 'ativo', capacity: 1, equipment: ['Otoscópio', 'Oftalmoscópio', 'Balança'] },
   { id: 'room_2', name: 'Consultório 102',     type: 'consultório',          location_id: 'loc_1', status: 'ativo', capacity: 1, equipment: ['Otoscópio', 'Ecógrafo'] },
-  { id: 'room_3', name: 'Sala de Exames 1',    type: 'sala de exames',       location_id: 'loc_1', status: 'ativo', capacity: 1, equipment: ['Ecógrafo', 'Raio-X'] },
-  { id: 'room_4', name: 'Sala Procedimentos A', type: 'sala de procedimentos', location_id: 'loc_1', status: 'ativo', capacity: 2, equipment: ['Mesa cirúrgica', 'Autoclave'] },
+  { id: 'room_3', name: 'Sala de Exames 1',    type: 'sala de exame',       location_id: 'loc_1', status: 'ativo', capacity: 1, equipment: ['Ecógrafo', 'Raio-X'] },
+  { id: 'room_4', name: 'Sala Procedimentos A', type: 'sala de procedimento', location_id: 'loc_1', status: 'ativo', capacity: 2, equipment: ['Mesa cirúrgica', 'Autoclave'] },
   { id: 'room_5', name: 'Consultório 201',     type: 'consultório',          location_id: 'loc_2', status: 'ativo', capacity: 1, equipment: ['Otoscópio', 'Balança'] },
   { id: 'room_6', name: 'Consultório 202',     type: 'consultório',          location_id: 'loc_2', status: 'ativo', capacity: 1, equipment: ['Ecógrafo'] },
   { id: 'room_7', name: 'Consultório 301',     type: 'consultório',          location_id: 'loc_4', status: 'ativo', capacity: 1, equipment: ['Otoscópio'] },

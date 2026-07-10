@@ -110,7 +110,7 @@ function HomeContent() {
   const [asos, setAsos] = useState<AsoExam[]>([]);
   const [dtes, setDtes] = useState<Dte[]>([]);
   const [professionals, setProfessionals] = useState<Professional[]>([]);
-  const [professionalRoles, setProfessionalRoles] = useState<{id: string; name: string; category?: string; active?: boolean}[]>([]);
+  const [professionalRoles, setProfessionalRoles] = useState<{id: string; name: string; description?: string; category?: string; active?: boolean}[]>([]);
   const [insurances, setInsurances] = useState<InsuranceCompany[]>(initialInsurances);
   const [feeSchedules, setFeeSchedules] = useState<FeeSchedule[]>(initialFeeSchedules);
   const [preAuthorizations, setPreAuthorizations] = useState<PreAuthorization[]>(initialPreAuthorizations);
@@ -388,7 +388,7 @@ function HomeContent() {
         supabase.from('aso_exams').select('*').order('date', { ascending: false }),
         supabase.from('dtes').select('*').order('created_at', { ascending: false }),
         supabase.from('professionals').select('*').order('name', { ascending: true }),
-        supabase.from('professional_roles').select('*').eq('active', true).order('name', { ascending: true }),
+        supabase.from('professional_roles').select('*').order('name', { ascending: true }),
         supabase.from('pharmacy_items').select('*').order('name', { ascending: true }),
         supabase.from('stock_movements').select('*').order('date', { ascending: false }),
         supabase.from('inventory_counts').select('*').order('date', { ascending: false }),
@@ -553,7 +553,9 @@ function HomeContent() {
         setProfessionalRoles(professionalRolesRes.data.map((r: any) => ({
           id: r.id,
           name: r.name,
-          category: r.category,
+          description: r.description || undefined,
+          category: r.category || undefined,
+          active: r.active ?? true,
         })));
       }
 

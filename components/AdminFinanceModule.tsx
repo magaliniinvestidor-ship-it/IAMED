@@ -36,8 +36,8 @@ interface AdminFinanceModuleProps {
   patients?: Patient[];
   professionals?: Professional[];
   setProfessionals?: React.Dispatch<React.SetStateAction<Professional[]>>;
-  professionalRoles?: {id: string; name: string; category?: string; active?: boolean}[];
-  setProfessionalRoles?: React.Dispatch<React.SetStateAction<{id: string; name: string; category?: string; active?: boolean}[]>>;
+  professionalRoles?: {id: string; name: string; description?: string; category?: string; active?: boolean}[];
+  setProfessionalRoles?: React.Dispatch<React.SetStateAction<{id: string; name: string; description?: string; category?: string; active?: boolean}[]>>;
   insurances?: InsuranceCompany[];
   setInsurances?: React.Dispatch<React.SetStateAction<InsuranceCompany[]>>;
   feeSchedules?: FeeSchedule[];
@@ -676,7 +676,7 @@ export default function AdminFinanceModule({
     setRoomFormOpen(false);
   };
 
-  const handleSaveLocation = (e: React.FormEvent) => {
+  const handleSaveLocation = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!locName.trim() || !locAddress.trim() || !locCity.trim() || !locPhone.trim()) {
       alert('Preencha todos os campos obrigatórios: Nome, Endereço, Cidade e Telefone.');
@@ -684,24 +684,66 @@ export default function AdminFinanceModule({
     }
     if (editingLocId) {
       setLocations(prev => prev.map(l => l.id === editingLocId ? { ...l, name: locName, address: locAddress, phone: locPhone, city: locCity, status: locStatus } : l));
+      if (supabase) {
+        await supabase.from('locations').update({
+          name: locName,
+          address: locAddress,
+          phone: locPhone,
+          city: locCity,
+          status: locStatus
+        }).eq('id', editingLocId);
+      }
       addAuditLog('Editou Local', locName);
     } else {
-      const newLoc: Location = { id: `loc_${Date.now()}`, name: locName, address: locAddress, phone: locPhone, city: locCity, status: locStatus };
+      const newId = `loc_${Date.now()}`;
+      const newLoc: Location = { id: newId, name: locName, address: locAddress, phone: locPhone, city: locCity, status: locStatus };
       setLocations(prev => [...prev, newLoc]);
+      if (supabase) {
+        await supabase.from('locations').insert({
+          id: newId,
+          name: locName,
+          address: locAddress,
+          phone: locPhone,
+          city: locCity,
+          status: locStatus
+        });
+      }
       addAuditLog('Cadastrou Local', locName);
     }
     resetLocForm();
   };
 
-  const handleSaveRoom = (e: React.FormEvent) => {
+  const handleSaveRoom = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!roomName.trim() || !roomLocationId) return;
     if (editingRoomId) {
       setClinicalRooms(prev => prev.map(r => r.id === editingRoomId ? { ...r, name: roomName, type: roomType, location_id: roomLocationId, capacity: roomCapacity, equipment: roomEquipment, status: roomStatus } : r));
+      if (supabase) {
+        await supabase.from('clinical_rooms').update({
+          name: roomName,
+          type: roomType,
+          location_id: roomLocationId,
+          capacity: roomCapacity,
+          equipment: roomEquipment,
+          status: roomStatus
+        }).eq('id', editingRoomId);
+      }
       addAuditLog('Editou Sala', roomName);
     } else {
-      const newRoom: ClinicalRoom = { id: `room_${Date.now()}`, name: roomName, type: roomType, location_id: roomLocationId, capacity: roomCapacity, equipment: roomEquipment, status: roomStatus };
+      const newId = `room_${Date.now()}`;
+      const newRoom: ClinicalRoom = { id: newId, name: roomName, type: roomType, location_id: roomLocationId, capacity: roomCapacity, equipment: roomEquipment, status: roomStatus };
       setClinicalRooms(prev => [...prev, newRoom]);
+      if (supabase) {
+        await supabase.from('clinical_rooms').insert({
+          id: newId,
+          name: roomName,
+          type: roomType,
+          location_id: roomLocationId,
+          capacity: roomCapacity,
+          equipment: roomEquipment,
+          status: roomStatus
+        });
+      }
       addAuditLog('Cadastrou Sala', roomName);
     }
     resetRoomForm();
@@ -1144,6 +1186,21 @@ const resetProfForm = () => {
   const [userPasswordConfirm, setUserPasswordConfirm] = useState('');
   const [user2FA, setUser2FA] = useState(false);
   const [user2FAMethod, setUser2FAMethod] = useState<'totp' | 'sms' | 'email' | 'none'>('none');
+
+  const userCalculatedDV = React.useMemo(() => {
+    if (!userCi) return null;
+    const cleanDoc = userCi.replace(/\D/g, '');
+    if (cleanDoc.length === 0) return null;
+    let sum = 0;
+    let factor = 2;
+    for (let i = cleanDoc.length - 1; i >= 0; i--) {
+      sum += parseInt(cleanDoc.charAt(i)) * factor;
+      factor++;
+      if (factor > 11) factor = 2;
+    }
+    const remainder = sum % 11;
+    return remainder > 1 ? 11 - remainder : 0;
+  }, [userCi]);
 
   // 2FA simulation state
   const [twoFactorCode, setTwoFactorCode] = useState('');
@@ -2785,7 +2842,7 @@ const resetProfForm = () => {
                 </div>
               )}
 
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Formulário de Usuário - só aparece ao editar ou criar a partir de profissional */}
                 {(editingUserId || userProfessionalId) && professionals.length > 0 && (
                   <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs lg:col-span-1 space-y-4">
@@ -2814,7 +2871,21 @@ const resetProfForm = () => {
                       </div>
                       <div>
                         <label className="block text-xs font-semibold text-slate-600 mb-1">CI / Documento *</label>
-                        <input type="text" value={userCi} onChange={e => setUserCi(e.target.value)} placeholder="1234567-8" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" required />
+                        <div className="relative">
+                          <input 
+                            type="text" 
+                            value={userCi} 
+                            onChange={e => setUserCi(e.target.value)} 
+                            placeholder="Número do Documento" 
+                            className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-teal-500" 
+                            required 
+                          />
+                          {userCalculatedDV !== null && (
+                            <span className="absolute right-2 top-2 px-1.5 py-0.5 bg-teal-50 border border-teal-100 text-teal-800 font-bold text-[10px] rounded">
+                              DV: {userCalculatedDV}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
@@ -2918,7 +2989,7 @@ const resetProfForm = () => {
                 )}
 
                 {/* Lista de Usuários */}
-                <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs lg:col-span-2 space-y-4">
+                <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs lg:col-span-1 space-y-4">
                   <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                     <div className="flex items-center gap-2">
                       <Users className="w-5 h-5 text-teal-600" />
@@ -2939,7 +3010,30 @@ const resetProfForm = () => {
                             </div>
                             <div className="flex items-center gap-3 text-slate-500 font-medium flex-wrap text-[10px]">
                               <span className="flex items-center gap-1"><Mail className="w-3 h-3" /> {u.email}</span>
-                              {u.ci && <span className="flex items-center gap-1"><IdCard className="w-3 h-3" /> {u.ci}</span>}
+                              {u.ci && (
+                                <span className="flex items-center gap-1">
+                                  <IdCard className="w-3.5 h-3.5" /> 
+                                  <span>{u.ci}</span>
+                                  {(() => {
+                                    const cleanDoc = u.ci.replace(/\D/g, '');
+                                    if (cleanDoc.length === 0) return null;
+                                    let sum = 0;
+                                    let factor = 2;
+                                    for (let i = cleanDoc.length - 1; i >= 0; i--) {
+                                      sum += parseInt(cleanDoc.charAt(i)) * factor;
+                                      factor++;
+                                      if (factor > 11) factor = 2;
+                                    }
+                                    const remainder = sum % 11;
+                                    const dv = remainder > 1 ? 11 - remainder : 0;
+                                    return (
+                                      <span className="px-1 bg-teal-50 border border-teal-100 text-teal-800 font-bold text-[9px] rounded ml-1">
+                                        DV: {dv}
+                                      </span>
+                                    );
+                                  })()}
+                                </span>
+                              )}
                               {u.location && <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {u.location}</span>}
                             </div>
                             {u.permissions && u.permissions.length > 0 && (
@@ -4138,13 +4232,27 @@ const resetProfForm = () => {
                     <div>
                       <label className="block text-xs font-semibold text-slate-600 mb-1">Tipo</label>
                       <select value={roomType} onChange={e => setRoomType(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs">
-                        <option value="consultório">Consultório</option>
-                        <option value="sala de exame">Sala de Exame</option>
-                        <option value="sala de procedimento">Sala de Procedimento</option>
-                        <option value="sala de cirurgia">Sala de Cirurgia</option>
-                        <option value="enfermaria">Enfermaria</option>
-                        <option value="covida">Cozinha</option>
-                      </select>
+                          <option value="">Selecione o tipo...</option>
+                          <option value="consultório">Consultório</option>
+                          <option value="sala de procedimento">Sala de Procedimento</option>
+                          <option value="sala de recuperação">Sala de Recuperação</option>
+                          <option value="sala de parto">Sala de Parto</option>
+                          <option value="quarto">Quarto</option>
+                          <option value="enfermaria">Enfermaria</option>
+                          <option value="uti">UTI</option>
+                          <option value="berçário">Berçário</option>
+                          <option value="sala de exame">Sala de Exame</option>
+                          <option value="central de materiais">Central de Materiais</option>
+                          <option value="posto de enfermagem">Posto de Enfermagem</option>
+                          <option value="sala de cirurgia">Sala de Cirurgia</option>
+                          <option value="sala de reabilitação">Sala de Reabilitação</option>
+                          <option value="escritório">Escritório</option>
+                          <option value="recepção">Recepção</option>
+                          <option value="farmácia">Farmácia</option>
+                          <option value="laboratório">Laboratório</option>
+                          <option value="área de descanso">Área de Descanso</option>
+                          <option value="necrotério">Necrotério</option>
+                        </select>
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-slate-600 mb-1">Sede *</label>
@@ -4197,7 +4305,40 @@ const resetProfForm = () => {
                         </div>
                         <div className="flex items-center gap-2">
                           <span className={`px-2 py-0.5 text-[10px] font-bold rounded border ${room.status === 'ativo' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : room.status === 'manutenção' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-rose-50 text-rose-700 border-rose-200'}`}>{room.status === 'ativo' ? 'Ativo' : room.status === 'manutenção' ? 'Manutenção' : 'Inativo'}</span>
-                          <button onClick={() => { setEditingRoomId(room.id); setRoomName(room.name); setRoomType(room.type); setRoomLocationId(room.location_id); setRoomCapacity(room.capacity); setRoomEquipment(room.equipment); setRoomStatus(room.status as 'ativo' | 'inativo' | 'manutenção'); setRoomFormOpen(true); }} className="p-2 rounded-lg hover:bg-slate-200 text-slate-600 hover:text-slate-800 transition cursor-pointer" title="Editar"><Edit2 className="w-3.5 h-3.5" /></button>
+                          <button onClick={() => {
+                              // Mapeamento de normalização para garantir compatibilidade com valores legados
+                              const ROOM_TYPE_MAP: Record<string, string> = {
+                                'sala de exames': 'sala de exame',
+                                'sala de procedimentos': 'sala de procedimento',
+                                'consultórios': 'consultório',
+                                'consultorio': 'consultório',
+                                'quartos': 'quarto',
+                                'enfermarias': 'enfermaria',
+                                'berçarios': 'berçário',
+                                'bercario': 'berçário',
+                                'bercário': 'berçário',
+                                'berçario': 'berçário',
+                                'central de material': 'central de materiais',
+                                'sala de cirurgias': 'sala de cirurgia',
+                                'sala de reabilitações': 'sala de reabilitação',
+                                'area de descanso': 'área de descanso',
+                                'necroterio': 'necrotério',
+                                'farmacia': 'farmácia',
+                                'laboratorio': 'laboratório',
+                                'recepcao': 'recepção',
+                                'escritorio': 'escritório',
+                              };
+                              const rawType = room.type.toLowerCase().trim();
+                              const normalizedType = ROOM_TYPE_MAP[rawType] ?? rawType;
+                              setEditingRoomId(room.id);
+                              setRoomName(room.name);
+                              setRoomType(normalizedType);
+                              setRoomLocationId(room.location_id);
+                              setRoomCapacity(room.capacity);
+                              setRoomEquipment(room.equipment);
+                              setRoomStatus(room.status as 'ativo' | 'inativo' | 'manutenção');
+                              setRoomFormOpen(true);
+                            }} className="p-2 rounded-lg hover:bg-slate-200 text-slate-600 hover:text-slate-800 transition cursor-pointer" title="Editar"><Edit2 className="w-3.5 h-3.5" /></button>
                           <button onClick={() => {
                             if (confirm(`Tem certeza que deseja excluir a sala "${room.name}"? Esta ação não pode ser desfeita.`)) {
                               setClinicalRooms(prev => prev.filter(r => r.id !== room.id));
