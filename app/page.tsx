@@ -259,7 +259,7 @@ function HomeContent() {
 
       const { data: sysUser, error: sysUserErr } = await supabase
         .from('system_users')
-        .select('id, ci, system_role, professional_id')
+        .select('id, ci, system_role, professional_id, permissions')
         .eq('auth_user_id', session.user.id)
         .single();
 
@@ -273,13 +273,13 @@ function HomeContent() {
             .single();
           if (prof?.name) userName = prof.name;
         }
-        data = { id: sysUser.id, name: userName, role: sysUser.system_role };
+        data = { id: sysUser.id, name: userName, role: sysUser.system_role, permissions: sysUser.permissions };
       }
 
       if (data) {
         // If permissions are empty, try loading from professionals table by email
         let finalPermissions = data.permissions || [];
-        if (finalPermissions.length === 0) {
+        if (finalPermissions.length === 0 && sysUser?.professional_id) {
           try {
             const { data: profByEmail } = await supabase
               .from('professionals')
@@ -292,23 +292,41 @@ function HomeContent() {
           }
         }
 
-        // Roles that get full permissions by default
-        const fullAccessRoles = ['SuperAdmin', 'Administrador', 'Gestor', 'Diretor Clínico'];
-        const defaultFullPermissions = [
-          'view_reception', 'view_agenda', 'view_hce', 'view_diagnostic',
-          'view_finance', 'view_stock', 'view_med_work', 'view_crm', 'view_security',
-          'view_insurance', 'view_fee_schedule', 'view_copay', 'view_batches',
-          'view_eligibility', 'view_settlements', 'view_foreign_billing',
-          'view_bi', 'view_patient_portal', 'view_hospitalization',
-          'perform_admit', 'perform_prescribe', 'perform_sifen', 'perform_post_finance',
-          'perform_stock', 'perform_beds', 'perform_rbac', 'perform_insurance',
-          'perform_fee_schedule', 'perform_copay', 'perform_batches',
-          'perform_eligibility', 'perform_settlements', 'perform_foreign_billing',
-          'perform_surgery', 'perform_aso',
-        ];
-
-        if (fullAccessRoles.includes(data.role) && finalPermissions.length === 0) {
-          finalPermissions = defaultFullPermissions;
+        // Fallback standard mapping based on user role if no specific permissions exist
+        if (finalPermissions.length === 0) {
+          const ROLE_DEFAULT_PERMISSIONS: Record<string, string[]> = {
+            SuperAdmin: ['admin:*'],
+            Administrador: ['admin:*'],
+            'Administrador(a)': ['admin:*'],
+            Gestor: ['admin:*'],
+            'Diretor Clínico': ['admin:*'],
+            Médico: ['clinical:*', 'view_reception', 'view_agenda', 'perform_admit', 'perform_prescribe'],
+            'Médico(a)': ['clinical:*', 'view_reception', 'view_agenda', 'perform_admit', 'perform_prescribe'],
+            Enfermeiro: ['clinical:*', 'view_reception', 'view_agenda', 'perform_admit'],
+            'Enfermeiro(a)': ['clinical:*', 'view_reception', 'view_agenda', 'perform_admit'],
+            Recepcionista: ['view_reception', 'view_agenda', 'view_patient_portal', 'perform_admit'],
+            Financeiro: ['billing:*'],
+            Farmacêutico: ['pharmacy:*'],
+            'Farmacêutico(a)': ['pharmacy:*'],
+            'Técnico(a) em Farmácia': ['pharmacy:*'],
+            'Terapeuta Ocupacional': ['clinical:*'],
+            Fisioterapeuta: ['clinical:*'],
+            'Psicólogo(a)': ['clinical:*'],
+            Nutricionista: ['clinical:*'],
+            'Técnico(a) de Enfermagem': ['clinical:*'],
+            'Auxiliar de Enfermagem': ['clinical:*'],
+            Anestesiologista: ['clinical:*'],
+            'Cirurgião(ã)': ['clinical:*'],
+            'Educador Físico': ['clinical:*'],
+            'Assistente Social': ['clinical:*'],
+            'Fonoaudiólogo(a)': ['clinical:*'],
+            Dentista: ['clinical:*'],
+            'Biomédico(a)': ['clinical:*'],
+            'Técnico(a) em Radiologia': ['clinical:*'],
+            'Técnico(a) de Laboratório': ['clinical:*'],
+            Visualizador: ['view_reception', 'view_agenda', 'view_hce', 'view_diagnostic', 'view_finance', 'view_stock', 'view_med_work', 'view_crm', 'view_hospitalization'],
+          };
+          finalPermissions = ROLE_DEFAULT_PERMISSIONS[data.role] || [];
         }
 
         setProfile({ ...data, permissions: finalPermissions } as UserProfile);
@@ -1367,6 +1385,7 @@ function HomeContent() {
                       professionals={professionals}
                       activeRole={activeRole}
                       activeOperator={activeOperator}
+                      userPermissions={profile?.permissions}
                     />
                   </PermissionGate>
                 )}
@@ -1379,6 +1398,7 @@ function HomeContent() {
                       addAuditLog={addAuditLog}
                       asos={asos}
                       setAsos={setAsos}
+                      userPermissions={profile?.permissions}
                     />
                   </PermissionGate>
                 )}
@@ -1398,6 +1418,7 @@ function HomeContent() {
                       patients={patients}
                       activeSubmodule={activeSubmodule}
                       addAuditLog={addAuditLog}
+                      userPermissions={profile?.permissions}
                     />
                   </PermissionGate>
                 )}

@@ -2592,16 +2592,17 @@ export default function ReceptionModule({
       <PermissionGate view="agenda" userPermissions={userPermissions}>
         {activeSubmodule === 2 && (
           <AgendaModule
-          patients={patients}
-          appointments={appointments}
-          setPatients={setPatients}
-          setAppointments={setAppointments}
-          addAuditLog={addAuditLog}
-          professionals={professionals}
-          activeRole={activeRole}
-          activeOperator={activeOperator}
-        />
-      )}
+            patients={patients}
+            appointments={appointments}
+            setPatients={setPatients}
+            setAppointments={setAppointments}
+            addAuditLog={addAuditLog}
+            professionals={professionals}
+            activeRole={activeRole}
+            activeOperator={activeOperator}
+            userPermissions={userPermissions}
+          />
+        )}
       </PermissionGate>
     </div>
   );
