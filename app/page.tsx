@@ -35,6 +35,9 @@ import MedicinaTrabalhoModule from '@/components/MedicinaTrabalhoModule';
 import InternacaoCentroCirurgicoModule from '@/components/InternacaoCentroCirurgicoModule';
 import PatientPortalModule from '@/components/PatientPortalModule';
 
+// Permission Gate
+import { PermissionGate } from '@/components/ui/PermissionGate';
+
 // i18n Context
 import { I18nProvider, useI18n } from '@/lib/i18n/I18nContext';
 
@@ -66,6 +69,7 @@ type UserProfile = {
   id: string;
   name: string;
   role: string;
+  permissions?: string[];
 };
 
 export default function Home() {
@@ -106,6 +110,7 @@ function HomeContent() {
   const [asos, setAsos] = useState<AsoExam[]>([]);
   const [dtes, setDtes] = useState<Dte[]>([]);
   const [professionals, setProfessionals] = useState<Professional[]>([]);
+  const [professionalRoles, setProfessionalRoles] = useState<{id: string; name: string; category?: string; active?: boolean}[]>([]);
   const [insurances, setInsurances] = useState<InsuranceCompany[]>(initialInsurances);
   const [feeSchedules, setFeeSchedules] = useState<FeeSchedule[]>(initialFeeSchedules);
   const [preAuthorizations, setPreAuthorizations] = useState<PreAuthorization[]>(initialPreAuthorizations);
@@ -248,14 +253,65 @@ function HomeContent() {
 
     const loadProfile = async () => {
       if (!supabase) return;
-      const { data } = await supabase
-        .from('profiles')
-        .select('id, name, role')
-        .eq('id', session.user.id)
+
+      // Try system_users first (main user table), then profiles as fallback
+      let data: any = null;
+
+      const { data: sysUser, error: sysUserErr } = await supabase
+        .from('system_users')
+        .select('id, ci, system_role, professional_id')
+        .eq('auth_user_id', session.user.id)
         .single();
 
+      if (sysUser && !sysUserErr) {
+        let userName = session.user.email?.split('@')[0] || 'Operador';
+        if (sysUser.professional_id) {
+          const { data: prof } = await supabase
+            .from('professionals')
+            .select('name')
+            .eq('id', sysUser.professional_id)
+            .single();
+          if (prof?.name) userName = prof.name;
+        }
+        data = { id: sysUser.id, name: userName, role: sysUser.system_role };
+      }
+
       if (data) {
-        setProfile(data as UserProfile);
+        // If permissions are empty, try loading from professionals table by email
+        let finalPermissions = data.permissions || [];
+        if (finalPermissions.length === 0) {
+          try {
+            const { data: profByEmail } = await supabase
+              .from('professionals')
+              .select('permissions')
+              .eq('email', session.user.email)
+              .single();
+            finalPermissions = profByEmail?.permissions || [];
+          } catch {
+            // professionals query failed, keep empty
+          }
+        }
+
+        // Roles that get full permissions by default
+        const fullAccessRoles = ['SuperAdmin', 'Administrador', 'Gestor', 'Diretor Clínico'];
+        const defaultFullPermissions = [
+          'view_reception', 'view_agenda', 'view_hce', 'view_diagnostic',
+          'view_finance', 'view_stock', 'view_med_work', 'view_crm', 'view_security',
+          'view_insurance', 'view_fee_schedule', 'view_copay', 'view_batches',
+          'view_eligibility', 'view_settlements', 'view_foreign_billing',
+          'view_bi', 'view_patient_portal', 'view_hospitalization',
+          'perform_admit', 'perform_prescribe', 'perform_sifen', 'perform_post_finance',
+          'perform_stock', 'perform_beds', 'perform_rbac', 'perform_insurance',
+          'perform_fee_schedule', 'perform_copay', 'perform_batches',
+          'perform_eligibility', 'perform_settlements', 'perform_foreign_billing',
+          'perform_surgery', 'perform_aso',
+        ];
+
+        if (fullAccessRoles.includes(data.role) && finalPermissions.length === 0) {
+          finalPermissions = defaultFullPermissions;
+        }
+
+        setProfile({ ...data, permissions: finalPermissions } as UserProfile);
         setActiveOperator(data.name);
         // Allow role override via URL param for testing
         const roleOverride = typeof window !== 'undefined'
@@ -263,13 +319,30 @@ function HomeContent() {
           : null;
         setActiveRole(roleOverride || data.role);
       } else {
-        // Fallback: use email prefix as operator name
+        // Fallback: no profile in DB (demo mode / tables not created yet)
+        // Give full access so the system is usable
         const emailName = session.user.email?.split('@')[0] || 'Operador';
-        setActiveOperator(emailName);
         const roleOverride = typeof window !== 'undefined'
           ? new URLSearchParams(window.location.search).get('role')
           : null;
-        setActiveRole(roleOverride || 'Usuário');
+        const role = roleOverride || 'Gestor';
+
+        const defaultFullPermissions = [
+          'view_reception', 'view_agenda', 'view_hce', 'view_diagnostic',
+          'view_finance', 'view_stock', 'view_med_work', 'view_crm', 'view_security',
+          'view_insurance', 'view_fee_schedule', 'view_copay', 'view_batches',
+          'view_eligibility', 'view_settlements', 'view_foreign_billing',
+          'view_bi', 'view_patient_portal', 'view_hospitalization',
+          'perform_admit', 'perform_prescribe', 'perform_sifen', 'perform_post_finance',
+          'perform_stock', 'perform_beds', 'perform_rbac', 'perform_insurance',
+          'perform_fee_schedule', 'perform_copay', 'perform_batches',
+          'perform_eligibility', 'perform_settlements', 'perform_foreign_billing',
+          'perform_surgery', 'perform_aso',
+        ];
+
+        setProfile({ id: session.user.id, name: emailName, role, permissions: defaultFullPermissions } as UserProfile);
+        setActiveOperator(emailName);
+        setActiveRole(role);
       }
     };
 
@@ -287,7 +360,7 @@ function HomeContent() {
 
     setDataLoading(true);
     try {
-      const [patientsRes, appointmentsRes, bedsRes, logsRes, financeRes, stockRes, asosRes, dtesRes, professionalsRes, pharmacyItemsRes, stockMovementsRes, inventoryCountsRes, adverseEventsRes, qualityDeviationsRes, batchRecallsRes] = await Promise.all([
+      const [patientsRes, appointmentsRes, bedsRes, logsRes, financeRes, stockRes, asosRes, dtesRes, professionalsRes, professionalRolesRes, pharmacyItemsRes, stockMovementsRes, inventoryCountsRes, adverseEventsRes, qualityDeviationsRes, batchRecallsRes, locationsRes, clinicalRoomsRes] = await Promise.all([
         supabase.from('patients').select('*').order('created_at', { ascending: false }),
         supabase.from('appointments').select('*').order('date', { ascending: true }),
         supabase.from('beds').select('*').order('name'),
@@ -297,12 +370,15 @@ function HomeContent() {
         supabase.from('aso_exams').select('*').order('date', { ascending: false }),
         supabase.from('dtes').select('*').order('created_at', { ascending: false }),
         supabase.from('professionals').select('*').order('name', { ascending: true }),
+        supabase.from('professional_roles').select('*').eq('active', true).order('name', { ascending: true }),
         supabase.from('pharmacy_items').select('*').order('name', { ascending: true }),
         supabase.from('stock_movements').select('*').order('date', { ascending: false }),
         supabase.from('inventory_counts').select('*').order('date', { ascending: false }),
         supabase.from('adverse_events').select('*').order('notification_date', { ascending: false }),
         supabase.from('quality_deviations').select('*').order('report_date', { ascending: false }),
         supabase.from('batch_recalls').select('*').order('alert_date', { ascending: false }),
+        supabase.from('locations').select('*').order('name', { ascending: true }),
+        supabase.from('clinical_rooms').select('*').order('name', { ascending: true }),
       ]);
 
       const pharmacyHasError = !!(
@@ -313,7 +389,8 @@ function HomeContent() {
       const hasError = !!(
         patientsRes.error || appointmentsRes.error || bedsRes.error ||
         logsRes.error || financeRes.error || stockRes.error || asosRes.error ||
-        dtesRes.error || professionalsRes.error || pharmacyHasError
+        dtesRes.error || professionalsRes.error || pharmacyHasError ||
+        locationsRes.error || clinicalRoomsRes.error
       );
 
       if (patientsRes.data && !patientsRes.error && patientsRes.data.length > 0) {
@@ -451,6 +528,15 @@ function HomeContent() {
         setProfessionals(mapped);
       } else {
         setProfessionals(initialProfessionals);
+      }
+
+      // Load professional roles from Supabase
+      if (professionalRolesRes.data && !professionalRolesRes.error) {
+        setProfessionalRoles(professionalRolesRes.data.map((r: any) => ({
+          id: r.id,
+          name: r.name,
+          category: r.category,
+        })));
       }
 
       // Pharmacy items with lots
@@ -621,6 +707,37 @@ function HomeContent() {
         setBatchRecalls(initialBatchRecalls);
       }
 
+      // Locations
+      if (locationsRes.data && !locationsRes.error && locationsRes.data.length > 0) {
+        const mapped = locationsRes.data.map((l: any) => ({
+          id: l.id,
+          name: l.name,
+          address: l.address || '',
+          phone: l.phone || '',
+          city: l.city || '',
+          status: l.status || 'ativo',
+        }));
+        setLocations(mapped);
+      } else {
+        setLocations(initialLocations);
+      }
+
+      // Clinical Rooms
+      if (clinicalRoomsRes.data && !clinicalRoomsRes.error && clinicalRoomsRes.data.length > 0) {
+        const mapped = clinicalRoomsRes.data.map((r: any) => ({
+          id: r.id,
+          name: r.name,
+          type: r.type,
+          location_id: r.location_id,
+          status: r.status || 'ativo',
+          capacity: Number(r.capacity) || 1,
+          equipment: r.equipment || [],
+        }));
+        setClinicalRooms(mapped);
+      } else {
+        setClinicalRooms(initialClinicalRooms);
+      }
+
       setIsDbConnected(!hasError);
     } catch (err) {
       console.warn("Failing to load from Supabase database. Falling back to mock data.", err);
@@ -640,6 +757,8 @@ function HomeContent() {
       setAdverseEvents(initialAdverseEvents);
       setQualityDeviations(initialQualityDeviations);
       setBatchRecalls(initialBatchRecalls);
+      setLocations(initialLocations);
+      setClinicalRooms(initialClinicalRooms);
       setInsurances(initialInsurances);
       setFeeSchedules(initialFeeSchedules);
       setPreAuthorizations(initialPreAuthorizations);
@@ -666,6 +785,7 @@ function HomeContent() {
     setDataLoading, setPatients, setAppointments, setBeds, setLogs, setFinance, setStock,
     setAsos, setDtes, setProfessionals, setPharmacyItems, setStockMovements, setInventoryCounts,
     setAdverseEvents, setQualityDeviations, setBatchRecalls, setIsDbConnected, setInsurances,
+    setLocations, setClinicalRooms,
     setFeeSchedules, setPreAuthorizations, setBatchInvoices, setEligibilityChecks, setSettlements,
     setForeignBillings, setAccountsPayable, setAccountsReceivable, setCashFlows,
     setBankReconciliations, setCostCenters, setIncomeStatements, setTaxCalculations,
@@ -678,6 +798,7 @@ function HomeContent() {
     initialAccountsReceivable, initialCashFlows, initialBankReconciliations, initialCostCenters,
     initialIncomeStatements, initialTaxCalculations, initialPurchaseBook, initialSalesBook,
     initialExchangeRates, initialChartOfAccounts, initialAccountingEntries,
+    initialLocations, initialClinicalRooms,
   ]);
 
   useEffect(() => {
@@ -1235,67 +1356,78 @@ function HomeContent() {
               {/* Module router */}
               <div className="bg-slate-100/50 p-1.5 rounded-2xl border border-slate-200/65">
                 {(activeSubmodule === 1 || activeSubmodule === 2) && (
-                  <ReceptionModule
-                    patients={patients}
-                    appointments={appointments}
-                    setPatients={setPatients}
-                    setAppointments={setAppointments}
-                    activeSubmodule={activeSubmodule}
-                    addAuditLog={addAuditLog}
-                    professionals={professionals}
-                    activeRole={activeRole}
-                    activeOperator={activeOperator}
-                  />
+                  <PermissionGate view="reception" userPermissions={profile?.permissions}>
+                    <ReceptionModule
+                      patients={patients}
+                      appointments={appointments}
+                      setPatients={setPatients}
+                      setAppointments={setAppointments}
+                      activeSubmodule={activeSubmodule}
+                      addAuditLog={addAuditLog}
+                      professionals={professionals}
+                      activeRole={activeRole}
+                      activeOperator={activeOperator}
+                    />
+                  </PermissionGate>
                 )}
                 {(activeSubmodule === 3 || activeSubmodule === 8) && (
-                  <ClinicalModule
-                    patients={patients}
-                    setPatients={setPatients}
-                    activeSubmodule={activeSubmodule}
-                    addAuditLog={addAuditLog}
-                    asos={asos}
-                    setAsos={setAsos}
-                  />
+                  <PermissionGate view="hce" userPermissions={profile?.permissions}>
+                    <ClinicalModule
+                      patients={patients}
+                      setPatients={setPatients}
+                      activeSubmodule={activeSubmodule}
+                      addAuditLog={addAuditLog}
+                      asos={asos}
+                      setAsos={setAsos}
+                    />
+                  </PermissionGate>
                 )}
                 {activeSubmodule === 9 && (
-                  <MedicinaTrabalhoModule
-                    activeSubmodule={activeSubmodule}
-                    addAuditLog={addAuditLog}
-                    asos={asos}
-                    setAsos={setAsos}
-                  />
+                  <PermissionGate view="med_work" userPermissions={profile?.permissions}>
+                    <MedicinaTrabalhoModule
+                      activeSubmodule={activeSubmodule}
+                      addAuditLog={addAuditLog}
+                      asos={asos}
+                      setAsos={setAsos}
+                    />
+                  </PermissionGate>
                 )}
                 {activeSubmodule === 4 && (
-                  <DiagnosticModule
-                    patients={patients}
-                    activeSubmodule={activeSubmodule}
-                    addAuditLog={addAuditLog}
-                  />
+                  <PermissionGate view="diagnostic" userPermissions={profile?.permissions}>
+                    <DiagnosticModule
+                      patients={patients}
+                      activeSubmodule={activeSubmodule}
+                      addAuditLog={addAuditLog}
+                    />
+                  </PermissionGate>
                 )}
                 {activeSubmodule === 7 && (
-                  <EstoqueFarmaciaModule
-                    addAuditLog={addAuditLog}
-                    patients={patients}
-                    pharmacyItems={pharmacyItems}
-                    setPharmacyItems={setPharmacyItems}
-                    stockMovements={stockMovements}
-                    setStockMovements={setStockMovements}
-                    inventoryCounts={inventoryCounts}
-                    setInventoryCounts={setInventoryCounts}
-                    adverseEvents={adverseEvents}
-                    setAdverseEvents={setAdverseEvents}
-                    qualityDeviations={qualityDeviations}
-                    setQualityDeviations={setQualityDeviations}
-                    batchRecalls={batchRecalls}
-                    setBatchRecalls={setBatchRecalls}
-                    activeRole={activeRole}
-                    activeOperator={activeOperator}
-                  />
+                  <PermissionGate view="stock" userPermissions={profile?.permissions}>
+                    <EstoqueFarmaciaModule
+                      addAuditLog={addAuditLog}
+                      patients={patients}
+                      pharmacyItems={pharmacyItems}
+                      setPharmacyItems={setPharmacyItems}
+                      stockMovements={stockMovements}
+                      setStockMovements={setStockMovements}
+                      inventoryCounts={inventoryCounts}
+                      setInventoryCounts={setInventoryCounts}
+                      adverseEvents={adverseEvents}
+                      setAdverseEvents={setAdverseEvents}
+                      qualityDeviations={qualityDeviations}
+                      setQualityDeviations={setQualityDeviations}
+                      batchRecalls={batchRecalls}
+                      setBatchRecalls={setBatchRecalls}
+                      activeRole={activeRole}
+                      activeOperator={activeOperator}
+                    />
+                  </PermissionGate>
                 )}
                 {(activeSubmodule === 5 || activeSubmodule === 6 || activeSubmodule === 14 ||
                   activeSubmodule === 15 || activeSubmodule === 16 || activeSubmodule === 17 ||
                   activeSubmodule === 18 || activeSubmodule === 19 || activeSubmodule === 20 || activeSubmodule === 21) && (
-                  <AdminFinanceModule
+                  <PermissionGate view="security" userPermissions={profile?.permissions}>
+                    <AdminFinanceModule
                     activeSubmodule={activeSubmodule}
                     addAuditLog={addAuditLog}
                     logs={logs}
@@ -1308,6 +1440,8 @@ function HomeContent() {
                     patients={patients}
                     professionals={professionals}
                     setProfessionals={setProfessionals}
+                    professionalRoles={professionalRoles}
+                    setProfessionalRoles={setProfessionalRoles}
                     insurances={insurances}
                     setInsurances={setInsurances}
                     feeSchedules={feeSchedules}
@@ -1351,8 +1485,9 @@ function HomeContent() {
                     clinicalRooms={clinicalRooms}
                     setClinicalRooms={setClinicalRooms}
                     passwordPolicy={passwordPolicy}
-                    onPasswordPolicyChange={setPasswordPolicy}
-                  />
+onPasswordPolicyChange={setPasswordPolicy}
+                    />
+                  </PermissionGate>
                 )}
                 {activeSubmodule === 11 && (
                   <InternacaoCentroCirurgicoModule

@@ -18,13 +18,16 @@ import {
   GitBranch, Heart, Bone, Shield, Activity, Hash, Bell, MessageSquare,
   Globe, Zap, ArrowUpRight, ArrowDownRight, Minus, TrendingUp, BarChart3,
   RefreshCw, ClipboardCheck, Package, CheckCircle, XCircle, AlertOctagon,
+  Lock as LockIcon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { PermissionGate, WithPermissions } from '@/components/ui/PermissionGate';
 
 interface DiagnosticModuleProps {
   patients: Patient[];
   activeSubmodule: number;
   addAuditLog: (action: string, target: string) => void;
+  userPermissions?: string[];
 }
 
 type DiagnosticTab = 'pacs' | 'laudos' | 'worklist' | 'laboratorio';
@@ -78,7 +81,11 @@ const labStatusColors: Record<string, string> = {
   cancelado: 'bg-rose-100 text-rose-700',
 };
 
-export default function DiagnosticModule({ patients, activeSubmodule, addAuditLog }: DiagnosticModuleProps) {
+const DiagnosticModuleContent = ({
+  patients,
+  activeSubmodule,
+  addAuditLog,
+}: DiagnosticModuleProps) => {
   const { t } = useI18n();
   const [diagTab, setDiagTab] = useState<DiagnosticTab>('pacs');
   const [selectedPatId, setSelectedPatId] = useState(patients[0]?.id || '');
@@ -1079,5 +1086,17 @@ export default function DiagnosticModule({ patients, activeSubmodule, addAuditLo
         </div>
       )}
     </div>
+  );
+}
+
+export default function DiagnosticModule(props: DiagnosticModuleProps) {
+  const { userPermissions = [], ...rest } = props;
+  
+  return (
+    <WithPermissions userPermissions={userPermissions}>
+      <PermissionGate view="diagnostic" userPermissions={userPermissions}>
+        <DiagnosticModuleContent {...rest} />
+      </PermissionGate>
+    </WithPermissions>
   );
 }

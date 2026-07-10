@@ -10,8 +10,10 @@ import {
   Search, Filter, Pill, Stethoscope, FileText, Paperclip,
   Shield, Clock, User, Activity, AlertTriangle, QrCode, Hash,
   ChevronDown, ChevronRight, Lock, Unlock, Printer, Calendar,
-  Baby, Calculator, BookOpen, Tag, FileSignature, Scan
+  Baby, Calculator, BookOpen, Tag, FileSignature, Scan,
+  Lock as LockIcon
 } from 'lucide-react';
+import { PermissionGate, WithPermissions } from '@/components/ui/PermissionGate';
 
 interface ClinicalModuleProps {
   patients: Patient[];
@@ -20,6 +22,7 @@ interface ClinicalModuleProps {
   addAuditLog: (action: string, target: string) => void;
   asos: AsoExam[];
   setAsos: React.Dispatch<React.SetStateAction<AsoExam[]>>;
+  userPermissions?: string[];
 }
 
 // HCE Tab type
@@ -79,14 +82,26 @@ const drugCatalogData: DrugCatalogItem[] = [
 
 const timelineEventTypes = ['consulta', 'internacao', 'cirurgia', 'exame', 'prescricao', 'vacina', 'procedimento', 'alta', 'emergencia'] as const;
 
-export default function ClinicalModule({
+export default function ClinicalModule(props: ClinicalModuleProps) {
+  const { userPermissions = [], ...rest } = props;
+  
+  return (
+    <WithPermissions userPermissions={userPermissions}>
+      <PermissionGate view="hce" userPermissions={userPermissions}>
+        <ClinicalModuleContent {...rest} />
+      </PermissionGate>
+    </WithPermissions>
+  );
+}
+
+const ClinicalModuleContent = ({
   patients,
   setPatients,
   activeSubmodule,
   addAuditLog,
   asos,
   setAsos,
-}: ClinicalModuleProps) {
+}: ClinicalModuleProps) => {
   const { t } = useI18n();
 
   // Patient selection

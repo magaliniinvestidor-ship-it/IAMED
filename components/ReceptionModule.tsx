@@ -10,10 +10,12 @@ import {
   Upload, ShieldCheck, Mail, MapPin, Phone, User, 
   AlertCircle, ChevronRight, ChevronLeft, Languages, 
   HeartPulse, Shield, KeyRound, Sparkles,
-  Sliders, Smartphone, Trash2, FileText, Scan, CheckCircle2, XCircle, X
+  Sliders, Smartphone, Trash2, FileText, Scan, CheckCircle2, XCircle, X,
+  Lock, AlertTriangle as AlertTriangleIcon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import AgendaModule from '@/components/AgendaModule';
+import { PermissionGate, WithPermissions } from '@/components/ui/PermissionGate';
 
 interface ReceptionModuleProps {
   patients: Patient[];
@@ -25,6 +27,7 @@ interface ReceptionModuleProps {
   professionals?: Professional[];
   activeRole?: string;
   activeOperator?: string;
+  userPermissions?: string[];
 }
 
 export default function ReceptionModule({
@@ -37,6 +40,7 @@ export default function ReceptionModule({
   professionals = [],
   activeRole = 'Recepcionista',
   activeOperator = 'Operador',
+  userPermissions = [],
 }: ReceptionModuleProps) {
   const { t } = useI18n();
   // Tab control inside Admission Form
@@ -910,7 +914,8 @@ export default function ReceptionModule({
 
   return (
     <div className="space-y-6">
-      {activeSubmodule === 1 && (
+      <PermissionGate view="reception" userPermissions={userPermissions}>
+        {activeSubmodule === 1 && (
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
           
           {/* Admissão Form (Expanded & Organized) */}
@@ -2581,10 +2586,12 @@ export default function ReceptionModule({
           </div>
         )}
       </AnimatePresence>
+      </PermissionGate>
 
       {/* --- AGENDA SUBMODULE --- */}
-      {activeSubmodule === 2 && (
-        <AgendaModule
+      <PermissionGate view="agenda" userPermissions={userPermissions}>
+        {activeSubmodule === 2 && (
+          <AgendaModule
           patients={patients}
           appointments={appointments}
           setPatients={setPatients}
@@ -2595,6 +2602,7 @@ export default function ReceptionModule({
           activeOperator={activeOperator}
         />
       )}
+      </PermissionGate>
     </div>
   );
 }

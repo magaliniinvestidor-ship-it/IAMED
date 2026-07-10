@@ -1,14 +1,15 @@
 'use client';
 
 import React, { useState } from 'react';
-import { FinancialPosting, StockItem, AuditLog, Dte, DteItem, Patient, Professional, ProfessionalRole, ProfessionalCouncil, ProfessionalShift, FeeSchedule, InsuranceCompany, PreAuthorization, BatchInvoice, EligibilityCheck, ProfessionalSettlement, ForeignBilling, AccountPayable, AccountReceivable, CashFlowProjection, BankReconciliation, CostCenter, IncomeStatement, TaxCalculation, PurchaseBookEntry, SalesBookEntry, ExchangeRate, ChartOfAccount, AccountingEntry, initialInsurances, initialFeeSchedules, initialPreAuthorizations, initialBatchInvoices, initialEligibilityChecks, initialSettlements, initialForeignBillings, initialAccountsPayable, initialAccountsReceivable, initialCashFlows, initialBankReconciliations, initialCostCenters, initialIncomeStatements, initialTaxCalculations, initialPurchaseBook, initialSalesBook, initialExchangeRates, initialChartOfAccounts, initialAccountingEntries,
+import { FinancialPosting, StockItem, AuditLog, Dte, DteItem, Patient, Professional, ProfessionalCouncil, ProfessionalShift, FeeSchedule, InsuranceCompany, PreAuthorization, BatchInvoice, EligibilityCheck, ProfessionalSettlement, ForeignBilling, AccountPayable, AccountReceivable, CashFlowProjection, BankReconciliation, CostCenter, IncomeStatement, TaxCalculation, PurchaseBookEntry, SalesBookEntry, ExchangeRate, ChartOfAccount, AccountingEntry, initialInsurances, initialFeeSchedules, initialPreAuthorizations, initialBatchInvoices, initialEligibilityChecks, initialSettlements, initialForeignBillings, initialAccountsPayable, initialAccountsReceivable, initialCashFlows, initialBankReconciliations, initialCostCenters, initialIncomeStatements, initialTaxCalculations, initialPurchaseBook, initialSalesBook, initialExchangeRates, initialChartOfAccounts, initialAccountingEntries,
   SystemUser, PasswordPolicy, UserSession, LoginAttempt, SSOProvider, SystemRole,
   InsuranceType,
-  initialSystemUsers, initialPasswordPolicy, initialUserSessions, initialLoginAttempts, initialSSOProviders,
+  initialPasswordPolicy, initialUserSessions, initialLoginAttempts, initialSSOProviders,
   Location, ClinicalRoom, initialLocations, initialClinicalRooms,
 } from '@/lib/mockData';
 import { supabase } from '@/lib/supabaseClient';
 import { useI18n } from '@/lib/i18n/I18nContext';
+import RolesTab from './RolesTab';
 import {
   Receipt, TrendingUp, Pill, Settings, Plus, Check,
   AlertTriangle, ShieldCheck, Download, FileText, X,
@@ -35,6 +36,8 @@ interface AdminFinanceModuleProps {
   patients?: Patient[];
   professionals?: Professional[];
   setProfessionals?: React.Dispatch<React.SetStateAction<Professional[]>>;
+  professionalRoles?: {id: string; name: string; category?: string; active?: boolean}[];
+  setProfessionalRoles?: React.Dispatch<React.SetStateAction<{id: string; name: string; category?: string; active?: boolean}[]>>;
   insurances?: InsuranceCompany[];
   setInsurances?: React.Dispatch<React.SetStateAction<InsuranceCompany[]>>;
   feeSchedules?: FeeSchedule[];
@@ -442,6 +445,8 @@ export default function AdminFinanceModule({
   patients = [],
   professionals = [],
   setProfessionals,
+  professionalRoles = [],
+  setProfessionalRoles = () => {},
   insurances: insurancesProp,
   setInsurances: setInsurancesProp,
   feeSchedules: feeSchedulesProp,
@@ -574,7 +579,7 @@ export default function AdminFinanceModule({
   React.useEffect(() => { if (accountingEntriesProp) setAccountingEntries(accountingEntriesProp); }, [accountingEntriesProp]);
 
   // ── Admin tab (submodule 14) ────────────────────────────────────────────────────────
-  type AdminTab = 'users' | 'security' | 'password-policy' | 'two-factor' | 'sso' | 'sessions' | 'professionals' | 'locations' | 'rooms';
+  type AdminTab = 'users' | 'security' | 'password-policy' | 'two-factor' | 'sso' | 'sessions' | 'professionals' | 'locations' | 'rooms' | 'roles';
   const [adminTab, setAdminTab] = useState<AdminTab>('users');
 
   // ── Locations & Rooms State ────────────────────────────────────────────────────────
@@ -600,6 +605,52 @@ export default function AdminFinanceModule({
   React.useEffect(() => { if (locationsProp) setLocations(locationsProp); }, [locationsProp]);
   // eslint-disable-next-line react-hooks/set-state-in-effect
   React.useEffect(() => { if (clinicalRoomsProp) setClinicalRooms(clinicalRoomsProp); }, [clinicalRoomsProp]);
+
+  const loadSystemUsersFromSupabase = async () => {
+    const { data: usersData } = await supabase
+      .from('system_users')
+      .select('*')
+      .order('created_at', { ascending: true });
+    if (usersData) {
+      const profIds = usersData.filter(u => u.professional_id).map(u => u.professional_id);
+      let profMap: Record<string, string> = {};
+      let profEmailMap: Record<string, string> = {};
+
+      if (profIds.length > 0) {
+        const { data: profs } = await supabase.from('professionals').select('id, name, email').in('id', profIds);
+        if (profs) {
+          profMap = Object.fromEntries(profs.map(p => [p.id, p.name]));
+          profEmailMap = Object.fromEntries(profs.filter(p => p.email).map(p => [p.id, p.email]));
+        }
+      }
+
+      setSystemUsers(usersData.map(u => {
+        const profName = u.professional_id ? profMap[u.professional_id] : null;
+        const profEmail = u.professional_id ? profEmailMap[u.professional_id] : null;
+        return {
+          id: u.id,
+          authUserId: u.auth_user_id,
+          professionalId: u.professional_id,
+          name: profName || u.ci || u.id,
+          email: profEmail || '',
+          ci: u.ci,
+          systemRole: u.system_role,
+          permissions: u.permissions || [],
+          location: u.location,
+          status: u.status,
+          twoFactorEnabled: u.two_factor_enabled,
+          twoFactorMethod: u.two_factor_method,
+          lastLogin: u.last_login,
+          createdAt: u.created_at,
+          updatedAt: u.updated_at,
+        };
+      }));
+    }
+  };
+
+  React.useEffect(() => {
+    loadSystemUsersFromSupabase();
+  }, []);
 
   const resetLocForm = () => {
     setEditingLocId(null);
@@ -657,7 +708,7 @@ export default function AdminFinanceModule({
   const [profFormOpen, setProfFormOpen] = useState(false);
   const [editingProfId, setEditingProfId] = useState<string | null>(null);
   const [profName, setProfName] = useState('');
-  const [profRole, setProfRole] = useState<ProfessionalRole>('Médico(a)');
+  const [profRole, setProfRole] = useState<string>('Médico(a)');
   const [profSpecialty, setProfSpecialty] = useState('');
   const [profCouncil, setProfCouncil] = useState<ProfessionalCouncil>('CRM');
   const [profCouncilNumber, setProfCouncilNumber] = useState('');
@@ -794,70 +845,65 @@ const resetProfForm = () => {
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!userName.trim() || !userEmail.trim() || !userCi.trim() || !userPassword || !userLocation) {
-      alert('Preencha todos os campos obrigatórios: Nome, E-mail, CI/Documento, Senha e Sede.');
+    if (!userName.trim() || !userCi.trim() || !userLocation) {
+      alert('Preencha todos os campos obrigatórios: Nome, CI/Documento e Sede.');
       return;
     }
-    if (userPassword !== userPasswordConfirm) {
+    if (!editingUserId && !userPassword) {
+      alert('A senha é obrigatória para novos usuários.');
+      return;
+    }
+    if (userPassword && userPassword !== userPasswordConfirm) {
       alert('As senhas não coincidem.');
       return;
     }
-    if (userPassword.length < 6) {
+    if (userPassword && userPassword.length < 6) {
       alert('A senha deve ter pelo menos 6 caracteres.');
       return;
     }
 
     try {
-      const response = await fetch('/api/admin/users', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: userEmail,
-          password: userPassword,
-          name: userName,
-          role: userRole,
-          location: userLocation,
-          ci: userCi,
-          professionalId: userProfessionalId,
-        }),
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || 'Erro ao criar usuário');
+      if (editingUserId) {
+        const response = await fetch('/api/admin/users', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: editingUserId,
+            email: userEmail,
+            name: userName,
+            role: userRole,
+            location: userLocation,
+            ci: userCi,
+            professionalId: userProfessionalId,
+            status: userStatus,
+            password: userPassword || undefined,
+          }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Erro ao atualizar usuário');
+        addAuditLog('Atualizou Usuário', userName);
+        alert('Usuário atualizado com sucesso!');
+      } else {
+        const response = await fetch('/api/admin/users', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: userEmail,
+            password: userPassword,
+            name: userName,
+            role: userRole,
+            location: userLocation,
+            ci: userCi,
+            professionalId: userProfessionalId,
+          }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Erro ao criar usuário');
+        addAuditLog('Cadastrou Usuário via Auth', userName);
+        alert('Usuário criado com sucesso!');
       }
 
-      // Create user in local state
-      const newUser: SystemUser = {
-        id: data.user.id,
-        authUserId: data.user.id,
-        professionalId: userProfessionalId || undefined,
-        name: userName,
-        email: userEmail,
-        ci: userCi,
-        systemRole: userRole,
-        permissions: [],
-        location: userLocation,
-        status: userStatus,
-        twoFactorEnabled: false,
-        twoFactorMethod: 'none',
-        lastLogin: null,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      setSystemUsers(prev => [...prev, newUser]);
-      addAuditLog('Cadastrou Usuário via Auth', userName);
-
-      // Link professional if applicable
-      if (userProfessionalId && setProfessionals) {
-        setProfessionals(prev => prev.map(p => p.id === userProfessionalId ? { ...p, userId: data.user.id } : p));
-        addAuditLog('Vinculou Usuário a Profissional', userName);
-        if (supabase) {
-          await supabase.from('professionals').update({ user_id: data.user.id }).eq('id', userProfessionalId);
-        }
-      }
-
-      alert('Usuário criado com sucesso no Supabase Auth!');
+      await loadSystemUsersFromSupabase();
       setEditingUserId(null);
       setUserProfessionalId(null);
       setUserName('');
@@ -1075,7 +1121,7 @@ const resetProfForm = () => {
   // ── 14. Admin State ─────────────────────────────────────────────────────────
   const [activeOperatorProfile, setActiveOperatorProfile] = useState<'recepcao' | 'medico' | 'gestor'>('recepcao');
   const [rbacSelectedProfId, setRbacSelectedProfId] = useState<string>('');
-  const [systemUsers, setSystemUsers] = useState<SystemUser[]>(initialSystemUsers);
+  const [systemUsers, setSystemUsers] = useState<SystemUser[]>([]);
   const [passwordPolicy, setPasswordPolicy] = useState<PasswordPolicy>(passwordPolicyProp || initialPasswordPolicy);
   const [userSessions, setUserSessions] = useState<UserSession[]>(initialUserSessions);
   const [loginAttempts, setLoginAttempts] = useState<LoginAttempt[]>(initialLoginAttempts);
@@ -2715,6 +2761,9 @@ const resetProfForm = () => {
             <button onClick={() => setAdminTab('rooms')} className={`pb-2.5 px-3 text-sm font-semibold transition-all border-b-2 flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${adminTab === 'rooms' ? 'border-teal-600 text-teal-600 font-bold' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
               <DoorOpen className="w-3.5 h-3.5" /> Salas
             </button>
+            <button onClick={() => setAdminTab('roles')} className={`pb-2.5 px-3 text-sm font-semibold transition-all border-b-2 flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${adminTab === 'roles' ? 'border-teal-600 text-teal-600 font-bold' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+              <Briefcase className="w-3.5 h-3.5" /> Profissões
+            </button>
           </div>
 
           {adminTab === 'users' && (
@@ -2766,18 +2815,16 @@ const resetProfForm = () => {
                         <input type="text" value={userCi} onChange={e => setUserCi(e.target.value)} placeholder="1234567-8" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" required />
                       </div>
                     </div>
-                    {!editingUserId && (
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="block text-xs font-semibold text-slate-600 mb-1">Senha *</label>
-                          <input type="password" value={userPassword} onChange={e => setUserPassword(e.target.value)} placeholder="Mín. 6 caracteres" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" required minLength={6} />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-semibold text-slate-600 mb-1">Confirmar Senha *</label>
-                          <input type="password" value={userPasswordConfirm} onChange={e => setUserPasswordConfirm(e.target.value)} placeholder="Confirme a senha" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" required minLength={6} />
-                        </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Senha {editingUserId ? '' : '*'}</label>
+                        <input type="password" value={userPassword} onChange={e => setUserPassword(e.target.value)} placeholder={editingUserId ? 'Deixe vazio para manter' : 'Mín. 6 caracteres'} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" minLength={6} />
                       </div>
-                    )}
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Confirmar Senha {editingUserId ? '' : '*'}</label>
+                        <input type="password" value={userPasswordConfirm} onChange={e => setUserPasswordConfirm(e.target.value)} placeholder={editingUserId ? 'Deixe vazio para manter' : 'Confirme a senha'} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" minLength={6} />
+                      </div>
+                    </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
                         <label className="block text-xs font-semibold text-slate-600 mb-1">Função / Perfil *</label>
@@ -2905,7 +2952,7 @@ const resetProfForm = () => {
                           {u.twoFactorEnabled && <Fingerprint className="w-3 h-3 text-teal-500" />}
                           <span className={`px-1.5 py-0.5 text-[9px] font-bold rounded border ${u.status === 'ativo' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : u.status === 'bloqueado' ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>{u.status}</span>
                           <button onClick={() => { setEditingUserId(u.id); setUserName(u.name); setUserEmail(u.email || ''); setUserCi(u.ci || ''); setUserRole(u.systemRole); setUserLocation(u.location || ''); setUserStatus(u.status); setUser2FA(u.twoFactorEnabled || false); setUser2FAMethod(u.twoFactorMethod || 'none'); }} className="p-1.5 rounded-lg hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition cursor-pointer" title="Editar"><Edit2 className="w-3 h-3" /></button>
-                          <button onClick={() => { if (confirm(`Desativar usuário ${u.name}?`)) { setSystemUsers(prev => prev.map(x => x.id === u.id ? { ...x, status: x.status === 'ativo' ? 'inativo' : 'ativo' } : x)); addAuditLog('Alterou Status Usuário', `${u.name} → ${u.status === 'ativo' ? 'inativo' : 'ativo'}`); } }} className="p-1.5 rounded-lg hover:bg-rose-50 text-slate-500 hover:text-rose-600 transition cursor-pointer" title="Ativar/Desativar">{u.status === 'ativo' ? <UserX className="w-3 h-3" /> : <UserCheck className="w-3 h-3" />}</button>
+                          <button onClick={() => { const nextStatus = u.status === 'ativo' ? 'inativo' : 'ativo'; if (confirm(`${nextStatus === 'ativo' ? 'Ativar' : 'Desativar'} usuário ${u.name}?`)) { setSystemUsers(prev => prev.map(x => x.id === u.id ? { ...x, status: nextStatus } : x)); if (supabase) { supabase.from('system_users').update({ status: nextStatus }).eq('id', u.id); } addAuditLog('Alterou Status Usuário', `${u.name} → ${nextStatus}`); } }} className="p-1.5 rounded-lg hover:bg-rose-50 text-slate-500 hover:text-rose-600 transition cursor-pointer" title={u.status === 'ativo' ? 'Desativar' : 'Ativar'}>{u.status === 'ativo' ? <UserX className="w-3 h-3" /> : <UserCheck className="w-3 h-3" />}</button>
                         </div>
                       </div>
                     ))}
@@ -3630,7 +3677,7 @@ const resetProfForm = () => {
                       <select
                         value={profRole}
                         onChange={e => {
-                          const role = e.target.value as ProfessionalRole;
+                          const role = e.target.value;
                           setProfRole(role);
                           if (role === 'Médico(a)' || role === 'Cirurgião(ã)' || role === 'Anestesiologista') setProfCouncil('CRM');
                           else if (role === 'Enfermeiro(a)' || role === 'Técnico(a) de Enfermagem' || role === 'Auxiliar de Enfermagem') setProfCouncil('COREN');
@@ -3650,27 +3697,34 @@ const resetProfForm = () => {
                         className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg font-medium"
                         required
                       >
-                        <option value="Médico(a)">Médico(a)</option>
-                        <option value="Enfermeiro(a)">Enfermeiro(a)</option>
-                        <option value="Fisioterapeuta">Fisioterapeuta</option>
-                        <option value="Psicólogo(a)">Psicólogo(a)</option>
-                        <option value="Nutricionista">Nutricionista</option>
-                        <option value="Técnico(a) de Enfermagem">Técnico(a) de Enfermagem</option>
-                        <option value="Auxiliar de Enfermagem">Auxiliar de Enfermagem</option>
-                        <option value="Anestesiologista">Anestesiologista</option>
-                        <option value="Cirurgião(ã)">Cirurgião(ã)</option>
-                        <option value="Terapeuta Ocupacional">Terapeuta Ocupacional</option>
-                        <option value="Educador Físico">Educador Físico</option>
-                        <option value="Assistente Social">Assistente Social</option>
-                        <option value="Fonoaudiólogo(a)">Fonoaudiólogo(a)</option>
-                        <option value="Farmacêutico(a)">Farmacêutico(a)</option>
-                        <option value="Dentista">Dentista</option>
-                        <option value="Biomédico(a)">Biomédico(a)</option>
-                        <option value="Técnico(a) em Radiologia">Técnico(a) em Radiologia</option>
-                        <option value="Técnico(a) em Farmácia">Técnico(a) em Farmácia</option>
-                        <option value="Técnico(a) de Laboratório">Técnico(a) de Laboratório</option>
-                        <option value="Administrador(a)">Administrador(a)</option>
-                        <option value="Recepcionista">Recepcionista</option>
+                        {professionalRoles.length > 0
+                          ? professionalRoles.filter(r => r.active !== false).map(r => (
+                              <option key={r.id} value={r.name}>{r.name}</option>
+                            ))
+                          : <>
+                              <option value="Médico(a)">Médico(a)</option>
+                              <option value="Enfermeiro(a)">Enfermeiro(a)</option>
+                              <option value="Fisioterapeuta">Fisioterapeuta</option>
+                              <option value="Psicólogo(a)">Psicólogo(a)</option>
+                              <option value="Nutricionista">Nutricionista</option>
+                              <option value="Técnico(a) de Enfermagem">Técnico(a) de Enfermagem</option>
+                              <option value="Auxiliar de Enfermagem">Auxiliar de Enfermagem</option>
+                              <option value="Anestesiologista">Anestesiologista</option>
+                              <option value="Cirurgião(ã)">Cirurgião(ã)</option>
+                              <option value="Terapeuta Ocupacional">Terapeuta Ocupacional</option>
+                              <option value="Educador Físico">Educador Físico</option>
+                              <option value="Assistente Social">Assistente Social</option>
+                              <option value="Fonoaudiólogo(a)">Fonoaudiólogo(a)</option>
+                              <option value="Farmacêutico(a)">Farmacêutico(a)</option>
+                              <option value="Dentista">Dentista</option>
+                              <option value="Biomédico(a)">Biomédico(a)</option>
+                              <option value="Técnico(a) em Radiologia">Técnico(a) em Radiologia</option>
+                              <option value="Técnico(a) em Farmácia">Técnico(a) em Farmácia</option>
+                              <option value="Técnico(a) de Laboratório">Técnico(a) de Laboratório</option>
+                              <option value="Administrador(a)">Administrador(a)</option>
+                              <option value="Recepcionista">Recepcionista</option>
+                            </>
+                        }
                       </select>
                     </div>
 
@@ -3902,7 +3956,7 @@ const resetProfForm = () => {
                         {!prof.userId && (
                           <button
                             onClick={() => {
-                              const roleMap: Record<ProfessionalRole, SystemRole> = {
+                              const roleMap: Record<string, SystemRole> = {
                                 'Médico(a)': 'Médico',
                                 'Enfermeiro(a)': 'Enfermeiro',
                                 'Fisioterapeuta': 'Visualizador',
@@ -4159,6 +4213,16 @@ const resetProfForm = () => {
                 </div>
               </div>
             </div>
+          )}
+
+          {/* ─── Tab: Profissões ─────────────────────────────────────────────────── */}
+          {adminTab === 'roles' && (
+            <RolesTab
+              professionalRoles={professionalRoles}
+              setProfessionalRoles={setProfessionalRoles}
+              supabase={supabase}
+              addAuditLog={addAuditLog}
+            />
           )}
         </div>
       )}

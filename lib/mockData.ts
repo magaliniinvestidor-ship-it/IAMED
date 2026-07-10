@@ -500,7 +500,7 @@ export type ProfessionalShift = 'Manhã' | 'Tarde' | 'Noite' | 'Integral' | 'Pla
 export interface Professional {
   id: string;
   name: string;
-  role: ProfessionalRole;
+  role: string;
   specialty: string;
   council: ProfessionalCouncil;
   councilNumber: string;
@@ -610,22 +610,11 @@ const DEFAULT_PASSWORD_POLICY: PasswordPolicy = {
   sessionTimeoutMinutes: 60,
 };
 
-export const initialSystemUsers: SystemUser[] = [
-  { id: 'usr_1', authUserId: 'auth_usr_1', professionalId: 'prof_1', name: 'Dr. Adriano Lima', email: 'admin@iamed.med.br', ci: '1234567-8', systemRole: 'SuperAdmin', permissions: ['admin:*', 'clinical:*', 'billing:*', 'pharmacy:*', 'hr:*', 'reports:*', 'settings:*'], location: 'Sede Central', status: 'ativo', twoFactorEnabled: true, twoFactorMethod: 'totp', lastLogin: '2026-07-02 08:30:00', createdAt: '2024-01-15', updatedAt: '2026-07-01' },
-  { id: 'usr_2', authUserId: 'auth_usr_2', professionalId: 'prof_2', name: 'Dra. Amanda Silva', email: 'amanda.silva@iamed.med.br', ci: '2345678-9', systemRole: 'Diretor Clínico', permissions: ['clinical:*', 'billing:*', 'reports:*'], location: 'Filial Ciudad del Este', status: 'ativo', twoFactorEnabled: true, twoFactorMethod: 'totp', lastLogin: '2026-07-02 09:15:00', createdAt: '2024-01-15', updatedAt: '2026-06-30' },
-  { id: 'usr_3', authUserId: 'auth_usr_3', professionalId: 'prof_5', name: 'Enf. Marcela Ramos', email: 'marcela.ramos@iamed.med.br', ci: '3456789-0', systemRole: 'Recepcionista', permissions: ['reception:*', 'clinical:read'], location: 'Sede Central', status: 'ativo', twoFactorEnabled: false, twoFactorMethod: 'none', lastLogin: '2026-07-02 07:45:00', createdAt: '2024-03-01', updatedAt: '2026-06-28' },
-  { id: 'usr_4', authUserId: 'auth_usr_4', professionalId: 'prof_6', name: 'Dr. Bruno Castro', email: 'bruno.castro@iamed.med.br', ci: '4567890-1', systemRole: 'Médico', permissions: ['clinical:*', 'occupational_health:*'], location: 'Filial Ciudad del Este', status: 'ativo', twoFactorEnabled: true, twoFactorMethod: 'sms', lastLogin: '2026-07-01 14:00:00', createdAt: '2024-01-15', updatedAt: '2026-06-25' },
-  { id: 'usr_5', authUserId: 'auth_usr_5', name: 'Carlos Mendes', email: 'financeiro@iamed.med.br', ci: '5678901-2', systemRole: 'Financeiro', permissions: ['billing:*', 'accounting:*', 'reports:read'], location: 'Sede Central', status: 'ativo', twoFactorEnabled: true, twoFactorMethod: 'email', lastLogin: '2026-07-02 08:00:00', createdAt: '2024-06-01', updatedAt: '2026-06-30' },
-];
+export const initialSystemUsers: SystemUser[] = [];
 
 export const initialPasswordPolicy: PasswordPolicy = { ...DEFAULT_PASSWORD_POLICY };
 
-export const initialUserSessions: UserSession[] = [
-  { id: 'sess_1', userId: 'usr_1', userName: 'Dr. Adriano Lima', ipAddress: '192.168.1.10', deviceInfo: 'Chrome 128 / Windows 11', loginAt: '2026-07-02 08:30:00', lastActivityAt: '2026-07-02 10:15:00', expiresAt: '2026-07-02 18:30:00', active: true },
-  { id: 'sess_2', userId: 'usr_2', userName: 'Dra. Amanda Silva', ipAddress: '10.0.0.12', deviceInfo: 'Firefox 127 / macOS 15', loginAt: '2026-07-02 09:15:00', lastActivityAt: '2026-07-02 10:20:00', expiresAt: '2026-07-02 19:15:00', active: true },
-  { id: 'sess_3', userId: 'usr_3', userName: 'Enf. Marcela Ramos', ipAddress: '192.168.1.45', deviceInfo: 'Edge 128 / Windows 11', loginAt: '2026-07-02 07:45:00', lastActivityAt: '2026-07-02 10:10:00', expiresAt: '2026-07-02 17:45:00', active: true },
-  { id: 'sess_4', userId: 'usr_5', userName: 'Carlos Mendes', ipAddress: '192.168.1.20', deviceInfo: 'Chrome 128 / Windows 11', loginAt: '2026-07-02 08:00:00', lastActivityAt: '2026-07-02 09:50:00', expiresAt: '2026-07-02 18:00:00', active: true },
-];
+export const initialUserSessions: UserSession[] = [];
 
 export const initialLoginAttempts: LoginAttempt[] = [
   { id: 'att_1', email: 'admin@iamed.med.br', success: true, ipAddress: '192.168.1.10', userAgent: 'Chrome 128', attemptedAt: '2026-07-02 08:30:00' },

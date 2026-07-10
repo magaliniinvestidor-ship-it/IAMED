@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS clinical_rooms (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   type TEXT NOT NULL DEFAULT 'consultório',
-  location_id TEXT REFERENCES locations(id) ON DELETE SET NULL,
+  location_id TEXT REFERENCES locations(id) ON DELETE CASCADE,
   status TEXT DEFAULT 'ativo',
   capacity INTEGER DEFAULT 1,
   equipment JSONB DEFAULT '[]',
@@ -18,10 +18,8 @@ ALTER TABLE clinical_rooms ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Public access for dev" ON clinical_rooms;
 CREATE POLICY "Public access for dev" ON clinical_rooms FOR ALL USING (true) WITH CHECK (true);
 
--- CHECK constraints
+-- CHECK constraints (flexível — aceita qualquer tipo de sala)
 ALTER TABLE clinical_rooms DROP CONSTRAINT IF EXISTS clinical_rooms_type_check;
-ALTER TABLE clinical_rooms ADD CONSTRAINT clinical_rooms_type_check
-CHECK (type IN ('consultório','sala de exames','sala de procedimentos','sala cirúrgica','enfermaria'));
 
 ALTER TABLE clinical_rooms DROP CONSTRAINT IF EXISTS clinical_rooms_status_check;
 ALTER TABLE clinical_rooms ADD CONSTRAINT clinical_rooms_status_check
