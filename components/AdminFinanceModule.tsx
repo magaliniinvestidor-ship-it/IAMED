@@ -606,6 +606,8 @@ export default function AdminFinanceModule({
   // eslint-disable-next-line react-hooks/set-state-in-effect
   React.useEffect(() => { if (clinicalRoomsProp) setClinicalRooms(clinicalRoomsProp); }, [clinicalRoomsProp]);
 
+  const [systemUsers, setSystemUsers] = useState<SystemUser[]>([]);
+
   const loadSystemUsersFromSupabase = async () => {
     const { data: usersData } = await supabase
       .from('system_users')
@@ -649,6 +651,7 @@ export default function AdminFinanceModule({
   };
 
   React.useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadSystemUsersFromSupabase();
   }, []);
 
@@ -1121,7 +1124,6 @@ const resetProfForm = () => {
   // ── 14. Admin State ─────────────────────────────────────────────────────────
   const [activeOperatorProfile, setActiveOperatorProfile] = useState<'recepcao' | 'medico' | 'gestor'>('recepcao');
   const [rbacSelectedProfId, setRbacSelectedProfId] = useState<string>('');
-  const [systemUsers, setSystemUsers] = useState<SystemUser[]>([]);
   const [passwordPolicy, setPasswordPolicy] = useState<PasswordPolicy>(passwordPolicyProp || initialPasswordPolicy);
   const [userSessions, setUserSessions] = useState<UserSession[]>(initialUserSessions);
   const [loginAttempts, setLoginAttempts] = useState<LoginAttempt[]>(initialLoginAttempts);

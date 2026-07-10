@@ -1374,7 +1374,7 @@ function HomeContent() {
               {/* Module router */}
               <div className="bg-slate-100/50 p-1.5 rounded-2xl border border-slate-200/65">
                 {(activeSubmodule === 1 || activeSubmodule === 2) && (
-                  <PermissionGate view="reception" userPermissions={profile?.permissions}>
+                  <PermissionGate view={activeSubmodule === 1 ? 'reception' : 'agenda'} userPermissions={profile?.permissions}>
                     <ReceptionModule
                       patients={patients}
                       appointments={appointments}
