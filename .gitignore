@@ -7,4 +7,6 @@ coverage/
 !.env.example
 NUL
 
+backup_supabase/
+
 testsprite_tests\tmp\config.json

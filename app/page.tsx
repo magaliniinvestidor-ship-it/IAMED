@@ -34,6 +34,7 @@ import EstoqueFarmaciaModule from '@/components/EstoqueFarmaciaModule';
 import MedicinaTrabalhoModule from '@/components/MedicinaTrabalhoModule';
 import InternacaoCentroCirurgicoModule from '@/components/InternacaoCentroCirurgicoModule';
 import PatientPortalModule from '@/components/PatientPortalModule';
+import AgendaModule from '@/components/AgendaModule';
 
 // Permission Gate
 import { PermissionGate } from '@/components/ui/PermissionGate';
@@ -154,10 +155,29 @@ function HomeContent() {
 
   // Session Timeout / Inactivity
   // eslint-disable-next-line react-hooks/purity
-  const lastActivityRef = useRef(Date.now());
+  const lastActivityRef = useRef(typeof window !== 'undefined' ? parseInt(localStorage.getItem('iamed_last_activity') || '0', 10) || Date.now() : Date.now());
   const showInactivityWarningRef = useRef(false);
   const lastWarningDismissedAtRef = useRef(0);
   const [showInactivityWarning, setShowInactivityWarning] = useState(false);
+
+  const getLastActivityTime = () => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('iamed_last_activity');
+      if (stored) {
+        const parsed = parseInt(stored, 10);
+        if (!isNaN(parsed)) return parsed;
+      }
+    }
+    return lastActivityRef.current;
+  };
+
+  const updateLastActivityTime = (time: number = Date.now()) => {
+    lastActivityRef.current = time;
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('iamed_last_activity', time.toString());
+    }
+  };
+
   // Suporta override via URL param ?timeout_ms=180000 para testes
   const getTimeoutMs = () => {
     if (typeof window !== 'undefined') {
@@ -194,12 +214,49 @@ function HomeContent() {
       setAuthLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    let pendingSignOut: ReturnType<typeof setTimeout> | null = null;
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('[AUTH]', event, session ? 'session_ok' : 'session_null');
+
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        // Cancel any pending sign-out if we just got a sign-in or refresh
+        if (pendingSignOut) {
+          clearTimeout(pendingSignOut);
+          pendingSignOut = null;
+        }
+        setSession(session);
+        setAuthLoading(false);
+        return;
+      }
+
+      if (event === 'SIGNED_OUT') {
+        // Debounce: verify session is truly gone after a short delay
+        // A new SIGNED_IN event will cancel this
+        pendingSignOut = setTimeout(() => {
+          supabase.auth.getSession().then(({ data: { session: freshSession } }) => {
+            console.log('[AUTH] SIGNED_OUT verify:', freshSession ? 'still_valid' : 'confirmed_out');
+            if (freshSession) return;
+            setSession(null);
+            setAuthLoading(false);
+          });
+        }, 3000);
+        return;
+      }
+
+      if (event === 'INITIAL_SESSION' && !session) {
+        // Don't kill session on initial check if we already have one
+        console.log('[AUTH] INITIAL_SESSION null - ignoring if already logged in');
+        return;
+      }
       setSession(session);
       setAuthLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+      if (pendingSignOut) clearTimeout(pendingSignOut);
+    };
   }, []);
 
   // ──────────────────────────────────────────────
@@ -209,7 +266,7 @@ function HomeContent() {
     if (!session) return;
 
     const handleUserActivity = () => {
-      lastActivityRef.current = Date.now();
+      updateLastActivityTime();
       if (showInactivityWarningRef.current) {
         showInactivityWarningRef.current = false;
         setShowInactivityWarning(false);
@@ -222,7 +279,8 @@ function HomeContent() {
     window.addEventListener('touchstart', handleUserActivity);
 
     const interval = setInterval(() => {
-      const elapsed = Date.now() - lastActivityRef.current;
+      const currentLastActivity = getLastActivityTime();
+      const elapsed = Date.now() - currentLastActivity;
       // Grace period: if warning was dismissed in the last 5 seconds, skip logout check
       const dismissedRecently = Date.now() - lastWarningDismissedAtRef.current < 5000;
       if (elapsed >= SESSION_TIMEOUT_MS && !dismissedRecently) {
@@ -909,7 +967,7 @@ function HomeContent() {
       // Successful login - reset counters
       setLoginAttemptCount(0);
       setLockedUntil(null);
-      lastActivityRef.current = Date.now();
+      updateLastActivityTime();
     }
   };
 
@@ -1375,14 +1433,29 @@ function HomeContent() {
 
               {/* Module router */}
               <div className="bg-slate-100/50 p-1.5 rounded-2xl border border-slate-200/65">
-                {(activeSubmodule === 1 || activeSubmodule === 2) && (
-                  <PermissionGate view={activeSubmodule === 1 ? 'reception' : 'agenda'} userPermissions={profile?.permissions}>
+                {activeSubmodule === 1 && (
+                  <PermissionGate view="reception" userPermissions={profile?.permissions}>
                     <ReceptionModule
                       patients={patients}
                       appointments={appointments}
                       setPatients={setPatients}
                       setAppointments={setAppointments}
                       activeSubmodule={activeSubmodule}
+                      addAuditLog={addAuditLog}
+                      professionals={professionals}
+                      activeRole={activeRole}
+                      activeOperator={activeOperator}
+                      userPermissions={profile?.permissions}
+                    />
+                  </PermissionGate>
+                )}
+                {activeSubmodule === 2 && (
+                  <PermissionGate view="agenda" userPermissions={profile?.permissions}>
+                    <AgendaModule
+                      patients={patients}
+                      appointments={appointments}
+                      setPatients={setPatients}
+                      setAppointments={setAppointments}
                       addAuditLog={addAuditLog}
                       professionals={professionals}
                       activeRole={activeRole}
@@ -1594,7 +1667,7 @@ onPasswordPolicyChange={setPasswordPolicy}
                 </p>
               </div>
               <button
-                onClick={() => { setShowInactivityWarning(false); lastActivityRef.current = Date.now(); showInactivityWarningRef.current = false; lastWarningDismissedAtRef.current = Date.now(); }}
+                onClick={() => { setShowInactivityWarning(false); updateLastActivityTime(); showInactivityWarningRef.current = false; lastWarningDismissedAtRef.current = Date.now(); }}
                 className="w-full py-3 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-xs cursor-pointer transition"
               >
                 Continuar Sessão

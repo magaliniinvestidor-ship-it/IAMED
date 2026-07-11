@@ -444,6 +444,9 @@ export interface Appointment {
   is_overturn?: boolean;
   overturn_reason?: string;
   insurance?: string;
+  insurance_type?: string;
+  duration_minutes?: number;
+  booked_via?: 'recepcao' | 'portal' | 'whatsapp' | 'call_center';
 }
 
 export interface FinancialPosting {
