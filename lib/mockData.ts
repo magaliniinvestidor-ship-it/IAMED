@@ -412,13 +412,14 @@ export interface Patient {
   whatsapp_verified?: boolean;
   
   // Campos complementares
-  blood_type?: 'A+' | 'A-' | 'B+' | 'B-' | 'AB+' | 'AB-' | 'O+' | 'O-';
+  blood_type?: 'A+' | 'A-' | 'B+' | 'B-' | 'AB+' | 'AB-' | 'O+' | 'O-' | 'Não Informado';
   allergies?: string;
   health_insurance_type?: 'IPS' | 'Sanidade Militar' | 'Sanidade Policial' | 'Pré-paga' | 'Seguro Privado' | 'Particular';
   health_insurance_number?: string;
   health_insurance_company?: string;
   employer?: string;
   guardian_name?: string;
+  guardian_document_type?: 'CI' | 'Passaporte' | 'RG' | 'Outro';
   guardian_document?: string;
   guardian_relationship?: string;
   photo_url?: string;

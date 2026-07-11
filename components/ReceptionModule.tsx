@@ -4,6 +4,8 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Patient, Appointment, Professional } from '@/lib/mockData';
 import { supabase } from '@/lib/supabaseClient';
 import { useI18n } from '@/lib/i18n/I18nContext';
+import { isValidPhoneNumber } from 'libphonenumber-js';
+import PhoneInput from '@/components/PhoneInput';
 import { 
   Plus, Contact, CalendarDays, Check, Search, 
   Clock, AlertTriangle, UserPlus, Filter, Camera, 
@@ -72,13 +74,14 @@ export default function ReceptionModule({
   const [whatsappVerified, setWhatsappVerified] = useState(false);
   
   // Complementary fields
-  const [bloodType, setBloodType] = useState<'A+' | 'A-' | 'B+' | 'B-' | 'AB+' | 'AB-' | 'O+' | 'O-'>('O+');
+  const [bloodType, setBloodType] = useState<'A+' | 'A-' | 'B+' | 'B-' | 'AB+' | 'AB-' | 'O+' | 'O-' | 'Não Informado'>('Não Informado');
   const [allergies, setAllergies] = useState('');
   const [healthInsuranceType, setHealthInsuranceType] = useState<'IPS' | 'Sanidade Militar' | 'Sanidade Policial' | 'Pré-paga' | 'Seguro Privado' | 'Particular'>('Particular');
   const [healthInsuranceNumber, setHealthInsuranceNumber] = useState('');
   const [healthInsuranceCompany, setHealthInsuranceCompany] = useState('');
   const [employer, setEmployer] = useState('');
   const [guardianName, setGuardianName] = useState('');
+  const [guardianDocumentType, setGuardianDocumentType] = useState<'CI' | 'Passaporte' | 'RG' | 'Outro'>('CI');
   const [guardianDocument, setGuardianDocument] = useState('');
   const [guardianRelationship, setGuardianRelationship] = useState('');
   const [preferredLanguage, setPreferredLanguage] = useState<'es' | 'gn' | 'pt' | 'en' | 'outros'>('es');
@@ -112,9 +115,24 @@ export default function ReceptionModule({
     return remainder > 1 ? 11 - remainder : 0;
   }, [documentNumber, documentType]);
 
+  const calculatedGuardianDV = useMemo(() => {
+    if (guardianDocumentType !== 'CI' || !guardianDocument) return null;
+    const cleanDoc = guardianDocument.replace(/\D/g, '');
+    if (cleanDoc.length === 0) return null;
+    let sum = 0;
+    let factor = 2;
+    for (let i = cleanDoc.length - 1; i >= 0; i--) {
+      sum += parseInt(cleanDoc.charAt(i)) * factor;
+      factor++;
+      if (factor > 11) factor = 2;
+    }
+    const remainder = sum % 11;
+    return remainder > 1 ? 11 - remainder : 0;
+  }, [guardianDocument, guardianDocumentType]);
+
   const isPhoneValid = useMemo(() => {
-    const cleanPhone = newPhone.replace(/\s+/g, '');
-    return /^\+5959[6-9]\d{7}$/.test(cleanPhone);
+    if (!newPhone) return false;
+    return isValidPhoneNumber(newPhone);
   }, [newPhone]);
 
   const isEmailValid = useMemo(() => {
@@ -232,21 +250,6 @@ export default function ReceptionModule({
 
 
   // --- Handlers & Helpers ---
-
-  const handlePhoneFormat = (val: string) => {
-    // Automatically apply +595 format helper
-    if (!val.startsWith('+595')) {
-      if (val.startsWith('09')) {
-        setNewPhone('+595' + val.substring(1));
-      } else if (val.startsWith('9')) {
-        setNewPhone('+595' + val);
-      } else {
-        setNewPhone('+595' + val.replace(/\D/g, ''));
-      }
-    } else {
-      setNewPhone(val);
-    }
-  };
 
   const handleSimulateWebcam = async () => {
     try {
@@ -393,21 +396,114 @@ export default function ReceptionModule({
   const handleAddPatient = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Verify fields
-    if (!newName.trim() || !newPhone.trim() || !newBirthdate) {
-      alert("Por favor preencha todos os campos obrigatórios.");
+    // Identifytab Identification fields
+    if (!newName.trim()) {
+      alert("Campo obrigatório não preenchido: Nome Completo");
+      setActiveFormTab('identification');
+      return;
+    }
+    if (!documentNumber.trim()) {
+      alert("Campo obrigatório não preenchido: Número do Documento");
+      setActiveFormTab('identification');
+      return;
+    }
+    if (!newBirthdate) {
+      alert("Campo obrigatório não preenchido: Data de Nascimento");
+      setActiveFormTab('identification');
+      return;
+    }
+    if (!placeOfBirth.trim()) {
+      alert("Campo obrigatório não preenchido: Local de Nascimento");
+      setActiveFormTab('identification');
+      return;
+    }
+    if (!nationality.trim()) {
+      alert("Campo obrigatório não preenchido: Nacionalidade");
+      setActiveFormTab('identification');
       return;
     }
 
+    // Contact/Address tab fields
+    if (!newPhone.trim()) {
+      alert("Campo obrigatório não preenchido: Celular");
+      setActiveFormTab('contact_address');
+      return;
+    }
     if (!isPhoneValid) {
-      alert("Formato de celular paraguaio inválido (+595 9xx xxx xxx).");
+      alert("Formato de telefone inválido. Use o formato internacional (+595 981 123 456).");
+      setActiveFormTab('contact_address');
+      return;
+    }
+    if (!newEmail.trim()) {
+      alert("Campo obrigatório não preenchido: E-mail");
+      setActiveFormTab('contact_address');
+      return;
+    }
+    if (!addressDepartment.trim()) {
+      alert("Campo obrigatório não preenchido: Departamento");
+      setActiveFormTab('contact_address');
+      return;
+    }
+    if (!addressDistrict.trim()) {
+      alert("Campo obrigatório não preenchido: Distrito");
+      setActiveFormTab('contact_address');
+      return;
+    }
+    if (!addressCity.trim()) {
+      alert("Campo obrigatório não preenchido: Cidade");
+      setActiveFormTab('contact_address');
+      return;
+    }
+    if (!addressNeighborhood.trim()) {
+      alert("Campo obrigatório não preenchido: Bairro");
+      setActiveFormTab('contact_address');
+      return;
+    }
+    if (!addressStreet.trim()) {
+      alert("Campo obrigatório não preenchido: Rua");
+      setActiveFormTab('contact_address');
+      return;
+    }
+    if (!addressNumber.trim()) {
+      alert("Campo obrigatório não preenchido: Número do Endereço");
+      setActiveFormTab('contact_address');
       return;
     }
 
-    if (isMinor && (!guardianName.trim() || !guardianDocument.trim() || !guardianRelationship.trim())) {
-      alert("Paciente menor de idade. Os dados do responsável legal são obrigatórios!");
-      setActiveFormTab('guardian');
+    // Complementary tab fields
+    if (!allergies.trim()) {
+      alert("Campo obrigatório não preenchido: Alergias / Antecedentes Clínicos");
+      setActiveFormTab('complementary');
       return;
+    }
+    if (healthInsuranceType !== 'Particular' && !healthInsuranceNumber.trim()) {
+      alert("Campo obrigatório não preenchido: Nº de Afiliação / Segurado");
+      setActiveFormTab('complementary');
+      return;
+    }
+    if (!employer.trim()) {
+      alert("Campo obrigatório não preenchido: Empresa Empregadora");
+      setActiveFormTab('complementary');
+      return;
+    }
+
+    // Guardian fields are required only for minors
+    if (isMinor) {
+      if (!guardianName.trim()) {
+        alert("Campo obrigatório não preenchido: Nome do Responsável");
+        setActiveFormTab('guardian');
+        return;
+      }
+      if (!guardianDocument.trim()) {
+        alert("Campo obrigatório não preenchido: Nº Cédula / Doc do Responsável");
+        setActiveFormTab('guardian');
+        return;
+      }
+      if (!guardianRelationship.trim()) {
+        alert("Campo obrigatório não preenchido: Vínculo Familiar");
+        setActiveFormTab('guardian');
+        return;
+      }
     }
 
     // eslint-disable-next-line react-hooks/purity
@@ -443,6 +539,7 @@ export default function ReceptionModule({
       health_insurance_company: healthInsuranceCompany,
       employer: employer,
       guardian_name: isMinor ? guardianName : undefined,
+      guardian_document_type: isMinor ? guardianDocumentType : undefined,
       guardian_document: isMinor ? guardianDocument : undefined,
       guardian_relationship: isMinor ? guardianRelationship : undefined,
       photo_url: photoUrl,
@@ -486,6 +583,7 @@ export default function ReceptionModule({
         health_insurance_company: newPatient.health_insurance_company,
         employer: newPatient.employer,
         guardian_name: newPatient.guardian_name,
+        guardian_document_type: newPatient.guardian_document_type,
         guardian_document: newPatient.guardian_document,
         guardian_relationship: newPatient.guardian_relationship,
         photo_url: newPatient.photo_url,
@@ -519,6 +617,7 @@ export default function ReceptionModule({
     setHealthInsuranceCompany('');
     setEmployer('');
     setGuardianName('');
+    setGuardianDocumentType('CI');
     setGuardianDocument('');
     setGuardianRelationship('');
     setWebcamPlaceholder(null);
@@ -582,6 +681,7 @@ export default function ReceptionModule({
       health_insurance_company: mergeSelections.health_insurance_company || duplicatePatient.health_insurance_company,
       employer: mergeSelections.employer || duplicatePatient.employer,
       guardian_name: mergeSelections.guardian_name || duplicatePatient.guardian_name,
+      guardian_document_type: mergeSelections.guardian_document_type || duplicatePatient.guardian_document_type,
       guardian_document: mergeSelections.guardian_document || duplicatePatient.guardian_document,
       guardian_relationship: mergeSelections.guardian_relationship || duplicatePatient.guardian_relationship,
       photo_url: mergeSelections.photo_url || photoUrl || duplicatePatient.photo_url,
@@ -624,6 +724,7 @@ export default function ReceptionModule({
         health_insurance_company: mergedPatient.health_insurance_company,
         employer: mergedPatient.employer,
         guardian_name: mergedPatient.guardian_name,
+        guardian_document_type: mergedPatient.guardian_document_type,
         guardian_document: mergedPatient.guardian_document,
         guardian_relationship: mergedPatient.guardian_relationship,
         photo_url: mergedPatient.photo_url,
@@ -926,9 +1027,6 @@ export default function ReceptionModule({
                   <UserPlus className="w-5 h-5 text-teal-600 animate-pulse" />
                   <h3 className="font-bold text-slate-800 text-base">{t('checkin_admission', 'app')}</h3>
                 </div>
-                <span className="text-[10px] uppercase font-bold px-2 py-0.5 bg-teal-50 text-teal-700 border border-teal-200 rounded-full flex items-center gap-1">
-                  <ShieldCheck className="w-3" /> {t('secure_lei', 'app')}
-                </span>
               </div>
 
               {/* Sub-Tabs of Form */}
@@ -1034,11 +1132,12 @@ export default function ReceptionModule({
 
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">Tipo Documento</label>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Tipo Documento *</label>
                         <select 
                           value={documentType} 
                           onChange={e => setDocumentType(e.target.value as any)}
                           className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans"
+                          required
                         >
                           <option value="CI">Cédula CI (Paraguai)</option>
                           <option value="Passaporte">Passaporte</option>
@@ -1083,24 +1182,26 @@ export default function ReceptionModule({
                         )}
                       </div>
                       <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">Local Nascimento</label>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Local Nascimento *</label>
                         <input 
                           type="text" 
                           value={placeOfBirth} 
                           onChange={e => setPlaceOfBirth(e.target.value)}
                           placeholder="Cidade/País de origem" 
                           className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans"
+                          required
                         />
                       </div>
                     </div>
 
                     <div className="grid grid-cols-3 gap-2">
                       <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">Sexo/Gênero</label>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Sexo/Gênero *</label>
                         <select 
                           value={newGender} 
                           onChange={e => setNewGender(e.target.value)}
                           className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans text-xs"
+                          required
                         >
                           <option value="Masculino">Masc.</option>
                           <option value="Feminino">Fem.</option>
@@ -1108,21 +1209,23 @@ export default function ReceptionModule({
                         </select>
                       </div>
                       <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">Nacionalidade</label>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Nacionalidade *</label>
                         <input 
                           type="text" 
                           value={nationality} 
                           onChange={e => setNationality(e.target.value)}
                           placeholder="Nacionalidade" 
                           className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans text-xs"
+                          required
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">Civil</label>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Civil *</label>
                         <select 
                           value={civilStatus} 
                           onChange={e => setCivilStatus(e.target.value as any)}
                           className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans text-xs"
+                          required
                         >
                           <option value="Solteiro(a)">Solt.</option>
                           <option value="Casado(a)">Cas.</option>
@@ -1206,26 +1309,12 @@ export default function ReceptionModule({
                     className="space-y-3"
                   >
                     <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1 flex items-center gap-1">
-                          Celular (+595) * 
-                          {isPhoneValid ? (
-                            <span className="text-green-600 font-bold">✔</span>
-                          ) : (
-                            <span className="text-amber-500 animate-pulse text-[10px]">Pendente</span>
-                          )}
-                        </label>
-                        <input 
-                          type="text" 
-                          value={newPhone} 
-                          onChange={e => handlePhoneFormat(e.target.value)}
-                          placeholder="+595 981 123 456" 
-                          className={`w-full p-2.5 bg-slate-50 border rounded-lg focus:outline-teal-500 font-sans ${
-                            newPhone && !isPhoneValid ? 'border-amber-400 bg-amber-50/20' : 'border-slate-200'
-                          }`}
-                          required
-                        />
-                      </div>
+                      <PhoneInput
+                        value={newPhone}
+                        onChange={setNewPhone}
+                        label="Celular"
+                        required
+                      />
                       <div>
                         <label className="block text-xs font-semibold text-slate-600 mb-1">WhatsApp</label>
                         <button
@@ -1245,7 +1334,7 @@ export default function ReceptionModule({
 
                     <div>
                       <label className="block text-xs font-semibold text-slate-600 mb-1 flex items-center gap-1">
-                        E-mail 
+                        E-mail *
                         {!isEmailValid && (
                           <span className="text-rose-500 font-semibold text-[10px]">Inválido</span>
                         )}
@@ -1258,6 +1347,7 @@ export default function ReceptionModule({
                         className={`w-full p-2.5 bg-slate-50 border rounded-lg focus:outline-teal-500 font-sans ${
                           !isEmailValid ? 'border-rose-400 bg-rose-50/20' : 'border-slate-200'
                         }`}
+                        required
                       />
                     </div>
 
@@ -1269,69 +1359,75 @@ export default function ReceptionModule({
                       
                       <div className="grid grid-cols-2 gap-2">
                         <div>
-                          <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">Departamento</label>
+                          <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">Departamento *</label>
                           <input 
                             type="text" 
                             value={addressDepartment} 
                             onChange={e => setAddressDepartment(e.target.value)}
                             placeholder="Ex: Itapúa" 
                             className="w-full p-2 bg-white border border-slate-200 rounded-md text-xs font-sans focus:outline-teal-500"
+                            required
                           />
                         </div>
                         <div>
-                          <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">Distrito</label>
+                          <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">Distrito *</label>
                           <input 
                             type="text" 
                             value={addressDistrict} 
                             onChange={e => setAddressDistrict(e.target.value)}
                             placeholder="Ex: Encarnación" 
                             className="w-full p-2 bg-white border border-slate-200 rounded-md text-xs font-sans focus:outline-teal-500"
+                            required
                           />
                         </div>
                       </div>
 
                       <div className="grid grid-cols-2 gap-2">
                         <div>
-                          <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">Cidade</label>
+                          <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">Cidade *</label>
                           <input 
                             type="text" 
                             value={addressCity} 
                             onChange={e => setAddressCity(e.target.value)}
                             placeholder="Ex: Encarnación" 
                             className="w-full p-2 bg-white border border-slate-200 rounded-md text-xs font-sans focus:outline-teal-500"
+                            required
                           />
                         </div>
                         <div>
-                          <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">Bairro</label>
+                          <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">Bairro *</label>
                           <input 
                             type="text" 
                             value={addressNeighborhood} 
                             onChange={e => setAddressNeighborhood(e.target.value)}
                             placeholder="Ex: Loma Clavel" 
                             className="w-full p-2 bg-white border border-slate-200 rounded-md text-xs font-sans focus:outline-teal-500"
+                            required
                           />
                         </div>
                       </div>
 
                       <div className="grid grid-cols-3 gap-2">
                         <div className="col-span-2">
-                          <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">Rua</label>
+                          <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">Rua *</label>
                           <input 
                             type="text" 
                             value={addressStreet} 
                             onChange={e => setAddressStreet(e.target.value)}
                             placeholder="Ex: Calle Constitución" 
                             className="w-full p-2 bg-white border border-slate-200 rounded-md text-xs font-sans focus:outline-teal-500"
+                            required
                           />
                         </div>
                         <div>
-                          <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">Número</label>
+                          <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">Número *</label>
                           <input 
                             type="text" 
                             value={addressNumber} 
                             onChange={e => setAddressNumber(e.target.value)}
                             placeholder="Ex: 482" 
                             className="w-full p-2 bg-white border border-slate-200 rounded-md text-xs font-sans focus:outline-teal-500"
+                            required
                           />
                         </div>
                       </div>
@@ -1350,11 +1446,12 @@ export default function ReceptionModule({
                   >
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">Tipo Sanguíneo</label>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Tipo Sanguíneo *</label>
                         <select 
                           value={bloodType} 
                           onChange={e => setBloodType(e.target.value as any)}
                           className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans"
+                          required
                         >
                           <option value="A+">A+</option>
                           <option value="A-">A-</option>
@@ -1364,14 +1461,16 @@ export default function ReceptionModule({
                           <option value="AB-">AB-</option>
                           <option value="O+">O+</option>
                           <option value="O-">O-</option>
+                          <option value="Não Informado">Não Informado</option>
                         </select>
                       </div>
                       <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">Idioma Pref.</label>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Idioma Pref. *</label>
                         <select 
                           value={preferredLanguage} 
                           onChange={e => setPreferredLanguage(e.target.value as any)}
                           className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans text-xs"
+                          required
                         >
                           <option value="es">Español 🇪🇸</option>
                           <option value="gn">Guaraní 🇵🇾</option>
@@ -1383,13 +1482,14 @@ export default function ReceptionModule({
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">Alergias / Antecedentes Clínicos</label>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Alergias / Antecedentes Clínicos *</label>
                       <textarea 
                         value={allergies} 
                         onChange={e => setAllergies(e.target.value)}
                         placeholder="Ex: Alergia a Penicilina, Diabético..." 
                         rows={2}
                         className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans text-xs"
+                        required
                       />
                     </div>
 
@@ -1401,11 +1501,12 @@ export default function ReceptionModule({
 
                       <div className="grid grid-cols-2 gap-2">
                         <div>
-                          <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">Seguro / Convênio</label>
+                          <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">Seguro / Convênio *</label>
                           <select 
                             value={healthInsuranceType} 
                             onChange={e => setHealthInsuranceType(e.target.value as any)}
                             className="w-full p-2 bg-white border border-slate-200 rounded-md text-xs font-sans focus:outline-teal-500"
+                            required
                           >
                             <option value="Particular">Particular</option>
                             <option value="IPS">IPS (Segurado)</option>
@@ -1416,7 +1517,7 @@ export default function ReceptionModule({
                           </select>
                         </div>
                         <div>
-                          <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">Nº de Afiliação / Segurado</label>
+                          <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">Nº de Afiliação / Segurado *</label>
                           <input 
                             type="text" 
                             value={healthInsuranceNumber} 
@@ -1424,6 +1525,7 @@ export default function ReceptionModule({
                             placeholder="Nº da carteirinha" 
                             className="w-full p-2 bg-white border border-slate-200 rounded-md text-xs font-sans focus:outline-teal-500"
                             disabled={healthInsuranceType === 'Particular'}
+                            required={healthInsuranceType !== 'Particular'}
                           />
                         </div>
                       </div>
@@ -1442,13 +1544,14 @@ export default function ReceptionModule({
                       )}
 
                       <div>
-                        <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">Empresa Empregadora (Med. do Trabalho)</label>
+                        <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">Empresa Empregadora (Med. do Trabalho) *</label>
                         <input 
                           type="text" 
                           value={employer} 
                           onChange={e => setEmployer(e.target.value)}
                           placeholder="Razão Social / CNPJ / RUC" 
                           className="w-full p-2 bg-white border border-slate-200 rounded-md text-xs font-sans focus:outline-teal-500"
+                          required
                         />
                       </div>
                     </div>
@@ -1469,7 +1572,7 @@ export default function ReceptionModule({
                         <div>
                           O paciente é menor de idade ({age} anos).
                           <br />
-                          O preenchimento do responsável legal/financeiro é **obrigatório** para concluir o cadastro.
+                          O preenchimento do responsável legal/financeiro é <span className="font-black">obrigatório</span> para concluir o cadastro.
                         </div>
                       </div>
                     ) : (
@@ -1492,33 +1595,55 @@ export default function ReceptionModule({
 
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">Nº Cédula / Doc {isMinor && '*'}</label>
-                        <input 
-                          type="text" 
-                          value={guardianDocument} 
-                          onChange={e => setGuardianDocument(e.target.value)}
-                          placeholder="CI ou outro documento" 
-                          className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans"
-                          required={isMinor}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">Vínculo Familiar {isMinor && '*'}</label>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Tipo Documento {isMinor && '*'}</label>
                         <select 
-                          value={guardianRelationship} 
-                          onChange={e => setGuardianRelationship(e.target.value)}
+                          value={guardianDocumentType} 
+                          onChange={e => setGuardianDocumentType(e.target.value as any)}
                           className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans text-xs"
                           required={isMinor}
                         >
-                          <option value="">Selecione o vínculo...</option>
-                          <option value="Pai">Pai</option>
-                          <option value="Mãe">Mãe</option>
-                          <option value="Tutor Legal">Tutor Legal</option>
-                          <option value="Cônjuge">Cônjuge</option>
-                          <option value="Filho(a)">Filho(a)</option>
-                          <option value="Outros">Outros</option>
+                          <option value="CI">Cédula CI (Paraguai)</option>
+                          <option value="Passaporte">Passaporte</option>
+                          <option value="RG">RG (Brasil)</option>
+                          <option value="Outro">DNI / Outro</option>
                         </select>
                       </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Nº Cédula / Doc {isMinor && '*'}</label>
+                        <div className="relative">
+                          <input 
+                            type="text" 
+                            value={guardianDocument} 
+                            onChange={e => setGuardianDocument(e.target.value)}
+                            placeholder="Número do documento" 
+                            className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans"
+                            required={isMinor}
+                          />
+                          {calculatedGuardianDV !== null && (
+                            <span className="absolute right-2 top-2 px-1.5 py-0.5 bg-teal-50 border border-teal-100 text-teal-800 font-bold text-[10px] rounded">
+                              DV: {calculatedGuardianDV}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Vínculo Familiar {isMinor && '*'}</label>
+                      <select 
+                        value={guardianRelationship} 
+                        onChange={e => setGuardianRelationship(e.target.value)}
+                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans text-xs"
+                        required={isMinor}
+                      >
+                        <option value="">Selecione o vínculo...</option>
+                        <option value="Pai">Pai</option>
+                        <option value="Mãe">Mãe</option>
+                        <option value="Tutor Legal">Tutor Legal</option>
+                        <option value="Cônjuge">Cônjuge</option>
+                        <option value="Filho(a)">Filho(a)</option>
+                        <option value="Outros">Outros</option>
+                      </select>
                     </div>
                   </motion.div>
                 )}
@@ -1774,9 +1899,9 @@ export default function ReceptionModule({
                   );
                 })
               )}
-            </div>
-          </div>
-        </div>
+                    </div>
+                  </div>
+                </div>
       )}
 
       {/* --- FUSÃO DE FICHAS (MERGE MODAL) --- */}
@@ -2352,130 +2477,27 @@ export default function ReceptionModule({
                     </div>
                   </div>
 
-                  {/* Attachment + Antivirus Simulator */}
-                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
-                    <div className="flex items-center justify-between pb-1 border-b border-slate-200">
-                      <p className="text-xs font-bold text-slate-700">Documentos Anexos</p>
-                      <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500">
-                        Limite:
-                        <input
-                          type="number"
-                          value={maxFileSizeMB}
-                          onChange={e => setMaxFileSizeMB(Number(e.target.value))}
-                          min={1}
-                          max={100}
-                          className="w-12 px-1 py-0.5 bg-white border border-slate-200 rounded text-center text-xs"
-                        />
-                        MB/arq.
-                      </div>
-                    </div>
-
-                    {/* File chooser */}
-                    <input
-                      type="file"
-                      ref={fileInputRef}
-                      accept=".pdf,.jpg,.jpeg,.png,.tiff,.tif,.dcm,.mp3,.wav,.ogg"
-                      className="hidden"
-                      onChange={e => {
-                        const file = e.target.files?.[0];
-                        if (!file) return;
-                        const sizeMB = file.size / (1024 * 1024);
-                        if (sizeMB > maxFileSizeMB) {
-                          setVirusScanStatus('failed');
-                          setFileToUploadName(file.name);
-                          setFileToUploadSize(`${sizeMB.toFixed(2)} MB`);
-                          setFileToUploadType('Arquivo muito grande');
-                          return;
-                        }
-                        setFileToUploadName(file.name);
-                        setFileToUploadSize(`${sizeMB.toFixed(2)} MB`);
-                        setFileToUploadType(file.type || 'application/octet-stream');
-                        setVirusScanStatus('scanning');
-                        setIsVirusScanning(true);
-                        // Simulate antivirus scan
-                        setTimeout(() => {
-                          const hasThreat = file.name.toLowerCase().includes('virus');
-                          setVirusScanStatus(hasThreat ? 'failed' : 'passed');
-                          setIsVirusScanning(false);
-                          if (!hasThreat) {
-                            const url = URL.createObjectURL(file);
-                            setAttachedFiles(prev => [...prev, {
-                              name: file.name,
-                              size: `${sizeMB.toFixed(2)} MB`,
-                              type: file.type || 'document',
-                              url,
-                            }]);
-                            setFileToUploadName('');
-                            setFileToUploadSize('');
-                            setFileToUploadType('');
-                            setVirusScanStatus('pending');
-                          }
-                        }, 2200);
-                        if (fileInputRef.current) fileInputRef.current.value = '';
-                      }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={isVirusScanning}
-                      className="w-full py-2.5 px-3 bg-white border border-dashed border-slate-300 hover:border-teal-400 hover:bg-teal-50/30 text-slate-600 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <Upload className="w-4 h-4" />
-                      Anexar: PDF, Imagem (JPG/PNG/TIFF), DICOM, Áudio
-                    </button>
-
-                    {/* Antivirus scan feedback */}
-                    {(isVirusScanning || virusScanStatus === 'failed') && fileToUploadName && (
-                      <div className={`p-2.5 rounded-lg border text-xs space-y-1.5 ${
-                        virusScanStatus === 'scanning' ? 'bg-indigo-50 border-indigo-200' :
-                        virusScanStatus === 'failed' ? 'bg-rose-50 border-rose-200' :
-                        'bg-green-50 border-green-200'
-                      }`}>
-                        <div className="flex items-center gap-2 font-bold">
-                          {virusScanStatus === 'scanning' && (
-                            <><Scan className="w-4 h-4 text-indigo-500 animate-pulse" />
-                            <span className="text-indigo-700">Verificando vírus em: {fileToUploadName}...</span></>
-                          )}
-                          {virusScanStatus === 'failed' && (
-                            <><XCircle className="w-4 h-4 text-rose-500" />
-                            <span className="text-rose-700">
-                              {fileToUploadType === 'Arquivo muito grande'
-                                ? `Arquivo muito grande: ${fileToUploadName} (${fileToUploadSize}). Máximo: ${maxFileSizeMB}MB.`
-                                : `AMEAÇA DETECTADA: ${fileToUploadName} — Arquivo bloqueado pelo antivírus.`
-                              }
-                            </span></>
+                  {/* Foto do Paciente */}
+                  {triagePatient && (
+                    <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl">
+                      <p className="text-xs font-bold text-slate-700 pb-1 border-b border-slate-200 mb-3">Foto do Paciente</p>
+                      <div className="flex flex-col items-center gap-2">
+                        <div className="w-32 h-32 rounded-lg border border-slate-200 bg-white overflow-hidden flex items-center justify-center shadow-xs">
+                          {triagePatient.photo_url ? (
+                            <img src={triagePatient.photo_url} className="w-full h-full object-cover" alt="Foto do Paciente" />
+                          ) : (
+                            <User className="w-16 h-16 text-slate-300" />
                           )}
                         </div>
-                        {virusScanStatus === 'scanning' && (
-                          <div className="w-full bg-indigo-100 rounded-full h-1.5">
-                            <div className="bg-indigo-500 h-1.5 rounded-full animate-pulse w-3/4" />
-                          </div>
-                        )}
+                        <div className="text-[11px] text-slate-500 space-y-0.5 text-center">
+                          <p className="font-bold text-slate-700 text-xs">{triagePatient.name}</p>
+                          <p>{triagePatient.document_type || 'CI'}: {triagePatient.document_number || 'N/A'}</p>
+                          <p>{triagePatient.birthdate} ({triagePatient.birthdate ? new Date().getFullYear() - new Date(triagePatient.birthdate).getFullYear() : '-'} anos)</p>
+                          {triagePatient.blood_type && <p>Tipo: <span className="font-bold text-rose-600">{triagePatient.blood_type}</span></p>}
+                        </div>
                       </div>
-                    )}
-
-                    {/* Attached files list */}
-                    {attachedFiles.length > 0 && (
-                      <div className="space-y-1.5">
-                        {attachedFiles.map((f, idx) => (
-                          <div key={idx} className="flex items-center gap-2 p-2 bg-white border border-slate-200 rounded-lg text-xs">
-                            <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
-                            <div className="flex-1 min-w-0">
-                              <p className="font-semibold text-slate-700 truncate">{f.name}</p>
-                              <p className="text-slate-400">{f.size}</p>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => setAttachedFiles(prev => prev.filter((_, i) => i !== idx))}
-                              className="text-slate-400 hover:text-rose-500 transition cursor-pointer"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
               </div>
 

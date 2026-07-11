@@ -1,6 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
+import PhoneInput from '@/components/PhoneInput';
+import { isValidPhoneNumber } from 'libphonenumber-js';
 import { FinancialPosting, StockItem, AuditLog, Dte, DteItem, Patient, Professional, ProfessionalCouncil, ProfessionalShift, FeeSchedule, InsuranceCompany, PreAuthorization, BatchInvoice, EligibilityCheck, ProfessionalSettlement, ForeignBilling, AccountPayable, AccountReceivable, CashFlowProjection, BankReconciliation, CostCenter, IncomeStatement, TaxCalculation, PurchaseBookEntry, SalesBookEntry, ExchangeRate, ChartOfAccount, AccountingEntry, initialInsurances, initialFeeSchedules, initialPreAuthorizations, initialBatchInvoices, initialEligibilityChecks, initialSettlements, initialForeignBillings, initialAccountsPayable, initialAccountsReceivable, initialCashFlows, initialBankReconciliations, initialCostCenters, initialIncomeStatements, initialTaxCalculations, initialPurchaseBook, initialSalesBook, initialExchangeRates, initialChartOfAccounts, initialAccountingEntries,
   SystemUser, PasswordPolicy, UserSession, LoginAttempt, SSOProvider, SystemRole,
   InsuranceType,
@@ -785,6 +787,14 @@ const resetProfForm = () => {
     e.preventDefault();
     if (!profName.trim() || !profSpecialty.trim() || !profCouncilNumber.trim() || !profAdmission.trim() || !profLocationId.trim()) {
       alert('Preencha todos os campos obrigatórios: Nome, Especialidade, Número do Registro, Data de Admissão e Sede.');
+      return;
+    }
+    if (!profPhone.trim()) {
+      alert('Campo obrigatório não preenchido: Telefone');
+      return;
+    }
+    if (!isValidPhoneNumber(profPhone)) {
+      alert('Formato de telefone inválido. Use o formato internacional (+55 11 99999-9999).');
       return;
     }
     if (!setProfessionals) return;
@@ -3744,9 +3754,9 @@ const resetProfForm = () => {
           )}
 
           {adminTab === 'professionals' && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
               {/* Form de Cadastro */}
-              <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs lg:col-span-1 space-y-4">
+              <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs lg:col-span-2 space-y-4">
                 <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
                   <UserPlus className="w-5 h-5 text-teal-600" />
                   <h3 className="font-semibold text-slate-800 text-base">
@@ -3934,17 +3944,12 @@ const resetProfForm = () => {
                       />
                     </div>
 
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">{t('professional_phone', 'app')} *</label>
-                      <input
-                        type="text"
-                        value={profPhone}
-                        onChange={e => setProfPhone(e.target.value)}
-                        placeholder="+55 11 99999-9999"
-                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
-                        required
-                      />
-                    </div>
+                    <PhoneInput
+                      value={profPhone}
+                      onChange={setProfPhone}
+                      label={t('professional_phone', 'app')}
+                      required
+                    />
                   </div>
 
                   <div>
