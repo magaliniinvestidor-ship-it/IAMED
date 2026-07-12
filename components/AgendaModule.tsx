@@ -625,7 +625,12 @@ const AgendaModuleContent = ({
     };
     setAppointments(prev => [...prev, newApp]);
     addAuditLog('Criou Agendamento', `${newApptForm.patient_name} - ${newApptForm.date} ${newApptForm.time} (${newApptForm.type})`);
-    if (supabase) await supabase.from('appointments').insert(newApp);
+    if (supabase) {
+      const { error: agendaInsertError } = await supabase.from('appointments').insert(newApp);
+      if (agendaInsertError) {
+        console.error("[SUPABASE] INSERT appointments from Agenda FAILED:", agendaInsertError.message);
+      }
+    }
     setShowNewApptModal(false);
     resetNewApptForm();
   };

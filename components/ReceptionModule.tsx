@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Patient, Appointment, Professional } from '@/lib/mockData';
 import { supabase } from '@/lib/supabaseClient';
 import { useI18n } from '@/lib/i18n/I18nContext';
-import { isValidPhoneNumber } from 'libphonenumber-js';
+import { isValidPhoneNumber, parsePhoneNumber } from 'libphonenumber-js';
 import PhoneInput from '@/components/PhoneInput';
 import { 
   Plus, Contact, CalendarDays, Check, Search, 
@@ -13,7 +13,7 @@ import {
   AlertCircle, ChevronRight, ChevronLeft, Languages, 
   HeartPulse, Shield, KeyRound, Sparkles,
   Sliders, Smartphone, Trash2, FileText, Scan, CheckCircle2, XCircle, X,
-  Lock, AlertTriangle as AlertTriangleIcon
+  Lock, AlertTriangle as AlertTriangleIcon, Pencil
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import AgendaModule from '@/components/AgendaModule';
@@ -132,7 +132,12 @@ export default function ReceptionModule({
 
   const isPhoneValid = useMemo(() => {
     if (!newPhone) return false;
-    return isValidPhoneNumber(newPhone);
+    try {
+      const parsed = parsePhoneNumber(newPhone);
+      return parsed ? parsed.isValid() : false;
+    } catch {
+      return false;
+    }
   }, [newPhone]);
 
   const isEmailValid = useMemo(() => {
@@ -152,12 +157,7 @@ export default function ReceptionModule({
     return { age: calculatedAge, isMinor: calculatedAge < 18 };
   }, [newBirthdate]);
 
-  const duplicatePatient = useMemo(() => {
-    if (!documentNumber || !newBirthdate) return null;
-    return patients.find(
-      p => p.document_number === documentNumber && p.birthdate === newBirthdate
-    ) || null;
-  }, [documentNumber, newBirthdate, patients]);
+  const [selectedPatientId, setSelectedPatientId] = useState('');
   const [showMergeModal, setShowMergeModal] = useState(false);
   const [supervisorPin, setSupervisorPin] = useState('');
   const [pinError, setPinError] = useState('');
@@ -165,8 +165,14 @@ export default function ReceptionModule({
   // --- Merge Selection State ---
   const [mergeSelections, setMergeSelections] = useState<Partial<Patient>>({});
 
+  const duplicatePatient = useMemo(() => {
+    if (!documentNumber || !newBirthdate) return null;
+    return patients.find(
+      p => p.document_number === documentNumber && p.birthdate === newBirthdate && p.id !== selectedPatientId
+    ) || null;
+  }, [documentNumber, newBirthdate, patients, selectedPatientId]);
+
   // Appointments schedule forms state
-  const [selectedPatientId, setSelectedPatientId] = useState('');
   const [selectedDoctor, setSelectedDoctor] = useState('Dra. Amanda Silva');
   const [selectedSpecialty, setSelectedSpecialty] = useState('Cardiologia');
   const [selectedDate, setSelectedDate] = useState('2026-06-22');
@@ -327,7 +333,7 @@ export default function ReceptionModule({
   };
 
   const capturePhoto = async () => {
-    const fileName = `patient_${++photoCounterRef.current}.jpg`;
+    const fileName = selectedPatientId ? `patient_${selectedPatientId}.jpg` : `patient_${++photoCounterRef.current}.jpg`;
     if (videoRef.current && canvasRef.current) {
       const canvas = canvasRef.current;
       const video = videoRef.current;
@@ -379,7 +385,7 @@ export default function ReceptionModule({
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-    const fileName = `patient_${++photoCounterRef.current}.jpg`;
+    const fileName = selectedPatientId ? `patient_${selectedPatientId}.jpg` : `patient_${++photoCounterRef.current}.jpg`;
       const reader = new FileReader();
       reader.onloadend = async () => {
         const result = reader.result as string;
@@ -393,8 +399,10 @@ export default function ReceptionModule({
   };
 
   // Add Patient Submit
-  const handleAddPatient = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleAddPatient = async (e?: React.FormEvent | React.MouseEvent) => {
+    if (e && 'preventDefault' in e) e.preventDefault();
+
+    const isEditing = !!selectedPatientId;
 
     // Identifytab Identification fields
     if (!newName.trim()) {
@@ -412,12 +420,12 @@ export default function ReceptionModule({
       setActiveFormTab('identification');
       return;
     }
-    if (!placeOfBirth.trim()) {
+    if (!isEditing && !placeOfBirth.trim()) {
       alert("Campo obrigatório não preenchido: Local de Nascimento");
       setActiveFormTab('identification');
       return;
     }
-    if (!nationality.trim()) {
+    if (!isEditing && !nationality.trim()) {
       alert("Campo obrigatório não preenchido: Nacionalidade");
       setActiveFormTab('identification');
       return;
@@ -444,34 +452,14 @@ export default function ReceptionModule({
       setActiveFormTab('contact_address');
       return;
     }
-    if (!addressDistrict.trim()) {
-      alert("Campo obrigatório não preenchido: Distrito");
-      setActiveFormTab('contact_address');
-      return;
-    }
     if (!addressCity.trim()) {
       alert("Campo obrigatório não preenchido: Cidade");
       setActiveFormTab('contact_address');
       return;
     }
-    if (!addressNeighborhood.trim()) {
-      alert("Campo obrigatório não preenchido: Bairro");
-      setActiveFormTab('contact_address');
-      return;
-    }
-    if (!addressStreet.trim()) {
-      alert("Campo obrigatório não preenchido: Rua");
-      setActiveFormTab('contact_address');
-      return;
-    }
-    if (!addressNumber.trim()) {
-      alert("Campo obrigatório não preenchido: Número do Endereço");
-      setActiveFormTab('contact_address');
-      return;
-    }
 
-    // Complementary tab fields
-    if (!allergies.trim()) {
+    // Complementary tab fields (only required for new patients)
+    if (!isEditing && !allergies.trim()) {
       alert("Campo obrigatório não preenchido: Alergias / Antecedentes Clínicos");
       setActiveFormTab('complementary');
       return;
@@ -481,7 +469,7 @@ export default function ReceptionModule({
       setActiveFormTab('complementary');
       return;
     }
-    if (!employer.trim()) {
+    if (!isEditing && !employer.trim()) {
       alert("Campo obrigatório não preenchido: Empresa Empregadora");
       setActiveFormTab('complementary');
       return;
@@ -507,7 +495,16 @@ export default function ReceptionModule({
     }
 
     // eslint-disable-next-line react-hooks/purity
-    const patientId = `pat_${Date.now()}`;
+    const patientId = isEditing ? selectedPatientId : `pat_${Date.now()}`;
+
+    // Se tem preview mas photoUrl ainda vazio (upload assíncrono pendente), faz upload agora
+    let finalPhotoUrl = photoUrl;
+    if (!finalPhotoUrl && webcamPlaceholder && webcamPlaceholder.startsWith('data:')) {
+      const uploadFileName = `patient_${patientId}.jpg`;
+      const uploadedUrl = await uploadPhotoToStorage(webcamPlaceholder, uploadFileName);
+      if (uploadedUrl) finalPhotoUrl = uploadedUrl;
+    }
+
     const newPatient: Patient = {
       id: patientId,
       name: newName,
@@ -542,55 +539,72 @@ export default function ReceptionModule({
       guardian_document_type: isMinor ? guardianDocumentType : undefined,
       guardian_document: isMinor ? guardianDocument : undefined,
       guardian_relationship: isMinor ? guardianRelationship : undefined,
-      photo_url: photoUrl,
+      photo_url: finalPhotoUrl,
       preferred_language: preferredLanguage
     };
 
     // Optimistic UI update
-    setPatients(prev => [newPatient, ...prev]);
-    addAuditLog('Admitiu Paciente', newPatient.name);
+    if (isEditing) {
+      setPatients(prev => prev.map(p => p.id === patientId ? { ...p, ...newPatient } : p));
+      addAuditLog('Editou Paciente', newPatient.name);
+    } else {
+      setPatients(prev => [newPatient, ...prev]);
+      addAuditLog('Admitiu Paciente', newPatient.name);
+    }
 
     // Save to Supabase (dynamic fields included)
     if (!supabase) return;
-    try {
-      await supabase.from('patients').insert({
-        id: newPatient.id,
-        name: newPatient.name,
-        email: newPatient.email,
-        phone: newPatient.phone,
-        birthdate: newPatient.birthdate,
-        gender: newPatient.gender,
-        priority: newPatient.priority,
-        status: newPatient.status,
-        
-        document_type: newPatient.document_type,
-        document_number: newPatient.document_number,
-        place_of_birth: newPatient.place_of_birth,
-        civil_status: newPatient.civil_status,
-        nationality: newPatient.nationality,
-        address_department: newPatient.address_department,
-        address_district: newPatient.address_district,
-        address_city: newPatient.address_city,
-        address_neighborhood: newPatient.address_neighborhood,
-        address_street: newPatient.address_street,
-        address_number: newPatient.address_number,
-        whatsapp_verified: newPatient.whatsapp_verified,
-        
-        blood_type: newPatient.blood_type,
-        allergies: newPatient.allergies,
-        health_insurance_type: newPatient.health_insurance_type,
-        health_insurance_number: newPatient.health_insurance_number,
-        health_insurance_company: newPatient.health_insurance_company,
-        employer: newPatient.employer,
-        guardian_name: newPatient.guardian_name,
-        guardian_document_type: newPatient.guardian_document_type,
-        guardian_document: newPatient.guardian_document,
-        guardian_relationship: newPatient.guardian_relationship,
-        photo_url: newPatient.photo_url,
-        preferred_language: newPatient.preferred_language
-      });
-    } catch (err) {
-      console.warn("Failed to persist new patient to Supabase, offline/fallback active:", err);
+    const patientData = {
+      name: newPatient.name,
+      email: newPatient.email,
+      phone: newPatient.phone,
+      birthdate: newPatient.birthdate,
+      gender: newPatient.gender,
+      priority: newPatient.priority,
+      status: newPatient.status,
+      
+      document_type: newPatient.document_type,
+      document_number: newPatient.document_number,
+      place_of_birth: newPatient.place_of_birth,
+      civil_status: newPatient.civil_status,
+      nationality: newPatient.nationality,
+      address_department: newPatient.address_department,
+      address_district: newPatient.address_district,
+      address_city: newPatient.address_city,
+      address_neighborhood: newPatient.address_neighborhood,
+      address_street: newPatient.address_street,
+      address_number: newPatient.address_number,
+      whatsapp_verified: newPatient.whatsapp_verified,
+      
+      blood_type: newPatient.blood_type,
+      allergies: newPatient.allergies,
+      health_insurance_type: newPatient.health_insurance_type,
+      health_insurance_number: newPatient.health_insurance_number,
+      health_insurance_company: newPatient.health_insurance_company,
+      employer: newPatient.employer,
+      guardian_name: newPatient.guardian_name,
+      guardian_document_type: newPatient.guardian_document_type,
+      guardian_document: newPatient.guardian_document,
+      guardian_relationship: newPatient.guardian_relationship,
+      photo_url: newPatient.photo_url,
+      preferred_language: newPatient.preferred_language
+    };
+
+    if (isEditing) {
+      const { error: updateError } = await supabase.from('patients').update(patientData).eq('id', patientId);
+      if (updateError) {
+        console.error("[SUPABASE] UPDATE patients FAILED:", updateError.code, updateError.message, updateError.details);
+        alert("Erro ao atualizar paciente no servidor: " + updateError.message);
+        return;
+      }
+    } else {
+      const { data: insertedData, error: insertError } = await supabase.from('patients').insert({ id: newPatient.id, ...patientData }).select();
+      if (insertError) {
+        console.error("[SUPABASE] INSERT patients FAILED:", insertError.code, insertError.message, insertError.details);
+        setPatients(prev => prev.filter(p => p.id !== newPatient.id));
+        alert("Erro ao salvar paciente no servidor: " + insertError.message);
+        return;
+      }
     }
 
     // Reset Form
@@ -622,6 +636,7 @@ export default function ReceptionModule({
     setGuardianRelationship('');
     setWebcamPlaceholder(null);
     setPhotoUrl('');
+    setSelectedPatientId('');
     setActiveFormTab('identification');
   };
 
@@ -694,44 +709,44 @@ export default function ReceptionModule({
 
     // Save to Supabase
     if (!supabase) return;
-    try {
-      await supabase.from('patients').update({
-        name: mergedPatient.name,
-        email: mergedPatient.email,
-        phone: mergedPatient.phone,
-        birthdate: mergedPatient.birthdate,
-        gender: mergedPatient.gender,
-        priority: mergedPatient.priority,
-        status: mergedPatient.status,
-        
-        document_type: mergedPatient.document_type,
-        document_number: mergedPatient.document_number,
-        place_of_birth: mergedPatient.place_of_birth,
-        civil_status: mergedPatient.civil_status,
-        nationality: mergedPatient.nationality,
-        address_department: mergedPatient.address_department,
-        address_district: mergedPatient.address_district,
-        address_city: mergedPatient.address_city,
-        address_neighborhood: mergedPatient.address_neighborhood,
-        address_street: mergedPatient.address_street,
-        address_number: mergedPatient.address_number,
-        whatsapp_verified: mergedPatient.whatsapp_verified,
-        
-        blood_type: mergedPatient.blood_type,
-        allergies: mergedPatient.allergies,
-        health_insurance_type: mergedPatient.health_insurance_type,
-        health_insurance_number: mergedPatient.health_insurance_number,
-        health_insurance_company: mergedPatient.health_insurance_company,
-        employer: mergedPatient.employer,
-        guardian_name: mergedPatient.guardian_name,
-        guardian_document_type: mergedPatient.guardian_document_type,
-        guardian_document: mergedPatient.guardian_document,
-        guardian_relationship: mergedPatient.guardian_relationship,
-        photo_url: mergedPatient.photo_url,
-        preferred_language: mergedPatient.preferred_language
-      }).eq('id', duplicatePatient.id);
-    } catch (err) {
-      console.warn("Failed to persist merged patient to Supabase:", err);
+    const { error: mergeError } = await supabase.from('patients').update({
+      name: mergedPatient.name,
+      email: mergedPatient.email,
+      phone: mergedPatient.phone,
+      birthdate: mergedPatient.birthdate,
+      gender: mergedPatient.gender,
+      priority: mergedPatient.priority,
+      status: mergedPatient.status,
+      
+      document_type: mergedPatient.document_type,
+      document_number: mergedPatient.document_number,
+      place_of_birth: mergedPatient.place_of_birth,
+      civil_status: mergedPatient.civil_status,
+      nationality: mergedPatient.nationality,
+      address_department: mergedPatient.address_department,
+      address_district: mergedPatient.address_district,
+      address_city: mergedPatient.address_city,
+      address_neighborhood: mergedPatient.address_neighborhood,
+      address_street: mergedPatient.address_street,
+      address_number: mergedPatient.address_number,
+      whatsapp_verified: mergedPatient.whatsapp_verified,
+      
+      blood_type: mergedPatient.blood_type,
+      allergies: mergedPatient.allergies,
+      health_insurance_type: mergedPatient.health_insurance_type,
+      health_insurance_number: mergedPatient.health_insurance_number,
+      health_insurance_company: mergedPatient.health_insurance_company,
+      employer: mergedPatient.employer,
+      guardian_name: mergedPatient.guardian_name,
+      guardian_document_type: mergedPatient.guardian_document_type,
+      guardian_document: mergedPatient.guardian_document,
+      guardian_relationship: mergedPatient.guardian_relationship,
+      photo_url: mergedPatient.photo_url,
+      preferred_language: mergedPatient.preferred_language
+    }).eq('id', duplicatePatient.id);
+    
+    if (mergeError) {
+      console.error("[SUPABASE] UPDATE patients merge FAILED:", mergeError.message);
     }
 
     // Reset Form and close modal
@@ -858,27 +873,26 @@ export default function ReceptionModule({
 
     // Persist to Supabase
     if (supabase) {
-      try {
-        await supabase.from('appointments').insert({
-          id: newApp.id,
-          patient_id: newApp.patientId,
-          patient_name: newApp.patientName,
-          doctor_name: newApp.doctorName,
-          specialty: newApp.specialty,
-          date: newApp.date,
-          time: newApp.time,
-          status: newApp.status,
-          branch: newApp.branch,
-          room: newApp.room,
-          resource: newApp.resource,
-          type: newApp.type,
-          modality: newApp.modality,
-          is_overturn: newApp.is_overturn || false,
-          overturn_reason: newApp.overturn_reason || null,
-          insurance: newApp.insurance
-        });
-      } catch (err) {
-        console.warn("Failed to persist appointment:", err);
+      const { error: appInsertError } = await supabase.from('appointments').insert({
+        id: newApp.id,
+        patient_id: newApp.patientId,
+        patient_name: newApp.patientName,
+        doctor_name: newApp.doctorName,
+        specialty: newApp.specialty,
+        date: newApp.date,
+        time: newApp.time,
+        status: newApp.status,
+        branch: newApp.branch,
+        room: newApp.room,
+        resource: newApp.resource,
+        type: newApp.type,
+        modality: newApp.modality,
+        is_overturn: newApp.is_overturn || false,
+        overturn_reason: newApp.overturn_reason || null,
+        insurance: newApp.insurance
+      });
+      if (appInsertError) {
+        console.error("[SUPABASE] INSERT appointments FAILED:", appInsertError.message);
       }
     }
 
@@ -967,6 +981,54 @@ export default function ReceptionModule({
     setOnlinePatientId('');
   };
 
+  const handleDeletePatient = async (id: string, patientName: string) => {
+    if (!confirm(`Tem certeza que deseja excluir o paciente "${patientName}"? Esta ação não pode ser desfeita.`)) return;
+    setPatients(prev => prev.filter(p => p.id !== id));
+    addAuditLog('Exclusão Paciente', patientName);
+    if (supabase) {
+      const { error } = await supabase.from('patients').delete().eq('id', id);
+      if (error) {
+        console.error("[SUPABASE] DELETE patients FAILED:", error.message);
+      }
+    }
+  };
+
+  const handleEditPatient = (patient: Patient) => {
+    setNewName(patient.name);
+    setNewBirthdate(patient.birthdate || '');
+    setNewPhone(patient.phone || '');
+    setNewGender(patient.gender || 'Masculino');
+    setNewPriority(patient.priority || 'normal');
+    setDocumentType((patient.document_type as 'CI' | 'Passaporte' | 'RG' | 'Outro') || 'CI');
+    setDocumentNumber(patient.document_number || '');
+    setPlaceOfBirth(patient.place_of_birth || '');
+    setCivilStatus((patient.civil_status as any) || 'Solteiro(a)');
+    setNationality(patient.nationality || 'Paraguaia');
+    setAddressDepartment(patient.address_department || '');
+    setAddressDistrict(patient.address_district || '');
+    setAddressCity(patient.address_city || '');
+    setAddressNeighborhood(patient.address_neighborhood || '');
+    setAddressStreet(patient.address_street || '');
+    setAddressNumber(patient.address_number || '');
+    setNewEmail(patient.email || '');
+    setWhatsappVerified(patient.whatsapp_verified || false);
+    setAllergies(patient.allergies || '');
+    setHealthInsuranceType((patient.health_insurance_type as any) || 'Particular');
+    setHealthInsuranceNumber(patient.health_insurance_number || '');
+    setEmployer(patient.employer || '');
+    setBloodType(patient.blood_type || 'Não Informado');
+    setHealthInsuranceCompany(patient.health_insurance_company || '');
+    setGuardianName(patient.guardian_name || '');
+    setGuardianDocumentType((patient.guardian_document_type as 'CI' | 'Passaporte' | 'RG' | 'Outro') || 'CI');
+    setGuardianDocument(patient.guardian_document || '');
+    setGuardianRelationship(patient.guardian_relationship || '');
+    setPhotoUrl(patient.photo_url || '');
+    setWebcamPlaceholder(patient.photo_url || null);
+    setPreferredLanguage((patient.preferred_language as any) || 'es');
+    setSelectedPatientId(patient.id);
+    setActiveFormTab('identification');
+  };
+
   const handleUpdatePatientStatus = async (id: string, status: Patient['status']) => {
     setPatients(prev => prev.map(p => {
       if (p.id === id) {
@@ -976,10 +1038,9 @@ export default function ReceptionModule({
       return p;
     }));
     if (supabase) {
-      try {
-        await supabase.from('patients').update({ status }).eq('id', id);
-      } catch (err) {
-        console.warn("Failed to update status on Supabase:", err);
+      const { error: statusError } = await supabase.from('patients').update({ status }).eq('id', id);
+      if (statusError) {
+        console.error("[SUPABASE] UPDATE patients status FAILED:", statusError.message);
       }
     }
   };
@@ -993,10 +1054,9 @@ export default function ReceptionModule({
       return a;
     }));
     if (supabase) {
-      try {
-        await supabase.from('appointments').update({ status }).eq('id', id);
-      } catch (err) {
-        console.warn("Failed to update status on Supabase:", err);
+      const { error: appStatusError } = await supabase.from('appointments').update({ status }).eq('id', id);
+      if (appStatusError) {
+        console.error("[SUPABASE] UPDATE appointments status FAILED:", appStatusError.message);
       }
     }
   };
@@ -1109,7 +1169,7 @@ export default function ReceptionModule({
                 )}
               </AnimatePresence>
 
-              <form onSubmit={handleAddPatient} className="space-y-4 text-sm">
+              <form noValidate onKeyDown={e => { if (e.key === 'Enter') e.preventDefault(); }} className="space-y-4 text-sm">
                 
                 {/* 1. IDENTIFICAÇÃO TAB */}
                 {activeFormTab === 'identification' && (
@@ -1679,8 +1739,9 @@ export default function ReceptionModule({
                     </button>
                   ) : (
                     <button 
-                      type="submit" 
+                      type="button" 
                       data-testid="reception-submit-admit"
+                      onClick={handleAddPatient}
                       className={`py-2 px-4 text-white text-xs font-bold rounded-lg shadow-sm flex items-center justify-center gap-1.5 cursor-pointer transition ${
                         isMinor && (!guardianName.trim() || !guardianDocument.trim() || !guardianRelationship.trim())
                           ? 'bg-slate-400 cursor-not-allowed opacity-60'
@@ -1688,8 +1749,11 @@ export default function ReceptionModule({
                       }`}
                       disabled={isMinor && (!guardianName.trim() || !guardianDocument.trim() || !guardianRelationship.trim())}
                     >
-                      <Plus className="w-4 h-4" />
-                      Admitir na Triagem
+                      {selectedPatientId ? (
+                        <><Check className="w-4 h-4" /> Salvar Edição</>
+                      ) : (
+                        <><Plus className="w-4 h-4" /> Admitir na Triagem</>
+                      )}
                     </button>
                   )}
                 </div>
@@ -1855,6 +1919,22 @@ export default function ReceptionModule({
                             >
                               <HeartPulse className="w-3.5 h-3.5 text-white animate-pulse" />
                               Realizar Triagem
+                            </button>
+                            <button
+                              onClick={() => handleEditPatient(p)}
+                              data-testid="edit-patient"
+                              className="bg-blue-500 hover:bg-blue-600 text-white text-xs px-2.5 py-1.5 rounded-lg font-semibold shadow-xs transition cursor-pointer flex items-center gap-1"
+                              title="Editar Paciente"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleDeletePatient(p.id, p.name)}
+                              data-testid="delete-patient"
+                              className="bg-red-500 hover:bg-red-600 text-white text-xs px-2.5 py-1.5 rounded-lg font-semibold shadow-xs transition cursor-pointer flex items-center gap-1"
+                              title="Excluir Paciente"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </>
                         )}
@@ -2583,13 +2663,13 @@ export default function ReceptionModule({
                           notes: triageEntry.notes,
                           doctor: triageEntry.doctor,
                         });
-                        await supabase.from('patients').update({
-                          status: 'atendimento',
-                          priority: newPriority,
-                        }).eq('id', triagePatient.id);
-                      } catch (err) {
-                        console.warn('Triage persist error:', err);
-                      }
+                         await supabase.from('patients').update({
+                           status: 'atendimento',
+                           priority: newPriority,
+                         }).eq('id', triagePatient.id);
+                       } catch (err) {
+                         console.error('[SUPABASE] UPDATE patients triage FAILED:', err);
+                       }
                     }
 
                     setShowTriageModal(false);

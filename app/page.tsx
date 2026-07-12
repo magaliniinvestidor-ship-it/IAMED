@@ -469,30 +469,32 @@ function HomeContent() {
         locationsRes.error || clinicalRoomsRes.error
       );
 
-      if (patientsRes.data && !patientsRes.error && patientsRes.data.length > 0) {
-        const mapped = patientsRes.data.map((p: any) => {
-          const mock = initialPatients.find(m => m.id === p.id);
-          return {
-            ...p,
-            ...(mock || {}),
-            ...p,
-            document_type: p.document_type || mock?.document_type,
-            document_number: p.document_number || mock?.document_number,
-            clinicalHistory: (p.clinical_history || mock?.clinicalHistory || []).map((h: any) => ({
-              id: h.id,
-              date: h.date,
-              type: h.type,
-              diagnosis: h.diagnosis || '',
-              cid10: h.cid10 || '',
-              prescriptions: h.prescriptions || [],
-              notes: h.notes,
-              doctor: h.doctor,
-            })),
-          };
-        });
-        setPatients(mapped);
-      } else {
-        setPatients(initialPatients);
+      if (patientsRes.data && !patientsRes.error) {
+        if (patientsRes.data.length > 0) {
+          const mapped = patientsRes.data.map((p: any) => {
+            const mock = initialPatients.find(m => m.id === p.id);
+            return {
+              ...p,
+              ...(mock || {}),
+              ...p,
+              document_type: p.document_type || mock?.document_type,
+              document_number: p.document_number || mock?.document_number,
+              clinicalHistory: (p.clinical_history || mock?.clinicalHistory || []).map((h: any) => ({
+                id: h.id,
+                date: h.date,
+                type: h.type,
+                diagnosis: h.diagnosis || '',
+                cid10: h.cid10 || '',
+                prescriptions: h.prescriptions || [],
+                notes: h.notes,
+                doctor: h.doctor,
+              })),
+            };
+          });
+          setPatients(mapped);
+        }
+      } else if (patientsRes.error) {
+        console.error("[loadAllData] Supabase patients query error:", patientsRes.error);
       }
 
       if (appointmentsRes.data && !appointmentsRes.error) {
@@ -906,7 +908,7 @@ function HomeContent() {
 
     // Persist to Supabase
     if (supabase) {
-      await supabase.from('audit_logs').insert({
+      const { error: logError } = await supabase.from('audit_logs').insert({
         id: newLog.id,
         operator: newLog.operator,
         role: newLog.role,
@@ -914,6 +916,9 @@ function HomeContent() {
         target: newLog.target,
         ip: newLog.ip,
       });
+      if (logError) {
+        console.error("[SUPABASE] INSERT audit_logs FAILED:", logError.message);
+      }
     }
   }, [activeOperator, activeRole]);
 
