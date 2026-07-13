@@ -1,9 +1,26 @@
 import { createClient } from '@supabase/supabase-js';
+import { readFileSync } from 'fs';
 
-const supabaseUrl = 'https://kqfiwigggbdwwnzywhbx.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtxZml3aWdnZ2Jkd3duenl3aGJ4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIwNjUwOTYsImV4cCI6MjA5NzY0MTA5Nn0.ySKgvmByHtRiTucxz8tzeXrIQQ_KIIU4oc5aMF-gzF8';
+function loadEnv() {
+  const envFile = readFileSync('.env.local', 'utf-8');
+  const env = {};
+  for (const line of envFile.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const eqIdx = trimmed.indexOf('=');
+    if (eqIdx === -1) continue;
+    const key = trimmed.slice(0, eqIdx).trim();
+    let value = trimmed.slice(eqIdx + 1).trim();
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+    env[key] = value;
+  }
+  return env;
+}
 
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const env = loadEnv();
+const supabase = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 
 async function check() {
   const { data: profs, error: err2 } = await supabase
