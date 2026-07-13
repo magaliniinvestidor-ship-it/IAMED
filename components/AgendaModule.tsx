@@ -256,13 +256,17 @@ const AgendaModuleContent = ({
   const [showNewApptModal, setShowNewApptModal] = useState(false);
   const [newApptForm, setNewApptForm] = useState({
     patient_id: '', patient_name: '', doctor_name: '', specialty: '', date: '', time: '',
-    branch: '', room: '', resource: '', type: 'primeira_vez' as string,
+    branch: '', room: '', type: 'primeira_vez' as string,
     modality: 'Presencial' as 'Presencial' | 'Virtual',
     insurance: '', insurance_type: '' as string | undefined,
     duration_minutes: 30,
   });
   const [minGapMinutes, setMinGapMinutes] = useState(10);
   const [schedulingConfig, setSchedulingConfig] = useState({ showConfig: false });
+
+  // Dynamic data for locations and rooms
+  const [locations, setLocations] = useState<{ id: string; name: string; status: string }[]>([]);
+  const [clinicalRooms, setClinicalRooms] = useState<{ id: string; name: string; location_id: string; status: string }[]>([]);
 
   // ============================================================
   // DATA LOADING
@@ -286,6 +290,24 @@ const AgendaModuleContent = ({
       }
     };
     load();
+  }, []);
+
+  // Load locations and rooms from Supabase
+  useEffect(() => {
+    const loadLocationData = async () => {
+      if (!supabase) return;
+      try {
+        const [locRes, roomRes] = await Promise.all([
+          supabase.from('locations').select('id, name, status').eq('status', 'ativo').order('name'),
+          supabase.from('clinical_rooms').select('id, name, location_id, status').eq('status', 'ativo').order('name'),
+        ]);
+        if (locRes.data) setLocations(locRes.data);
+        if (roomRes.data) setClinicalRooms(roomRes.data);
+      } catch (e) {
+        console.warn('Location data load error:', e);
+      }
+    };
+    loadLocationData();
   }, []);
 
   // ============================================================
@@ -383,6 +405,38 @@ const AgendaModuleContent = ({
     }
     return days;
   }, [selectedDate]);
+
+  // Dynamic specialties derived from professionals at the selected sede
+  const availableSpecialties = useMemo(() => {
+    const specialtySet = new Set<string>();
+    professionals.forEach(p => {
+      if (p.status !== 'ativo') return;
+      if (!p.specialty) return;
+      // If sede selected, only show specialties from professionals at that sede
+      if (newApptForm.branch && p.locationId && p.locationId !== newApptForm.branch) return;
+      specialtySet.add(p.specialty);
+    });
+    return Array.from(specialtySet).sort();
+  }, [professionals, newApptForm.branch]);
+
+  // Dynamic professionals filtered by sede + specialty
+  const availableProfessionals = useMemo(() => {
+    return professionals.filter(p => {
+      if (p.status !== 'ativo') return false;
+      // If sede selected, professional MUST have locationId matching the sede
+      if (newApptForm.branch) {
+        if (!p.locationId || p.locationId !== newApptForm.branch) return false;
+      }
+      if (newApptForm.specialty && p.specialty !== newApptForm.specialty) return false;
+      return true;
+    });
+  }, [professionals, newApptForm.branch, newApptForm.specialty]);
+
+  // Dynamic rooms filtered by sede
+  const availableRooms = useMemo(() => {
+    if (!newApptForm.branch) return clinicalRooms;
+    return clinicalRooms.filter(r => r.location_id === newApptForm.branch);
+  }, [clinicalRooms, newApptForm.branch]);
 
   // ============================================================
   // DRAG & DROP
@@ -578,6 +632,14 @@ const AgendaModuleContent = ({
 
   const handleNewAppointment = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!newApptForm.patient_id) { alert('Selecione o paciente.'); return; }
+    if (!newApptForm.branch) { alert('Selecione a sede.'); return; }
+    if (!newApptForm.room) { alert('Selecione a sala.'); return; }
+    if (!newApptForm.specialty) { alert('Selecione a especialidade.'); return; }
+    if (!newApptForm.doctor_name) { alert('Selecione o profissional.'); return; }
+    if (!newApptForm.date) { alert('Selecione a data.'); return; }
+    if (!newApptForm.time) { alert('Selecione o horário.'); return; }
+    if (!newApptForm.insurance_type) { alert('Selecione o convênio/tipo.'); return; }
     if (isBlocked(newApptForm.date, newApptForm.time, newApptForm.doctor_name, newApptForm.branch)) {
       alert('Este horário está bloqueado para este médico/sede. Escolha outro horário.');
       return;
@@ -604,8 +666,10 @@ const AgendaModuleContent = ({
         return;
       }
     }
+    apptCounterRef.current += 1;
+    const apptId = `agenda_${apptCounterRef.current}`;
     const newApp: Appointment = {
-      id: `app_${apptCounterRef.current++}`,
+      id: apptId,
       patientId: newApptForm.patient_id,
       patientName: newApptForm.patient_name,
       doctorName: newApptForm.doctor_name,
@@ -614,7 +678,6 @@ const AgendaModuleContent = ({
       time: newApptForm.time,
       branch: newApptForm.branch,
       room: newApptForm.room,
-      resource: newApptForm.resource,
       type: newApptForm.type,
       modality: newApptForm.modality,
       insurance: newApptForm.insurance,
@@ -626,7 +689,21 @@ const AgendaModuleContent = ({
     setAppointments(prev => [...prev, newApp]);
     addAuditLog('Criou Agendamento', `${newApptForm.patient_name} - ${newApptForm.date} ${newApptForm.time} (${newApptForm.type})`);
     if (supabase) {
-      const { error: agendaInsertError } = await supabase.from('appointments').insert(newApp);
+      const { error: agendaInsertError } = await supabase.from('appointments').insert({
+        id: apptId,
+        patient_id: newApp.patientId,
+        patient_name: newApp.patientName,
+        doctor_name: newApp.doctorName,
+        specialty: newApp.specialty,
+        date: newApp.date,
+        time: newApp.time,
+        status: newApp.status,
+        branch: newApp.branch,
+        room: newApp.room,
+        type: newApp.type,
+        modality: newApp.modality,
+        insurance: newApp.insurance,
+      });
       if (agendaInsertError) {
         console.error("[SUPABASE] INSERT appointments from Agenda FAILED:", agendaInsertError.message);
       }
@@ -638,7 +715,7 @@ const AgendaModuleContent = ({
   const resetNewApptForm = () => {
     setNewApptForm({
       patient_id: '', patient_name: '', doctor_name: '', specialty: '', date: '', time: '',
-      branch: '', room: '', resource: '', type: 'primeira_vez',
+      branch: '', room: '', type: 'primeira_vez',
       modality: 'Presencial', insurance: '', insurance_type: undefined, duration_minutes: 30,
     });
   };
@@ -1294,21 +1371,52 @@ const AgendaModuleContent = ({
               </select>
             </div>
 
-            {/* Médico + Especialidade */}
-            <div className="grid grid-cols-2 gap-4">
+            {/* Modalidade + Sede + Sala */}
+            <div className="grid grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">Médico *</label>
-                <select value={newApptForm.doctor_name} onChange={e => {
-                  const p = professionals.find(p => p.name === e.target.value);
-                  setNewApptForm({ ...newApptForm, doctor_name: e.target.value, specialty: p?.specialty || '' });
-                }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
-                  <option value="">Selecionar médico...</option>
-                  {professionals.filter(p => p.role === 'Médico(a)').map(p => <option key={p.id} value={p.name}>{p.name} - {p.specialty}</option>)}
+                <label className="block text-sm font-medium text-slate-600 mb-1">Modalidade *</label>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setNewApptForm({ ...newApptForm, modality: 'Presencial' })}
+                    className={`flex-1 py-2 rounded-lg border-2 text-sm font-bold transition ${
+                      newApptForm.modality === 'Presencial' ? 'bg-teal-100 border-teal-400 text-teal-700' : 'bg-white border-slate-200 text-slate-500'
+                    }`}>Presencial</button>
+                  <button type="button" onClick={() => setNewApptForm({ ...newApptForm, modality: 'Virtual' })}
+                    className={`flex-1 py-2 rounded-lg border-2 text-sm font-bold transition ${
+                      newApptForm.modality === 'Virtual' ? 'bg-purple-100 border-purple-400 text-purple-700' : 'bg-white border-slate-200 text-slate-500'
+                    }`}>Virtual</button>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1">Sede *</label>
+                <select value={newApptForm.branch} onChange={e => setNewApptForm({ ...newApptForm, branch: e.target.value, room: '', doctor_name: '', specialty: '' })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
+                  <option value="">Selecionar...</option>
+                  {locations.map(loc => <option key={loc.id} value={loc.id}>{loc.name}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">Especialidade</label>
-                <input type="text" value={newApptForm.specialty} readOnly className="w-full p-2 bg-slate-100 border border-slate-200 rounded-lg text-sm" />
+                <label className="block text-sm font-medium text-slate-600 mb-1">Sala *</label>
+                <select value={newApptForm.room} onChange={e => setNewApptForm({ ...newApptForm, room: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required disabled={!newApptForm.branch}>
+                  <option value="">{newApptForm.branch ? 'Selecionar...' : 'Selecione a sede'}</option>
+                  {availableRooms.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
+                </select>
+              </div>
+            </div>
+
+            {/* Especialidade + Profissional */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1">Especialidade *</label>
+                <select value={newApptForm.specialty} onChange={e => setNewApptForm({ ...newApptForm, specialty: e.target.value, doctor_name: '' })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required disabled={!newApptForm.branch}>
+                  <option value="">{newApptForm.branch ? 'Selecionar Especialidade' : 'Selecione a sede'}</option>
+                  {availableSpecialties.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1">Profissional *</label>
+                <select value={newApptForm.doctor_name} onChange={e => setNewApptForm({ ...newApptForm, doctor_name: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required disabled={!newApptForm.specialty}>
+                  <option value="">{newApptForm.specialty ? 'Selecionar Profissional' : 'Selecione a especialidade'}</option>
+                  {availableProfessionals.map(p => <option key={p.id} value={p.name}>{p.name} - {p.specialty}</option>)}
+                </select>
               </div>
             </div>
 
@@ -1365,62 +1473,16 @@ const AgendaModuleContent = ({
               </div>
             </div>
 
-            {/* Modalidade + Sede + Sala */}
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">Modalidade *</label>
-                <div className="flex gap-2">
-                  <button type="button" onClick={() => setNewApptForm({ ...newApptForm, modality: 'Presencial' })}
-                    className={`flex-1 py-2 rounded-lg border-2 text-sm font-bold transition ${
-                      newApptForm.modality === 'Presencial' ? 'bg-teal-100 border-teal-400 text-teal-700' : 'bg-white border-slate-200 text-slate-500'
-                    }`}>Presencial</button>
-                  <button type="button" onClick={() => setNewApptForm({ ...newApptForm, modality: 'Virtual' })}
-                    className={`flex-1 py-2 rounded-lg border-2 text-sm font-bold transition ${
-                      newApptForm.modality === 'Virtual' ? 'bg-purple-100 border-purple-400 text-purple-700' : 'bg-white border-slate-200 text-slate-500'
-                    }`}>Virtual</button>
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">Sede</label>
-                <select value={newApptForm.branch} onChange={e => setNewApptForm({ ...newApptForm, branch: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
-                  <option value="">Selecionar...</option>
-                  <option value="Sede Central">Sede Central</option>
-                  <option value="Sede Norte">Sede Norte</option>
-                  <option value="Sede Sul">Sede Sul</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">Sala</label>
-                <select value={newApptForm.room} onChange={e => setNewApptForm({ ...newApptForm, room: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
-                  <option value="">Selecionar...</option>
-                  <option value="Consultório 1">Consultório 1</option>
-                  <option value="Consultório 2">Consultório 2</option>
-                  <option value="Sala de Exames">Sala de Exames</option>
-                  <option value="Sala de Procedimentos">Sala de Procedimentos</option>
-                  <option value="Sala Telemedicina">Sala Telemedicina</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Recurso + Convênio */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">Recurso/Equipamento</label>
-                <select value={newApptForm.resource} onChange={e => setNewApptForm({ ...newApptForm, resource: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
-                  <option value="">Nenhum</option>
-                  {RESOURCES.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">Convênio/Tipo</label>
-                <select value={newApptForm.insurance_type} onChange={e => {
-                  const it = INSURANCE_TYPES.find(i => i.value === e.target.value);
-                  setNewApptForm({ ...newApptForm, insurance_type: e.target.value || undefined, insurance: it?.label || '' });
-                }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
-                  <option value="">Particular</option>
-                  {INSURANCE_TYPES.map(i => <option key={i.value} value={i.value}>{i.label}</option>)}
-                </select>
-              </div>
+            {/* Convênio/Tipo */}
+            <div>
+              <label className="block text-sm font-medium text-slate-600 mb-1">Convênio/Tipo *</label>
+              <select value={newApptForm.insurance_type} onChange={e => {
+                const it = INSURANCE_TYPES.find(i => i.value === e.target.value);
+                setNewApptForm({ ...newApptForm, insurance_type: e.target.value || undefined, insurance: it?.label || '' });
+              }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
+                <option value="">Particular</option>
+                {INSURANCE_TYPES.map(i => <option key={i.value} value={i.value}>{i.label}</option>)}
+              </select>
             </div>
 
             {/* Cota Modalidade */}

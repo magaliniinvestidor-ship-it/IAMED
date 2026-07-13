@@ -602,6 +602,7 @@ function HomeContent() {
           admissionDate: p.admission_date,
           color: p.color,
           permissions: p.permissions || [],
+          locationId: p.location_id || '',
         }));
         setProfessionals(mapped);
       } else {
