@@ -495,7 +495,17 @@ export default function ReceptionModule({
     }
 
     // eslint-disable-next-line react-hooks/purity
-    const patientId = isEditing ? selectedPatientId : `pat_${Date.now()}`;
+    let patientId: string;
+    if (isEditing) {
+      patientId = selectedPatientId;
+    } else {
+      const numericIds = patients.map(p => {
+        const match = p.id.match(/^PAC(\d+)$/);
+        return match ? parseInt(match[1], 10) : 0;
+      });
+      const nextIdNum = Math.max(...numericIds, 0) + 1;
+      patientId = `PAC${String(nextIdNum).padStart(3, '0')}`;
+    }
 
     // Se tem preview mas photoUrl ainda vazio (upload assíncrono pendente), faz upload agora
     let finalPhotoUrl = photoUrl;

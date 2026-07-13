@@ -48,10 +48,18 @@ export async function POST(req: NextRequest) {
     let authUserId: string;
     let userId: string;
 
+    // Generate sequential ID: usr_1, usr_2, etc.
+    const { data: existingSysUsers } = await supabaseAdmin.from('system_users').select('id');
+    const numericIds = (existingSysUsers || []).map((u: any) => {
+      const match = u.id.match(/^usr_(\d+)$/);
+      return match ? parseInt(match[1], 10) : 0;
+    });
+    const nextIdNum = Math.max(...numericIds, 0) + 1;
+    userId = `usr_${nextIdNum}`;
+
     if (existingUser) {
       // User already exists in Auth, just create system_users entry
       authUserId = existingUser.id;
-      userId = `usr_${Date.now()}`;
       const { error: insertError } = await supabaseAdmin.from('system_users').insert({
         id: userId,
         auth_user_id: authUserId,
@@ -85,7 +93,6 @@ export async function POST(req: NextRequest) {
       }
 
       authUserId = authData.user.id;
-      userId = `usr_${Date.now()}`;
       const { error: insertError } = await supabaseAdmin.from('system_users').insert({
         id: userId,
         auth_user_id: authUserId,

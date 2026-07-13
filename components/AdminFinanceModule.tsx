@@ -687,21 +687,27 @@ export default function AdminFinanceModule({
     if (editingLocId) {
       setLocations(prev => prev.map(l => l.id === editingLocId ? { ...l, name: locName, address: locAddress, phone: locPhone, city: locCity, status: locStatus } : l));
       if (supabase) {
-        await supabase.from('locations').update({
+        const { error } = await supabase.from('locations').update({
           name: locName,
           address: locAddress,
           phone: locPhone,
           city: locCity,
           status: locStatus
         }).eq('id', editingLocId);
+        if (error) console.error('Erro ao atualizar sede:', error.message, error);
       }
       addAuditLog('Editou Local', locName);
     } else {
-      const newId = `loc_${Date.now()}`;
+      const numericIds = locations.map(l => {
+        const match = l.id.match(/^loc_(\d+)$/);
+        return match ? parseInt(match[1], 10) : 0;
+      });
+      const nextIdNum = Math.max(...numericIds, 0) + 1;
+      const newId = `loc_${nextIdNum}`;
       const newLoc: Location = { id: newId, name: locName, address: locAddress, phone: locPhone, city: locCity, status: locStatus };
       setLocations(prev => [...prev, newLoc]);
       if (supabase) {
-        await supabase.from('locations').insert({
+        const { error } = await supabase.from('locations').insert({
           id: newId,
           name: locName,
           address: locAddress,
@@ -709,6 +715,7 @@ export default function AdminFinanceModule({
           city: locCity,
           status: locStatus
         });
+        if (error) console.error('Erro ao salvar sede no Supabase:', error.message, error);
       }
       addAuditLog('Cadastrou Local', locName);
     }
@@ -721,7 +728,7 @@ export default function AdminFinanceModule({
     if (editingRoomId) {
       setClinicalRooms(prev => prev.map(r => r.id === editingRoomId ? { ...r, name: roomName, type: roomType, location_id: roomLocationId, capacity: roomCapacity, equipment: roomEquipment, status: roomStatus } : r));
       if (supabase) {
-        await supabase.from('clinical_rooms').update({
+        const { error } = await supabase.from('clinical_rooms').update({
           name: roomName,
           type: roomType,
           location_id: roomLocationId,
@@ -729,14 +736,20 @@ export default function AdminFinanceModule({
           equipment: roomEquipment,
           status: roomStatus
         }).eq('id', editingRoomId);
+        if (error) console.error('Erro ao atualizar sala:', error.message, error);
       }
       addAuditLog('Editou Sala', roomName);
     } else {
-      const newId = `room_${Date.now()}`;
+      const numericIds = clinicalRooms.map(r => {
+        const match = r.id.match(/^SALA(\d+)$/);
+        return match ? parseInt(match[1], 10) : 0;
+      });
+      const nextIdNum = Math.max(...numericIds, 0) + 1;
+      const newId = `SALA${String(nextIdNum).padStart(3, '0')}`;
       const newRoom: ClinicalRoom = { id: newId, name: roomName, type: roomType, location_id: roomLocationId, capacity: roomCapacity, equipment: roomEquipment, status: roomStatus };
       setClinicalRooms(prev => [...prev, newRoom]);
       if (supabase) {
-        await supabase.from('clinical_rooms').insert({
+        const { error } = await supabase.from('clinical_rooms').insert({
           id: newId,
           name: roomName,
           type: roomType,
@@ -745,6 +758,7 @@ export default function AdminFinanceModule({
           equipment: roomEquipment,
           status: roomStatus
         });
+        if (error) console.error('Erro ao salvar sala no Supabase:', error.message, error);
       }
       addAuditLog('Cadastrou Sala', roomName);
     }
@@ -810,7 +824,7 @@ const resetProfForm = () => {
       addAuditLog('Editou Profissional', profName);
 
       if (supabase) {
-        await supabase.from('professionals').update({
+        const { error } = await supabase.from('professionals').update({
           name: profName,
           role: profRole,
           specialty: profSpecialty,
@@ -821,17 +835,19 @@ const resetProfForm = () => {
           phone: profPhone,
           admission_date: profAdmission,
           status: profStatus,
-          location_id: profLocationId,
+          location_id: profLocationId || null,
         }).eq('id', editingProfId);
+        if (error) {
+          console.error('Erro ao atualizar profissional no Supabase:', error.message, error);
+        }
       }
     } else {
-      // Calculate sequential ID: prof_1, prof_2, etc.
       const numericIds = professionals.map(p => {
-        const match = p.id.match(/^prof_(\d+)$/);
+        const match = p.id.match(/^PRF(\d+)$/);
         return match ? parseInt(match[1], 10) : 0;
       });
       const nextIdNum = Math.max(...numericIds, 0) + 1;
-      const newProfId = `prof_${nextIdNum}`;
+      const newProfId = `PRF${String(nextIdNum).padStart(3, '0')}`;
 
       const newProf: Professional = {
         id: newProfId,
@@ -847,7 +863,7 @@ const resetProfForm = () => {
       addAuditLog('Cadastrou Profissional', profName);
 
       if (supabase) {
-        await supabase.from('professionals').insert({
+        const { error } = await supabase.from('professionals').insert({
           id: newProf.id,
           name: newProf.name,
           role: newProf.role,
@@ -860,8 +876,11 @@ const resetProfForm = () => {
           status: newProf.status,
           admission_date: newProf.admissionDate,
           color: newProf.color,
-          location_id: newProf.locationId,
+          location_id: newProf.locationId || null,
         });
+        if (error) {
+          console.error('Erro ao salvar profissional no Supabase:', error.message, error);
+        }
       }
     }
     resetProfForm();
@@ -894,7 +913,10 @@ const resetProfForm = () => {
       return { ...p, status: nextStatus };
     }));
     if (supabase) {
-      await supabase.from('professionals').update({ status: nextStatus }).eq('id', profId);
+      const { error } = await supabase.from('professionals').update({ status: nextStatus }).eq('id', profId);
+      if (error) {
+        console.error('Erro ao atualizar status do profissional:', error.message, error);
+      }
     }
   };
 
@@ -3057,8 +3079,9 @@ const resetProfForm = () => {
                         <div className="flex items-center gap-1.5 shrink-0">
                           {u.twoFactorEnabled && <Fingerprint className="w-3 h-3 text-teal-500" />}
                           <span className={`px-1.5 py-0.5 text-[9px] font-bold rounded border ${u.status === 'ativo' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : u.status === 'bloqueado' ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>{u.status}</span>
-                          <button onClick={() => { setEditingUserId(u.id); setUserName(u.name); setUserEmail(u.email || ''); setUserCi(u.ci || ''); setUserRole(u.systemRole); setUserLocation(u.location || ''); setUserStatus(u.status); setUser2FA(u.twoFactorEnabled || false); setUser2FAMethod(u.twoFactorMethod || 'none'); }} className="p-1.5 rounded-lg hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition cursor-pointer" title="Editar"><Edit2 className="w-3 h-3" /></button>
-                          <button onClick={() => { const nextStatus = u.status === 'ativo' ? 'inativo' : 'ativo'; if (confirm(`${nextStatus === 'ativo' ? 'Ativar' : 'Desativar'} usuário ${u.name}?`)) { setSystemUsers(prev => prev.map(x => x.id === u.id ? { ...x, status: nextStatus } : x)); if (supabase) { supabase.from('system_users').update({ status: nextStatus }).eq('id', u.id); } addAuditLog('Alterou Status Usuário', `${u.name} → ${nextStatus}`); } }} className="p-1.5 rounded-lg hover:bg-rose-50 text-slate-500 hover:text-rose-600 transition cursor-pointer" title={u.status === 'ativo' ? 'Desativar' : 'Ativar'}>{u.status === 'ativo' ? <UserX className="w-3 h-3" /> : <UserCheck className="w-3 h-3" />}</button>
+                          <button onClick={() => { setEditingUserId(u.id); setUserName(u.name); setUserEmail(u.email || ''); setUserCi(u.ci || ''); setUserRole(u.systemRole); setUserLocation(u.location || ''); setUserStatus(u.status); setUser2FA(u.twoFactorEnabled || false); setUser2FAMethod(u.twoFactorMethod || 'none'); setUserProfessionalId(u.professionalId || null); }} className="p-1.5 rounded-lg hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition cursor-pointer" title="Editar"><Edit2 className="w-3.5 h-3.5" /></button>
+                          <button onClick={() => { const nextStatus = u.status === 'ativo' ? 'inativo' : 'ativo'; if (confirm(`${nextStatus === 'ativo' ? 'Ativar' : 'Desativar'} usuário ${u.name}?`)) { setSystemUsers(prev => prev.map(x => x.id === u.id ? { ...x, status: nextStatus } : x)); if (supabase) { supabase.from('system_users').update({ status: nextStatus }).eq('id', u.id).then(({ error }) => { if (error) console.error('Erro ao alterar status:', error.message, error); }); } addAuditLog('Alterou Status Usuário', `${u.name} → ${nextStatus}`); } }} className="p-1.5 rounded-lg hover:bg-rose-50 text-slate-500 hover:text-rose-600 transition cursor-pointer" title={u.status === 'ativo' ? 'Desativar' : 'Ativar'}>{u.status === 'ativo' ? <UserX className="w-3 h-3" /> : <UserCheck className="w-3 h-3" />}</button>
+                          <button onClick={() => { if (confirm(`Tem certeza que deseja excluir o usuário "${u.name}"?\n\nEsta ação irá remover o acesso do usuário ao sistema e não pode ser desfeita.`)) { setSystemUsers(prev => prev.filter(x => x.id !== u.id)); if (supabase) { supabase.from('system_users').delete().eq('id', u.id).then(({ error }) => { if (error) console.error('Erro ao excluir usuário:', error.message, error); }); } addAuditLog('Excluiu Usuário', u.name); } }} className="p-1.5 rounded-lg hover:bg-rose-50 text-slate-500 hover:text-rose-600 transition cursor-pointer" title="Excluir"><Trash2 className="w-3 h-3" /></button>
                         </div>
                       </div>
                     ))}
@@ -4117,7 +4140,9 @@ const resetProfForm = () => {
                             if (confirm(`Tem certeza que deseja excluir o profissional "${prof.name}"? Esta ação não pode ser desfeita.`)) {
                               setProfessionals?.(prev => prev.filter(p => p.id !== prof.id));
                               if (supabase) {
-                                supabase.from('professionals').delete().eq('id', prof.id);
+                                supabase.from('professionals').delete().eq('id', prof.id).then(({ error }) => {
+                                  if (error) console.error('Erro ao excluir profissional:', error.message, error);
+                                });
                               }
                               addAuditLog('Excluiu Profissional', prof.name);
                             }
@@ -4206,8 +4231,12 @@ const resetProfForm = () => {
                             setClinicalRooms(prev => prev.filter(r => r.location_id !== loc.id));
                             setLocations(prev => prev.filter(l => l.id !== loc.id));
                             if (supabase) {
-                              supabase.from('clinical_rooms').delete().eq('location_id', loc.id);
-                              supabase.from('locations').delete().eq('id', loc.id);
+                              supabase.from('clinical_rooms').delete().eq('location_id', loc.id).then(({ error }) => {
+                                if (error) console.error('Erro ao excluir salas:', error.message, error);
+                              });
+                              supabase.from('locations').delete().eq('id', loc.id).then(({ error }) => {
+                                if (error) console.error('Erro ao excluir sede:', error.message, error);
+                              });
                             }
                             addAuditLog('Removeu Local', loc.name);
                           }
@@ -4348,7 +4377,9 @@ const resetProfForm = () => {
                             if (confirm(`Tem certeza que deseja excluir a sala "${room.name}"? Esta ação não pode ser desfeita.`)) {
                               setClinicalRooms(prev => prev.filter(r => r.id !== room.id));
                               if (supabase) {
-                                supabase.from('clinical_rooms').delete().eq('id', room.id);
+                                supabase.from('clinical_rooms').delete().eq('id', room.id).then(({ error }) => {
+                                  if (error) console.error('Erro ao excluir sala:', error.message, error);
+                                });
                               }
                               addAuditLog('Removeu Sala', room.name);
                             }

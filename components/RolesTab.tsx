@@ -39,28 +39,33 @@ export default function RolesTab({ professionalRoles, setProfessionalRoles, supa
     if (!name.trim() || !description.trim()) return;
 
     if (editingId) {
-      // Update
       if (supabase) {
-        await supabase.from('professional_roles').update({
+        const { error } = await supabase.from('professional_roles').update({
           name: name.trim(),
           description: description.trim(),
           category: category.trim() || null,
           active: true,
         }).eq('id', editingId);
+        if (error) console.error('Erro ao atualizar profissão:', error.message, error);
       }
       setProfessionalRoles(prev => prev.map(r => r.id === editingId ? { ...r, name: name.trim(), description: description.trim(), category: category.trim() || undefined, active: true } : r));
       addAuditLog('Editou Profissão', name);
     } else {
-      // Create — sempre ativa por padrão
-      const newId = `role_${Date.now()}`;
+      const numericIds = professionalRoles.map(r => {
+        const match = r.id.match(/^role_(\d+)$/);
+        return match ? parseInt(match[1], 10) : 0;
+      });
+      const nextIdNum = Math.max(...numericIds, 0) + 1;
+      const newId = `role_${String(nextIdNum).padStart(2, '0')}`;
       if (supabase) {
-        await supabase.from('professional_roles').insert({
+        const { error } = await supabase.from('professional_roles').insert({
           id: newId,
           name: name.trim(),
           description: description.trim(),
           category: category.trim() || null,
           active: true,
         });
+        if (error) console.error('Erro ao salvar profissão no Supabase:', error.message, error);
       }
       setProfessionalRoles(prev => [...prev, { id: newId, name: name.trim(), description: description.trim(), category: category.trim() || undefined, active: true }]);
       addAuditLog('Cadastrou Profissão', name);
@@ -79,7 +84,8 @@ export default function RolesTab({ professionalRoles, setProfessionalRoles, supa
   const handleDelete = async (id: string, roleName: string) => {
     if (!confirm(`Tem certeza que deseja excluir a profissão "${roleName}"?`)) return;
     if (supabase) {
-      await supabase.from('professional_roles').delete().eq('id', id);
+      const { error } = await supabase.from('professional_roles').delete().eq('id', id);
+      if (error) console.error('Erro ao excluir profissão:', error.message, error);
     }
     setProfessionalRoles(prev => prev.filter(r => r.id !== id));
     addAuditLog('Removeu Profissão', roleName);
@@ -88,7 +94,8 @@ export default function RolesTab({ professionalRoles, setProfessionalRoles, supa
   const handleToggleActive = async (id: string, currentActive: boolean) => {
     const newActive = !currentActive;
     if (supabase) {
-      await supabase.from('professional_roles').update({ active: newActive }).eq('id', id);
+      const { error } = await supabase.from('professional_roles').update({ active: newActive }).eq('id', id);
+      if (error) console.error('Erro ao atualizar profissão:', error.message, error);
     }
     setProfessionalRoles(prev => prev.map(r => r.id === id ? { ...r, active: newActive } : r));
   };

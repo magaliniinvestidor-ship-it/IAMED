@@ -894,7 +894,7 @@ function HomeContent() {
   // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const addAuditLog = useCallback(async (action: string, target: string) => {
     const newLog: AuditLog = {
-      id: `log_${Date.now()}`,
+      id: crypto.randomUUID(),
       operator: activeOperator,
       role: activeRole,
       action,
