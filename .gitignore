@@ -7,6 +7,15 @@ coverage/
 !.env.example
 NUL
 
+# Build artifacts
+tsconfig.tsbuildinfo
+
+# Backups
 backup_supabase/
 
-testsprite_tests\tmp\config.json
+# Test output
+testsprite_tests/
+
+# Tool configs (contain secrets)
+.testsprite/
+opencode.json
