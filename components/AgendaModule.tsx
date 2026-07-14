@@ -121,9 +121,11 @@ const STATUS_CONFIG: Record<string, { color: string; bg: string; border: string;
   'atendido':        { color: 'text-green-700',    bg: 'bg-green-100',    border: 'border-green-300',    label: 'Atendido' },
 };
 
-const TIME_SLOTS = Array.from({ length: 13 }, (_, i) => {
-  const h = i + 7;
-  return `${String(h).padStart(2, '0')}:00`;
+const TIME_SLOTS = Array.from({ length: 26 }, (_, i) => {
+  const totalMinutes = 7 * 60 + i * 30;
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 });
 
 const PARAGUAY_HOLIDAYS = [
@@ -249,6 +251,21 @@ const AgendaModuleContent = ({
   const callCounterRef = useRef(0);
   const apptCounterRef = useRef(0);
 
+  // Initialize counter from existing appointments to avoid duplicate IDs
+  useEffect(() => {
+    let maxId = 0;
+    appointments.forEach(a => {
+      const match = a.id.match(/^agenda_(\d+)$/);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (num > maxId) maxId = num;
+      }
+    });
+    if (maxId > apptCounterRef.current) {
+      apptCounterRef.current = maxId;
+    }
+  }, [appointments]);
+
   // Blocked slots
   const [blockedSlots, setBlockedSlots] = useState<BlockedSlot[]>([]);
 
@@ -261,8 +278,20 @@ const AgendaModuleContent = ({
     insurance: '', insurance_type: '' as string | undefined,
     duration_minutes: 30,
   });
-  const [minGapMinutes, setMinGapMinutes] = useState(10);
+  const [minGapMinutes, setMinGapMinutes] = useState(30);
   const [schedulingConfig, setSchedulingConfig] = useState({ showConfig: false });
+
+  // Edit appointment modal
+  const [showEditApptModal, setShowEditApptModal] = useState(false);
+  const [editingAppt, setEditingAppt] = useState<Appointment | null>(null);
+  const [editApptForm, setEditApptForm] = useState({
+    patient_id: '', patient_name: '', doctor_name: '', specialty: '', date: '', time: '',
+    branch: '', room: '', type: 'primeira_vez' as string,
+    modality: 'Presencial' as 'Presencial' | 'Virtual',
+    insurance: '', insurance_type: '' as string | undefined,
+    duration_minutes: 30,
+    status: 'agendado' as Appointment['status'],
+  });
 
   // Dynamic data for locations and rooms
   const [locations, setLocations] = useState<{ id: string; name: string; status: string }[]>([]);
@@ -333,7 +362,10 @@ const AgendaModuleContent = ({
       if (calendarGroupBy === 'doctor') key = a.doctorName;
       else if (calendarGroupBy === 'room') key = a.room || 'Sem Sala';
       else if (calendarGroupBy === 'specialty') key = a.specialty;
-      else key = a.branch || 'Sem Sede';
+      else {
+        const loc = locations.find(l => l.id === a.branch);
+        key = loc?.name || a.branch || 'Sem Sede';
+      }
       if (!groups[key]) groups[key] = [];
       groups[key].push(a);
     });
@@ -341,7 +373,7 @@ const AgendaModuleContent = ({
       groups[k].sort((a, b) => a.time.localeCompare(b.time));
     });
     return groups;
-  }, [filteredAppointments, calendarGroupBy]);
+  }, [filteredAppointments, calendarGroupBy, locations]);
 
   const isBlocked = useCallback((date: string, time?: string, doctor?: string, branch?: string) => {
     return blockedSlots.some(b => {
@@ -438,6 +470,17 @@ const AgendaModuleContent = ({
     return clinicalRooms.filter(r => r.location_id === newApptForm.branch);
   }, [clinicalRooms, newApptForm.branch]);
 
+  // Professionals filtered by sede for blockage form
+  const blockProfessionals = useMemo(() => {
+    return professionals.filter(p => {
+      if (p.status !== 'ativo') return false;
+      if (blockForm.branch) {
+        if (!p.locationId || p.locationId !== blockForm.branch) return false;
+      }
+      return true;
+    });
+  }, [professionals, blockForm.branch]);
+
   // ============================================================
   // DRAG & DROP
   // ============================================================
@@ -515,6 +558,83 @@ const AgendaModuleContent = ({
     setBlockedSlots(prev => prev.filter(b => b.id !== id));
     if (supabase) await supabase.from('blocked_slots').delete().eq('id', id);
     addAuditLog('Remoção de Bloqueio', `ID: ${id}`);
+  };
+
+  // Edit appointment
+  const handleEditAppointment = (appt: Appointment) => {
+    setEditingAppt(appt);
+    setEditApptForm({
+      patient_id: appt.patientId,
+      patient_name: appt.patientName,
+      doctor_name: appt.doctorName,
+      specialty: appt.specialty,
+      date: appt.date,
+      time: appt.time,
+      branch: appt.branch || '',
+      room: appt.room || '',
+      type: appt.type || 'primeira_vez',
+      modality: appt.modality || 'Presencial',
+      insurance: appt.insurance || '',
+      insurance_type: appt.insurance_type,
+      duration_minutes: appt.duration_minutes || 30,
+      status: appt.status,
+    });
+    setShowEditApptModal(true);
+  };
+
+  const handleUpdateAppointment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingAppt) return;
+    const updated: Appointment = {
+      ...editingAppt,
+      patientId: editApptForm.patient_id,
+      patientName: editApptForm.patient_name,
+      doctorName: editApptForm.doctor_name,
+      specialty: editApptForm.specialty,
+      date: editApptForm.date,
+      time: editApptForm.time,
+      branch: editApptForm.branch,
+      room: editApptForm.room,
+      type: editApptForm.type,
+      modality: editApptForm.modality,
+      insurance: editApptForm.insurance,
+      insurance_type: editApptForm.insurance_type,
+      duration_minutes: editApptForm.duration_minutes,
+      status: editApptForm.status,
+    };
+    setAppointments(prev => prev.map(a => a.id === editingAppt.id ? updated : a));
+    addAuditLog('Editou Agendamento', `${updated.patientName} - ${updated.date} ${updated.time}`);
+    if (supabase) {
+      const { error } = await supabase.from('appointments').update({
+        patient_id: updated.patientId,
+        patient_name: updated.patientName,
+        doctor_name: updated.doctorName,
+        specialty: updated.specialty,
+        date: updated.date,
+        time: updated.time,
+        status: updated.status,
+        branch: updated.branch,
+        room: updated.room,
+        type: updated.type,
+        modality: updated.modality,
+        insurance: updated.insurance,
+        duration_minutes: updated.duration_minutes,
+      }).eq('id', editingAppt.id);
+      if (error) console.error('[SUPABASE] UPDATE appointment FAILED:', error.message);
+    }
+    setShowEditApptModal(false);
+    setEditingAppt(null);
+  };
+
+  // Delete appointment
+  const handleDeleteAppointment = async (appt: Appointment) => {
+    if (!confirm(`Tem certeza que deseja excluir o agendamento de ${appt.patientName} em ${appt.date} às ${appt.time}?`)) return;
+    setAppointments(prev => prev.filter(a => a.id !== appt.id));
+    addAuditLog('Excluiu Agendamento', `${appt.patientName} - ${appt.date} ${appt.time}`);
+    if (supabase) {
+      const { error } = await supabase.from('appointments').delete().eq('id', appt.id);
+      if (error) console.error('[SUPABASE] DELETE appointment FAILED:', error.message);
+    }
   };
 
   const handleReminderSubmit = async (e: React.FormEvent) => {
@@ -703,6 +823,7 @@ const AgendaModuleContent = ({
         type: newApp.type,
         modality: newApp.modality,
         insurance: newApp.insurance,
+        duration_minutes: newApp.duration_minutes,
       });
       if (agendaInsertError) {
         console.error("[SUPABASE] INSERT appointments from Agenda FAILED:", agendaInsertError.message);
@@ -883,32 +1004,40 @@ const AgendaModuleContent = ({
                         return (
                           <div
                             key={app.id}
-                            draggable={canEdit}
-                            onDragStart={(e) => handleDragStart(e, app.id)}
-                            onDragEnd={handleDragEnd}
-                            className={`p-3 rounded-lg border-l-4 ${sc.border} ${sc.bg} ${canEdit ? 'cursor-grab active:cursor-grabbing' : ''} hover:shadow-md transition-all`}
+                            className={`p-3 rounded-lg border-l-4 ${sc.border} ${sc.bg} hover:bg-white hover:shadow-md transition-all`}
                           >
                             <div className="flex items-center justify-between mb-1">
-                              <span className="text-xs font-bold text-slate-500">{app.time} {app.duration_minutes ? `(${app.duration_minutes}min)` : ''}</span>
-                              <span className={`px-1.5 py-0.5 text-[10px] font-bold rounded-full ${sc.bg} ${sc.color}`}>{sc.label}</span>
+                              <div className="flex items-center gap-2">
+                                {canEdit && (
+                                  <span draggable onDragStart={(e) => handleDragStart(e, app.id)} onDragEnd={handleDragEnd} className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500" title="Arrastar">⋮⋮</span>
+                                )}
+                                <span className="text-sm font-bold text-slate-500">{app.time} {app.duration_minutes ? `(${app.duration_minutes}min)` : ''}</span>
+                              </div>
+                              <span className={`px-1.5 py-0.5 text-xs font-bold rounded-full ${sc.bg} ${sc.color}`}>{sc.label}</span>
                             </div>
-                            <p className="text-sm font-semibold text-slate-800 truncate">{app.patientName}</p>
-                            <p className="text-xs text-slate-500 truncate">{app.doctorName} • {app.specialty}</p>
+                            <p className="text-base font-semibold text-slate-800 truncate">{app.patientName}</p>
+                            <p className="text-sm text-slate-500 truncate">{app.doctorName} • {app.specialty}</p>
                             <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                               {apptType && (
-                                <span className={`px-1.5 py-0.5 text-[9px] font-bold rounded-full ${apptType.color}`}>
+                                <span className={`px-1.5 py-0.5 text-[10px] font-bold rounded-full ${apptType.color}`}>
                                   {apptType.icon} {apptType.label}
                                 </span>
                               )}
                               {app.modality && (
-                                <span className={`px-1.5 py-0.5 text-[9px] font-bold rounded-full ${app.modality === 'Virtual' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-600'}`}>
+                                <span className={`px-1.5 py-0.5 text-[10px] font-bold rounded-full ${app.modality === 'Virtual' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-600'}`}>
                                   {app.modality === 'Virtual' ? '📹 Virtual' : '🏥 Presencial'}
                                 </span>
                               )}
-                              {app.room && <span className="text-[9px] text-slate-400">📍 {app.room}</span>}
-                              {app.resource && <span className="text-[9px] text-slate-400">🔧 {app.resource}</span>}
-                              {app.insurance_type && <span className="text-[9px] text-blue-500">🏥 {app.insurance_type}</span>}
+                              {app.room && <span className="text-[10px] text-slate-400">📍 {app.room}</span>}
+                              {app.resource && <span className="text-[10px] text-slate-400">🔧 {app.resource}</span>}
+                              {app.insurance_type && <span className="text-[10px] text-blue-500">🏥 {app.insurance_type}</span>}
                             </div>
+                            {canEdit && (
+                              <div className="flex items-center gap-3 mt-2 pt-2 border-t border-slate-200/50">
+                                <button onClick={() => handleEditAppointment(app)} className="text-sm font-semibold text-blue-600 hover:text-blue-800">Editar</button>
+                                <button onClick={() => handleDeleteAppointment(app)} className="text-sm font-semibold text-rose-500 hover:text-rose-700">Excluir</button>
+                              </div>
+                            )}
                           </div>
                         );
                       })}
@@ -925,8 +1054,22 @@ const AgendaModuleContent = ({
               <div className="grid grid-cols-7 min-w-[700px]">
                 {weekDates.map((date, i) => {
                   const d = new Date(date + 'T12:00:00');
-                  const dayApps = filteredAppointments.filter(a => a.date === date);
+                  const dayApps = filteredAppointments.filter(a => a.date === date).sort((a, b) => a.time.localeCompare(b.time));
                   const isToday = date === new Date().toISOString().split('T')[0];
+                  // Group by filter
+                  const dayGroups: Record<string, typeof dayApps> = {};
+                  dayApps.forEach(app => {
+                    let key = '';
+                    if (calendarGroupBy === 'doctor') key = app.doctorName;
+                    else if (calendarGroupBy === 'room') key = app.room || 'Sem Sala';
+                    else if (calendarGroupBy === 'specialty') key = app.specialty;
+                    else {
+                      const loc = locations.find(l => l.id === app.branch);
+                      key = loc?.name || app.branch || 'Sem Sede';
+                    }
+                    if (!dayGroups[key]) dayGroups[key] = [];
+                    dayGroups[key].push(app);
+                  });
                   return (
                     <div key={date}
                       onDragOver={(e) => handleDragOver(e, `week_${date}`)}
@@ -938,24 +1081,24 @@ const AgendaModuleContent = ({
                         <p className={`text-lg font-bold ${isToday ? 'text-white' : 'text-slate-800'}`}>{d.getDate()}</p>
                       </div>
                       <div className="p-1 space-y-1">
-                        {dayApps.map(app => {
-                          const sc = STATUS_CONFIG[app.status] || STATUS_CONFIG['agendado'];
-                          const apptType = APPOINTMENT_TYPES.find(t => t.value === app.type);
-                          return (
-                            <div key={app.id}
-                              draggable={canEdit}
-                              onDragStart={(e) => handleDragStart(e, app.id)}
-                              onDragEnd={handleDragEnd}
-                              className={`p-1.5 rounded text-[10px] border-l-2 ${sc.border} ${sc.bg} ${canEdit ? 'cursor-grab' : ''}`}>
-                              <p className="font-bold truncate">{app.time} {app.patientName.split(' ')[0]}</p>
-                              <p className="text-slate-500 truncate">{app.doctorName.split(' ')[0]}</p>
-                              <div className="flex gap-1 mt-0.5">
-                                {apptType && <span className="text-[8px]">{apptType.icon}</span>}
-                                {app.modality === 'Virtual' && <span className="text-[8px]">📹</span>}
-                              </div>
-                            </div>
-                          );
-                        })}
+                        {Object.entries(dayGroups).map(([group, apps]) => (
+                          <div key={group}>
+                            {Object.keys(dayGroups).length > 1 && (
+                              <p className="text-[10px] font-bold text-slate-400 px-1 pt-1 truncate">{group}</p>
+                            )}
+                            {apps.map(app => {
+                              const sc = STATUS_CONFIG[app.status] || STATUS_CONFIG['agendado'];
+                              return (
+                                <div key={app.id}
+                                  className={`p-1.5 rounded text-[11px] border-l-2 ${sc.border} ${sc.bg} hover:bg-white transition-colors`}>
+                                  <p className="font-bold truncate">{app.time} {app.patientName.split(' ')[0]}</p>
+                                  <p className="text-slate-500 truncate text-[10px]">{app.doctorName.split(' ')[0]}</p>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ))}
+                        {dayApps.length === 0 && <div className="text-[9px] text-slate-300 text-center py-2">—</div>}
                       </div>
                     </div>
                   );
@@ -978,6 +1121,21 @@ const AgendaModuleContent = ({
                   const dayApps = filteredAppointments.filter(a => a.date === date);
                   const isToday = date === new Date().toISOString().split('T')[0];
                   const blocked = isBlocked(date);
+                  // Group by filter
+                  const dayGroups: Record<string, typeof dayApps> = {};
+                  dayApps.forEach(app => {
+                    let key = '';
+                    if (calendarGroupBy === 'doctor') key = app.doctorName;
+                    else if (calendarGroupBy === 'room') key = app.room || 'Sem Sala';
+                    else if (calendarGroupBy === 'specialty') key = app.specialty;
+                    else {
+                      const loc = locations.find(l => l.id === app.branch);
+                      key = loc?.name || app.branch || 'Sem Sede';
+                    }
+                    if (!dayGroups[key]) dayGroups[key] = [];
+                    dayGroups[key].push(app);
+                  });
+                  const groupKeys = Object.keys(dayGroups);
                   return (
                     <div key={date}
                       onDragOver={(e) => handleDragOver(e, `month_${date}`)}
@@ -991,20 +1149,26 @@ const AgendaModuleContent = ({
                         {blocked && <Lock className="w-3 h-3 text-amber-500" />}
                       </div>
                       <div className="space-y-0.5">
-                        {dayApps.slice(0, 3).map(app => {
-                          const sc = STATUS_CONFIG[app.status] || STATUS_CONFIG['agendado'];
-                          return (
-                            <div key={app.id}
-                              draggable={canEdit}
-                              onDragStart={(e) => handleDragStart(e, app.id)}
-                              onDragEnd={handleDragEnd}
-                              className={`text-[9px] px-1 py-0.5 rounded truncate ${sc.bg} ${sc.color} font-semibold ${canEdit ? 'cursor-grab' : ''}`}>
-                              {app.time} {app.patientName.split(' ')[0]}
+                        {groupKeys.length > 1 ? (
+                          groupKeys.slice(0, 2).map(group => (
+                            <div key={group} className="flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-teal-400 flex-shrink-0" />
+                              <span className="text-[10px] text-slate-600 truncate font-semibold">{group} ({dayGroups[group].length})</span>
                             </div>
-                          );
-                        })}
+                          ))
+                        ) : (
+                          dayApps.slice(0, 3).map(app => {
+                            const sc = STATUS_CONFIG[app.status] || STATUS_CONFIG['agendado'];
+                            return (
+                              <div key={app.id}
+                                className={`text-xs px-1 py-0.5 rounded truncate ${sc.bg} ${sc.color} font-semibold hover:bg-white transition-colors`}>
+                                {app.time} {app.patientName.split(' ')[0]}
+                              </div>
+                            );
+                          })
+                        )}
                         {dayApps.length > 3 && (
-                          <p className="text-[9px] text-slate-400 font-semibold">+{dayApps.length - 3} mais</p>
+                          <p className="text-xs text-slate-400 font-semibold">+{dayApps.length - 3} mais</p>
                         )}
                       </div>
                     </div>
@@ -1341,23 +1505,8 @@ const AgendaModuleContent = ({
         <form onSubmit={handleNewAppointment} className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="font-bold text-lg">Novo Agendamento</h3>
-              <button type="button" onClick={() => setSchedulingConfig({ showConfig: !schedulingConfig.showConfig })}
-                className="text-xs text-slate-500 hover:text-slate-700 flex items-center gap-1">
-                <Settings className="w-3 h-3" /> Config
-              </button>
             </div>
 
-            {schedulingConfig.showConfig && (
-              <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-2">
-                <p className="text-xs font-bold text-slate-600">Configurações de Agendamento</p>
-                <div>
-                  <label className="block text-xs font-medium text-slate-500 mb-1">Intervalo mínimo entre consultas</label>
-                  <select value={minGapMinutes} onChange={e => setMinGapMinutes(Number(e.target.value))} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm">
-                    {MIN_GAP_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                  </select>
-                </div>
-              </div>
-            )}
 
             {/* Paciente */}
             <div>
@@ -1446,7 +1595,7 @@ const AgendaModuleContent = ({
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-600 mb-1">Horário *</label>
-                <select value={newApptForm.time} onChange={e => setNewApptForm({ ...newApptForm, time: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
+                <select value={newApptForm.time} onChange={e => setNewApptForm({ ...newApptForm, time: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required disabled={!newApptForm.date}>
                   <option value="">Selecionar...</option>
                   {TIME_SLOTS.map(t => {
                     const blocked = isBlocked(newApptForm.date, t, newApptForm.doctor_name, newApptForm.branch);
@@ -1480,7 +1629,7 @@ const AgendaModuleContent = ({
                 const it = INSURANCE_TYPES.find(i => i.value === e.target.value);
                 setNewApptForm({ ...newApptForm, insurance_type: e.target.value || undefined, insurance: it?.label || '' });
               }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
-                <option value="">Particular</option>
+                <option value="">Selecionar...</option>
                 {INSURANCE_TYPES.map(i => <option key={i.value} value={i.value}>{i.label}</option>)}
               </select>
             </div>
@@ -1547,6 +1696,113 @@ const AgendaModuleContent = ({
         </div>
       </InlineModal>
 
+      {/* Edit Appointment Modal */}
+      <InlineModal open={showEditApptModal} onClose={() => { setShowEditApptModal(false); setEditingAppt(null); }} className="max-w-2xl">
+        <div className="p-6">
+          <form onSubmit={handleUpdateAppointment} className="space-y-4">
+            <h3 className="font-bold text-lg">Editar Agendamento</h3>
+
+            {/* Status */}
+            <div>
+              <label className="block text-sm font-medium text-slate-600 mb-1">Status *</label>
+              <select value={editApptForm.status} onChange={e => setEditApptForm({ ...editApptForm, status: e.target.value as Appointment['status'] })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
+                {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
+                  <option key={key} value={key}>{cfg.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Paciente */}
+            <div>
+              <label className="block text-sm font-medium text-slate-600 mb-1">Paciente *</label>
+              <select value={editApptForm.patient_id} onChange={e => {
+                const p = patients.find(p => p.id === e.target.value);
+                setEditApptForm({ ...editApptForm, patient_id: e.target.value, patient_name: p?.name || '' });
+              }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
+                <option value="">Selecionar paciente...</option>
+                {patients.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </div>
+
+            {/* Sede + Sala */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1">Sede *</label>
+                <select value={editApptForm.branch} onChange={e => setEditApptForm({ ...editApptForm, branch: e.target.value, room: '' })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
+                  <option value="">Selecionar sede...</option>
+                  {locations.map(loc => <option key={loc.id} value={loc.id}>{loc.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1">Sala *</label>
+                <select value={editApptForm.room} onChange={e => setEditApptForm({ ...editApptForm, room: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required disabled={!editApptForm.branch}>
+                  <option value="">{editApptForm.branch ? 'Selecionar sala...' : 'Selecionar sede primeiro...'}</option>
+                  {locations.filter(l => l.id === editApptForm.branch).length > 0 &&
+                    clinicalRooms.filter(r => r.location_id === editApptForm.branch).map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
+                </select>
+              </div>
+            </div>
+
+            {/* Especialidade + Profissional */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1">Especialidade *</label>
+                <select value={editApptForm.specialty} onChange={e => setEditApptForm({ ...editApptForm, specialty: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
+                  <option value="">Selecionar...</option>
+                  {availableSpecialties.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1">Profissional *</label>
+                <select value={editApptForm.doctor_name} onChange={e => setEditApptForm({ ...editApptForm, doctor_name: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
+                  <option value="">Selecionar...</option>
+                  {availableProfessionals.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
+                </select>
+              </div>
+            </div>
+
+            {/* Data + Horário + Duração */}
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1">Data *</label>
+                <input type="date" value={editApptForm.date} onChange={e => setEditApptForm({ ...editApptForm, date: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1">Horário *</label>
+                <select value={editApptForm.time} onChange={e => setEditApptForm({ ...editApptForm, time: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required disabled={!editApptForm.date}>
+                  <option value="">Selecionar...</option>
+                  {TIME_SLOTS.map(t => {
+                    const occupied = hasTimeOverlap(editApptForm.date, t, editApptForm.doctor_name, editApptForm.room, editingAppt?.id);
+                    return (
+                      <option key={t} value={t} disabled={occupied} className={occupied ? 'text-red-400' : ''}>
+                        {t} {occupied ? '⛔ Ocupado' : '✓'}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1">Duração</label>
+                <select value={editApptForm.duration_minutes} onChange={e => setEditApptForm({ ...editApptForm, duration_minutes: Number(e.target.value) })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                  <option value={15}>15 min</option>
+                  <option value={20}>20 min</option>
+                  <option value={30}>30 min</option>
+                  <option value={45}>45 min</option>
+                  <option value={60}>60 min</option>
+                  <option value={90}>90 min</option>
+                  <option value={120}>120 min</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button type="submit" className="py-2 px-4 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-lg transition">Salvar Alterações</button>
+              <button type="button" onClick={() => { setShowEditApptModal(false); setEditingAppt(null); }} className="py-2 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg transition">Cancelar</button>
+            </div>
+          </form>
+        </div>
+      </InlineModal>
+
       {/* Blockage Modal */}
       <InlineModal open={showBlockageModal} onClose={() => setShowBlockageModal(false)} className="max-w-md">
         <div className="p-6">
@@ -1554,45 +1810,43 @@ const AgendaModuleContent = ({
             <h3 className="font-bold text-lg">Novo Bloqueio de Agenda</h3>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">Médico</label>
-                <select value={blockForm.doctor_name} onChange={e => setBlockForm({ ...blockForm, doctor_name: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
-                  <option value="">Todos os Médicos</option>
-                  {professionals.filter(p => p.role === 'Médico(a)').map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
+                <label className="block text-sm font-medium text-slate-600 mb-1">Sede *</label>
+                <select value={blockForm.branch} onChange={e => setBlockForm({ ...blockForm, branch: e.target.value, doctor_name: '' })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
+                  <option value="">Selecionar sede...</option>
+                  {locations.map(loc => <option key={loc.id} value={loc.id}>{loc.name}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">Sede</label>
-                <select value={blockForm.branch} onChange={e => setBlockForm({ ...blockForm, branch: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
-                  <option value="">Todas as Sedes</option>
-                  <option value="Sede Central">Sede Central</option>
-                  <option value="Sede Norte">Sede Norte</option>
-                  <option value="Sede Sul">Sede Sul</option>
+                <label className="block text-sm font-medium text-slate-600 mb-1">Profissionais *</label>
+                <select value={blockForm.doctor_name} onChange={e => setBlockForm({ ...blockForm, doctor_name: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required disabled={!blockForm.branch}>
+                  <option value="">{blockForm.branch ? 'Todos os Profissionais' : 'Selecionar sede primeiro...'}</option>
+                  {blockProfessionals.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
                 </select>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">Início</label>
+                <label className="block text-sm font-medium text-slate-600 mb-1">Início *</label>
                 <input type="date" value={blockForm.start_date} onChange={e => setBlockForm({ ...blockForm, start_date: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">Fim</label>
+                <label className="block text-sm font-medium text-slate-600 mb-1">Fim *</label>
                 <input type="date" value={blockForm.end_date} onChange={e => setBlockForm({ ...blockForm, end_date: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">Hora Início</label>
-                <input type="time" value={blockForm.start_time} onChange={e => setBlockForm({ ...blockForm, start_time: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
+                <label className="block text-sm font-medium text-slate-600 mb-1">Hora Início *</label>
+                <input type="time" value={blockForm.start_time} onChange={e => setBlockForm({ ...blockForm, start_time: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">Hora Fim</label>
-                <input type="time" value={blockForm.end_time} onChange={e => setBlockForm({ ...blockForm, end_time: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
+                <label className="block text-sm font-medium text-slate-600 mb-1">Hora Fim *</label>
+                <input type="time" value={blockForm.end_time} onChange={e => setBlockForm({ ...blockForm, end_time: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required />
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-600 mb-1">Motivo</label>
-              <select value={blockForm.reason} onChange={e => setBlockForm({ ...blockForm, reason: e.target.value as BlockedSlot['reason'] })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
+              <label className="block text-sm font-medium text-slate-600 mb-1">Motivo *</label>
+              <select value={blockForm.reason} onChange={e => setBlockForm({ ...blockForm, reason: e.target.value as BlockedSlot['reason'] })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
                 <option value="feriado">Feriado</option>
                 <option value="férias">Férias</option>
                 <option value="capacitação">Capacitação</option>
