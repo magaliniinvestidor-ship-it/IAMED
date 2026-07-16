@@ -992,15 +992,38 @@ export default function ReceptionModule({
   };
 
   const handleDeletePatient = async (id: string, patientName: string) => {
-    if (!confirm(`Tem certeza que deseja excluir o paciente "${patientName}"? Esta ação não pode ser desfeita.`)) return;
+    if (!confirm(`Tem certeza que deseja excluir o paciente "${patientName}"? Esta ação não pode ser desfeita.\n\nIsso também excluirá agendamentos, lembretes do WhatsApp e registros na lista de espera vinculados.`)) return;
+
     setPatients(prev => prev.filter(p => p.id !== id));
-    addAuditLog('Exclusão Paciente', patientName);
+
+    // Excluir agendamentos vinculados
+    const linkedAppointments = appointments.filter(a => a.patientId === id || a.patientName === patientName);
+    linkedAppointments.forEach(a => {
+      setAppointments(prev => prev.filter(ap => ap.id !== a.id));
+    });
+
+    // Excluir registros no Supabase
     if (supabase) {
-      const { error } = await supabase.from('patients').delete().eq('id', id);
-      if (error) {
-        console.error("[SUPABASE] DELETE patients FAILED:", error.message);
+      // Excluir lembretes do WhatsApp vinculados ao paciente
+      const { error: reminderError } = await supabase.from('whatsapp_reminders').delete().eq('patient_name', patientName);
+      if (reminderError) console.error("[SUPABASE] DELETE whatsapp_reminders FAILED:", reminderError.message);
+
+      // Excluir agendamentos vinculados
+      for (const app of linkedAppointments) {
+        const { error: appError } = await supabase.from('appointments').delete().eq('id', app.id);
+        if (appError) console.error("[SUPABASE] DELETE appointments FAILED:", appError.message);
       }
+
+      // Excluir da lista de espera
+      const { error: waitlistError } = await supabase.from('waiting_list').delete().eq('patient_id', id);
+      if (waitlistError) console.error("[SUPABASE] DELETE waiting_list FAILED:", waitlistError.message);
+
+      // Excluir o paciente
+      const { error } = await supabase.from('patients').delete().eq('id', id);
+      if (error) console.error("[SUPABASE] DELETE patients FAILED:", error.message);
     }
+
+    addAuditLog('Exclusão Paciente', `${patientName} (+ ${linkedAppointments.length} agendamento(s) e lembretes do WhatsApp)`);
   };
 
   const handleEditPatient = (patient: Patient) => {

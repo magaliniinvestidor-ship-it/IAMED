@@ -68,23 +68,28 @@ interface WaitlistEntry {
   patient_id: string;
   patient_name: string;
   phone: string;
+  branch: string;
   specialty: string;
   doctor_name: string | null;
   priority_criteria: 'arrival' | 'urgency' | 'coverage' | 'seniority';
   priority_score: number;
   preferred_days: string[];
   preferred_hours: string[];
+  allocated_date: string | null;
+  allocated_time: string | null;
+  notified_date: string | null;
+  notified_time: string | null;
   status: 'aguardando' | 'notificado' | 'alocado' | 'cancelado';
   created_at: string;
 }
 
 interface WhatsappReminder {
   id: string;
-  appointment_id: string;
+  appointment_id: string | null;
   patient_name: string;
   patient_phone: string;
   message_template: string;
-  language: 'es' | 'gn' | 'pt';
+  language: 'es' | 'gn' | 'pt' | 'pt-BR' | 'pt-PT' | 'es-AR' | 'es-PY' | 'en';
   status: 'scheduled' | 'sent' | 'delivered' | 'read' | 'confirmed' | 'cancelled' | 'rescheduled';
   scheduled_for: string;
   sent_at: string | null;
@@ -128,6 +133,40 @@ const TIME_SLOTS = Array.from({ length: 26 }, (_, i) => {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 });
 
+const normalizeTime = (t: string) => {
+  if (!t) return '';
+  const parts = t.split(':');
+  return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
+};
+
+const getLangMessageKey = (lang: string): 'messageEs' | 'messageGn' | 'messagePt' | 'messageEn' => {
+  if (lang === 'gn') return 'messageGn';
+  if (lang === 'en') return 'messageEn';
+  if (lang.startsWith('pt')) return 'messagePt';
+  return 'messageEs';
+};
+
+const isTimeSlotTaken = (
+  date: string,
+  time: string,
+  doctorName: string,
+  appointments: Appointment[],
+  waitlist: WaitlistEntry[],
+  excludeWaitlistId?: string
+): boolean => {
+  const normalizedTime = normalizeTime(time);
+  const takenByAppt = appointments.some(a => a.date === date && normalizeTime(a.time) === normalizedTime && a.doctorName === doctorName && a.status !== 'cancelado');
+  const takenByWaitlist = waitlist.some(w => {
+    if (excludeWaitlistId && w.id === excludeWaitlistId) return false;
+    if (w.status !== 'notificado') return false;
+    if (w.doctor_name !== doctorName) return false;
+    if (w.notified_date !== date) return false;
+    if (!w.notified_time) return false;
+    return normalizeTime(w.notified_time) === normalizedTime;
+  });
+  return takenByAppt || takenByWaitlist;
+};
+
 const PARAGUAY_HOLIDAYS = [
   { date: '01-01', name: 'Año Nuevo (Nacional)' },
   { date: '03-01', name: 'Día de los Héroes (Nacional)' },
@@ -143,9 +182,9 @@ const PARAGUAY_HOLIDAYS = [
 ];
 
 const WHATSAPP_TEMPLATES = [
-  { id: 'tpl_1', name: 'Lembrete 48h', hoursBefore: 48, messageEs: 'Hola {nombre}. Le recordamos su consulta con {profesional} el {fecha} a las {hora} en {sede}. Responda: 1=Confirmar, 2=Cancelar, 3=Remarcar', messageGn: 'Hola {nombre}. Rembiapoite upeicha rendaite con {profesional} {fecha} {hora} en {sede}. Jawepy: 1=Jepive, 2=Ñanomboya, 3=Tembiapo ipahague', messagePt: 'Olá {nombre}. Lembramos sua consulta com {profesional} em {fecha} às {hora} em {sede}. Responda: 1=Confirmar, 2=Cancelar, 3=Remarcar' },
-  { id: 'tpl_2', name: 'Lembrete 24h', hoursBefore: 24, messageEs: 'Hola {nombre}. Mañana tiene consulta con {profesional} a las {hora} en {sede}. Por favor confirme su asistencia.', messageGn: 'Hola {nombre}. Arange upeicha rendaite con {profesional} {hora} en {sede}. Ikatu peẽ jepive.', messagePt: 'Olá {nombre}. Amanhã você tem consulta com {profesional} às {hora} em {sede}. Por favor confirme.' },
-  { id: 'tpl_3', name: 'Lembrete 2h', hoursBefore: 2, messageEs: 'Hola {nombre}. Su consulta con {profesional} es en 2 horas en {sede}. Lo esperamos.', messageGn: 'Hola {nombre}. Upicha rendaite con {profesional} ha e\'ho 2 horas en {sede}. Jaha jave.', messagePt: 'Olá {nombre}. Sua consulta com {profesional} é em 2 horas em {sede}. Aguardamos você.' },
+  { id: 'tpl_1', name: 'Lembrete 48h', hoursBefore: 48, messageEs: 'Hola {nombre}. Le recordamos su consulta con {profesional} el {fecha} a las {hora} en {sede}. Responda: 1=Confirmar, 2=Cancelar, 3=Remarcar', messageGn: 'Hola {nombre}. Rembiapoite upeicha rendaite con {profesional} {fecha} {hora} en {sede}. Jawepy: 1=Jepive, 2=Ñanomboya, 3=Tembiapo ipahague', messagePt: 'Olá {nombre}. Lembramos sua consulta com {profesional} em {fecha} às {hora} em {sede}. Responda: 1=Confirmar, 2=Cancelar, 3=Remarcar', messageEn: 'Hello {nombre}. We remind you of your appointment with {profesional} on {fecha} at {hora} at {sede}. Reply: 1=Confirm, 2=Cancel, 3=Reschedule' },
+  { id: 'tpl_2', name: 'Lembrete 24h', hoursBefore: 24, messageEs: 'Hola {nombre}. Mañana tiene consulta con {profesional} a las {hora} en {sede}. Por favor confirme su asistencia.', messageGn: 'Hola {nombre}. Arange upeicha rendaite con {profesional} {hora} en {sede}. Ikatu peẽ jepive.', messagePt: 'Olá {nombre}. Amanhã você tem consulta com {profesional} às {hora} em {sede}. Por favor confirme.', messageEn: 'Hello {nombre}. You have an appointment with {profesional} tomorrow at {hora} at {sede}. Please confirm.' },
+  { id: 'tpl_3', name: 'Lembrete 2h', hoursBefore: 2, messageEs: 'Hola {nombre}. Su consulta con {profesional} es en 2 horas en {sede}. Lo esperamos.', messageGn: 'Hola {nombre}. Upicha rendaite con {profesional} ha e\'ho 2 horas en {sede}. Jaha jave.', messagePt: 'Olá {nombre}. Sua consulta com {profesional} é em 2 horas em {sede}. Aguardamos você.', messageEn: 'Hello {nombre}. Your appointment with {profesional} is in 2 hours at {sede}. We look forward to seeing you.' },
 ];
 
 const CALL_CENTER_REASONS = [
@@ -228,6 +267,12 @@ const AgendaModuleContent = ({
   const [draggedAppId, setDraggedAppId] = useState<string | null>(null);
   const [dragOverSlot, setDragOverSlot] = useState<string | null>(null);
 
+  // Calendar cascade filters
+  const [calendarFilterBranch, setCalendarFilterBranch] = useState('');
+  const [calendarFilterSpecialty, setCalendarFilterSpecialty] = useState('');
+  const [calendarFilterRoom, setCalendarFilterRoom] = useState('');
+  const [calendarFilterDoctor, setCalendarFilterDoctor] = useState('');
+
   // Blockage modal
   const [showBlockageModal, setShowBlockageModal] = useState(false);
   const [blockForm, setBlockForm] = useState({ doctor_name: '', branch: '', start_date: '', end_date: '', start_time: '', end_time: '', reason: 'feriado' as BlockedSlot['reason'], description: '' });
@@ -235,12 +280,46 @@ const AgendaModuleContent = ({
   // WhatsApp
   const [reminders, setReminders] = useState<WhatsappReminder[]>([]);
   const [showReminderModal, setShowReminderModal] = useState(false);
-  const [reminderForm, setReminderForm] = useState({ patient_id: '', patient_name: '', patient_phone: '', appointment_id: '', language: 'es' as 'es' | 'gn' | 'pt', template_id: 'tpl_1' });
+  const [reminderForm, setReminderForm] = useState({ patient_id: '', patient_name: '', patient_phone: '', appointment_id: '', language: 'es' as 'es' | 'gn' | 'pt' | 'pt-BR' | 'pt-PT' | 'es-AR' | 'es-PY' | 'en', template_id: 'tpl_1' });
 
   // Waitlist
   const [waitlist, setWaitlist] = useState<WaitlistEntry[]>([]);
   const [showWaitlistModal, setShowWaitlistModal] = useState(false);
-  const [waitlistForm, setWaitlistForm] = useState({ patient_id: '', patient_name: '', phone: '', specialty: '', doctor_name: '', priority_criteria: 'arrival' as WaitlistEntry['priority_criteria'] });
+  const [waitlistForm, setWaitlistForm] = useState({ patient_id: '', patient_name: '', phone: '', branch: '', specialty: '', doctor_name: '', priority_criteria: 'arrival' as WaitlistEntry['priority_criteria'], preferred_days: [] as string[], preferred_hours: [] as string[] });
+
+  // Waitlist - Notify modal
+  const [showNotifyModal, setShowNotifyModal] = useState(false);
+  const [notifyEntry, setNotifyEntry] = useState<WaitlistEntry | null>(null);
+  const [notifyTemplate, setNotifyTemplate] = useState('tpl_1');
+  const [notifyLanguage, setNotifyLanguage] = useState<'es' | 'gn' | 'pt' | 'pt-BR' | 'pt-PT' | 'es-AR' | 'es-PY' | 'en'>('es');
+  const [notifyAppointmentId, setNotifyAppointmentId] = useState('');
+  const [notifyConsultDate, setNotifyConsultDate] = useState('');
+  const [notifyConsultTime, setNotifyConsultTime] = useState('');
+
+  // Waitlist - Allocate modal
+  const [showAllocateModal, setShowAllocateModal] = useState(false);
+  const [allocateEntry, setAllocateEntry] = useState<WaitlistEntry | null>(null);
+  const [allocateDate, setAllocateDate] = useState('');
+  const [allocateTime, setAllocateTime] = useState('');
+  const [allocateDoctor, setAllocateDoctor] = useState('');
+
+  // Waitlist - Edit modal
+  const [showEditWaitlistModal, setShowEditWaitlistModal] = useState(false);
+  const [editingWaitlistEntry, setEditingWaitlistEntry] = useState<WaitlistEntry | null>(null);
+  const [editWaitlistForm, setEditWaitlistForm] = useState({ patient_id: '', patient_name: '', phone: '', branch: '', specialty: '', doctor_name: '', priority_criteria: 'arrival' as WaitlistEntry['priority_criteria'], status: 'aguardando' as WaitlistEntry['status'], preferred_days: [] as string[], preferred_hours: [] as string[], allocated_date: '' as string | null, allocated_time: '' as string | null });
+
+  // Waitlist cascade filters
+  const [waitlistFilterBranch, setWaitlistFilterBranch] = useState('');
+  const [waitlistFilterSpecialty, setWaitlistFilterSpecialty] = useState('');
+  const [waitlistFilterDoctor, setWaitlistFilterDoctor] = useState('');
+
+  // Waitlist date filter
+  const [waitlistDateView, setWaitlistDateView] = useState<'day' | 'week' | 'month'>('month');
+  const [waitlistSelectedDate, setWaitlistSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
+
+  // WhatsApp date filter
+  const [whatsappDateView, setWhatsappDateView] = useState<'day' | 'week' | 'month'>('month');
+  const [whatsappSelectedDate, setWhatsappSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
 
   // Call Center
   const [callLogs, setCallLogs] = useState<CallLog[]>([]);
@@ -250,21 +329,39 @@ const AgendaModuleContent = ({
   const [callTimer, setCallTimer] = useState(0);
   const callCounterRef = useRef(0);
   const apptCounterRef = useRef(0);
+  const waitlistCounterRef = useRef(0);
+  const reminderCounterRef = useRef(0);
 
-  // Initialize counter from existing appointments to avoid duplicate IDs
+  // Initialize counters from existing data to avoid duplicate IDs
   useEffect(() => {
-    let maxId = 0;
+    let maxApptId = 0;
+    let maxWlId = 0;
+    let maxRemId = 0;
     appointments.forEach(a => {
       const match = a.id.match(/^agenda_(\d+)$/);
       if (match) {
         const num = parseInt(match[1], 10);
-        if (num > maxId) maxId = num;
+        if (num > maxApptId) maxApptId = num;
       }
     });
-    if (maxId > apptCounterRef.current) {
-      apptCounterRef.current = maxId;
-    }
-  }, [appointments]);
+    waitlist.forEach(w => {
+      const match = w.id.match(/^wl_(\d+)$/);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (num > maxWlId) maxWlId = num;
+      }
+    });
+    reminders.forEach(r => {
+      const match = r.id.match(/^rem_(\d+)$/);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (num > maxRemId) maxRemId = num;
+      }
+    });
+    if (maxApptId > apptCounterRef.current) apptCounterRef.current = maxApptId;
+    if (maxWlId > waitlistCounterRef.current) waitlistCounterRef.current = maxWlId;
+    if (maxRemId > reminderCounterRef.current) reminderCounterRef.current = maxRemId;
+  }, [appointments, waitlist, reminders]);
 
   // Blocked slots
   const [blockedSlots, setBlockedSlots] = useState<BlockedSlot[]>([]);
@@ -344,16 +441,25 @@ const AgendaModuleContent = ({
   // ============================================================
   const filteredAppointments = useMemo(() => {
     return appointments.filter(a => {
-      if (calendarView === 'day') return a.date === selectedDate;
-      if (calendarView === 'week') {
+      // Date filter
+      if (calendarView === 'day') {
+        if (a.date !== selectedDate) return false;
+      } else if (calendarView === 'week') {
         const d = new Date(a.date);
         const sel = new Date(selectedDate);
         const diff = (sel.getTime() - d.getTime()) / (1000 * 60 * 60 * 24);
-        return diff >= 0 && diff < 7;
+        if (!(diff >= 0 && diff < 7)) return false;
+      } else {
+        if (a.date.substring(0, 7) !== selectedDate.substring(0, 7)) return false;
       }
-      return a.date.substring(0, 7) === selectedDate.substring(0, 7);
+      // Cascade filters
+      if (calendarFilterBranch && a.branch !== calendarFilterBranch) return false;
+      if (calendarFilterSpecialty && a.specialty !== calendarFilterSpecialty) return false;
+      if (calendarFilterRoom && a.room !== calendarFilterRoom) return false;
+      if (calendarFilterDoctor && a.doctorName !== calendarFilterDoctor) return false;
+      return true;
     });
-  }, [appointments, selectedDate, calendarView]);
+  }, [appointments, selectedDate, calendarView, calendarFilterBranch, calendarFilterSpecialty, calendarFilterRoom, calendarFilterDoctor]);
 
   const groupedAppointments = useMemo(() => {
     const groups: Record<string, Appointment[]> = {};
@@ -470,6 +576,129 @@ const AgendaModuleContent = ({
     return clinicalRooms.filter(r => r.location_id === newApptForm.branch);
   }, [clinicalRooms, newApptForm.branch]);
 
+  // ============================================================
+  // CALENDAR CASCADE FILTERS
+  // ============================================================
+  // Specialties available for calendar filter (based on selected branch)
+  const calendarAvailableSpecialties = useMemo(() => {
+    const specialtySet = new Set<string>();
+    professionals.forEach(p => {
+      if (p.status !== 'ativo' || !p.specialty) return;
+      if (calendarFilterBranch && p.locationId && p.locationId !== calendarFilterBranch) return;
+      specialtySet.add(p.specialty);
+    });
+    return Array.from(specialtySet).sort();
+  }, [professionals, calendarFilterBranch]);
+
+  // Rooms available for calendar filter (based on selected branch)
+  const calendarAvailableRooms = useMemo(() => {
+    if (!calendarFilterBranch) return clinicalRooms;
+    return clinicalRooms.filter(r => r.location_id === calendarFilterBranch);
+  }, [clinicalRooms, calendarFilterBranch]);
+
+  // Professionals available for calendar filter (based on branch + specialty)
+  const calendarAvailableDoctors = useMemo(() => {
+    return professionals.filter(p => {
+      if (p.status !== 'ativo') return false;
+      if (calendarFilterBranch && p.locationId && p.locationId !== calendarFilterBranch) return false;
+      if (calendarFilterSpecialty && p.specialty !== calendarFilterSpecialty) return false;
+      return true;
+    });
+  }, [professionals, calendarFilterBranch, calendarFilterSpecialty]);
+
+  // ============================================================
+  // WAITLIST CASCADE FILTERS
+  // ============================================================
+  const waitlistAvailableSpecialties = useMemo(() => {
+    const specialtySet = new Set<string>();
+    professionals.forEach(p => {
+      if (p.status !== 'ativo' || !p.specialty) return;
+      if (waitlistForm.branch && p.locationId && p.locationId !== waitlistForm.branch) return;
+      specialtySet.add(p.specialty);
+    });
+    return Array.from(specialtySet).sort();
+  }, [professionals, waitlistForm.branch]);
+
+  const waitlistAvailableDoctors = useMemo(() => {
+    return professionals.filter(p => {
+      if (p.status !== 'ativo') return false;
+      if (waitlistForm.branch && p.locationId && p.locationId !== waitlistForm.branch) return false;
+      if (waitlistForm.specialty && p.specialty !== waitlistForm.specialty) return false;
+      return true;
+    });
+  }, [professionals, waitlistForm.branch, waitlistForm.specialty]);
+
+  // Waitlist list filter computed values
+  const waitlistFilterSpecialties = useMemo(() => {
+    const specialtySet = new Set<string>();
+    waitlist.forEach(w => {
+      if (waitlistFilterBranch && w.branch !== waitlistFilterBranch) return;
+      if (w.specialty) specialtySet.add(w.specialty);
+    });
+    return Array.from(specialtySet).sort();
+  }, [waitlist, waitlistFilterBranch]);
+
+  const waitlistFilterDoctors = useMemo(() => {
+    const doctorSet = new Set<string>();
+    waitlist.forEach(w => {
+      if (waitlistFilterBranch && w.branch !== waitlistFilterBranch) return;
+      if (waitlistFilterSpecialty && w.specialty !== waitlistFilterSpecialty) return;
+      if (w.doctor_name) doctorSet.add(w.doctor_name);
+    });
+    return Array.from(doctorSet).sort();
+  }, [waitlist, waitlistFilterBranch, waitlistFilterSpecialty]);
+
+  const filteredWaitlist = useMemo(() => {
+    const dateObj = new Date(waitlistSelectedDate + 'T12:00:00');
+    let startMs: number;
+    let endMs: number;
+    if (waitlistDateView === 'day') {
+      startMs = Date.UTC(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate());
+      endMs = startMs + 86400000;
+    } else if (waitlistDateView === 'week') {
+      const d = new Date(dateObj);
+      d.setDate(d.getDate() - d.getDay());
+      startMs = Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+      endMs = startMs + 7 * 86400000;
+    } else {
+      startMs = Date.UTC(dateObj.getFullYear(), dateObj.getMonth(), 1);
+      endMs = Date.UTC(dateObj.getFullYear(), dateObj.getMonth() + 1, 1);
+    }
+    return waitlist.filter(w => {
+      if (waitlistFilterBranch && w.branch !== waitlistFilterBranch) return false;
+      if (waitlistFilterSpecialty && w.specialty !== waitlistFilterSpecialty) return false;
+      if (waitlistFilterDoctor && w.doctor_name !== waitlistFilterDoctor) return false;
+      const createdAt = new Date(w.created_at);
+      const createdMs = Date.UTC(createdAt.getUTCFullYear(), createdAt.getUTCMonth(), createdAt.getUTCDate());
+      if (createdMs < startMs || createdMs >= endMs) return false;
+      return true;
+    });
+  }, [waitlist, waitlistFilterBranch, waitlistFilterSpecialty, waitlistFilterDoctor, waitlistDateView, waitlistSelectedDate]);
+
+  // WhatsApp Reminder helpers
+  const reminderAppointments = useMemo(() => {
+    if (!reminderForm.patient_id) return [];
+    return appointments.filter(a => a.patientId === reminderForm.patient_id && a.status !== 'cancelado');
+  }, [appointments, reminderForm.patient_id]);
+
+  const detectLanguage = (nationality?: string): typeof reminderForm.language => {
+    if (!nationality) return 'es';
+    const n = nationality.toLowerCase();
+    if (n.includes('paragu')) return 'gn';
+    if (n.includes('brasil')) return 'pt-BR';
+    if (n.includes('argent')) return 'es-AR';
+    return 'es';
+  };
+
+  const suggestTemplate = (appointmentDate: string, appointmentTime: string): string => {
+    const now = Date.now();
+    const apptMs = new Date(`${appointmentDate}T${appointmentTime}`).getTime();
+    const hoursUntil = (apptMs - now) / 3600000;
+    if (hoursUntil > 24) return 'tpl_1';
+    if (hoursUntil > 4) return 'tpl_2';
+    return 'tpl_3';
+  };
+
   // Professionals filtered by sede for blockage form
   const blockProfessionals = useMemo(() => {
     return professionals.filter(p => {
@@ -521,7 +750,7 @@ const AgendaModuleContent = ({
     setAppointments(prev => prev.map(a =>
       a.id === draggedAppId ? { ...a, date: targetDate, time: targetTime, status: 'remarcado' as const } : a
     ));
-    addAuditLog('Remarcação (Drag & Drop)', `${app.patientName}: ${app.date} ${app.time} → ${targetDate} ${targetTime}`);
+    addAuditLog('Remarcação (Drag & Drop)', `${app.patientName}: ${app.date} ${normalizeTime(app.time)} → ${targetDate} ${normalizeTime(targetTime)}`);
     setDraggedAppId(null);
   };
 
@@ -628,9 +857,24 @@ const AgendaModuleContent = ({
 
   // Delete appointment
   const handleDeleteAppointment = async (appt: Appointment) => {
-    if (!confirm(`Tem certeza que deseja excluir o agendamento de ${appt.patientName} em ${appt.date} às ${appt.time}?`)) return;
+    if (!confirm(`Tem certeza que deseja excluir o agendamento de ${appt.patientName} em ${appt.date} às ${normalizeTime(appt.time)}?\n\nIsso também excluirá a lista de espera e lembretes vinculados.`)) return;
+    // Find linked waitlist entries
+    const linkedWaitlist = waitlist.filter(w => w.patient_name === appt.patientName && (w.status === 'notificado' || w.status === 'alocado'));
+    // Find linked reminders
+    const linkedReminders = reminders.filter(r => r.patient_name === appt.patientName);
+    // Delete linked waitlist entries
+    linkedWaitlist.forEach(w => {
+      setWaitlist(prev => prev.filter(we => we.id !== w.id));
+      if (supabase) supabase.from('waiting_list').delete().eq('id', w.id);
+    });
+    // Delete linked reminders
+    linkedReminders.forEach(r => {
+      setReminders(prev => prev.filter(rem => rem.id !== r.id));
+      if (supabase) supabase.from('whatsapp_reminders').delete().eq('id', r.id);
+    });
+    // Delete appointment
     setAppointments(prev => prev.filter(a => a.id !== appt.id));
-    addAuditLog('Excluiu Agendamento', `${appt.patientName} - ${appt.date} ${appt.time}`);
+    addAuditLog('Excluiu Agendamento', `${appt.patientName} - ${appt.date} ${normalizeTime(appt.time)} (+ ${linkedWaitlist.length} lista(s) espera, + ${linkedReminders.length} lembrete(s))`);
     if (supabase) {
       const { error } = await supabase.from('appointments').delete().eq('id', appt.id);
       if (error) console.error('[SUPABASE] DELETE appointment FAILED:', error.message);
@@ -640,9 +884,9 @@ const AgendaModuleContent = ({
   const handleReminderSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const tpl = WHATSAPP_TEMPLATES.find(t => t.id === reminderForm.template_id);
-    const langKey = `message${reminderForm.language.charAt(0).toUpperCase() + reminderForm.language.slice(1)}` as 'messageEs' | 'messageGn' | 'messagePt';
+    const langKey = getLangMessageKey(reminderForm.language);
     const newReminder: WhatsappReminder = {
-      id: `rem_${Date.now()}`,
+      id: `rem_${++reminderCounterRef.current}`,
       appointment_id: reminderForm.appointment_id,
       patient_name: reminderForm.patient_name,
       patient_phone: reminderForm.patient_phone,
@@ -661,25 +905,69 @@ const AgendaModuleContent = ({
   };
 
   const simulateWhatsAppSend = async (reminderId: string) => {
-    setReminders(prev => prev.map(r => r.id === reminderId ? { ...r, status: 'sent' as const, sent_at: new Date().toISOString() } : r));
+    const now = new Date().toISOString();
+    setReminders(prev => prev.map(r => r.id === reminderId ? { ...r, status: 'sent' as const, sent_at: now } : r));
+    if (supabase) {
+      await supabase.from('whatsapp_reminders').update({ status: 'sent', sent_at: now }).eq('id', reminderId);
+    }
     addAuditLog('WhatsApp Enviado', `Lembrete ${reminderId}`);
     setTimeout(() => {
       setReminders(prev => prev.map(r => r.id === reminderId ? { ...r, status: 'delivered' as const } : r));
+      if (supabase) supabase.from('whatsapp_reminders').update({ status: 'delivered' }).eq('id', reminderId);
     }, 2000);
     setTimeout(() => {
       setReminders(prev => prev.map(r => r.id === reminderId ? { ...r, status: 'read' as const } : r));
+      if (supabase) supabase.from('whatsapp_reminders').update({ status: 'read' }).eq('id', reminderId);
     }, 5000);
   };
 
   const simulateWhatsAppResponse = async (reminderId: string, response: 'confirmed' | 'cancelled' | 'rescheduled') => {
-    setReminders(prev => prev.map(r => r.id === reminderId ? { ...r, status: response, response_received: response === 'confirmed' ? '1' : response === 'cancelled' ? '2' : '3' } : r));
-    if (response === 'confirmed') {
-      const rem = reminders.find(r => r.id === reminderId);
-      if (rem) {
-        setAppointments(prev => prev.map(a =>
-          a.id === rem.appointment_id ? { ...a, status: 'confirmado' as const } : a
-        ));
-        addAuditLog('Paciente confirmou via WhatsApp', rem.patient_name);
+    const newStatus = response === 'confirmed' ? 'confirmed' : response === 'cancelled' ? 'cancelled' : 'rescheduled';
+    const newResponse = response === 'confirmed' ? '1' : response === 'cancelled' ? '2' : '3';
+    setReminders(prev => prev.map(r => r.id === reminderId ? { ...r, status: newStatus, response_received: newResponse } : r));
+    if (supabase) {
+      await supabase.from('whatsapp_reminders').update({ status: newStatus, response_received: newResponse }).eq('id', reminderId);
+    }
+    const rem = reminders.find(r => r.id === reminderId);
+    if (rem) {
+      // Find waitlist entry by patient name
+      const waitlistEntry = waitlist.find(w => w.patient_name === rem.patient_name && w.status === 'notificado');
+      if (waitlistEntry) {
+        if (response === 'confirmed') {
+          // Confirmed → Alocado
+          setWaitlist(prev => prev.map(w => w.id === waitlistEntry.id ? { ...w, status: 'alocado', allocated_date: waitlistEntry.notified_date, allocated_time: waitlistEntry.notified_time } : w));
+          addAuditLog('Paciente confirmou via WhatsApp', rem.patient_name);
+          if (supabase) {
+            await supabase.from('waiting_list').update({ 
+              status: 'alocado', 
+              allocated_date: waitlistEntry.notified_date, 
+              allocated_time: waitlistEntry.notified_time 
+            }).eq('id', waitlistEntry.id);
+          }
+          // Update pending appointment to confirmado
+          if (rem.appointment_id) {
+            setAppointments(prev => prev.map(a =>
+              a.id === rem.appointment_id ? { ...a, status: 'confirmado' as const } : a
+            ));
+            if (supabase) {
+              await supabase.from('appointments').update({ status: 'confirmado' }).eq('id', rem.appointment_id);
+            }
+          }
+        } else if (response === 'cancelled') {
+          // Cancelled → Cancelado + delete pending appointment
+          setWaitlist(prev => prev.map(w => w.id === waitlistEntry.id ? { ...w, status: 'cancelado' } : w));
+          addAuditLog('Paciente cancelou via WhatsApp', rem.patient_name);
+          if (supabase) {
+            await supabase.from('waiting_list').update({ status: 'cancelado' }).eq('id', waitlistEntry.id);
+          }
+          // Delete pending appointment
+          if (rem.appointment_id) {
+            setAppointments(prev => prev.filter(a => a.id !== rem.appointment_id));
+            if (supabase) {
+              await supabase.from('appointments').delete().eq('id', rem.appointment_id);
+            }
+          }
+        }
       }
     }
   };
@@ -687,19 +975,285 @@ const AgendaModuleContent = ({
   const handleWaitlistSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const newEntry: WaitlistEntry = {
-      id: `wl_${Date.now()}`,
+      id: `wl_${++waitlistCounterRef.current}`,
       ...waitlistForm,
-      priority_score: Math.random() * 100,
-      preferred_days: [],
-      preferred_hours: [],
+      priority_score: Math.floor(Math.random() * 100),
+      preferred_days: waitlistForm.preferred_days,
+      preferred_hours: waitlistForm.preferred_hours,
+      allocated_date: null,
+      allocated_time: null,
+      notified_date: null,
+      notified_time: null,
       status: 'aguardando',
       created_at: new Date().toISOString(),
     };
     setWaitlist(prev => [...prev, newEntry]);
     addAuditLog('Adicionou à Lista de Espera', waitlistForm.patient_name);
-    if (supabase) await supabase.from('waiting_list').insert(newEntry);
+    if (supabase) {
+      const { error } = await supabase.from('waiting_list').insert(newEntry);
+      if (error) console.error('[SUPABASE] INSERT waiting_list FAILED:', error.message, error.details, error.hint);
+    }
     setShowWaitlistModal(false);
-    setWaitlistForm({ patient_id: '', patient_name: '', phone: '', specialty: '', doctor_name: '', priority_criteria: 'arrival' });
+    setWaitlistForm({ patient_id: '', patient_name: '', phone: '', branch: '', specialty: '', doctor_name: '', priority_criteria: 'arrival', preferred_days: [], preferred_hours: [] });
+  };
+
+  // Handle Notify patient from waitlist
+  const handleNotifySubmit = async () => {
+    if (!notifyEntry) return;
+    const tpl = WHATSAPP_TEMPLATES.find(t => t.id === notifyTemplate);
+    if (!tpl) return;
+    const langKey = getLangMessageKey(notifyLanguage);
+    const locName = locations.find(l => l.id === notifyEntry.branch)?.name || 'Sede';
+    
+    // Get consult date/time from appointment or manual fields
+    let consultDate = notifyConsultDate;
+    let consultTime = notifyConsultTime;
+    if (notifyAppointmentId) {
+      const appt = appointments.find(a => a.id === notifyAppointmentId);
+      if (appt) {
+        consultDate = appt.date;
+        consultTime = appt.time;
+      }
+    }
+    
+    // Validate availability
+    if (consultDate && consultTime && notifyEntry.doctor_name) {
+      const taken = isTimeSlotTaken(consultDate, consultTime, notifyEntry.doctor_name, appointments, waitlist, notifyEntry.id);
+      const blocked = isBlocked(consultDate, consultTime, notifyEntry.doctor_name, notifyEntry.branch || undefined);
+      if (taken) {
+        alert('Este horário já está ocupado para este profissional. Selecione outro horário.');
+        return;
+      }
+      if (blocked) {
+        alert('Este horário está bloqueado. Selecione outro horário.');
+        return;
+      }
+    }
+    
+    const message = tpl[langKey]
+      .replace('{nombre}', notifyEntry.patient_name)
+      .replace('{profesional}', notifyEntry.doctor_name || 'Qualquer')
+      .replace('{fecha}', consultDate || 'a definir')
+      .replace('{hora}', consultTime || 'a definir')
+      .replace('{sede}', locName);
+
+    const newReminder: WhatsappReminder = {
+      id: `rem_${++reminderCounterRef.current}`,
+      appointment_id: notifyAppointmentId || null,
+      patient_name: notifyEntry.patient_name,
+      patient_phone: notifyEntry.phone,
+      message_template: message,
+      language: notifyLanguage,
+      status: 'scheduled',
+      scheduled_for: consultDate && consultTime ? `${consultDate}T${consultTime}:00` : new Date().toISOString(),
+      sent_at: null,
+      response_received: null,
+    };
+
+    const existingReminder = reminders.find(r => r.patient_name === notifyEntry.patient_name && (r.status === 'scheduled' || r.status === 'sent'));
+
+    if (existingReminder) {
+      const updatedReminder = { ...existingReminder, ...newReminder, id: existingReminder.id };
+      setReminders(prev => prev.map(r => r.id === existingReminder.id ? updatedReminder : r));
+      if (supabase) {
+        await supabase.from('whatsapp_reminders').update({
+          appointment_id: updatedReminder.appointment_id,
+          patient_name: updatedReminder.patient_name,
+          patient_phone: updatedReminder.patient_phone,
+          message_template: updatedReminder.message_template,
+          language: updatedReminder.language,
+          status: updatedReminder.status,
+          scheduled_for: updatedReminder.scheduled_for,
+        }).eq('id', existingReminder.id);
+      }
+    } else {
+      setReminders(prev => [...prev, newReminder]);
+      if (supabase) {
+        await supabase.from('whatsapp_reminders').insert(newReminder);
+      }
+    }
+    setWaitlist(prev => prev.map(e => e.id === notifyEntry.id ? { ...e, status: 'notificado', notified_date: consultDate, notified_time: consultTime } : e));
+    addAuditLog('Notificou paciente da lista de espera', notifyEntry.patient_name);
+    if (supabase) {
+      await supabase.from('waiting_list').update({ status: 'notificado', notified_date: consultDate, notified_time: consultTime }).eq('id', notifyEntry.id);
+    }
+    // Create pending appointment to block the time slot
+    if (consultDate && consultTime && notifyEntry.doctor_name) {
+      const pendingAppt: Appointment = {
+        id: `agenda_${++apptCounterRef.current}`,
+        patientId: notifyEntry.patient_id,
+        patientName: notifyEntry.patient_name,
+        doctorName: notifyEntry.doctor_name,
+        specialty: notifyEntry.specialty,
+        date: consultDate,
+        time: consultTime,
+        status: 'pendente',
+        branch: notifyEntry.branch,
+        room: '',
+        type: 'primeira_vez',
+        modality: 'Presencial',
+        duration_minutes: 30,
+      };
+      setAppointments(prev => [...prev, pendingAppt]);
+      // Link the pending appointment to the reminder
+      setReminders(prev => prev.map(r => r.id === newReminder.id ? { ...r, appointment_id: pendingAppt.id } : r));
+      if (supabase) {
+        const inserted = await supabase.from('appointments').insert({
+          id: pendingAppt.id,
+          patient_id: pendingAppt.patientId,
+          patient_name: pendingAppt.patientName,
+          doctor_name: pendingAppt.doctorName,
+          specialty: pendingAppt.specialty,
+          date: pendingAppt.date,
+          time: pendingAppt.time,
+          status: pendingAppt.status,
+          branch: pendingAppt.branch,
+          room: pendingAppt.room,
+          type: pendingAppt.type,
+          modality: pendingAppt.modality,
+          duration_minutes: pendingAppt.duration_minutes,
+        }).select('id').single();
+        if (inserted.data) {
+          await supabase.from('whatsapp_reminders').update({ appointment_id: inserted.data.id }).eq('id', newReminder.id);
+        }
+      }
+    }
+    setShowNotifyModal(false);
+    setNotifyEntry(null);
+    setNotifyAppointmentId('');
+    setNotifyConsultDate('');
+    setNotifyConsultTime('');
+  };
+
+  // Handle Allocate patient from waitlist
+  const handleAllocateSubmit = async () => {
+    if (!allocateEntry || !allocateDate || !allocateTime || !allocateDoctor) return;
+    const doc = professionals.find(p => p.name === allocateDoctor);
+    const newAppointment: Appointment = {
+      id: `agenda_${++apptCounterRef.current}`,
+      patientId: allocateEntry.patient_id,
+      patientName: allocateEntry.patient_name,
+      doctorName: allocateDoctor,
+      specialty: allocateEntry.specialty,
+      date: allocateDate,
+      time: allocateTime,
+      status: 'agendado',
+      branch: allocateEntry.branch,
+      room: '',
+      type: 'primeira_vez',
+      modality: 'Presencial',
+      duration_minutes: 30,
+    };
+    setAppointments(prev => [...prev, newAppointment]);
+    setWaitlist(prev => prev.map(e => e.id === allocateEntry.id ? { ...e, status: 'alocado', allocated_date: allocateDate, allocated_time: allocateTime } : e));
+    addAuditLog('Alocou paciente da lista de espera', `${allocateEntry.patient_name} → ${allocateDate} ${allocateTime}`);
+    if (supabase) {
+      const { error: apptError } = await supabase.from('appointments').insert({
+        id: newAppointment.id,
+        patient_id: newAppointment.patientId,
+        patient_name: newAppointment.patientName,
+        doctor_name: newAppointment.doctorName,
+        specialty: newAppointment.specialty,
+        date: newAppointment.date,
+        time: newAppointment.time,
+        status: newAppointment.status,
+        branch: newAppointment.branch,
+        room: newAppointment.room,
+        type: newAppointment.type,
+        modality: newAppointment.modality,
+        duration_minutes: newAppointment.duration_minutes,
+      });
+      if (apptError) {
+        console.error('[SUPABASE] INSERT appointments FAILED:', apptError.message, apptError);
+      }
+      const { error: wlError } = await supabase.from('waiting_list').update({ status: 'alocado', allocated_date: allocateDate, allocated_time: allocateTime }).eq('id', allocateEntry.id);
+      if (wlError) {
+        console.error('[SUPABASE] UPDATE waiting_list FAILED:', wlError.message, wlError);
+      }
+    }
+    setShowAllocateModal(false);
+    setAllocateEntry(null);
+    setAllocateDate('');
+    setAllocateTime('');
+    setAllocateDoctor('');
+  };
+
+  // Handle Edit Waitlist Entry
+  const handleEditWaitlistSubmit = async () => {
+    if (!editingWaitlistEntry) return;
+    const updated: WaitlistEntry = {
+      ...editingWaitlistEntry,
+      patient_id: editWaitlistForm.patient_id,
+      patient_name: editWaitlistForm.patient_name,
+      phone: editWaitlistForm.phone,
+      branch: editWaitlistForm.branch,
+      specialty: editWaitlistForm.specialty,
+      doctor_name: editWaitlistForm.doctor_name,
+      priority_criteria: editWaitlistForm.priority_criteria,
+      status: editWaitlistForm.status,
+      preferred_days: editWaitlistForm.preferred_days,
+      preferred_hours: editWaitlistForm.preferred_hours,
+      allocated_date: editWaitlistForm.allocated_date,
+      allocated_time: editWaitlistForm.allocated_time,
+    };
+    setWaitlist(prev => prev.map(e => e.id === editingWaitlistEntry.id ? updated : e));
+    addAuditLog('Editou Lista de Espera', updated.patient_name);
+
+    if (updated.status === 'notificado' && updated.notified_date && updated.notified_time) {
+      const existingReminder = reminders.find(r => r.patient_name === updated.patient_name && (r.status === 'scheduled' || r.status === 'sent'));
+      if (existingReminder) {
+        const updatedScheduledFor = `${updated.notified_date}T${updated.notified_time}:00`;
+        setReminders(prev => prev.map(r => r.id === existingReminder.id ? { ...r, scheduled_for: updatedScheduledFor } : r));
+        if (supabase) {
+          await supabase.from('whatsapp_reminders').update({ scheduled_for: updatedScheduledFor }).eq('id', existingReminder.id);
+        }
+      }
+    }
+
+    if (supabase) {
+      const { error } = await supabase.from('waiting_list').update({
+        patient_id: updated.patient_id,
+        patient_name: updated.patient_name,
+        phone: updated.phone,
+        branch: updated.branch,
+        specialty: updated.specialty,
+        doctor_name: updated.doctor_name,
+        priority_criteria: updated.priority_criteria,
+        status: updated.status,
+        preferred_days: updated.preferred_days,
+        preferred_hours: updated.preferred_hours,
+        allocated_date: updated.allocated_date,
+        allocated_time: updated.allocated_time,
+      }).eq('id', editingWaitlistEntry.id);
+      if (error) console.error('[SUPABASE] UPDATE waiting_list FAILED:', error.message);
+    }
+    setShowEditWaitlistModal(false);
+    setEditingWaitlistEntry(null);
+  };
+
+  // Handle Delete Waitlist Entry
+  const handleDeleteWaitlist = async (entry: WaitlistEntry) => {
+    if (!confirm(`Tem certeza que deseja excluir ${entry.patient_name} da lista de espera?\n\nIsso também excluirá agendamentos e lembretes vinculados.`)) return;
+    // Find linked appointments and reminders
+    const linkedAppointments = appointments.filter(a => a.patientName === entry.patient_name && (a.status === 'pendente' || a.status === 'agendado'));
+    const linkedReminders = reminders.filter(r => r.patient_name === entry.patient_name);
+    // Delete linked appointments
+    linkedAppointments.forEach(a => {
+      setAppointments(prev => prev.filter(ap => ap.id !== a.id));
+      if (supabase) supabase.from('appointments').delete().eq('id', a.id);
+    });
+    // Delete linked reminders
+    linkedReminders.forEach(r => {
+      setReminders(prev => prev.filter(rem => rem.id !== r.id));
+      if (supabase) supabase.from('whatsapp_reminders').delete().eq('id', r.id);
+    });
+    // Delete waitlist entry
+    setWaitlist(prev => prev.filter(e => e.id !== entry.id));
+    addAuditLog('Excluiu da Lista de Espera', `${entry.patient_name} (+ ${linkedAppointments.length} agendamento(s), + ${linkedReminders.length} lembrete(s))`);
+    if (supabase) {
+      const { error } = await supabase.from('waiting_list').delete().eq('id', entry.id);
+      if (error) console.error('[SUPABASE] DELETE waiting_list FAILED:', error.message);
+    }
   };
 
   const handleCallSubmit = async (e: React.FormEvent) => {
@@ -864,6 +1418,30 @@ const AgendaModuleContent = ({
     return { total, sent, delivered, read, confirmed, rate };
   }, [reminders]);
 
+  const filteredReminders = useMemo(() => {
+    const dateObj = new Date(whatsappSelectedDate + 'T12:00:00');
+    let startMs: number;
+    let endMs: number;
+    if (whatsappDateView === 'day') {
+      startMs = Date.UTC(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate());
+      endMs = startMs + 86400000;
+    } else if (whatsappDateView === 'week') {
+      const d = new Date(dateObj);
+      d.setDate(d.getDate() - d.getDay());
+      startMs = Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+      endMs = startMs + 7 * 86400000;
+    } else {
+      startMs = Date.UTC(dateObj.getFullYear(), dateObj.getMonth(), 1);
+      endMs = Date.UTC(dateObj.getFullYear(), dateObj.getMonth() + 1, 1);
+    }
+    return reminders.filter(r => {
+      const scheduled = new Date(r.scheduled_for);
+      const scheduledMs = Date.UTC(scheduled.getUTCFullYear(), scheduled.getUTCMonth(), scheduled.getUTCDate());
+      if (scheduledMs < startMs || scheduledMs >= endMs) return false;
+      return true;
+    });
+  }, [reminders, whatsappDateView, whatsappSelectedDate]);
+
   // ============================================================
   // RENDER
   // ============================================================
@@ -922,7 +1500,98 @@ const AgendaModuleContent = ({
       {/* ==================== CALENDAR TAB ==================== */}
       {activeTab === 'calendar' && (
         <div className="space-y-4">
-          {/* Controls */}
+          {/* Cascade Filters */}
+          <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-3">
+            <div className="flex items-center gap-2 mb-2">
+              <Filter className="w-4 h-4 text-teal-600" />
+              <span className="text-sm font-semibold text-slate-700">Filtros da Agenda</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {/* Sede */}
+              <div>
+                <label className="text-xs font-semibold text-slate-500 mb-1 block">Sede</label>
+                <select
+                  value={calendarFilterBranch}
+                  onChange={e => {
+                    setCalendarFilterBranch(e.target.value);
+                    setCalendarFilterSpecialty('');
+                    setCalendarFilterRoom('');
+                    setCalendarFilterDoctor('');
+                  }}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500"
+                >
+                  <option value="">Todas as Sedes</option>
+                  {locations.filter(l => l.status === 'ativo').map(loc => (
+                    <option key={loc.id} value={loc.id}>{loc.name}</option>
+                  ))}
+                </select>
+              </div>
+              {/* Especialidade */}
+              <div>
+                <label className="text-xs font-semibold text-slate-500 mb-1 block">Especialidade</label>
+                <select
+                  value={calendarFilterSpecialty}
+                  onChange={e => {
+                    setCalendarFilterSpecialty(e.target.value);
+                    setCalendarFilterRoom('');
+                    setCalendarFilterDoctor('');
+                  }}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500"
+                >
+                  <option value="">Todas as Especialidades</option>
+                  {calendarAvailableSpecialties.map(sp => (
+                    <option key={sp} value={sp}>{sp}</option>
+                  ))}
+                </select>
+              </div>
+              {/* Sala */}
+              <div>
+                <label className="text-xs font-semibold text-slate-500 mb-1 block">Sala</label>
+                <select
+                  value={calendarFilterRoom}
+                  onChange={e => {
+                    setCalendarFilterRoom(e.target.value);
+                    setCalendarFilterDoctor('');
+                  }}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500"
+                >
+                  <option value="">Todas as Salas</option>
+                  {calendarAvailableRooms.map(room => (
+                    <option key={room.id} value={room.name}>{room.name}</option>
+                  ))}
+                </select>
+              </div>
+              {/* Profissional */}
+              <div>
+                <label className="text-xs font-semibold text-slate-500 mb-1 block">Profissional</label>
+                <select
+                  value={calendarFilterDoctor}
+                  onChange={e => setCalendarFilterDoctor(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500"
+                >
+                  <option value="">Todos os Profissionais</option>
+                  {calendarAvailableDoctors.map(doc => (
+                    <option key={doc.id} value={doc.name}>{doc.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            {(calendarFilterBranch || calendarFilterSpecialty || calendarFilterRoom || calendarFilterDoctor) && (
+              <button
+                onClick={() => {
+                  setCalendarFilterBranch('');
+                  setCalendarFilterSpecialty('');
+                  setCalendarFilterRoom('');
+                  setCalendarFilterDoctor('');
+                }}
+                className="text-xs font-semibold text-rose-500 hover:text-rose-700 flex items-center gap-1"
+              >
+                <X className="w-3 h-3" /> Limpar Filtros
+              </button>
+            )}
+          </div>
+
+          {/* Controls - View + Grouping + Date Navigation */}
           <div className="flex flex-wrap gap-2 items-center bg-white p-4 rounded-xl border border-slate-200">
             <div className="flex gap-1">
               {(['day', 'week', 'month'] as const).map(v => (
@@ -1011,7 +1680,7 @@ const AgendaModuleContent = ({
                                 {canEdit && (
                                   <span draggable onDragStart={(e) => handleDragStart(e, app.id)} onDragEnd={handleDragEnd} className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500" title="Arrastar">⋮⋮</span>
                                 )}
-                                <span className="text-sm font-bold text-slate-500">{app.time} {app.duration_minutes ? `(${app.duration_minutes}min)` : ''}</span>
+                                <span className="text-sm font-bold text-slate-500">{normalizeTime(app.time)} {app.duration_minutes ? `(${app.duration_minutes}min)` : ''}</span>
                               </div>
                               <span className={`px-1.5 py-0.5 text-xs font-bold rounded-full ${sc.bg} ${sc.color}`}>{sc.label}</span>
                             </div>
@@ -1083,15 +1752,19 @@ const AgendaModuleContent = ({
                       <div className="p-1 space-y-1">
                         {Object.entries(dayGroups).map(([group, apps]) => (
                           <div key={group}>
-                            {Object.keys(dayGroups).length > 1 && (
-                              <p className="text-[10px] font-bold text-slate-400 px-1 pt-1 truncate">{group}</p>
-                            )}
+                            <p className="text-[10px] font-bold text-slate-400 px-1 pt-1 truncate flex items-center gap-1">
+                              {calendarGroupBy === 'branch' && <Building2 className="w-2.5 h-2.5 text-blue-400" />}
+                              {calendarGroupBy === 'specialty' && <HeartPulse className="w-2.5 h-2.5 text-rose-400" />}
+                              {calendarGroupBy === 'room' && <MapPin className="w-2.5 h-2.5 text-purple-400" />}
+                              {calendarGroupBy === 'doctor' && <Stethoscope className="w-2.5 h-2.5 text-teal-400" />}
+                              {group}
+                            </p>
                             {apps.map(app => {
                               const sc = STATUS_CONFIG[app.status] || STATUS_CONFIG['agendado'];
                               return (
                                 <div key={app.id}
                                   className={`p-1.5 rounded text-[11px] border-l-2 ${sc.border} ${sc.bg} hover:bg-white transition-colors`}>
-                                  <p className="font-bold truncate">{app.time} {app.patientName.split(' ')[0]}</p>
+                                   <p className="font-bold truncate">{normalizeTime(app.time)} {app.patientName.split(' ')[0]}</p>
                                   <p className="text-slate-500 truncate text-[10px]">{app.doctorName.split(' ')[0]}</p>
                                 </div>
                               );
@@ -1149,11 +1822,18 @@ const AgendaModuleContent = ({
                         {blocked && <Lock className="w-3 h-3 text-amber-500" />}
                       </div>
                       <div className="space-y-0.5">
-                        {groupKeys.length > 1 ? (
-                          groupKeys.slice(0, 2).map(group => (
+                        {groupKeys.length > 0 ? (
+                          groupKeys.slice(0, 3).map(group => (
                             <div key={group} className="flex items-center gap-1">
-                              <span className="w-1.5 h-1.5 rounded-full bg-teal-400 flex-shrink-0" />
-                              <span className="text-[10px] text-slate-600 truncate font-semibold">{group} ({dayGroups[group].length})</span>
+                              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                                calendarGroupBy === 'branch' ? 'bg-blue-400' :
+                                calendarGroupBy === 'specialty' ? 'bg-rose-400' :
+                                calendarGroupBy === 'room' ? 'bg-purple-400' :
+                                'bg-teal-400'
+                              }`} />
+                              <span className="text-[10px] text-slate-600 truncate font-semibold">
+                                {calendarGroupBy === 'branch' ? group : group.split(' ')[0]} ({dayGroups[group].length})
+                              </span>
                             </div>
                           ))
                         ) : (
@@ -1162,7 +1842,7 @@ const AgendaModuleContent = ({
                             return (
                               <div key={app.id}
                                 className={`text-xs px-1 py-0.5 rounded truncate ${sc.bg} ${sc.color} font-semibold hover:bg-white transition-colors`}>
-                                {app.time} {app.patientName.split(' ')[0]}
+                                {normalizeTime(app.time)} {app.patientName.split(' ')[0]}
                               </div>
                             );
                           })
@@ -1202,7 +1882,7 @@ const AgendaModuleContent = ({
                       <div>
                         <p className="font-semibold text-sm">{b.description}</p>
                         <p className="text-xs text-slate-500">
-                          {b.start_date} a {b.end_date} {b.start_time && `(${b.start_time}-${b.end_time})`}
+                          {b.start_date} a {b.end_date} {b.start_time && `(${normalizeTime(b.start_time)}-${normalizeTime(b.end_time || '')})`}
                           {b.doctor_name && ` • ${b.doctor_name}`}
                           {b.branch && ` • ${b.branch}`}
                         </p>
@@ -1244,11 +1924,44 @@ const AgendaModuleContent = ({
           <div className="flex justify-between items-center">
             <h3 className="font-bold text-slate-800 flex items-center gap-2">
               <Send className="w-5 h-5 text-green-600" />
-              Lembretes WhatsApp ({reminders.length})
+              Lembretes WhatsApp ({filteredReminders.length}{filteredReminders.length !== reminders.length ? ` de ${reminders.length}` : ''})
             </h3>
             <button onClick={() => setShowReminderModal(true)} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg transition flex items-center gap-2">
               <Plus className="w-4 h-4" /> Novo Lembrete
             </button>
+          </div>
+
+          {/* Date Navigation */}
+          <div className="flex flex-wrap gap-2 items-center bg-white p-4 rounded-xl border border-slate-200">
+            <div className="flex gap-1">
+              {(['day', 'week', 'month'] as const).map(v => (
+                <button key={v} onClick={() => setWhatsappDateView(v)}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition ${
+                    whatsappDateView === v ? 'bg-green-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}>
+                  {v === 'day' ? 'Dia' : v === 'week' ? 'Semana' : 'Mês'}
+                </button>
+              ))}
+            </div>
+            <div className="flex-1" />
+            <div className="flex items-center gap-2">
+              <button onClick={() => {
+                const d = new Date(whatsappSelectedDate + 'T12:00:00');
+                d.setDate(d.getDate() - (whatsappDateView === 'day' ? 1 : whatsappDateView === 'week' ? 7 : 30));
+                setWhatsappSelectedDate(d.toISOString().split('T')[0]);
+              }} className="p-1.5 hover:bg-slate-100 rounded-lg"><ChevronLeft className="w-4 h-4" /></button>
+              <input type="date" value={whatsappSelectedDate} onChange={e => setWhatsappSelectedDate(e.target.value)}
+                className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold" />
+              <button onClick={() => {
+                const d = new Date(whatsappSelectedDate + 'T12:00:00');
+                d.setDate(d.getDate() + (whatsappDateView === 'day' ? 1 : whatsappDateView === 'week' ? 7 : 30));
+                setWhatsappSelectedDate(d.toISOString().split('T')[0]);
+              }} className="p-1.5 hover:bg-slate-100 rounded-lg"><ChevronRight className="w-4 h-4" /></button>
+              <button onClick={() => setWhatsappSelectedDate(new Date().toISOString().split('T')[0])}
+                className="px-3 py-1.5 text-xs font-semibold bg-green-50 text-green-700 rounded-lg hover:bg-green-100">
+                Hoje
+              </button>
+            </div>
           </div>
 
           {reminders.length === 0 ? (
@@ -1256,6 +1969,12 @@ const AgendaModuleContent = ({
               <Send className="w-12 h-12 text-slate-300 mx-auto mb-3" />
               <p className="font-semibold text-slate-600">Nenhum lembrete agendado</p>
               <p className="text-sm text-slate-400 mt-1">Crie lembretes automáticos para seus pacientes</p>
+            </div>
+          ) : filteredReminders.length === 0 ? (
+            <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
+              <Send className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+              <p className="font-semibold text-slate-600">Nenhum lembrete no período selecionado</p>
+              <p className="text-sm text-slate-400 mt-1">Tente alterar o filtro de data</p>
             </div>
           ) : (
             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
@@ -1271,11 +1990,11 @@ const AgendaModuleContent = ({
                   </tr>
                 </thead>
                 <tbody>
-                  {reminders.map(r => (
+                  {filteredReminders.map(r => (
                     <tr key={r.id} className="border-b border-slate-100 hover:bg-slate-50">
                       <td className="px-4 py-3 font-medium text-sm">{r.patient_name}</td>
                       <td className="px-4 py-3 text-sm text-slate-600">{r.patient_phone}</td>
-                      <td className="px-4 py-3 text-sm text-slate-600">{new Date(r.scheduled_for).toLocaleString('pt-BR')}</td>
+                      <td className="px-4 py-3 text-sm text-slate-600">{new Date(r.scheduled_for).toLocaleDateString('pt-BR')} {normalizeTime(new Date(r.scheduled_for).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }))}</td>
                       <td className="px-4 py-3 text-sm">
                         <span className={`px-2 py-0.5 text-xs font-bold rounded ${
                           r.language === 'es' ? 'bg-blue-100 text-blue-700' :
@@ -1321,17 +2040,126 @@ const AgendaModuleContent = ({
           <div className="flex justify-between items-center">
             <h3 className="font-bold text-slate-800 flex items-center gap-2">
               <ClipboardList className="w-5 h-5 text-indigo-600" />
-              Lista de Espera ({waitlist.length})
+              Lista de Espera ({filteredWaitlist.length}{(waitlistFilterBranch || waitlistFilterSpecialty || waitlistFilterDoctor) ? ` de ${waitlist.length}` : ''})
             </h3>
             <button onClick={() => setShowWaitlistModal(true)} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition flex items-center gap-2">
               <Plus className="w-4 h-4" /> Adicionar Paciente
             </button>
           </div>
 
+          {/* Date Navigation */}
+          <div className="flex flex-wrap gap-2 items-center bg-white p-4 rounded-xl border border-slate-200">
+            <div className="flex gap-1">
+              {(['day', 'week', 'month'] as const).map(v => (
+                <button key={v} onClick={() => setWaitlistDateView(v)}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition ${
+                    waitlistDateView === v ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}>
+                  {v === 'day' ? 'Dia' : v === 'week' ? 'Semana' : 'Mês'}
+                </button>
+              ))}
+            </div>
+            <div className="flex-1" />
+            <div className="flex items-center gap-2">
+              <button onClick={() => {
+                const d = new Date(waitlistSelectedDate + 'T12:00:00');
+                d.setDate(d.getDate() - (waitlistDateView === 'day' ? 1 : waitlistDateView === 'week' ? 7 : 30));
+                setWaitlistSelectedDate(d.toISOString().split('T')[0]);
+              }} className="p-1.5 hover:bg-slate-100 rounded-lg"><ChevronLeft className="w-4 h-4" /></button>
+              <input type="date" value={waitlistSelectedDate} onChange={e => setWaitlistSelectedDate(e.target.value)}
+                className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold" />
+              <button onClick={() => {
+                const d = new Date(waitlistSelectedDate + 'T12:00:00');
+                d.setDate(d.getDate() + (waitlistDateView === 'day' ? 1 : waitlistDateView === 'week' ? 7 : 30));
+                setWaitlistSelectedDate(d.toISOString().split('T')[0]);
+              }} className="p-1.5 hover:bg-slate-100 rounded-lg"><ChevronRight className="w-4 h-4" /></button>
+              <button onClick={() => setWaitlistSelectedDate(new Date().toISOString().split('T')[0])}
+                className="px-3 py-1.5 text-xs font-semibold bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100">
+                Hoje
+              </button>
+            </div>
+          </div>
+
+          {/* Cascade Filters */}
+          <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-3">
+            <div className="flex items-center gap-2 mb-2">
+              <Filter className="w-4 h-4 text-indigo-600" />
+              <span className="text-sm font-semibold text-slate-700">Filtros da Lista de Espera</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {/* Sede */}
+              <div>
+                <label className="text-xs font-semibold text-slate-500 mb-1 block">Sede</label>
+                <select
+                  value={waitlistFilterBranch}
+                  onChange={e => {
+                    setWaitlistFilterBranch(e.target.value);
+                    setWaitlistFilterSpecialty('');
+                    setWaitlistFilterDoctor('');
+                  }}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">Todas as Sedes</option>
+                  {locations.filter(l => l.status === 'ativo').map(loc => (
+                    <option key={loc.id} value={loc.id}>{loc.name}</option>
+                  ))}
+                </select>
+              </div>
+              {/* Especialidade */}
+              <div>
+                <label className="text-xs font-semibold text-slate-500 mb-1 block">Especialidade</label>
+                <select
+                  value={waitlistFilterSpecialty}
+                  onChange={e => {
+                    setWaitlistFilterSpecialty(e.target.value);
+                    setWaitlistFilterDoctor('');
+                  }}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">Todas as Especialidades</option>
+                  {waitlistFilterSpecialties.map(sp => (
+                    <option key={sp} value={sp}>{sp}</option>
+                  ))}
+                </select>
+              </div>
+              {/* Profissional */}
+              <div>
+                <label className="text-xs font-semibold text-slate-500 mb-1 block">Profissional</label>
+                <select
+                  value={waitlistFilterDoctor}
+                  onChange={e => setWaitlistFilterDoctor(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">Todos os Profissionais</option>
+                  {waitlistFilterDoctors.map(doc => (
+                    <option key={doc} value={doc}>{doc}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            {(waitlistFilterBranch || waitlistFilterSpecialty || waitlistFilterDoctor) && (
+              <button
+                onClick={() => {
+                  setWaitlistFilterBranch('');
+                  setWaitlistFilterSpecialty('');
+                  setWaitlistFilterDoctor('');
+                }}
+                className="text-xs font-semibold text-rose-500 hover:text-rose-700 flex items-center gap-1"
+              >
+                <X className="w-3 h-3" /> Limpar Filtros
+              </button>
+            )}
+          </div>
+
           {waitlist.length === 0 ? (
             <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
               <ClipboardList className="w-12 h-12 text-slate-300 mx-auto mb-3" />
               <p className="font-semibold text-slate-600">Lista de espera vazia</p>
+            </div>
+          ) : filteredWaitlist.length === 0 ? (
+            <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
+              <ClipboardList className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+              <p className="font-semibold text-slate-600">Nenhum resultado encontrado com os filtros selecionados</p>
             </div>
           ) : (
             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
@@ -1341,19 +2169,20 @@ const AgendaModuleContent = ({
                     <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">Paciente</th>
                     <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">Telefone</th>
                     <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">Especialidade</th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">Médico</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">Profissional</th>
                     <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">Prioridade</th>
                     <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">Status</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">Preferência</th>
                     <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">Ações</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {waitlist.sort((a, b) => b.priority_score - a.priority_score).map(w => (
+                  {filteredWaitlist.sort((a, b) => b.priority_score - a.priority_score).map(w => (
                     <tr key={w.id} className="border-b border-slate-100 hover:bg-slate-50">
                       <td className="px-4 py-3 font-medium text-sm">{w.patient_name}</td>
                       <td className="px-4 py-3 text-sm text-slate-600">{w.phone}</td>
                       <td className="px-4 py-3 text-sm text-slate-600">{w.specialty}</td>
-                      <td className="px-4 py-3 text-sm text-slate-600">{w.doctor_name || 'Qualquer'}</td>
+                      <td className="px-4 py-3 text-sm text-slate-600">{w.doctor_name || 'Todos os Profissionais'}</td>
                       <td className="px-4 py-3">
                         <span className={`px-2 py-0.5 text-xs font-bold rounded ${
                           w.priority_criteria === 'urgency' ? 'bg-red-100 text-red-700' :
@@ -1364,7 +2193,7 @@ const AgendaModuleContent = ({
                           {w.priority_criteria === 'arrival' ? 'Chegada' :
                            w.priority_criteria === 'urgency' ? 'Urgência' :
                            w.priority_criteria === 'coverage' ? 'Cobertura' : 'Antiguidade'}
-                          {' '}({w.priority_score.toFixed(0)})
+                          {' '}({filteredWaitlist.filter(x => x.priority_criteria === w.priority_criteria).length})
                         </span>
                       </td>
                       <td className="px-4 py-3">
@@ -1376,18 +2205,62 @@ const AgendaModuleContent = ({
                         }`}>{w.status}</span>
                       </td>
                       <td className="px-4 py-3">
-                        {w.status === 'aguardando' && (
-                          <div className="flex gap-1">
-                            <button onClick={() => {
-                              setWaitlist(prev => prev.map(e => e.id === w.id ? { ...e, status: 'notificado' } : e));
-                              addAuditLog('Notificou paciente da lista de espera', w.patient_name);
-                            }} className="text-blue-600 hover:text-blue-800 text-xs font-semibold">Notificar</button>
-                            <button onClick={() => {
-                              setWaitlist(prev => prev.map(e => e.id === w.id ? { ...e, status: 'alocado' } : e));
-                              addAuditLog('Alocou paciente da lista de espera', w.patient_name);
-                            }} className="text-green-600 hover:text-green-800 text-xs font-semibold">Alocar</button>
+                        {(w.status === 'notificado' || w.status === 'alocado') && (w.preferred_days?.length > 0 || w.preferred_hours?.length > 0 || w.allocated_date || w.notified_date) ? (
+                          <div className="text-xs space-y-0.5">
+                            {w.status === 'alocado' && w.allocated_date ? (
+                               <p className="text-green-700 font-semibold">Alocado: {new Date(w.allocated_date + 'T12:00:00').toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })} às {normalizeTime(w.allocated_time || '')}</p>
+                            ) : w.status === 'notificado' && w.notified_date ? (
+                               <p className="text-blue-700 font-semibold">Consulta: {new Date(w.notified_date + 'T12:00:00').toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })} às {normalizeTime(w.notified_time || '')}</p>
+                            ) : (
+                              <>
+                                {w.preferred_days?.length > 0 && (
+                                  <p className="text-slate-600"><span className="font-semibold">Dias:</span> {w.preferred_days.join(', ')}</p>
+                                )}
+                                {w.preferred_hours?.length > 0 && (
+                                  <p className="text-slate-600"><span className="font-semibold">Horários:</span> {w.preferred_hours.join(', ')}</p>
+                                )}
+                              </>
+                            )}
                           </div>
+                        ) : (
+                          <span className="text-xs text-slate-400">-</span>
                         )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex gap-1">
+                          {w.status === 'aguardando' && (
+                            <>
+                              <button onClick={() => {
+                                setNotifyEntry(w);
+                                setShowNotifyModal(true);
+                              }} className="text-blue-600 hover:text-blue-800 text-xs font-semibold">Notificar</button>
+                              <button onClick={() => {
+                                setAllocateEntry(w);
+                                setAllocateDoctor(w.doctor_name || '');
+                                setShowAllocateModal(true);
+                              }} className="text-green-600 hover:text-green-800 text-xs font-semibold">Alocar</button>
+                            </>
+                          )}
+                          <button onClick={() => {
+                            setEditingWaitlistEntry(w);
+                            setEditWaitlistForm({
+                              patient_id: w.patient_id,
+                              patient_name: w.patient_name,
+                              phone: w.phone,
+                              branch: w.branch || '',
+                              specialty: w.specialty,
+                              doctor_name: w.doctor_name || '',
+                              priority_criteria: w.priority_criteria,
+                              status: w.status,
+                              preferred_days: w.preferred_days || [],
+                              preferred_hours: w.preferred_hours || [],
+                              allocated_date: w.allocated_date || '',
+                              allocated_time: w.allocated_time || '',
+                            });
+                            setShowEditWaitlistModal(true);
+                          }} className="text-amber-600 hover:text-amber-800 text-xs font-semibold">Editar</button>
+                          <button onClick={() => handleDeleteWaitlist(w)} className="text-rose-600 hover:text-rose-800 text-xs font-semibold">Excluir</button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -1874,7 +2747,7 @@ const AgendaModuleContent = ({
               <label className="block text-sm font-medium text-slate-600 mb-1">Paciente</label>
               <select value={reminderForm.patient_id} onChange={e => {
                 const p = patients.find(p => p.id === e.target.value);
-                setReminderForm({ ...reminderForm, patient_id: e.target.value, patient_name: p?.name || '', patient_phone: p?.phone || '' });
+                setReminderForm({ ...reminderForm, patient_id: e.target.value, patient_name: p?.name || '', patient_phone: p?.phone || '', appointment_id: '', language: detectLanguage(p?.nationality) });
               }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
                 <option value="">Selecionar paciente...</option>
                 {patients.map(p => <option key={p.id} value={p.id}>{p.name} ({p.phone})</option>)}
@@ -1882,20 +2755,27 @@ const AgendaModuleContent = ({
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-600 mb-1">Agendamento Vinculado</label>
-              <select value={reminderForm.appointment_id} onChange={e => setReminderForm({ ...reminderForm, appointment_id: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
-                <option value="">Selecionar agendamento...</option>
-                {appointments.filter(a => a.status !== 'cancelado').map(a => (
-                  <option key={a.id} value={a.id}>{a.patientName} - {a.date} {a.time} ({a.doctorName})</option>
+              <select value={reminderForm.appointment_id} onChange={e => {
+                const appt = reminderAppointments.find(a => a.id === e.target.value);
+                setReminderForm({ ...reminderForm, appointment_id: e.target.value, template_id: appt ? suggestTemplate(appt.date, appt.time) : reminderForm.template_id });
+              }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required disabled={!reminderForm.patient_id}>
+                <option value="">{!reminderForm.patient_id ? 'Selecione um paciente primeiro...' : 'Selecionar agendamento...'}</option>
+                {reminderAppointments.map(a => (
+                   <option key={a.id} value={a.id}>{a.date} {normalizeTime(a.time)} - {a.doctorName}</option>
                 ))}
               </select>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-slate-600 mb-1">Idioma</label>
-                <select value={reminderForm.language} onChange={e => setReminderForm({ ...reminderForm, language: e.target.value as 'es' | 'gn' | 'pt' })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
-                  <option value="es">Espanhol</option>
+                <select value={reminderForm.language} onChange={e => setReminderForm({ ...reminderForm, language: e.target.value as typeof reminderForm.language })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                  <option value="pt-BR">Português (Brasil)</option>
+                  <option value="pt-PT">Português (Portugal)</option>
+                  <option value="es-AR">Español (Argentina)</option>
+                  <option value="es-PY">Español (Paraguay)</option>
+                  <option value="es">Español (Geral)</option>
                   <option value="gn">Guarani</option>
-                  <option value="pt">Português</option>
+                  <option value="en">English</option>
                 </select>
               </div>
               <div>
@@ -1910,9 +2790,17 @@ const AgendaModuleContent = ({
             <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
               <p className="text-xs font-semibold text-slate-500 mb-1">Preview da mensagem:</p>
               <p className="text-sm text-slate-700">
-                {WHATSAPP_TEMPLATES.find(t => t.id === reminderForm.template_id)?.[
-                  `message${reminderForm.language.charAt(0).toUpperCase() + reminderForm.language.slice(1)}` as 'messageEs' | 'messageGn' | 'messagePt'
-                ] || 'Selecione um modelo'}
+                {(() => {
+                  const tpl = WHATSAPP_TEMPLATES.find(t => t.id === reminderForm.template_id);
+                  const text = tpl?.[getLangMessageKey(reminderForm.language)] || tpl?.messageEs || '';
+                  const selectedAppt = reminderAppointments.find(a => a.id === reminderForm.appointment_id);
+                  return text
+                    .replace('{nombre}', reminderForm.patient_name || '{nombre}')
+                    .replace('{profesional}', selectedAppt?.doctorName || '{profesional}')
+                    .replace('{fecha}', selectedAppt ? new Date(selectedAppt.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' }) : '{fecha}')
+                    .replace('{hora}', selectedAppt ? normalizeTime(selectedAppt.time) : '{hora}')
+                    .replace('{sede}', selectedAppt?.branch || '{sede}');
+                })() || 'Selecione um modelo'}
               </p>
             </div>
             <div className="flex justify-end gap-2 pt-2">
@@ -1939,14 +2827,32 @@ const AgendaModuleContent = ({
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-600 mb-1">Especialidade</label>
-              <input type="text" value={waitlistForm.specialty} onChange={e => setWaitlistForm({ ...waitlistForm, specialty: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required />
+              <label className="block text-sm font-medium text-slate-600 mb-1">Sede</label>
+              <select value={waitlistForm.branch} onChange={e => {
+                setWaitlistForm({ ...waitlistForm, branch: e.target.value, specialty: '', doctor_name: '' });
+              }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
+                <option value="">Selecionar sede...</option>
+                {locations.filter(l => l.status === 'ativo').map(loc => (
+                  <option key={loc.id} value={loc.id}>{loc.name}</option>
+                ))}
+              </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-600 mb-1">Médico Preferido</label>
+              <label className="block text-sm font-medium text-slate-600 mb-1">Especialidade</label>
+              <select value={waitlistForm.specialty} onChange={e => {
+                setWaitlistForm({ ...waitlistForm, specialty: e.target.value, doctor_name: '' });
+              }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
+                <option value="">Selecionar especialidade...</option>
+                {waitlistAvailableSpecialties.map(sp => (
+                  <option key={sp} value={sp}>{sp}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-600 mb-1">Profissional</label>
               <select value={waitlistForm.doctor_name} onChange={e => setWaitlistForm({ ...waitlistForm, doctor_name: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
-                <option value="">Qualquer médico</option>
-                {professionals.filter(p => p.role === 'Médico(a)').map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
+                <option value="">Todos os Profissionais</option>
+                {waitlistAvailableDoctors.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
               </select>
             </div>
             <div>
@@ -1958,11 +2864,304 @@ const AgendaModuleContent = ({
                 <option value="seniority">Antiguidade do Paciente</option>
               </select>
             </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-600 mb-1">Dias Preferidos</label>
+              <div className="flex flex-wrap gap-2">
+                {['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'].map(day => (
+                  <label key={day} className="flex items-center gap-1 text-sm">
+                    <input type="checkbox" checked={waitlistForm.preferred_days.includes(day)} onChange={e => {
+                      const newDays = e.target.checked 
+                        ? [...waitlistForm.preferred_days, day]
+                        : waitlistForm.preferred_days.filter(d => d !== day);
+                      setWaitlistForm({ ...waitlistForm, preferred_days: newDays });
+                    }} className="rounded" />
+                    {day}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-600 mb-1">Horários Preferidos</label>
+              <div className="flex flex-wrap gap-2">
+                {['Manhã (07:00-12:00)', 'Tarde (12:00-18:00)', 'Noite (18:00-22:00)'].map(hour => (
+                  <label key={hour} className="flex items-center gap-1 text-sm">
+                    <input type="checkbox" checked={waitlistForm.preferred_hours.includes(hour)} onChange={e => {
+                      const newHours = e.target.checked 
+                        ? [...waitlistForm.preferred_hours, hour]
+                        : waitlistForm.preferred_hours.filter(h => h !== hour);
+                      setWaitlistForm({ ...waitlistForm, preferred_hours: newHours });
+                    }} className="rounded" />
+                    {hour}
+                  </label>
+                ))}
+              </div>
+            </div>
             <div className="flex justify-end gap-2 pt-2">
               <button type="submit" className="py-2 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition">Adicionar</button>
               <button type="button" onClick={() => setShowWaitlistModal(false)} className="py-2 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg transition">Cancelar</button>
             </div>
           </form>
+        </div>
+      </InlineModal>
+
+      {/* Waitlist - Notify Modal */}
+      <InlineModal open={showNotifyModal} onClose={() => setShowNotifyModal(false)} className="max-w-md">
+        <div className="p-6">
+          <h3 className="font-bold text-lg mb-4">Notificar Paciente</h3>
+          {notifyEntry && (
+            <div className="space-y-4">
+              <div className="bg-slate-50 p-3 rounded-lg">
+                <p className="text-sm font-semibold">{notifyEntry.patient_name}</p>
+                <p className="text-xs text-slate-500">{notifyEntry.phone} • {notifyEntry.specialty}</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1">Idioma</label>
+                <select value={notifyLanguage} onChange={e => setNotifyLanguage(e.target.value as typeof notifyLanguage)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                  <option value="pt-BR">Português (Brasil)</option>
+                  <option value="pt-PT">Português (Portugal)</option>
+                  <option value="es-AR">Español (Argentina)</option>
+                  <option value="es-PY">Español (Paraguay)</option>
+                  <option value="es">Español (Geral)</option>
+                  <option value="gn">Guarani</option>
+                  <option value="en">English</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1">Template</label>
+                <select value={notifyTemplate} onChange={e => setNotifyTemplate(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                  {WHATSAPP_TEMPLATES.map(t => (
+                    <option key={t.id} value={t.id}>{t.name} ({t.hoursBefore}h antes)</option>
+                  ))}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-600 mb-1">Data da Consulta</label>
+                  <input type="date" value={notifyConsultDate} onChange={e => setNotifyConsultDate(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-600 mb-1">Horário da Consulta</label>
+                  <select value={notifyConsultTime} onChange={e => setNotifyConsultTime(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                    <option value="">Selecionar...</option>
+                    {TIME_SLOTS.map(t => {
+                      const taken = isTimeSlotTaken(notifyConsultDate, t, notifyEntry.doctor_name || '', appointments, waitlist, notifyEntry.id);
+                      const blocked = isBlocked(notifyConsultDate, t, (notifyEntry.doctor_name || ''), notifyEntry.branch || undefined);
+                      const disabled = taken || blocked;
+                      return <option key={t} value={t} disabled={disabled}>{t} {taken ? '(ocupado)' : blocked ? '(bloqueado)' : ''}</option>;
+                    })}
+                  </select>
+                </div>
+              </div>
+              {notifyConsultDate && notifyEntry.doctor_name && (
+                <div className="bg-slate-50 p-3 rounded-lg">
+                  <p className="text-xs font-semibold text-slate-600 mb-2">Horários indisponíveis nesta data:</p>
+                  <div className="flex flex-wrap gap-1">
+                    {TIME_SLOTS.filter(t => {
+                      const docName = notifyEntry.doctor_name || '';
+                      const taken = isTimeSlotTaken(notifyConsultDate, t, docName, appointments, waitlist, notifyEntry.id);
+                      const blocked = isBlocked(notifyConsultDate, t, docName, notifyEntry.branch || undefined);
+                      return taken || blocked;
+                    }).map(t => (
+                      <span key={t} className="px-2 py-0.5 bg-red-100 text-red-700 text-xs font-semibold rounded">{t}</span>
+                    ))}
+                    {TIME_SLOTS.filter(t => {
+                      const docName = notifyEntry.doctor_name || '';
+                      const taken = isTimeSlotTaken(notifyConsultDate, t, docName, appointments, waitlist, notifyEntry.id);
+                      const blocked = isBlocked(notifyConsultDate, t, docName, notifyEntry.branch || undefined);
+                      return taken || blocked;
+                    }).length === 0 && (
+                      <span className="text-xs text-green-600">Todos os horários disponíveis</span>
+                    )}
+                  </div>
+                </div>
+              )}
+              <div className="bg-blue-50 p-3 rounded-lg">
+                <p className="text-xs font-semibold text-blue-700 mb-1">Preview da mensagem:</p>
+                <p className="text-sm text-blue-800">
+                  {WHATSAPP_TEMPLATES.find(t => t.id === notifyTemplate)?.[
+                    getLangMessageKey(notifyLanguage)
+                  ]
+                    .replace('{nombre}', notifyEntry.patient_name)
+                    .replace('{profesional}', notifyEntry.doctor_name || 'Qualquer')
+                    .replace('{sede}', locations.find(l => l.id === notifyEntry.branch)?.name || 'Sede')
+                    .replace('{fecha}', notifyConsultDate || 'a definir')
+                    .replace('{hora}', notifyConsultTime || 'a definir')
+                    || 'Selecione um template'}
+                </p>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button onClick={handleNotifySubmit} className="py-2 px-4 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg transition">Enviar Notificação</button>
+                <button type="button" onClick={() => setShowNotifyModal(false)} className="py-2 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg transition">Cancelar</button>
+              </div>
+            </div>
+          )}
+        </div>
+      </InlineModal>
+
+      {/* Waitlist - Allocate Modal */}
+      <InlineModal open={showAllocateModal} onClose={() => setShowAllocateModal(false)} className="max-w-lg">
+        <div className="p-6">
+          <h3 className="font-bold text-lg mb-4">Alocar Paciente</h3>
+          {allocateEntry && (
+            <div className="space-y-4">
+              <div className="bg-slate-50 p-3 rounded-lg">
+                <p className="text-sm font-semibold">{allocateEntry.patient_name}</p>
+                <p className="text-xs text-slate-500">{allocateEntry.phone} • {allocateEntry.specialty}</p>
+                <p className="text-xs text-slate-500">Sede: {locations.find(l => l.id === allocateEntry.branch)?.name || 'Não definida'}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-600 mb-1">Data</label>
+                  <input type="date" value={allocateDate} onChange={e => setAllocateDate(e.target.value)} min={new Date().toISOString().split('T')[0]} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-600 mb-1">Horário</label>
+                  <select value={allocateTime} onChange={e => setAllocateTime(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
+                    <option value="">Selecionar...</option>
+                    {TIME_SLOTS.map(t => {
+                      const taken = isTimeSlotTaken(allocateDate, t, allocateDoctor, appointments, waitlist);
+                      return <option key={t} value={t} disabled={taken}>{t} {taken ? '(ocupado)' : ''}</option>;
+                    })}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1">Profissional</label>
+                <select value={allocateDoctor} onChange={e => setAllocateDoctor(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
+                  <option value="">Selecionar...</option>
+                  {professionals.filter(p => {
+                    if (p.status !== 'ativo') return false;
+                    if (allocateEntry.branch && p.locationId && p.locationId !== allocateEntry.branch) return false;
+                    if (allocateEntry.specialty && p.specialty !== allocateEntry.specialty) return false;
+                    return true;
+                  }).map(p => (
+                    <option key={p.id} value={p.name}>{p.name} - {p.specialty}</option>
+                  ))}
+                </select>
+              </div>
+              {allocateDate && allocateDoctor && (
+                <div className="bg-slate-50 p-3 rounded-lg">
+                  <p className="text-xs font-semibold text-slate-600 mb-2">Horários ocupados nesta data:</p>
+                  <div className="flex flex-wrap gap-1">
+                    {appointments.filter(a => a.date === allocateDate && a.doctorName === allocateDoctor && a.status !== 'cancelado').map(a => (
+                       <span key={a.id} className="px-2 py-0.5 bg-red-100 text-red-700 text-xs font-semibold rounded">{normalizeTime(a.time)}</span>
+                    ))}
+                    {appointments.filter(a => a.date === allocateDate && a.doctorName === allocateDoctor && a.status !== 'cancelado').length === 0 && (
+                      <span className="text-xs text-green-600">Nenhum horário ocupado</span>
+                    )}
+                  </div>
+                </div>
+              )}
+              <div className="flex justify-end gap-2 pt-2">
+                <button onClick={handleAllocateSubmit} disabled={!allocateDate || !allocateTime || !allocateDoctor} className="py-2 px-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white font-bold rounded-lg transition">Alocar e Agendar</button>
+                <button type="button" onClick={() => setShowAllocateModal(false)} className="py-2 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg transition">Cancelar</button>
+              </div>
+            </div>
+          )}
+        </div>
+      </InlineModal>
+
+      {/* Waitlist - Edit Modal */}
+      <InlineModal open={showEditWaitlistModal} onClose={() => setShowEditWaitlistModal(false)} className="max-w-md">
+        <div className="p-6">
+          <h3 className="font-bold text-lg mb-4">Editar Lista de Espera</h3>
+          {editingWaitlistEntry && (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1">Paciente</label>
+                <select value={editWaitlistForm.patient_id} onChange={e => {
+                  const p = patients.find(p => p.id === e.target.value);
+                  setEditWaitlistForm({ ...editWaitlistForm, patient_id: e.target.value, patient_name: p?.name || '', phone: p?.phone || '' });
+                }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
+                  <option value="">Selecionar paciente...</option>
+                  {patients.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1">Sede</label>
+                <select value={editWaitlistForm.branch} onChange={e => {
+                  setEditWaitlistForm({ ...editWaitlistForm, branch: e.target.value, specialty: '', doctor_name: '' });
+                }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
+                  <option value="">Selecionar sede...</option>
+                  {locations.filter(l => l.status === 'ativo').map(loc => (
+                    <option key={loc.id} value={loc.id}>{loc.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1">Especialidade</label>
+                <select value={editWaitlistForm.specialty} onChange={e => {
+                  setEditWaitlistForm({ ...editWaitlistForm, specialty: e.target.value, doctor_name: '' });
+                }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
+                  <option value="">Selecionar especialidade...</option>
+                  {waitlistAvailableSpecialties.map(sp => (
+                    <option key={sp} value={sp}>{sp}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1">Profissional</label>
+                <select value={editWaitlistForm.doctor_name} onChange={e => setEditWaitlistForm({ ...editWaitlistForm, doctor_name: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                  <option value="">Todos os Profissionais</option>
+                  {waitlistAvailableDoctors.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1">Critério de Prioridade</label>
+                <select value={editWaitlistForm.priority_criteria} onChange={e => setEditWaitlistForm({ ...editWaitlistForm, priority_criteria: e.target.value as WaitlistEntry['priority_criteria'] })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                  <option value="arrival">Ordem de Chegada</option>
+                  <option value="urgency">Urgência Clínica</option>
+                  <option value="coverage">Tipo de Cobertura</option>
+                  <option value="seniority">Antiguidade do Paciente</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1">Status</label>
+                <select value={editWaitlistForm.status} onChange={e => setEditWaitlistForm({ ...editWaitlistForm, status: e.target.value as WaitlistEntry['status'] })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                  <option value="aguardando">Aguardando</option>
+                  <option value="notificado">Notificado</option>
+                  <option value="alocado">Alocado</option>
+                  <option value="cancelado">Cancelado</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1">Dias Preferidos</label>
+                <div className="flex flex-wrap gap-2">
+                  {['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'].map(day => (
+                    <label key={day} className="flex items-center gap-1 text-sm">
+                      <input type="checkbox" checked={editWaitlistForm.preferred_days.includes(day)} onChange={e => {
+                        const newDays = e.target.checked 
+                          ? [...editWaitlistForm.preferred_days, day]
+                          : editWaitlistForm.preferred_days.filter(d => d !== day);
+                        setEditWaitlistForm({ ...editWaitlistForm, preferred_days: newDays });
+                      }} className="rounded" />
+                      {day}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1">Horários Preferidos</label>
+                <div className="flex flex-wrap gap-2">
+                  {['Manhã (07:00-12:00)', 'Tarde (12:00-18:00)', 'Noite (18:00-22:00)'].map(hour => (
+                    <label key={hour} className="flex items-center gap-1 text-sm">
+                      <input type="checkbox" checked={editWaitlistForm.preferred_hours.includes(hour)} onChange={e => {
+                        const newHours = e.target.checked 
+                          ? [...editWaitlistForm.preferred_hours, hour]
+                          : editWaitlistForm.preferred_hours.filter(h => h !== hour);
+                        setEditWaitlistForm({ ...editWaitlistForm, preferred_hours: newHours });
+                      }} className="rounded" />
+                      {hour}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button onClick={handleEditWaitlistSubmit} className="py-2 px-4 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg transition">Salvar Alterações</button>
+                <button type="button" onClick={() => setShowEditWaitlistModal(false)} className="py-2 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg transition">Cancelar</button>
+              </div>
+            </div>
+          )}
         </div>
       </InlineModal>
 

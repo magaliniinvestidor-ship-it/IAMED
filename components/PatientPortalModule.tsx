@@ -68,6 +68,12 @@ const TIME_SLOTS = [
   '15:00', '15:30', '16:00', '16:30', '17:00', '17:30',
 ];
 
+const normalizeTime = (t: string) => {
+  if (!t) return '';
+  const parts = t.split(':');
+  return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
+};
+
 const PAYMENT_METHODS = [
   { value: 'pix', label: 'PIX', icon: SmartphoneIcon },
   { value: 'credit_card', label: 'Cartão de Crédito', icon: CreditCardIcon },
@@ -586,7 +592,7 @@ export default function PatientPortalModule({
             <div>
               <p className="font-bold text-sm">{nextAppointment.specialty}</p>
               <p className="text-indigo-100 text-xs">{nextAppointment.doctorName}</p>
-              <p className="text-white font-black text-lg mt-1">{nextAppointment.date} às {nextAppointment.time}</p>
+               <p className="text-white font-black text-lg mt-1">{nextAppointment.date} às {normalizeTime(nextAppointment.time)}</p>
               {nextAppointment.modality === 'Virtual' && (
                 <span className="inline-flex items-center gap-1 text-[9px] bg-indigo-400/30 text-indigo-100 px-2 py-0.5 rounded-full mt-1">
                   <Video className="w-2.5 h-2.5" /> Telemedicina
@@ -728,7 +734,7 @@ export default function PatientPortalModule({
                         <Calendar className="w-3 h-3" /> {app.date}
                       </span>
                       <span className="flex items-center gap-1 text-[10px] text-slate-500">
-                        <Clock className="w-3 h-3" /> {app.time}
+                        <Clock className="w-3 h-3" /> {normalizeTime(app.time)}
                       </span>
                       {app.modality === 'Virtual' && (
                         <span className="flex items-center gap-1 text-[10px] text-purple-600">
@@ -1105,7 +1111,7 @@ export default function PatientPortalModule({
                       <span className="font-bold text-xs text-slate-800">{req.doctorName}</span>
                     </div>
                     <p className="text-[10px] text-slate-500">{req.specialty}</p>
-                    <p className="text-[10px] text-slate-400">{req.scheduledDate} às {req.scheduledTime}</p>
+                     <p className="text-[10px] text-slate-400">{req.scheduledDate} às {normalizeTime(req.scheduledTime)}</p>
                     <div className="flex items-center gap-2 mt-2">
                       <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${req.status === 'confirmado' ? 'bg-green-50 text-green-700' : req.status === 'solicitado' ? 'bg-amber-50 text-amber-700' : 'bg-slate-50 text-slate-600'}`}>
                         {req.status}
