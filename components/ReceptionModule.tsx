@@ -13,7 +13,7 @@ import {
   AlertCircle, ChevronRight, ChevronLeft, Languages, 
   HeartPulse, Shield, KeyRound, Sparkles,
   Sliders, Smartphone, Trash2, FileText, Scan, CheckCircle2, XCircle, X,
-  Lock, AlertTriangle as AlertTriangleIcon, Pencil
+  Lock, AlertTriangle as AlertTriangleIcon, Pencil, Bell, ArrowRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import AgendaModule from '@/components/AgendaModule';
@@ -98,6 +98,9 @@ export default function ReceptionModule({
   const photoCounterRef = useRef(0);
   const pendingCaptureRef = useRef<'real' | 'simulation' | null>(null);
   const simulationFileRef = useRef('');
+  const notifCounterRef = useRef(0);
+  const plaCounterRef = useRef(0);
+  const locCounterRef = useRef(0);
 
   // --- Validation & Alerts (derived state) ---
   const calculatedDV = useMemo(() => {
@@ -223,6 +226,59 @@ export default function ReceptionModule({
   const [triagePriorityLevel, setTriagePriorityLevel] = useState<'blue' | 'green' | 'yellow' | 'orange' | 'red'>('green');
   const [triageProcedures, setTriageProcedures] = useState<string[]>([]);
   const [triageNursingNotes, setTriageNursingNotes] = useState('');
+  const [triageAssignedLocation, setTriageAssignedLocation] = useState('');
+  
+  // --- Hospital Location / Distribution Panel ---
+  type HospitalLocation = {
+    id: string;
+    name: string;
+    type: 'consultorio' | 'enfermaria' | 'uti' | 'raio_x' | 'laboratorio' | 'cirurgia' | 'sala_espera' | 'outro';
+    capacity: number;
+    currentPatients: string[];
+    status: 'livre' | 'ocupado' | 'manutencao';
+  };
+  type InternalNotification = {
+    id: string;
+    patientName: string;
+    fromLocation: string;
+    toLocation: string;
+    message: string;
+    read: boolean;
+    createdAt: string;
+  };
+  const [activeReceptionTab, setActiveReceptionTab] = useState<'recepcao' | 'distribuicao' | 'locais' | 'notificacoes'>('recepcao');
+  const [hospitalLocations, setHospitalLocations] = useState<HospitalLocation[]>([
+    { id: 'loc_1', name: 'Consultório 1', type: 'consultorio', capacity: 1, currentPatients: [], status: 'livre' },
+    { id: 'loc_2', name: 'Consultório 2', type: 'consultorio', capacity: 1, currentPatients: [], status: 'livre' },
+    { id: 'loc_3', name: 'Consultório 3', type: 'consultorio', capacity: 1, currentPatients: [], status: 'livre' },
+    { id: 'loc_4', name: 'Consultório 4', type: 'consultorio', capacity: 1, currentPatients: [], status: 'livre' },
+    { id: 'loc_5', name: 'Consultório 5', type: 'consultorio', capacity: 1, currentPatients: [], status: 'livre' },
+    { id: 'loc_6', name: 'Consultório 6', type: 'consultorio', capacity: 1, currentPatients: [], status: 'livre' },
+    { id: 'loc_7', name: 'Consultório 7', type: 'consultorio', capacity: 1, currentPatients: [], status: 'livre' },
+    { id: 'loc_8', name: 'Consultório 8', type: 'consultorio', capacity: 1, currentPatients: [], status: 'livre' },
+    { id: 'loc_9', name: 'Consultório 9', type: 'consultorio', capacity: 1, currentPatients: [], status: 'livre' },
+    { id: 'loc_10', name: 'Consultório 10', type: 'consultorio', capacity: 1, currentPatients: [], status: 'livre' },
+    { id: 'loc_11', name: 'Enfermaria', type: 'enfermaria', capacity: 10, currentPatients: [], status: 'livre' },
+    { id: 'loc_12', name: 'UTI', type: 'uti', capacity: 5, currentPatients: [], status: 'livre' },
+    { id: 'loc_13', name: 'Sala de Raio-X', type: 'raio_x', capacity: 1, currentPatients: [], status: 'livre' },
+    { id: 'loc_14', name: 'Laboratório', type: 'laboratorio', capacity: 3, currentPatients: [], status: 'livre' },
+    { id: 'loc_15', name: 'Sala de Cirurgia', type: 'cirurgia', capacity: 1, currentPatients: [], status: 'livre' },
+  ]);
+  const [showNewLocationModal, setShowNewLocationModal] = useState(false);
+  const [newLocationForm, setNewLocationForm] = useState({ name: '', type: 'consultorio' as HospitalLocation['type'], capacity: 1 });
+  const [editingLocation, setEditingLocation] = useState<HospitalLocation | null>(null);
+  const [internalNotifications, setInternalNotifications] = useState<InternalNotification[]>([]);
+  const [distributePatient, setDistributePatient] = useState<Patient | null>(null);
+  const [distributeTargetLocation, setDistributeTargetLocation] = useState('');
+  const [showDistributeModal, setShowDistributeModal] = useState(false);
+  const [redirectPatient, setRedirectPatient] = useState<Patient | null>(null);
+  const [redirectTargetLocation, setRedirectTargetLocation] = useState('');
+  const [showRedirectModal, setShowRedirectModal] = useState(false);
+  const [triageTab, setTriageTab] = useState<'aguardando' | 'atendidos'>('aguardando');
+  const [attendedPatients, setAttendedPatients] = useState<{ patient: Patient; locationName: string; completedAt: string }[]>([]);
+  const [patientNameMap, setPatientNameMap] = useState<Record<string, string>>({});
+  const [selectedLocation, setSelectedLocation] = useState<HospitalLocation | null>(null);
+  const [showLocationDetail, setShowLocationDetail] = useState(false);
   
   // Document attachments in Triage
   const [attachedFiles, setAttachedFiles] = useState<{name: string, size: string, type: string, url: string}[]>([]);
@@ -381,6 +437,96 @@ export default function ReceptionModule({
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cameraCountdown]);
+
+  // --- Load Hospital Data from Supabase on Mount ---
+  useEffect(() => {
+    const loadHospitalData = async () => {
+      if (!supabase) return;
+      try {
+        const { data: locations, error: locError } = await supabase.from('hospital_locations').select('*').order('name');
+        if (!locError && locations && locations.length > 0) {
+          setHospitalLocations(locations.map((l: any) => ({
+            id: l.id,
+            name: l.name,
+            type: l.type,
+            capacity: l.capacity,
+            status: l.status || 'livre',
+            currentPatients: [],
+          })));
+          // Set loc counter from last ID
+          let maxLoc = 0;
+          locations.forEach((l: any) => {
+            const num = parseInt(String(l.id).replace('loc_', ''));
+            if (!isNaN(num) && num > maxLoc) maxLoc = num;
+          });
+          locCounterRef.current = maxLoc;
+          // Load patient assignments
+          const { data: assignments, error: assignError } = await supabase.from('patient_location_assignments').select('*, patients(name)').eq('active', true);
+          if (!assignError && assignments && assignments.length > 0) {
+            const nameMap: Record<string, string> = {};
+            assignments.forEach((a: any) => {
+              if (a.patient_id && a.patients?.name) {
+                nameMap[a.patient_id] = a.patients.name;
+              }
+            });
+            setPatientNameMap(nameMap);
+            setHospitalLocations(prev => prev.map(loc => ({
+              ...loc,
+              currentPatients: assignments.filter((a: any) => a.location_id === loc.id).map((a: any) => a.patient_id),
+            })));
+            // Set pla counter from last ID
+            let maxPla = 0;
+            assignments.forEach((a: any) => {
+              const num = parseInt(String(a.id).replace('pla_', ''));
+              if (!isNaN(num) && num > maxPla) maxPla = num;
+            });
+            plaCounterRef.current = maxPla;
+          }
+        }
+        const { data: notifications, error: notifError } = await supabase.from('internal_notifications').select('*').order('created_at', { ascending: false }).limit(50);
+        if (!notifError && notifications) {
+          setInternalNotifications(notifications.map((n: any) => ({
+            id: n.id,
+            patientName: n.patient_name,
+            fromLocation: n.from_location,
+            toLocation: n.to_location,
+            message: n.message,
+            read: n.read,
+            createdAt: n.created_at,
+          })));
+          // Set notif counter from last ID
+          let maxNotif = 0;
+          notifications.forEach((n: any) => {
+            const num = parseInt(String(n.id).replace('notif_', ''));
+            if (!isNaN(num) && num > maxNotif) maxNotif = num;
+          });
+          notifCounterRef.current = maxNotif;
+        }
+        // Load attended patients from completed assignments
+        const { data: completedAssignments, error: completedError } = await supabase
+          .from('patient_location_assignments')
+          .select('*, patients!inner(name, phone), hospital_locations!inner(name)')
+          .eq('active', false)
+          .order('assigned_at', { ascending: false })
+          .limit(50);
+        if (!completedError && completedAssignments && completedAssignments.length > 0) {
+          const attended = completedAssignments.map((a: any) => {
+            const foundPatient = patients.find(p => p.id === a.patient_id);
+            return {
+              patient: foundPatient || { id: a.patient_id, name: a.patients?.name || 'Paciente', phone: a.patients?.phone || '', email: '', birthdate: '', gender: '', priority: 'normal' as const, status: 'atendido' as const, clinicalHistory: [] } as Patient,
+              locationName: a.hospital_locations?.name || 'Local',
+              completedAt: a.assigned_at,
+            };
+          });
+          setAttendedPatients(attended);
+        }
+      } catch (err) {
+        console.error('[SUPABASE] Load hospital data FAILED:', err);
+      }
+    };
+    loadHospitalData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -1094,6 +1240,267 @@ export default function ReceptionModule({
     }
   };
 
+  // --- Hospital Distribution Handlers ---
+  const locationTypeLabel: Record<HospitalLocation['type'], string> = {
+    consultorio: 'Consultório',
+    enfermaria: 'Enfermaria',
+    uti: 'UTI',
+    raio_x: 'Sala de Raio-X',
+    laboratorio: 'Laboratório',
+    cirurgia: 'Sala de Cirurgia',
+    sala_espera: 'Sala de Espera',
+    outro: 'Outro',
+  };
+  const locationTypeIcon: Record<HospitalLocation['type'], string> = {
+    consultorio: '📍',
+    enfermaria: '🏥',
+    uti: '🚨',
+    raio_x: '📷',
+    laboratorio: '🧪',
+    cirurgia: '🔪',
+    sala_espera: '⏳',
+    outro: '🏠',
+  };
+
+  const handleAddLocation = async () => {
+    if (!newLocationForm.name.trim()) return;
+    const newLoc: HospitalLocation = {
+      id: `loc_${++locCounterRef.current}`,
+      name: newLocationForm.name.trim(),
+      type: newLocationForm.type,
+      capacity: newLocationForm.capacity,
+      currentPatients: [],
+      status: 'livre',
+    };
+    setHospitalLocations(prev => [...prev, newLoc]);
+    setNewLocationForm({ name: '', type: 'consultorio', capacity: 1 });
+    setShowNewLocationModal(false);
+    addAuditLog('Cadastrou Local Hospitalar', newLoc.name);
+    if (supabase) {
+      try {
+        await supabase.from('hospital_locations').insert({
+          id: newLoc.id,
+          name: newLoc.name,
+          type: newLoc.type,
+          capacity: newLoc.capacity,
+          status: newLoc.status,
+        });
+      } catch (err) {
+        console.error('[SUPABASE] INSERT hospital_locations FAILED:', err);
+      }
+    }
+  };
+
+  const handleDeleteLocation = async (locId: string) => {
+    const loc = hospitalLocations.find(l => l.id === locId);
+    if (!loc) return;
+    if (loc.currentPatients.length > 0) {
+      alert('Não é possível excluir um local com pacientes.');
+      return;
+    }
+    if (!confirm(`Excluir ${loc.name}?`)) return;
+    setHospitalLocations(prev => prev.filter(l => l.id !== locId));
+    addAuditLog('Excluiu Local Hospitalar', loc.name);
+    if (supabase) {
+      try {
+        await supabase.from('hospital_locations').delete().eq('id', locId);
+      } catch (err) {
+        console.error('[SUPABASE] DELETE hospital_locations FAILED:', err);
+      }
+    }
+  };
+
+  const handleDistributePatient = async () => {
+    if (!distributePatient || !distributeTargetLocation) return;
+    const targetLoc = hospitalLocations.find(l => l.id === distributeTargetLocation);
+    if (!targetLoc) return;
+    if (targetLoc.currentPatients.length >= targetLoc.capacity) {
+      alert('Este local está com capacidade máxima.');
+      return;
+    }
+    setHospitalLocations(prev => prev.map(l => {
+      if (l.id === distributeTargetLocation) {
+        return { ...l, currentPatients: [...l.currentPatients, distributePatient.id], status: l.type === 'consultorio' ? 'ocupado' as const : l.status };
+      }
+      return l;
+    }));
+    const patient = patients.find(p => p.id === distributePatient.id);
+    if (patient) {
+      addAuditLog(`Paciente Direcionado → ${targetLoc.name}`, patient.name);
+      const newNotif: InternalNotification = {
+        id: `notif_${++notifCounterRef.current}`,
+        patientName: patient.name,
+        fromLocation: 'Triagem',
+        toLocation: targetLoc.name,
+        message: `Paciente ${patient.name} encaminhado para ${targetLoc.name}`,
+        read: false,
+        createdAt: new Date().toISOString(),
+      };
+      setInternalNotifications(prev => [newNotif, ...prev]);
+      if (supabase) {
+        try {
+          await supabase.from('patient_location_assignments').insert({
+            id: `pla_${++plaCounterRef.current}`,
+            patient_id: distributePatient.id,
+            location_id: distributeTargetLocation,
+            active: true,
+          });
+          await supabase.from('internal_notifications').insert({
+            id: newNotif.id,
+            patient_name: newNotif.patientName,
+            from_location: newNotif.fromLocation,
+            to_location: newNotif.toLocation,
+            message: newNotif.message,
+            read: false,
+          });
+          await supabase.from('hospital_locations').update({ status: 'ocupado' }).eq('id', distributeTargetLocation);
+        } catch (err) {
+          console.error('[SUPABASE] INSERT distribute patient FAILED:', err);
+        }
+      }
+    }
+    setShowDistributeModal(false);
+    setDistributePatient(null);
+    setDistributeTargetLocation('');
+  };
+
+  const handleCallNextPatient = async (locId: string) => {
+    const loc = hospitalLocations.find(l => l.id === locId);
+    if (!loc) return;
+    if (loc.status === 'manutencao') return;
+    if (loc.currentPatients.length >= loc.capacity) return;
+
+    if (triagedPatients.length === 0) return;
+    const nextPatient = triagedPatients[0];
+    const updatedPatients = [...loc.currentPatients, nextPatient.id];
+    setHospitalLocations(prev => prev.map(l => {
+      if (l.id === locId) {
+        return { ...l, currentPatients: updatedPatients, status: 'ocupado' as const };
+      }
+      return l;
+    }));
+    setSelectedLocation(prev => {
+      if (prev && prev.id === locId) {
+        return { ...prev, currentPatients: updatedPatients, status: 'ocupado' };
+      }
+      return prev;
+    });
+    handleUpdatePatientStatus(nextPatient.id, 'atendimento');
+    addAuditLog(`Paciente Chamado → ${loc.name}`, nextPatient.name);
+    setPatientNameMap(prev => ({ ...prev, [nextPatient.id]: nextPatient.name }));
+    if (supabase) {
+      try {
+        await supabase.from('patient_location_assignments').insert({
+          id: `pla_${++plaCounterRef.current}`,
+          patient_id: nextPatient.id,
+          location_id: locId,
+          active: true,
+        });
+        await supabase.from('hospital_locations').update({ status: 'ocupado' }).eq('id', locId);
+      } catch (err) {
+        console.error('[SUPABASE] INSERT call next patient FAILED:', err);
+      }
+    }
+  };
+
+  const handleCompleteSpecificPatient = async (locId: string, patientId: string) => {
+    const loc = hospitalLocations.find(l => l.id === locId);
+    if (!loc) return;
+    const remaining = loc.currentPatients.filter(pid => pid !== patientId);
+    setHospitalLocations(prev => prev.map(l => {
+      if (l.id === locId) {
+        return { ...l, currentPatients: remaining, status: remaining.length > 0 ? 'ocupado' as const : 'livre' as const };
+      }
+      return l;
+    }));
+    setSelectedLocation(prev => {
+      if (prev && prev.id === locId) {
+        return { ...prev, currentPatients: remaining, status: remaining.length > 0 ? 'ocupado' : 'livre' };
+      }
+      return prev;
+    });
+    handleUpdatePatientStatus(patientId, 'atendido');
+    const patient = patients.find(p => p.id === patientId);
+    if (patient) {
+      addAuditLog(`Atendimento Realizado → ${loc.name}`, patient.name);
+      setAttendedPatients(prev => [...prev, { patient, locationName: loc.name, completedAt: new Date().toISOString() }]);
+    }
+    if (supabase) {
+      try {
+        await supabase.from('patient_location_assignments').update({ active: false }).eq('patient_id', patientId).eq('location_id', locId).eq('active', true);
+        const newStatus = remaining.length > 0 ? 'ocupado' : 'livre';
+        await supabase.from('hospital_locations').update({ status: newStatus }).eq('id', locId);
+      } catch (err) {
+        console.error('[SUPABASE] UPDATE complete specific patient FAILED:', err);
+      }
+    }
+  };
+
+  const handleRedirectPatient = async () => {
+    if (!redirectPatient || !redirectTargetLocation) return;
+    const targetLoc = hospitalLocations.find(l => l.id === redirectTargetLocation);
+    if (!targetLoc) return;
+    if (targetLoc.currentPatients.length >= targetLoc.capacity) {
+      alert('Este local está com capacidade máxima.');
+      return;
+    }
+    const fromLoc = hospitalLocations.find(l => l.currentPatients.includes(redirectPatient.id));
+    setHospitalLocations(prev => prev.map(l => {
+      const newCurrent = l.currentPatients.filter(pid => pid !== redirectPatient.id);
+      if (l.id === redirectTargetLocation) {
+        return { ...l, currentPatients: [...l.currentPatients, redirectPatient.id], status: l.type === 'consultorio' ? 'ocupado' as const : l.status };
+      }
+      return { ...l, currentPatients: newCurrent, status: newCurrent.length > 0 ? l.status : l.type === 'consultorio' ? 'livre' as const : l.status };
+    }));
+    addAuditLog(`Paciente Redirecionado → ${targetLoc.name}`, redirectPatient.name);
+    const newNotif: InternalNotification = {
+      id: `notif_${++notifCounterRef.current}`,
+      patientName: redirectPatient.name,
+      fromLocation: fromLoc?.name || 'Origem',
+      toLocation: targetLoc.name,
+      message: `Paciente ${redirectPatient.name} redirecionado de local anterior para ${targetLoc.name}`,
+      read: false,
+      createdAt: new Date().toISOString(),
+    };
+    setInternalNotifications(prev => [newNotif, ...prev]);
+    if (supabase) {
+      try {
+        if (fromLoc) {
+          await supabase.from('patient_location_assignments').update({ active: false }).eq('patient_id', redirectPatient.id).eq('location_id', fromLoc.id).eq('active', true);
+          const fromRemaining = fromLoc.currentPatients.filter(pid => pid !== redirectPatient.id);
+          await supabase.from('hospital_locations').update({ status: fromRemaining.length > 0 ? 'ocupado' : 'livre' }).eq('id', fromLoc.id);
+        }
+        await supabase.from('patient_location_assignments').insert({
+          id: `pla_${++plaCounterRef.current}`,
+          patient_id: redirectPatient.id,
+          location_id: redirectTargetLocation,
+          active: true,
+        });
+        await supabase.from('hospital_locations').update({ status: 'ocupado' }).eq('id', redirectTargetLocation);
+        await supabase.from('internal_notifications').insert({
+          id: newNotif.id,
+          patient_name: newNotif.patientName,
+          from_location: newNotif.fromLocation,
+          to_location: newNotif.toLocation,
+          message: newNotif.message,
+          read: false,
+        });
+      } catch (err) {
+        console.error('[SUPABASE] UPDATE redirect patient FAILED:', err);
+      }
+    }
+    setShowRedirectModal(false);
+    setRedirectPatient(null);
+    setRedirectTargetLocation('');
+  };
+
+  const triagedPatients = patients.filter(p => 
+    (p.status === 'atendimento' || (p.status === 'atendido' && !attendedPatients.some(a => a.patient.id === p.id))) && 
+    !hospitalLocations.some(l => l.currentPatients.includes(p.id))
+  );
+  const patientsInLocations = hospitalLocations.filter(l => l.currentPatients.length > 0);
+  const unreadNotifications = internalNotifications.filter(n => !n.read);
+
   const filteredPatients = patients.filter(p => {
     const searchVal = patientSearch.toLowerCase();
     const docNum = p.document_number || '';
@@ -1110,7 +1517,67 @@ export default function ReceptionModule({
     <div className="space-y-6">
       <PermissionGate view="reception" userPermissions={userPermissions}>
         {activeSubmodule === 1 && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div>
+          {/* Main Tabs for Module 1 */}
+          <div className="flex bg-slate-100 p-1 rounded-lg text-xs font-semibold mb-6 gap-1 overflow-x-auto">
+            <button
+              type="button"
+              onClick={() => setActiveReceptionTab('recepcao')}
+              className={`flex-1 min-w-[80px] py-2 px-3 rounded-md transition text-center cursor-pointer ${
+                activeReceptionTab === 'recepcao' 
+                  ? 'bg-teal-600 text-white shadow-sm' 
+                  : 'text-slate-600 hover:text-slate-800 hover:bg-slate-200'
+              }`}
+            >
+              <Contact className="w-4 h-4 inline mr-1" />
+              Recepção
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveReceptionTab('distribuicao')}
+              className={`flex-1 min-w-[80px] py-2 px-3 rounded-md transition text-center cursor-pointer ${
+                activeReceptionTab === 'distribuicao' 
+                  ? 'bg-teal-600 text-white shadow-sm' 
+                  : 'text-slate-600 hover:text-slate-800 hover:bg-slate-200'
+              }`}
+            >
+              <MapPin className="w-4 h-4 inline mr-1" />
+              Distribuição
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveReceptionTab('locais')}
+              className={`flex-1 min-w-[80px] py-2 px-3 rounded-md transition text-center cursor-pointer ${
+                activeReceptionTab === 'locais' 
+                  ? 'bg-teal-600 text-white shadow-sm' 
+                  : 'text-slate-600 hover:text-slate-800 hover:bg-slate-200'
+              }`}
+            >
+              <Sliders className="w-4 h-4 inline mr-1" />
+              Locais
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveReceptionTab('notificacoes')}
+              className={`flex-1 min-w-[80px] py-2 px-3 rounded-md transition text-center cursor-pointer relative ${
+                activeReceptionTab === 'notificacoes' 
+                  ? 'bg-teal-600 text-white shadow-sm' 
+                  : 'text-slate-600 hover:text-slate-800 hover:bg-slate-200'
+              }`}
+            >
+              <Bell className="w-4 h-4 inline mr-1" />
+              Notificações
+              {unreadNotifications.length > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                  {unreadNotifications.length}
+                </span>
+              )}
+            </button>
+          </div>
+
+          {/* Tab Content */}
+          {activeReceptionTab === 'recepcao' && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           
           {/* Admissão Form (Expanded & Organized) */}
           <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-md lg:col-span-1 flex flex-col justify-between">
@@ -1975,7 +2442,7 @@ export default function ReceptionModule({
                         {p.status === 'atendimento' && (
                           <>
                             <span className="text-xs font-bold px-2.5 py-1 bg-teal-50 text-teal-700 border border-teal-200 rounded-full flex items-center gap-1 animate-pulse">
-                              🩺 Em Atendimento
+                              <HeartPulse className="w-3" /> Em Atendimento
                             </span>
                             <button
                               onClick={() => handleUpdatePatientStatus(p.id, 'atendido')}
@@ -1988,15 +2455,15 @@ export default function ReceptionModule({
                         )}
 
                         {p.status === 'atendido' && (
-                          <span className="text-xs font-bold px-2.5 py-1 bg-slate-100 text-slate-600 border border-slate-200 rounded-full flex items-center gap-1">
-                            🟢 Atendimento Concluído
+                          <span className="text-xs font-bold px-2.5 py-1 bg-green-50 text-green-700 border border-green-200 rounded-full flex items-center gap-1">
+                            <CheckCircle2 className="w-3" /> Atendimento Concluído
                           </span>
                         )}
 
                         {p.status === 'agendado' && (
                           <>
                             <span className="text-xs font-bold px-2.5 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded-full flex items-center gap-1">
-                              📅 Agendado
+                              <CalendarDays className="w-3" /> Agendado
                             </span>
                             <button
                               onClick={() => handleUpdatePatientStatus(p.id, 'aguardando')}
@@ -2015,6 +2482,276 @@ export default function ReceptionModule({
                     </div>
                   </div>
                 </div>
+          )}
+
+          {/* --- DISTRIBUIÇÃO TAB --- */}
+          {activeReceptionTab === 'distribuicao' && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Coluna 1: Fila de Triagem + Atendidos */}
+            <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-md">
+              {/* Tabs */}
+              <div className="flex bg-slate-100 p-1 rounded-lg text-xs font-semibold mb-4 gap-1">
+                <button
+                  onClick={() => setTriageTab('aguardando')}
+                  className={`flex-1 py-1.5 px-2 rounded-md transition text-center cursor-pointer ${
+                    triageTab === 'aguardando' ? 'bg-teal-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  Aguardando ({triagedPatients.length})
+                </button>
+                <button
+                  onClick={() => setTriageTab('atendidos')}
+                  className={`flex-1 py-1.5 px-2 rounded-md transition text-center cursor-pointer ${
+                    triageTab === 'atendidos' ? 'bg-green-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  Atendidos ({attendedPatients.length})
+                </button>
+              </div>
+
+              {/* Aba: Aguardando Direcionamento */}
+              {triageTab === 'aguardando' && (
+              <div className="space-y-3 max-h-[500px] overflow-y-auto">
+                {triagedPatients.length === 0 ? (
+                  <p className="text-sm text-slate-400 text-center py-8">Nenhum paciente aguardando direcionamento</p>
+                ) : triagedPatients.map(p => (
+                  <div key={p.id} className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-bold text-slate-800">{p.name}</span>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        p.priority === 'emergência' ? 'bg-red-100 text-red-700' :
+                        p.priority === 'preferencial' ? 'bg-amber-100 text-amber-700' :
+                        'bg-blue-100 text-blue-700'
+                      }`}>
+                        {p.priority === 'emergência' ? 'Emergência' : p.priority === 'preferencial' ? 'Preferencial' : 'Normal'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 mb-2">{p.phone}</p>
+                    <button
+                      onClick={() => { setDistributePatient(p); setShowDistributeModal(true); }}
+                      className="w-full bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold py-1.5 rounded-lg transition cursor-pointer flex items-center justify-center gap-1"
+                    >
+                      <ChevronRight className="w-3 h-3" /> Direcionar
+                    </button>
+                  </div>
+                ))}
+              </div>
+              )}
+
+              {/* Aba: Atendidos */}
+              {triageTab === 'atendidos' && (
+              <div className="space-y-3 max-h-[500px] overflow-y-auto">
+                {attendedPatients.length === 0 ? (
+                  <p className="text-sm text-slate-400 text-center py-8">Nenhum atendimento realizado</p>
+                ) : attendedPatients.map((item, idx) => (
+                  <div key={idx} className="bg-green-50 border border-green-200 rounded-lg p-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm font-bold text-slate-800">{item.patient.name}</span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700">
+                        ✓ Atendido
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 mb-1">{item.patient.phone}</p>
+                    <p className="text-xs text-slate-600">
+                      <span className="font-semibold">{item.locationName}</span>
+                    </p>
+                    <p className="text-[10px] text-slate-400 mt-1">
+                      {new Date(item.completedAt).toLocaleString('pt-BR')}
+                    </p>
+                  </div>
+                ))}
+              </div>
+              )}
+            </div>
+
+            {/* Coluna 2: Locais Hospitalares */}
+            <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-md lg:col-span-2">
+              <div className="flex items-center gap-2 pb-3 mb-4 border-b border-slate-100">
+                <MapPin className="w-5 h-5 text-teal-600" />
+                <h3 className="font-bold text-slate-800 text-base">Locais Hospitalares</h3>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {hospitalLocations.map(loc => (
+                  <div 
+                    key={loc.id} 
+                    onClick={() => { if (loc.capacity > 1) { setSelectedLocation(loc); setShowLocationDetail(true); } }}
+                    className={`border rounded-xl p-4 transition ${
+                      loc.status === 'manutencao' ? 'bg-slate-100 border-slate-300 opacity-60' :
+                      loc.currentPatients.length >= loc.capacity ? 'bg-red-50 border-red-200' :
+                      loc.currentPatients.length > 0 ? 'bg-amber-50 border-amber-200' :
+                      'bg-green-50 border-green-200'
+                    } ${loc.capacity > 1 ? 'cursor-pointer hover:shadow-md' : ''}`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-lg">{locationTypeIcon[loc.type]}</span>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        loc.status === 'manutencao' ? 'bg-slate-200 text-slate-600' :
+                        loc.currentPatients.length >= loc.capacity ? 'bg-red-100 text-red-700' :
+                        loc.currentPatients.length > 0 ? 'bg-amber-100 text-amber-700' :
+                        'bg-green-100 text-green-700'
+                      }`}>
+                        {loc.status === 'manutencao' ? 'Manutenção' :
+                         loc.currentPatients.length >= loc.capacity ? 'Ocupado' :
+                         loc.currentPatients.length > 0 ? 'Atendendo' : 'Livre'}
+                      </span>
+                    </div>
+                    <h4 className="text-sm font-bold text-slate-800 mb-1">{loc.name}</h4>
+                    <p className="text-[10px] text-slate-500 mb-2">{locationTypeLabel[loc.type]}</p>
+                    <p className="text-xs text-slate-600 mb-3">
+                      Fila: <span className="font-bold">{loc.currentPatients.length}</span> / {loc.capacity}
+                    </p>
+
+                    {/* Capacidade 1: botões inline */}
+                    {loc.capacity === 1 && loc.currentPatients.length > 0 && (
+                      <div className="space-y-2 mb-3">
+                        {loc.currentPatients.map(pid => {
+                          const pat = patients.find(p => p.id === pid);
+                          const patName = pat?.name || patientNameMap[pid] || 'Paciente';
+                          return (
+                            <div key={pid} className="flex items-center justify-between bg-white/80 rounded-lg px-3 py-2 gap-2 border border-white/50">
+                              <span className="text-xs font-semibold text-slate-700 truncate">{patName}</span>
+                              <div className="flex gap-1.5 shrink-0">
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); if (pat) { setRedirectPatient(pat); setShowRedirectModal(true); } }}
+                                  className="text-[10px] px-2 py-1 bg-blue-100 text-blue-700 hover:bg-blue-200 font-bold rounded-md cursor-pointer transition"
+                                >
+                                  Redirecionar
+                                </button>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleCompleteSpecificPatient(loc.id, pid); }}
+                                  className="text-[10px] px-2 py-1 bg-green-100 text-green-700 hover:bg-green-200 font-bold rounded-md cursor-pointer transition"
+                                >
+                                  ✓ Finalizar
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* Capacidade > 1: indicador de pacientes */}
+                    {loc.capacity > 1 && loc.currentPatients.length > 0 && (
+                      <div className="mb-3 bg-white/60 rounded-lg px-3 py-2 border border-white/50">
+                        <p className="text-[10px] text-slate-500">
+                          {loc.currentPatients.length} paciente{loc.currentPatients.length > 1 ? 's' : ''} — <span className="text-teal-600 font-semibold">Clique para ver detalhes</span>
+                        </p>
+                      </div>
+                    )}
+
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleCallNextPatient(loc.id); }}
+                      disabled={loc.status === 'manutencao' || triagedPatients.length === 0 || loc.currentPatients.length >= loc.capacity}
+                      className={`w-full text-xs font-bold py-1.5 rounded-lg transition cursor-pointer ${
+                        loc.status === 'manutencao' || triagedPatients.length === 0 || loc.currentPatients.length >= loc.capacity
+                          ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                          : 'bg-teal-600 hover:bg-teal-700 text-white'
+                      }`}
+                    >
+                      Chamar Próximo
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          )}
+
+          {/* --- LOCAIS TAB (CRUD) --- */}
+          {activeReceptionTab === 'locais' && (
+          <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-md">
+            <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <Sliders className="w-5 h-5 text-teal-600" />
+                <h3 className="font-bold text-slate-800 text-base">Cadastro de Locais Hospitalares</h3>
+              </div>
+              <button
+                onClick={() => { setEditingLocation(null); setNewLocationForm({ name: '', type: 'consultorio', capacity: 1 }); setShowNewLocationModal(true); }}
+                className="bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold py-2 px-3 rounded-lg transition cursor-pointer flex items-center gap-1"
+              >
+                <Plus className="w-4 h-4" /> Novo Local
+              </button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {hospitalLocations.map(loc => (
+                <div key={loc.id} className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-lg">{locationTypeIcon[loc.type]}</span>
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => { setEditingLocation(loc); setNewLocationForm({ name: loc.name, type: loc.type, capacity: loc.capacity }); setShowNewLocationModal(true); }}
+                        className="text-blue-500 hover:text-blue-700 cursor-pointer"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteLocation(loc.id)}
+                        className="text-red-500 hover:text-red-700 cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                  <h4 className="text-sm font-bold text-slate-800">{loc.name}</h4>
+                  <p className="text-[10px] text-slate-500">{locationTypeLabel[loc.type]}</p>
+                  <p className="text-xs text-slate-600 mt-1">Capacidade: {loc.capacity}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+          )}
+
+          {/* --- NOTIFICAÇÕES TAB --- */}
+          {activeReceptionTab === 'notificacoes' && (
+          <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-md">
+            <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <Bell className="w-5 h-5 text-teal-600" />
+                <h3 className="font-bold text-slate-800 text-base">Notificações Internas</h3>
+                {unreadNotifications.length > 0 && (
+                  <span className="text-xs font-bold text-red-700 bg-red-50 px-2 py-0.5 rounded-full">{unreadNotifications.length} não lidas</span>
+                )}
+              </div>
+              {internalNotifications.length > 0 && (
+                <button
+                  onClick={async () => {
+                    setInternalNotifications(prev => prev.map(n => ({ ...n, read: true })));
+                    if (supabase) {
+                      try {
+                        await supabase.from('internal_notifications').update({ read: true }).eq('read', false);
+                      } catch (err) {
+                        console.error('[SUPABASE] UPDATE notifications read FAILED:', err);
+                      }
+                    }
+                  }}
+                  className="text-xs text-teal-600 hover:text-teal-800 font-semibold cursor-pointer"
+                >
+                  Marcar todas como lidas
+                </button>
+              )}
+            </div>
+            <div className="space-y-3 max-h-[500px] overflow-y-auto">
+              {internalNotifications.length === 0 ? (
+                <p className="text-sm text-slate-400 text-center py-8">Nenhuma notificação</p>
+              ) : internalNotifications.map(n => (
+                <div key={n.id} className={`border rounded-lg p-3 transition ${
+                  n.read ? 'bg-slate-50 border-slate-200' : 'bg-blue-50 border-blue-200'
+                }`}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm font-bold text-slate-800">{n.patientName}</span>
+                    <span className="text-[10px] text-slate-400">{new Date(n.createdAt).toLocaleString('pt-BR')}</span>
+                  </div>
+                  <p className="text-xs text-slate-600">
+                    <span className="font-semibold">{n.fromLocation}</span> → <span className="font-semibold">{n.toLocation}</span>
+                  </p>
+                  <p className="text-xs text-slate-500 mt-1">{n.message}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+          )}
+
+          </div>
       )}
 
       {/* --- FUSÃO DE FICHAS (MERGE MODAL) --- */}
@@ -2722,6 +3459,284 @@ export default function ReceptionModule({
         )}
       </AnimatePresence>
       </PermissionGate>
+
+      {/* --- MODAL: DISTRIBUIR PACIENTE --- */}
+      <AnimatePresence>
+        {showDistributeModal && distributePatient && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full p-6 space-y-4"
+            >
+              <div className="flex items-center gap-3 border-b border-slate-200 pb-3">
+                <MapPin className="w-6 h-6 text-teal-600" />
+                <div>
+                  <h3 className="font-bold text-slate-800 text-lg">Direcionar Paciente</h3>
+                  <p className="text-xs text-slate-500">{distributePatient.name}</p>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1">Selecionar Local</label>
+                <select
+                  value={distributeTargetLocation}
+                  onChange={e => setDistributeTargetLocation(e.target.value)}
+                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm"
+                >
+                  <option value="">Selecione um local...</option>
+                  {hospitalLocations.filter(l => l.status !== 'manutencao' && l.currentPatients.length < l.capacity).map(l => (
+                    <option key={l.id} value={l.id}>
+                      {locationTypeIcon[l.type]} {l.name} ({l.currentPatients.length}/{l.capacity})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button onClick={handleDistributePatient} disabled={!distributeTargetLocation} className={`py-2 px-4 font-bold text-xs rounded-lg transition ${
+                  distributeTargetLocation ? 'bg-teal-600 hover:bg-teal-700 text-white' : 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                }`}>
+                  Direcionar
+                </button>
+                <button onClick={() => { setShowDistributeModal(false); setDistributePatient(null); setDistributeTargetLocation(''); }} className="py-2 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs rounded-lg transition">
+                  Cancelar
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* --- MODAL: REDIRECIONAR PACIENTE --- */}
+      <AnimatePresence>
+        {showRedirectModal && redirectPatient && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full p-6 space-y-4"
+            >
+              <div className="flex items-center gap-3 border-b border-slate-200 pb-3">
+                <ChevronRight className="w-6 h-6 text-blue-600" />
+                <div>
+                  <h3 className="font-bold text-slate-800 text-lg">Redirecionar Paciente</h3>
+                  <p className="text-xs text-slate-500">{redirectPatient.name}</p>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1">Novo Local</label>
+                <select
+                  value={redirectTargetLocation}
+                  onChange={e => setRedirectTargetLocation(e.target.value)}
+                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm"
+                >
+                  <option value="">Selecione um local...</option>
+                  {hospitalLocations.filter(l => l.status !== 'manutencao' && l.currentPatients.length < l.capacity && !l.currentPatients.includes(redirectPatient.id)).map(l => (
+                    <option key={l.id} value={l.id}>
+                      {locationTypeIcon[l.type]} {l.name} ({l.currentPatients.length}/{l.capacity})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button onClick={handleRedirectPatient} disabled={!redirectTargetLocation} className={`py-2 px-4 font-bold text-xs rounded-lg transition ${
+                  redirectTargetLocation ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                }`}>
+                  Redirecionar
+                </button>
+                <button onClick={() => { setShowRedirectModal(false); setRedirectPatient(null); setRedirectTargetLocation(''); }} className="py-2 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs rounded-lg transition">
+                  Cancelar
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* --- MODAL: CADASTRAR/EDITAR LOCAL --- */}
+      <AnimatePresence>
+        {showNewLocationModal && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full p-6 space-y-4"
+            >
+              <div className="flex items-center gap-3 border-b border-slate-200 pb-3">
+                <Sliders className="w-6 h-6 text-teal-600" />
+                <h3 className="font-bold text-slate-800 text-lg">{editingLocation ? 'Editar Local' : 'Novo Local'}</h3>
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-slate-600 mb-1">Nome</label>
+                  <input
+                    type="text"
+                    value={newLocationForm.name}
+                    onChange={e => setNewLocationForm({ ...newLocationForm, name: e.target.value })}
+                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm"
+                    placeholder="Ex: Consultório 11"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-600 mb-1">Tipo</label>
+                  <select
+                    value={newLocationForm.type}
+                    onChange={e => setNewLocationForm({ ...newLocationForm, type: e.target.value as HospitalLocation['type'] })}
+                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm"
+                  >
+                    <option value="consultorio">Consultório</option>
+                    <option value="enfermaria">Enfermaria</option>
+                    <option value="uti">UTI</option>
+                    <option value="raio_x">Sala de Raio-X</option>
+                    <option value="laboratorio">Laboratório</option>
+                    <option value="cirurgia">Sala de Cirurgia</option>
+                    <option value="sala_espera">Sala de Espera</option>
+                    <option value="outro">Outro</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-600 mb-1">Capacidade</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={newLocationForm.capacity}
+                    onChange={e => setNewLocationForm({ ...newLocationForm, capacity: parseInt(e.target.value) || 1 })}
+                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button onClick={async () => {
+                  if (editingLocation) {
+                    setHospitalLocations(prev => prev.map(l => l.id === editingLocation.id ? { ...l, name: newLocationForm.name, type: newLocationForm.type, capacity: newLocationForm.capacity } : l));
+                    addAuditLog('Editou Local Hospitalar', newLocationForm.name);
+                    if (supabase) {
+                      try {
+                        await supabase.from('hospital_locations').update({ name: newLocationForm.name, type: newLocationForm.type, capacity: newLocationForm.capacity }).eq('id', editingLocation.id);
+                      } catch (err) {
+                        console.error('[SUPABASE] UPDATE hospital_locations FAILED:', err);
+                      }
+                    }
+                  } else {
+                    await handleAddLocation();
+                  }
+                  setShowNewLocationModal(false);
+                  setEditingLocation(null);
+                }} disabled={!newLocationForm.name.trim()} className={`py-2 px-4 font-bold text-xs rounded-lg transition ${
+                  newLocationForm.name.trim() ? 'bg-teal-600 hover:bg-teal-700 text-white' : 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                }`}>
+                  {editingLocation ? 'Salvar' : 'Cadastrar'}
+                </button>
+                <button onClick={() => { setShowNewLocationModal(false); setEditingLocation(null); setNewLocationForm({ name: '', type: 'consultorio', capacity: 1 }); }} className="py-2 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs rounded-lg transition">
+                  Cancelar
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* --- MODAL: DETALHE DO LOCAL (capacidade > 1) --- */}
+      <AnimatePresence>
+        {showLocationDetail && selectedLocation && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full max-h-[85vh] overflow-hidden flex flex-col"
+            >
+              {/* Header */}
+              <div className="p-5 border-b border-slate-100">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl">{locationTypeIcon[selectedLocation.type]}</span>
+                    <div>
+                      <h3 className="font-bold text-slate-800 text-lg">{selectedLocation.name}</h3>
+                      <p className="text-xs text-slate-500">{locationTypeLabel[selectedLocation.type]}</p>
+                    </div>
+                  </div>
+                  <button onClick={() => { setShowLocationDetail(false); setSelectedLocation(null); }} className="text-slate-400 hover:text-slate-600 cursor-pointer">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                <div className="flex items-center gap-3 mt-3">
+                  <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
+                    selectedLocation.status === 'manutencao' ? 'bg-slate-200 text-slate-600' :
+                    selectedLocation.currentPatients.length >= selectedLocation.capacity ? 'bg-red-100 text-red-700' :
+                    selectedLocation.currentPatients.length > 0 ? 'bg-amber-100 text-amber-700' :
+                    'bg-green-100 text-green-700'
+                  }`}>
+                    {selectedLocation.status === 'manutencao' ? 'Manutenção' :
+                     selectedLocation.currentPatients.length >= selectedLocation.capacity ? 'Ocupado' :
+                     selectedLocation.currentPatients.length > 0 ? 'Atendendo' : 'Livre'}
+                  </span>
+                  <span className="text-xs text-slate-500">
+                    Fila: <span className="font-bold text-slate-700">{selectedLocation.currentPatients.length}</span> / {selectedLocation.capacity}
+                  </span>
+                </div>
+              </div>
+
+              {/* Patient List */}
+              <div className="flex-1 overflow-y-auto p-5 space-y-3">
+                {selectedLocation.currentPatients.length === 0 ? (
+                  <p className="text-sm text-slate-400 text-center py-8">Nenhum paciente neste local</p>
+                ) : selectedLocation.currentPatients.map(pid => {
+                  const pat = patients.find(p => p.id === pid);
+                  const patName = pat?.name || patientNameMap[pid] || 'Paciente';
+                  const patPhone = pat?.phone || '';
+                  return (
+                    <div key={pid} className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <div className="w-9 h-9 rounded-full bg-teal-100 flex items-center justify-center">
+                            <User className="w-5 h-5 text-teal-600" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-bold text-slate-800">{patName}</p>
+                            {patPhone && <p className="text-xs text-slate-500">{patPhone}</p>}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex gap-2 mt-3">
+                        <button
+                          onClick={() => { if (pat) { setRedirectPatient(pat); setShowRedirectModal(true); setShowLocationDetail(false); } }}
+                          className="flex-1 py-2 px-3 bg-blue-100 text-blue-700 hover:bg-blue-200 text-xs font-bold rounded-lg transition cursor-pointer flex items-center justify-center gap-1"
+                        >
+                          <ChevronRight className="w-3.5 h-3.5" /> Redirecionar
+                        </button>
+                        <button
+                          onClick={() => { handleCompleteSpecificPatient(selectedLocation.id, pid); setSelectedLocation({ ...selectedLocation, currentPatients: selectedLocation.currentPatients.filter(p => p !== pid) }); }}
+                          className="flex-1 py-2 px-3 bg-green-100 text-green-700 hover:bg-green-200 text-xs font-bold rounded-lg transition cursor-pointer flex items-center justify-center gap-1"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Finalizar
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Footer */}
+              <div className="p-4 border-t border-slate-100">
+                <button
+                  onClick={() => { handleCallNextPatient(selectedLocation.id); }}
+                  disabled={selectedLocation.status === 'manutencao' || triagedPatients.length === 0}
+                  className={`w-full py-2.5 text-sm font-bold rounded-lg transition cursor-pointer ${
+                    selectedLocation.status === 'manutencao' || triagedPatients.length === 0
+                      ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                      : 'bg-teal-600 hover:bg-teal-700 text-white'
+                  }`}
+                >
+                  Chamar Próximo
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* --- AGENDA SUBMODULE --- */}
       <PermissionGate view="agenda" userPermissions={userPermissions}>

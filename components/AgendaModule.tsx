@@ -314,11 +314,11 @@ const AgendaModuleContent = ({
   const [waitlistFilterDoctor, setWaitlistFilterDoctor] = useState('');
 
   // Waitlist date filter
-  const [waitlistDateView, setWaitlistDateView] = useState<'day' | 'week' | 'month'>('month');
+  const [waitlistDateView, setWaitlistDateView] = useState<'day' | 'week' | 'month'>('day');
   const [waitlistSelectedDate, setWaitlistSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
 
   // WhatsApp date filter
-  const [whatsappDateView, setWhatsappDateView] = useState<'day' | 'week' | 'month'>('month');
+  const [whatsappDateView, setWhatsappDateView] = useState<'day' | 'week' | 'month'>('day');
   const [whatsappSelectedDate, setWhatsappSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
 
   // Call Center
@@ -1000,6 +1000,14 @@ const AgendaModuleContent = ({
   // Handle Notify patient from waitlist
   const handleNotifySubmit = async () => {
     if (!notifyEntry) return;
+    if (!notifyConsultDate) {
+      alert('A Data da Consulta é obrigatória.');
+      return;
+    }
+    if (!notifyConsultTime) {
+      alert('O Horário da Consulta é obrigatório.');
+      return;
+    }
     const tpl = WHATSAPP_TEMPLATES.find(t => t.id === notifyTemplate);
     if (!tpl) return;
     const langKey = getLangMessageKey(notifyLanguage);
@@ -1045,7 +1053,7 @@ const AgendaModuleContent = ({
       message_template: message,
       language: notifyLanguage,
       status: 'scheduled',
-      scheduled_for: consultDate && consultTime ? `${consultDate}T${consultTime}:00` : new Date().toISOString(),
+      scheduled_for: new Date().toISOString(),
       sent_at: null,
       response_received: null,
     };
@@ -1206,6 +1214,16 @@ const AgendaModuleContent = ({
         setReminders(prev => prev.map(r => r.id === existingReminder.id ? { ...r, scheduled_for: updatedScheduledFor } : r));
         if (supabase) {
           await supabase.from('whatsapp_reminders').update({ scheduled_for: updatedScheduledFor }).eq('id', existingReminder.id);
+        }
+      }
+    }
+
+    if (updated.status === 'alocado' || updated.status === 'cancelado') {
+      const existingReminder = reminders.find(r => r.patient_name === updated.patient_name && (r.status === 'scheduled' || r.status === 'sent'));
+      if (existingReminder) {
+        setReminders(prev => prev.map(r => r.id === existingReminder.id ? { ...r, status: 'cancelled' } : r));
+        if (supabase) {
+          await supabase.from('whatsapp_reminders').update({ status: 'cancelled' }).eq('id', existingReminder.id);
         }
       }
     }
@@ -1610,7 +1628,7 @@ const AgendaModuleContent = ({
                   className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition ${
                     calendarGroupBy === g ? 'bg-teal-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}>
-                  {g === 'doctor' ? 'Médico' : g === 'room' ? 'Sala' : g === 'specialty' ? 'Especialidade' : 'Sede'}
+                  {g === 'doctor' ? 'Profissional' : g === 'room' ? 'Sala' : g === 'specialty' ? 'Especialidade' : 'Sede'}
                 </button>
               ))}
             </div>
@@ -2936,11 +2954,11 @@ const AgendaModuleContent = ({
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-600 mb-1">Data da Consulta</label>
+                  <label className="block text-sm font-medium text-slate-600 mb-1">Data da Consulta <span className="text-red-500">*</span></label>
                   <input type="date" value={notifyConsultDate} onChange={e => setNotifyConsultDate(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-600 mb-1">Horário da Consulta</label>
+                  <label className="block text-sm font-medium text-slate-600 mb-1">Horário da Consulta <span className="text-red-500">*</span></label>
                   <select value={notifyConsultTime} onChange={e => setNotifyConsultTime(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
                     <option value="">Selecionar...</option>
                     {TIME_SLOTS.map(t => {
