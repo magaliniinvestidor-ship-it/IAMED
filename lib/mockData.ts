@@ -26,6 +26,7 @@ export interface ClinicalHistoryEntry {
     type: string;
     url?: string;
   }[];
+  triaged_at?: string;
 }
 
 // ==========================================
@@ -394,7 +395,7 @@ export interface Patient {
   birthdate: string;
   gender: string;
   priority: 'normal' | 'preferencial' | 'emergência';
-  status: 'agendado' | 'aguardando' | 'atendimento' | 'atendido' | 'internado';
+  status: 'agendado' | 'aguardando' | 'triado' | 'atendimento' | 'atendido' | 'internado';
   clinicalHistory: ClinicalHistoryEntry[];
   
   // Campos obrigatórios adicionais

@@ -436,7 +436,7 @@ function HomeContent() {
 
     setDataLoading(true);
     try {
-      const [patientsRes, appointmentsRes, bedsRes, logsRes, financeRes, stockRes, asosRes, dtesRes, professionalsRes, professionalRolesRes, pharmacyItemsRes, stockMovementsRes, inventoryCountsRes, adverseEventsRes, qualityDeviationsRes, batchRecallsRes, locationsRes, clinicalRoomsRes] = await Promise.all([
+      const [patientsRes, appointmentsRes, bedsRes, logsRes, financeRes, stockRes, asosRes, dtesRes, professionalsRes, professionalRolesRes, pharmacyItemsRes, stockMovementsRes, inventoryCountsRes, adverseEventsRes, qualityDeviationsRes, batchRecallsRes, locationsRes, clinicalRoomsRes, clinicalHistoryRes] = await Promise.all([
         supabase.from('patients').select('*').order('created_at', { ascending: false }),
         supabase.from('appointments').select('*').order('date', { ascending: true }),
         supabase.from('beds').select('*').order('name'),
@@ -455,6 +455,7 @@ function HomeContent() {
         supabase.from('batch_recalls').select('*').order('alert_date', { ascending: false }),
         supabase.from('locations').select('*').order('name', { ascending: true }),
         supabase.from('clinical_rooms').select('*').order('name', { ascending: true }),
+        supabase.from('clinical_history').select('*').order('date', { ascending: false }),
       ]);
 
       const pharmacyHasError = !!(
@@ -470,6 +471,29 @@ function HomeContent() {
       );
 
       if (patientsRes.data && !patientsRes.error) {
+        // Build clinical history map from separate table
+        const clinicalHistoryMap: Record<string, any[]> = {};
+        if (clinicalHistoryRes.data && !clinicalHistoryRes.error) {
+          clinicalHistoryRes.data.forEach((h: any) => {
+            if (!clinicalHistoryMap[h.patient_id]) clinicalHistoryMap[h.patient_id] = [];
+            clinicalHistoryMap[h.patient_id].push({
+              id: h.id,
+              date: h.date,
+              type: h.type,
+              diagnosis: h.diagnosis || '',
+              cid10: h.cid10 || '',
+              prescriptions: h.prescriptions || [],
+              notes: h.notes,
+              doctor: h.doctor,
+              vital_signs: h.vital_signs || undefined,
+              triage_priority: h.triage_priority || undefined,
+              triage_color: h.triage_color || undefined,
+              preliminary_procedures: h.preliminary_procedures || undefined,
+              attached_files: h.attached_files || undefined,
+              triaged_at: h.triaged_at || undefined,
+            });
+          });
+        }
         if (patientsRes.data.length > 0) {
           const mapped = patientsRes.data.map((p: any) => {
             const mock = initialPatients.find(m => m.id === p.id);
@@ -479,7 +503,7 @@ function HomeContent() {
               ...p,
               document_type: p.document_type || mock?.document_type,
               document_number: p.document_number || mock?.document_number,
-              clinicalHistory: (p.clinical_history || mock?.clinicalHistory || []).map((h: any) => ({
+              clinicalHistory: clinicalHistoryMap[p.id] || (p.clinical_history || mock?.clinicalHistory || []).map((h: any) => ({
                 id: h.id,
                 date: h.date,
                 type: h.type,
@@ -488,6 +512,11 @@ function HomeContent() {
                 prescriptions: h.prescriptions || [],
                 notes: h.notes,
                 doctor: h.doctor,
+                vital_signs: h.vital_signs || undefined,
+                triage_priority: h.triage_priority || undefined,
+                triage_color: h.triage_color || undefined,
+                preliminary_procedures: h.preliminary_procedures || undefined,
+                attached_files: h.attached_files || undefined,
               })),
             };
           });

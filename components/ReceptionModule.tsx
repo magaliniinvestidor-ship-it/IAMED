@@ -101,6 +101,8 @@ export default function ReceptionModule({
   const notifCounterRef = useRef(0);
   const plaCounterRef = useRef(0);
   const locCounterRef = useRef(0);
+  const hisCounterRef = useRef(0);
+  const hisMedCounterRef = useRef(0);
 
   // --- Validation & Alerts (derived state) ---
   const calculatedDV = useMemo(() => {
@@ -278,7 +280,21 @@ export default function ReceptionModule({
   const [attendedPatients, setAttendedPatients] = useState<{ patient: Patient; locationName: string; completedAt: string }[]>([]);
   const [patientNameMap, setPatientNameMap] = useState<Record<string, string>>({});
   const [selectedLocation, setSelectedLocation] = useState<HospitalLocation | null>(null);
+  const [selectedDetailPatientId, setSelectedDetailPatientId] = useState<string | null>(null);
   const [showLocationDetail, setShowLocationDetail] = useState(false);
+  
+  // Medical consultation fields (for consultório modal)
+  const [medDiagnosis, setMedDiagnosis] = useState('');
+  const [medCid10, setMedCid10] = useState('');
+  const [medPrescription, setMedPrescription] = useState('');
+  const [medNotes, setMedNotes] = useState('');
+  const [isEditingTriage, setIsEditingTriage] = useState(false);
+  const [editTriageReason, setEditTriageReason] = useState('');
+  const [editTriageBP, setEditTriageBP] = useState('');
+  const [editTriageTemp, setEditTriageTemp] = useState('');
+  const [editTriageSpo2, setEditTriageSpo2] = useState('');
+  const [editTriageHR, setEditTriageHR] = useState('');
+  const [editTriageRR, setEditTriageRR] = useState('');
   
   // Document attachments in Triage
   const [attachedFiles, setAttachedFiles] = useState<{name: string, size: string, type: string, url: string}[]>([]);
@@ -309,6 +325,47 @@ export default function ReceptionModule({
     }
     return selectedInsurance;
   }, [selectedPatientId, patients, selectedInsurance]);
+
+  // Vitals limits based on patient age
+  const patientAgeMonths = useMemo(() => {
+    if (!triagePatient?.birthdate) return 999;
+    const b = new Date(triagePatient.birthdate);
+    const now = new Date();
+    return (now.getFullYear() - b.getFullYear()) * 12 + (now.getMonth() - b.getMonth());
+  }, [triagePatient?.birthdate]);
+
+  const vitalsLimits = useMemo(() => {
+    const isBaby = patientAgeMonths < 12;
+    const isChild = patientAgeMonths >= 12 && patientAgeMonths < 216;
+    if (isBaby) {
+      return {
+        label: 'Bebê (< 1 ano)',
+        spo2: { red: (v: number) => v < 90, orange: (v: number) => v >= 90 && v <= 94 },
+        pa: { red: (s: number) => s < 60, orange: (s: number) => s >= 60 && s <= 70, yellow: () => false },
+        fc: { red: (v: number) => v > 180 || v < 60, orange: (v: number) => (v >= 161 && v <= 180) || (v >= 60 && v <= 79), yellow: (v: number) => v >= 140 && v <= 160 },
+        fr: { red: (v: number) => v < 15, orange: (v: number) => v > 55, yellow: (v: number) => v >= 45 && v <= 55 },
+        temp: { orange: (v: number) => v >= 41.0 || v <= 35.0 || (v >= 38.5 && patientAgeMonths < 3), yellow: (v: number) => v >= 38.5 && v <= 40.9 && patientAgeMonths >= 3 },
+      };
+    }
+    if (isChild) {
+      return {
+        label: 'Criança (1-17 anos)',
+        spo2: { red: (v: number) => v < 90, orange: (v: number) => v >= 90 && v <= 94 },
+        pa: { red: (s: number) => s < 70, orange: (s: number) => s >= 70 && s <= 85, yellow: () => false },
+        fc: { red: (v: number) => v > 140 || v < 50, orange: (v: number) => (v >= 121 && v <= 140) || (v >= 50 && v <= 59), yellow: (v: number) => v >= 100 && v <= 120 },
+        fr: { red: (v: number) => v < 10, orange: (v: number) => v > 40, yellow: (v: number) => v >= 30 && v <= 40 },
+        temp: { orange: (v: number) => v >= 41.0 || v <= 35.0, yellow: (v: number) => v >= 38.5 && v <= 40.9 },
+      };
+    }
+    return {
+      label: 'Adulto (≥ 18 anos)',
+      spo2: { red: (v: number) => v < 85, orange: (v: number) => v >= 85 && v <= 94 },
+      pa: { red: (s: number) => s <= 70, orange: (s: number) => (s >= 71 && s <= 89) || s > 200, yellow: (s: number) => s >= 140 && s <= 199 },
+      fc: { red: (v: number) => v > 150 || v < 30, orange: (v: number) => (v >= 131 && v <= 150) || (v >= 30 && v <= 39), yellow: (v: number) => v >= 100 && v <= 130 },
+      fr: { red: (v: number) => v < 8, orange: (v: number) => v > 30, yellow: (v: number) => v >= 21 && v <= 30 },
+      temp: { orange: (v: number) => v >= 41.0 || v <= 35.0, yellow: (v: number) => v >= 38.5 && v <= 40.9 },
+    };
+  }, [patientAgeMonths]);
 
 
   // --- Handlers & Helpers ---
@@ -438,6 +495,30 @@ export default function ReceptionModule({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cameraCountdown]);
 
+  // --- Load existing medical consultation data when patient detail is opened ---
+  useEffect(() => {
+    const activePatientId = selectedLocation?.capacity === 1 && selectedLocation.currentPatients.length === 1
+      ? selectedLocation.currentPatients[0]
+      : selectedDetailPatientId;
+    if (!activePatientId || !showLocationDetail) return;
+    const pat = patients.find(p => p.id === activePatientId);
+    if (!pat) return;
+    const existing = pat.clinicalHistory?.find((h: any) => h.type === 'Consulta Médica');
+    if (existing) {
+      setMedDiagnosis(existing.diagnosis || '');
+      setMedCid10(existing.cid10 || '');
+      setMedPrescription(existing.prescriptions?.join?.('\n') || (Array.isArray(existing.prescriptions) ? existing.prescriptions.join('\n') : ''));
+      setMedNotes(existing.notes || '');
+    } else {
+      setMedDiagnosis('');
+      setMedCid10('');
+      setMedPrescription('');
+      setMedNotes('');
+    }
+    setIsEditingTriage(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showLocationDetail, selectedDetailPatientId, selectedLocation?.currentPatients]);
+
   // --- Load Hospital Data from Supabase on Mount ---
   useEffect(() => {
     const loadHospitalData = async () => {
@@ -501,6 +582,27 @@ export default function ReceptionModule({
             if (!isNaN(num) && num > maxNotif) maxNotif = num;
           });
           notifCounterRef.current = maxNotif;
+        }
+        // Initialize his counters from clinical_history table
+        const { data: allHistory } = await supabase.from('clinical_history').select('id').order('id', { ascending: false }).limit(50);
+        if (allHistory && allHistory.length > 0) {
+          let maxTriageNum = 0;
+          let maxMedNum = 0;
+          for (const row of allHistory) {
+            const raw = String(row.id);
+            const triageMatch = raw.match(/his_triage_(\d+)/);
+            const medMatch = raw.match(/his_med_(\d+)/);
+            if (triageMatch) {
+              const num = parseInt(triageMatch[1], 10);
+              if (!isNaN(num) && num > maxTriageNum) maxTriageNum = num;
+            }
+            if (medMatch) {
+              const num = parseInt(medMatch[1], 10);
+              if (!isNaN(num) && num > maxMedNum) maxMedNum = num;
+            }
+          }
+          hisCounterRef.current = maxTriageNum;
+          hisMedCounterRef.current = maxMedNum;
         }
         // Load attended patients from completed assignments
         const { data: completedAssignments, error: completedError } = await supabase
@@ -1497,7 +1599,11 @@ export default function ReceptionModule({
   const triagedPatients = patients.filter(p => 
     (p.status === 'atendimento' || (p.status === 'atendido' && !attendedPatients.some(a => a.patient.id === p.id))) && 
     !hospitalLocations.some(l => l.currentPatients.includes(p.id))
-  );
+  ).sort((a, b) => {
+    const aTime = a.clinicalHistory?.[0]?.triaged_at || '';
+    const bTime = b.clinicalHistory?.[0]?.triaged_at || '';
+    return aTime.localeCompare(bTime);
+  });
   const patientsInLocations = hospitalLocations.filter(l => l.currentPatients.length > 0);
   const unreadNotifications = internalNotifications.filter(n => !n.read);
 
@@ -1511,7 +1617,7 @@ export default function ReceptionModule({
     return matchesSearch && matchesPriority;
   });
 
-  const activeWaitingList = patients.filter(p => p.status === 'aguardando' || p.status === 'atendimento');
+  const activeWaitingList = patients.filter(p => p.status === 'aguardando');
 
   return (
     <div className="space-y-6">
@@ -1542,7 +1648,7 @@ export default function ReceptionModule({
               }`}
             >
               <MapPin className="w-4 h-4 inline mr-1" />
-              Distribuição
+              Atendimentos
             </button>
             <button
               type="button"
@@ -2402,9 +2508,7 @@ export default function ReceptionModule({
                                 setTriageSpo2('');
                                 setTriageHR('');
                                 setTriageRR('');
-                                setTriagePriorityLevel(
-                                  p.priority === 'emergência' ? 'red' : p.priority === 'preferencial' ? 'orange' : 'green'
-                                );
+                                setTriagePriorityLevel('green');
                                 setTriageProcedures([]);
                                 setTriageNursingNotes('');
                                 setAttachedFiles([]);
@@ -2439,19 +2543,25 @@ export default function ReceptionModule({
                           </>
                         )}
 
-                        {p.status === 'atendimento' && (
+                        {p.status === 'triado' && (
                           <>
-                            <span className="text-xs font-bold px-2.5 py-1 bg-teal-50 text-teal-700 border border-teal-200 rounded-full flex items-center gap-1 animate-pulse">
-                              <HeartPulse className="w-3" /> Em Atendimento
+                            <span className="text-xs font-bold px-2.5 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-full flex items-center gap-1">
+                              <Clock className="w-3" /> Triado — Aguardando Liberação
                             </span>
                             <button
-                              onClick={() => handleUpdatePatientStatus(p.id, 'atendido')}
-                              data-testid="complete"
+                              onClick={() => handleUpdatePatientStatus(p.id, 'atendimento')}
+                              data-testid="liberar"
                               className="bg-slate-700 hover:bg-slate-800 text-white text-xs px-3 py-1.5 rounded-lg font-semibold shadow-xs transition cursor-pointer"
                             >
                               Liberado
                             </button>
                           </>
+                        )}
+
+                        {p.status === 'atendimento' && (
+                          <span className="text-xs font-bold px-2.5 py-1 bg-green-50 text-green-700 border border-green-200 rounded-full flex items-center gap-1">
+                            <CheckCircle2 className="w-3" /> Atendimento Concluído
+                          </span>
                         )}
 
                         {p.status === 'atendido' && (
@@ -2571,10 +2681,10 @@ export default function ReceptionModule({
                 <h3 className="font-bold text-slate-800 text-base">Locais Hospitalares</h3>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {hospitalLocations.map(loc => (
+                {[...hospitalLocations].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })).map(loc => (
                   <div 
                     key={loc.id} 
-                    onClick={() => { if (loc.capacity > 1) { setSelectedLocation(loc); setShowLocationDetail(true); } }}
+                    onClick={() => { if (loc.capacity > 1 || loc.currentPatients.length > 0) { setSelectedLocation(loc); setShowLocationDetail(true); } }}
                     className={`border rounded-xl p-4 transition ${
                       loc.status === 'manutencao' ? 'bg-slate-100 border-slate-300 opacity-60' :
                       loc.currentPatients.length >= loc.capacity ? 'bg-red-50 border-red-200' :
@@ -2601,32 +2711,12 @@ export default function ReceptionModule({
                       Fila: <span className="font-bold">{loc.currentPatients.length}</span> / {loc.capacity}
                     </p>
 
-                    {/* Capacidade 1: botões inline */}
+                    {/* Capacidade 1: indicador de paciente */}
                     {loc.capacity === 1 && loc.currentPatients.length > 0 && (
-                      <div className="space-y-2 mb-3">
-                        {loc.currentPatients.map(pid => {
-                          const pat = patients.find(p => p.id === pid);
-                          const patName = pat?.name || patientNameMap[pid] || 'Paciente';
-                          return (
-                            <div key={pid} className="flex items-center justify-between bg-white/80 rounded-lg px-3 py-2 gap-2 border border-white/50">
-                              <span className="text-xs font-semibold text-slate-700 truncate">{patName}</span>
-                              <div className="flex gap-1.5 shrink-0">
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); if (pat) { setRedirectPatient(pat); setShowRedirectModal(true); } }}
-                                  className="text-[10px] px-2 py-1 bg-blue-100 text-blue-700 hover:bg-blue-200 font-bold rounded-md cursor-pointer transition"
-                                >
-                                  Redirecionar
-                                </button>
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); handleCompleteSpecificPatient(loc.id, pid); }}
-                                  className="text-[10px] px-2 py-1 bg-green-100 text-green-700 hover:bg-green-200 font-bold rounded-md cursor-pointer transition"
-                                >
-                                  ✓ Finalizar
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })}
+                      <div className="mb-3 bg-white/60 rounded-lg px-3 py-2 border border-white/50">
+                        <p className="text-[10px] text-slate-500">
+                          1 paciente — <span className="text-teal-600 font-semibold">Clique para ver detalhes</span>
+                        </p>
                       </div>
                     )}
 
@@ -2639,6 +2729,7 @@ export default function ReceptionModule({
                       </div>
                     )}
 
+                    {loc.capacity === 1 && (
                     <button
                       onClick={(e) => { e.stopPropagation(); handleCallNextPatient(loc.id); }}
                       disabled={loc.status === 'manutencao' || triagedPatients.length === 0 || loc.currentPatients.length >= loc.capacity}
@@ -2650,6 +2741,7 @@ export default function ReceptionModule({
                     >
                       Chamar Próximo
                     </button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -2673,7 +2765,7 @@ export default function ReceptionModule({
               </button>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {hospitalLocations.map(loc => (
+              {[...hospitalLocations].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })).map(loc => (
                 <div key={loc.id} className="bg-slate-50 border border-slate-200 rounded-xl p-4">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-lg">{locationTypeIcon[loc.type]}</span>
@@ -3115,9 +3207,12 @@ export default function ReceptionModule({
 
                   {/* Sinais Vitais */}
                   <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
-                    <div className="flex items-center gap-2 text-xs font-bold text-slate-700 pb-1 border-b border-slate-200">
-                      <HeartPulse className="w-4 h-4 text-rose-500" />
-                      <span>Sinais Vitais</span>
+                    <div className="flex items-center justify-between text-xs font-bold text-slate-700 pb-1 border-b border-slate-200">
+                      <div className="flex items-center gap-2">
+                        <HeartPulse className="w-4 h-4 text-rose-500" />
+                        <span>Sinais Vitais</span>
+                      </div>
+                      <span className="text-[10px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">{vitalsLimits.label}</span>
                     </div>
 
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -3177,6 +3272,24 @@ export default function ReceptionModule({
                           placeholder="Ex: 120/80"
                           className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans"
                         />
+                        {triageBP && (() => {
+                          const parts = triageBP.split('/');
+                          const systolic = parseInt(parts[0]);
+                          const diastolic = parseInt(parts[1]);
+                          if (!isNaN(systolic)) {
+                            if (vitalsLimits.pa.red(systolic) || (!isNaN(diastolic) && diastolic > 120)) {
+                              return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> Vermelho — PA criticamente baixa</p>;
+                            }
+                            if (vitalsLimits.pa.orange(systolic)) {
+                              return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-500 inline-block" /> Laranja — PA alterada</p>;
+                            }
+                            if (vitalsLimits.pa.yellow(systolic) || (!isNaN(diastolic) && diastolic >= 90 && diastolic <= 119)) {
+                              return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block" /> Amarelo — PA elevada</p>;
+                            }
+                            return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> Normal</p>;
+                          }
+                          return null;
+                        })()}
                       </div>
                       {/* Temperature */}
                       <div>
@@ -3189,6 +3302,19 @@ export default function ReceptionModule({
                           step="0.1"
                           className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans"
                         />
+                        {triageTemp && (() => {
+                          const temp = parseFloat(triageTemp);
+                          if (!isNaN(temp)) {
+                            if (vitalsLimits.temp.orange(temp)) {
+                              return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-500 inline-block" /> Laranja — {temp >= 41.0 ? '≥ 41.0°C' : temp <= 35.0 ? '≤ 35.0°C' : '≥ 38.5°C (< 3 meses)'}</p>;
+                            }
+                            if (vitalsLimits.temp.yellow(temp)) {
+                              return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block" /> Amarelo — 38.5-40.9°C</p>;
+                            }
+                            return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> Normal</p>;
+                          }
+                          return null;
+                        })()}
                       </div>
                       {/* SpO2 */}
                       <div>
@@ -3200,12 +3326,18 @@ export default function ReceptionModule({
                           placeholder="Ex: 98"
                           min={60}
                           max={100}
-                          className={`w-full p-2 bg-white border rounded-lg text-xs focus:outline-teal-500 font-sans font-bold ${
-                            triageSpo2 && Number(triageSpo2) < 95
-                              ? 'border-rose-400 bg-rose-50 text-rose-700'
-                              : 'border-slate-200'
-                          }`}
+                          className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans"
                         />
+                        {triageSpo2 && (() => {
+                          const spo2 = Number(triageSpo2);
+                          if (vitalsLimits.spo2.red(spo2)) {
+                            return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> Vermelho — SpO2 criticamente baixa</p>;
+                          }
+                          if (vitalsLimits.spo2.orange(spo2)) {
+                            return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-500 inline-block" /> Laranja — SpO2 reduzida</p>;
+                          }
+                          return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> Normal — SpO2 adequada</p>;
+                        })()}
                       </div>
                       {/* Heart rate */}
                       <div>
@@ -3217,6 +3349,22 @@ export default function ReceptionModule({
                           placeholder="Ex: 78"
                           className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans"
                         />
+                        {triageHR && (() => {
+                          const hr = parseInt(triageHR);
+                          if (!isNaN(hr)) {
+                            if (vitalsLimits.fc.red(hr)) {
+                              return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> Vermelho — FC fora da faixa crítica</p>;
+                            }
+                            if (vitalsLimits.fc.orange(hr)) {
+                              return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-500 inline-block" /> Laranja — FC fora da faixa aceitável</p>;
+                            }
+                            if (vitalsLimits.fc.yellow(hr)) {
+                              return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block" /> Amarelo — FC levemente elevada</p>;
+                            }
+                            return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> Normal</p>;
+                          }
+                          return null;
+                        })()}
                       </div>
                       {/* Respiratory rate */}
                       <div>
@@ -3228,19 +3376,27 @@ export default function ReceptionModule({
                           placeholder="Ex: 16"
                           className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans"
                         />
+                        {triageRR && (() => {
+                          const rr = parseInt(triageRR);
+                          if (!isNaN(rr)) {
+                            if (vitalsLimits.fr.red(rr)) {
+                              return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> Vermelho — FR fora da faixa crítica</p>;
+                            }
+                            if (vitalsLimits.fr.orange(rr)) {
+                              return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-500 inline-block" /> Laranja — FR elevada</p>;
+                            }
+                            if (vitalsLimits.fr.yellow(rr)) {
+                              return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block" /> Amarelo — FR levemente elevada</p>;
+                            }
+                            return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> Normal</p>;
+                          }
+                          return null;
+                        })()}
                       </div>
                     </div>
+                    </div>
 
-                    {/* SpO2 Alert */}
-                    {triageSpo2 && Number(triageSpo2) < 95 && (
-                      <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-700 font-bold flex items-center gap-2 animate-pulse">
-                        <AlertCircle className="w-4 h-4 shrink-0" />
-                        ⚠️ Saturação crítica! ({triageSpo2}%) — Protocolo de oxigenoterapia pode ser necessário.
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Procedimentos Preliminares */}
+                    {/* Procedimentos Preliminares */}
                   <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
                     <p className="text-xs font-bold text-slate-700 pb-1 border-b border-slate-200">Procedimentos Preliminares de Enfermagem</p>
                     <div className="grid grid-cols-2 gap-2">
@@ -3371,7 +3527,7 @@ export default function ReceptionModule({
                       : undefined;
 
                     const triageEntry = {
-                      id: `his_triage_${Date.now()}`,
+                      id: `his_triage_${++hisCounterRef.current}`,
                       date: new Date().toISOString().split('T')[0],
                       type: 'Triagem Inicial de Enfermagem',
                       diagnosis: triageReason,
@@ -3397,6 +3553,7 @@ export default function ReceptionModule({
                       triage_color: triagePriorityLevel,
                       preliminary_procedures: triageProcedures,
                       attached_files: attachedFiles.map(f => ({ name: f.name, size: f.size, type: f.type })),
+                      triaged_at: new Date().toISOString(),
                     };
 
                     const newPriority: Patient['priority'] = triageEntry.triage_priority;
@@ -3406,7 +3563,7 @@ export default function ReceptionModule({
                       if (p.id === triagePatient.id) {
                         return {
                           ...p,
-                          status: 'atendimento' as const,
+                          status: 'triado' as const,
                           priority: newPriority,
                           clinicalHistory: [triageEntry, ...p.clinicalHistory],
                         };
@@ -3432,11 +3589,17 @@ export default function ReceptionModule({
                           prescriptions: triageEntry.prescriptions,
                           notes: triageEntry.notes,
                           doctor: triageEntry.doctor,
+                          vital_signs: triageEntry.vital_signs || null,
+                          triage_priority: triageEntry.triage_priority || null,
+                          triage_color: triageEntry.triage_color || null,
+                          preliminary_procedures: triageEntry.preliminary_procedures || [],
+                          attached_files: triageEntry.attached_files || [],
+                          triaged_at: triageEntry.triaged_at || null,
                         });
-                         await supabase.from('patients').update({
-                           status: 'atendimento',
-                           priority: newPriority,
-                         }).eq('id', triagePatient.id);
+                        await supabase.from('patients').update({
+                          status: 'triado',
+                          priority: newPriority,
+                        }).eq('id', triagePatient.id);
                        } catch (err) {
                          console.error('[SUPABASE] UPDATE patients triage FAILED:', err);
                        }
@@ -3658,7 +3821,7 @@ export default function ReceptionModule({
                       <p className="text-xs text-slate-500">{locationTypeLabel[selectedLocation.type]}</p>
                     </div>
                   </div>
-                  <button onClick={() => { setShowLocationDetail(false); setSelectedLocation(null); }} className="text-slate-400 hover:text-slate-600 cursor-pointer">
+                  <button onClick={() => { setShowLocationDetail(false); setSelectedLocation(null); setSelectedDetailPatientId(null); setMedDiagnosis(''); setMedCid10(''); setMedPrescription(''); setMedNotes(''); setIsEditingTriage(false); }} className="text-slate-400 hover:text-slate-600 cursor-pointer">
                     <X className="w-5 h-5" />
                   </button>
                 </div>
@@ -3679,59 +3842,456 @@ export default function ReceptionModule({
                 </div>
               </div>
 
-              {/* Patient List */}
+              {/* Patient List / Consultório Detail / Non-consultório Detail */}
               <div className="flex-1 overflow-y-auto p-5 space-y-3">
                 {selectedLocation.currentPatients.length === 0 ? (
                   <p className="text-sm text-slate-400 text-center py-8">Nenhum paciente neste local</p>
-                ) : selectedLocation.currentPatients.map(pid => {
-                  const pat = patients.find(p => p.id === pid);
-                  const patName = pat?.name || patientNameMap[pid] || 'Paciente';
-                  const patPhone = pat?.phone || '';
-                  return (
-                    <div key={pid} className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <div className="w-9 h-9 rounded-full bg-teal-100 flex items-center justify-center">
-                            <User className="w-5 h-5 text-teal-600" />
+                ) : selectedLocation.capacity === 1 && selectedLocation.currentPatients.length === 1 ? (
+                  // Consultório: visualização com dados da triagem + campos médicos
+                  (() => {
+                    const pid = selectedLocation.currentPatients[0];
+                    const pat = patients.find(p => p.id === pid);
+                    if (!pat) return <p className="text-sm text-slate-400 text-center py-8">Paciente não encontrado</p>;
+                    const triage = pat.clinicalHistory?.[0];
+                    const vitals = triage?.vital_signs;
+                    const colorDot: Record<string, string> = {
+                      red: 'bg-red-500', orange: 'bg-orange-500', yellow: 'bg-amber-400', green: 'bg-green-500', blue: 'bg-blue-500',
+                    };
+                    return (
+                      <div className="space-y-4">
+                        {/* Patient Info */}
+                        <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-teal-100 flex items-center justify-center">
+                              <User className="w-5 h-5 text-teal-600" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-bold text-slate-800">{pat.name}</p>
+                              <p className="text-xs text-slate-500">{pat.birthdate ? `${new Date().getFullYear() - new Date(pat.birthdate).getFullYear()} anos` : ''} | {pat.document_type || 'CI'}: {pat.document_number || 'N/A'} | Tipo Sanguíneo: <span className="font-bold text-rose-600">{pat.blood_type || '-'}</span></p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Triage Data */}
+                        {triage && (
+                          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+                            <div className="flex items-center justify-between">
+                              <p className="text-xs font-bold text-slate-700">Dados da Triagem</p>
+                              <div className="flex items-center gap-2">
+                                {triage.triage_color && (
+                                  <span className="text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1.5" style={{ backgroundColor: triage.triage_color === 'red' ? '#fee2e2' : triage.triage_color === 'orange' ? '#ffedd5' : triage.triage_color === 'yellow' ? '#fef3c7' : triage.triage_color === 'green' ? '#dcfce7' : '#dbeafe', color: triage.triage_color === 'red' ? '#991b1b' : triage.triage_color === 'orange' ? '#9a3412' : triage.triage_color === 'yellow' ? '#92400e' : triage.triage_color === 'green' ? '#166534' : '#1e40af' }}>
+                                    <span className={`w-2.5 h-2.5 rounded-full ${colorDot[triage.triage_color] || ''}`} />
+                                    {triage.triage_color === 'red' ? 'Vermelho' : triage.triage_color === 'orange' ? 'Laranja' : triage.triage_color === 'yellow' ? 'Amarelo' : triage.triage_color === 'green' ? 'Verde' : 'Azul'}
+                                  </span>
+                                )}
+                                {!isEditingTriage ? (
+                                  <button onClick={() => {
+                                    setEditTriageReason(triage.diagnosis || '');
+                                    setEditTriageBP(vitals?.bp || '');
+                                    setEditTriageTemp(vitals?.temp || '');
+                                    setEditTriageSpo2(vitals?.spo2 || '');
+                                    setEditTriageHR(vitals?.hr || '');
+                                    setEditTriageRR(vitals?.rr || '');
+                                    setIsEditingTriage(true);
+                                  }} className="text-xs text-blue-600 hover:text-blue-800 font-bold cursor-pointer px-2 py-1 rounded hover:bg-blue-50 transition">
+                                    ✏️ Editar
+                                  </button>
+                                ) : (
+                                  <button onClick={async () => {
+                                    if (supabase) {
+                                      try {
+                                        await supabase.from('clinical_history').update({
+                                          diagnosis: editTriageReason,
+                                          vital_signs: {
+                                            bp: editTriageBP, temp: editTriageTemp, spo2: editTriageSpo2, hr: editTriageHR, rr: editTriageRR,
+                                            weight: vitals?.weight || '', height: vitals?.height || '', imc: vitals?.imc || '',
+                                          },
+                                        }).eq('id', triage.id);
+                                      } catch (err) {
+                                        console.error('[SUPABASE] UPDATE triage FAILED:', err);
+                                      }
+                                    }
+                                    setIsEditingTriage(false);
+                                  }} className="text-xs text-green-600 hover:text-green-800 font-bold cursor-pointer px-2 py-1 rounded hover:bg-green-50 transition">
+                                    ✓ Salvar
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                            {isEditingTriage ? (
+                              <div className="space-y-2">
+                                <div>
+                                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Motivo</label>
+                                  <input type="text" value={editTriageReason} onChange={e => setEditTriageReason(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">PA</label><input type="text" value={editTriageBP} onChange={e => setEditTriageBP(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
+                                  <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Temp °C</label><input type="text" value={editTriageTemp} onChange={e => setEditTriageTemp(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
+                                  <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">SpO2 %</label><input type="text" value={editTriageSpo2} onChange={e => setEditTriageSpo2(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
+                                  <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">FC BPM</label><input type="text" value={editTriageHR} onChange={e => setEditTriageHR(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
+                                  <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">FR IRPM</label><input type="text" value={editTriageRR} onChange={e => setEditTriageRR(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="space-y-2">
+                                <p className="text-xs text-slate-600"><span className="font-bold">Motivo:</span> {triage.diagnosis}</p>
+                                {vitals && (
+                                  <div className="grid grid-cols-2 gap-2 text-[11px]">
+                                    {vitals.bp && <p className="text-slate-600">PA: <span className="font-bold">{vitals.bp}</span></p>}
+                                    {vitals.temp && <p className="text-slate-600">Temp: <span className="font-bold">{vitals.temp}°C</span></p>}
+                                    {vitals.spo2 && <p className="text-slate-600">SpO2: <span className="font-bold">{vitals.spo2}%</span></p>}
+                                    {vitals.hr && <p className="text-slate-600">FC: <span className="font-bold">{vitals.hr} BPM</span></p>}
+                                    {vitals.rr && <p className="text-slate-600">FR: <span className="font-bold">{vitals.rr} IRPM</span></p>}
+                                  </div>
+                                )}
+                                {triage.preliminary_procedures && triage.preliminary_procedures.length > 0 && (
+                                  <p className="text-[11px] text-slate-600"><span className="font-bold">Procedimentos:</span> {triage.preliminary_procedures.join(', ')}</p>
+                                )}
+                                {triage.notes && <p className="text-[11px] text-slate-500 italic">{triage.notes}</p>}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Medical Consultation */}
+                        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
+                          <p className="text-xs font-bold text-blue-800">Consulta Médica</p>
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Diagnóstico *</label>
+                            <input type="text" value={medDiagnosis} onChange={e => setMedDiagnosis(e.target.value)} placeholder="Descreva o diagnóstico..." className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
                           </div>
                           <div>
-                            <p className="text-sm font-bold text-slate-800">{patName}</p>
-                            {patPhone && <p className="text-xs text-slate-500">{patPhone}</p>}
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">CID-10</label>
+                            <input type="text" value={medCid10} onChange={e => setMedCid10(e.target.value)} placeholder="Ex: I10" className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Prescrição / Receita</label>
+                            <textarea value={medPrescription} onChange={e => setMedPrescription(e.target.value)} placeholder="Medicamentos e orientações..." rows={3} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Observações Médicas</label>
+                            <textarea value={medNotes} onChange={e => setMedNotes(e.target.value)} placeholder="Notas clínicas adicionais..." rows={2} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
                           </div>
                         </div>
                       </div>
-                      <div className="flex gap-2 mt-3">
-                        <button
-                          onClick={() => { if (pat) { setRedirectPatient(pat); setShowRedirectModal(true); setShowLocationDetail(false); } }}
-                          className="flex-1 py-2 px-3 bg-blue-100 text-blue-700 hover:bg-blue-200 text-xs font-bold rounded-lg transition cursor-pointer flex items-center justify-center gap-1"
-                        >
-                          <ChevronRight className="w-3.5 h-3.5" /> Redirecionar
+                    );
+                  })()
+                ) : selectedDetailPatientId && selectedLocation.currentPatients.includes(selectedDetailPatientId) ? (
+                  // Non-consultório: detalhe do paciente selecionado (mesmo layout do consultório)
+                  (() => {
+                    const pid = selectedDetailPatientId;
+                    const pat = patients.find(p => p.id === pid);
+                    if (!pat) return <p className="text-sm text-slate-400 text-center py-8">Paciente não encontrado</p>;
+                    const triage = pat.clinicalHistory?.[0];
+                    const vitals = triage?.vital_signs;
+                    const colorDot: Record<string, string> = {
+                      red: 'bg-red-500', orange: 'bg-orange-500', yellow: 'bg-amber-400', green: 'bg-green-500', blue: 'bg-blue-500',
+                    };
+                    return (
+                      <div className="space-y-4">
+                        <button onClick={() => setSelectedDetailPatientId(null)} className="text-xs text-teal-600 hover:text-teal-800 font-bold cursor-pointer flex items-center gap-1">
+                          ← Voltar à lista
                         </button>
-                        <button
-                          onClick={() => { handleCompleteSpecificPatient(selectedLocation.id, pid); setSelectedLocation({ ...selectedLocation, currentPatients: selectedLocation.currentPatients.filter(p => p !== pid) }); }}
-                          className="flex-1 py-2 px-3 bg-green-100 text-green-700 hover:bg-green-200 text-xs font-bold rounded-lg transition cursor-pointer flex items-center justify-center gap-1"
-                        >
-                          <CheckCircle2 className="w-3.5 h-3.5" /> Finalizar
-                        </button>
+                        {/* Patient Info */}
+                        <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-teal-100 flex items-center justify-center">
+                              <User className="w-5 h-5 text-teal-600" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-bold text-slate-800">{pat.name}</p>
+                              <p className="text-xs text-slate-500">{pat.birthdate ? `${new Date().getFullYear() - new Date(pat.birthdate).getFullYear()} anos` : ''} | {pat.document_type || 'CI'}: {pat.document_number || 'N/A'} | Tipo Sanguíneo: <span className="font-bold text-rose-600">{pat.blood_type || '-'}</span></p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Triage Data */}
+                        {triage && (
+                          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+                            <div className="flex items-center justify-between">
+                              <p className="text-xs font-bold text-slate-700">Dados da Triagem</p>
+                              <div className="flex items-center gap-2">
+                                {triage.triage_color && (
+                                  <span className="text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1.5" style={{ backgroundColor: triage.triage_color === 'red' ? '#fee2e2' : triage.triage_color === 'orange' ? '#ffedd5' : triage.triage_color === 'yellow' ? '#fef3c7' : triage.triage_color === 'green' ? '#dcfce7' : '#dbeafe', color: triage.triage_color === 'red' ? '#991b1b' : triage.triage_color === 'orange' ? '#9a3412' : triage.triage_color === 'yellow' ? '#92400e' : triage.triage_color === 'green' ? '#166534' : '#1e40af' }}>
+                                    <span className={`w-2.5 h-2.5 rounded-full ${colorDot[triage.triage_color] || ''}`} />
+                                    {triage.triage_color === 'red' ? 'Vermelho' : triage.triage_color === 'orange' ? 'Laranja' : triage.triage_color === 'yellow' ? 'Amarelo' : triage.triage_color === 'green' ? 'Verde' : 'Azul'}
+                                  </span>
+                                )}
+                                {!isEditingTriage ? (
+                                  <button onClick={() => {
+                                    setEditTriageReason(triage.diagnosis || '');
+                                    setEditTriageBP(vitals?.bp || '');
+                                    setEditTriageTemp(vitals?.temp || '');
+                                    setEditTriageSpo2(vitals?.spo2 || '');
+                                    setEditTriageHR(vitals?.hr || '');
+                                    setEditTriageRR(vitals?.rr || '');
+                                    setIsEditingTriage(true);
+                                  }} className="text-xs text-blue-600 hover:text-blue-800 font-bold cursor-pointer px-2 py-1 rounded hover:bg-blue-50 transition">
+                                    ✏️ Editar
+                                  </button>
+                                ) : (
+                                  <button onClick={async () => {
+                                    if (supabase) {
+                                      try {
+                                        await supabase.from('clinical_history').update({
+                                          diagnosis: editTriageReason,
+                                          vital_signs: {
+                                            bp: editTriageBP, temp: editTriageTemp, spo2: editTriageSpo2, hr: editTriageHR, rr: editTriageRR,
+                                            weight: vitals?.weight || '', height: vitals?.height || '', imc: vitals?.imc || '',
+                                          },
+                                        }).eq('id', triage.id);
+                                      } catch (err) {
+                                        console.error('[SUPABASE] UPDATE triage FAILED:', err);
+                                      }
+                                    }
+                                    setIsEditingTriage(false);
+                                  }} className="text-xs text-green-600 hover:text-green-800 font-bold cursor-pointer px-2 py-1 rounded hover:bg-green-50 transition">
+                                    ✓ Salvar
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                            {isEditingTriage ? (
+                              <div className="space-y-2">
+                                <div>
+                                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Motivo</label>
+                                  <input type="text" value={editTriageReason} onChange={e => setEditTriageReason(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">PA</label><input type="text" value={editTriageBP} onChange={e => setEditTriageBP(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
+                                  <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Temp °C</label><input type="text" value={editTriageTemp} onChange={e => setEditTriageTemp(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
+                                  <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">SpO2 %</label><input type="text" value={editTriageSpo2} onChange={e => setEditTriageSpo2(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
+                                  <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">FC BPM</label><input type="text" value={editTriageHR} onChange={e => setEditTriageHR(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
+                                  <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">FR IRPM</label><input type="text" value={editTriageRR} onChange={e => setEditTriageRR(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="space-y-2">
+                                <p className="text-xs text-slate-600"><span className="font-bold">Motivo:</span> {triage.diagnosis}</p>
+                                {vitals && (
+                                  <div className="grid grid-cols-2 gap-2 text-[11px]">
+                                    {vitals.bp && <p className="text-slate-600">PA: <span className="font-bold">{vitals.bp}</span></p>}
+                                    {vitals.temp && <p className="text-slate-600">Temp: <span className="font-bold">{vitals.temp}°C</span></p>}
+                                    {vitals.spo2 && <p className="text-slate-600">SpO2: <span className="font-bold">{vitals.spo2}%</span></p>}
+                                    {vitals.hr && <p className="text-slate-600">FC: <span className="font-bold">{vitals.hr} BPM</span></p>}
+                                    {vitals.rr && <p className="text-slate-600">FR: <span className="font-bold">{vitals.rr} IRPM</span></p>}
+                                  </div>
+                                )}
+                                {triage.preliminary_procedures && triage.preliminary_procedures.length > 0 && (
+                                  <p className="text-[11px] text-slate-600"><span className="font-bold">Procedimentos:</span> {triage.preliminary_procedures.join(', ')}</p>
+                                )}
+                                {triage.notes && <p className="text-[11px] text-slate-500 italic">{triage.notes}</p>}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Medical Consultation */}
+                        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
+                          <p className="text-xs font-bold text-blue-800">Consulta Médica</p>
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Diagnóstico *</label>
+                            <input type="text" value={medDiagnosis} onChange={e => setMedDiagnosis(e.target.value)} placeholder="Descreva o diagnóstico..." className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">CID-10</label>
+                            <input type="text" value={medCid10} onChange={e => setMedCid10(e.target.value)} placeholder="Ex: I10" className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Prescrição / Receita</label>
+                            <textarea value={medPrescription} onChange={e => setMedPrescription(e.target.value)} placeholder="Medicamentos e orientações..." rows={3} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Observações Médicas</label>
+                            <textarea value={medNotes} onChange={e => setMedNotes(e.target.value)} placeholder="Notas clínicas adicionais..." rows={2} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })()
+                ) : (
+                  // Outros locais: visualização com lista de pacientes clicáveis
+                  selectedLocation.currentPatients.map(pid => {
+                    const pat = patients.find(p => p.id === pid);
+                    const patName = pat?.name || patientNameMap[pid] || 'Paciente';
+                    const patPhone = pat?.phone || '';
+                    const triage = pat?.clinicalHistory?.[0];
+                    const triageColor = triage?.triage_color;
+                    const colorDot: Record<string, string> = {
+                      red: 'bg-red-500', orange: 'bg-orange-500', yellow: 'bg-amber-400', green: 'bg-green-500', blue: 'bg-blue-500',
+                    };
+                    return (
+                      <div key={pid} onClick={() => setSelectedDetailPatientId(pid)} className="bg-slate-50 border border-slate-200 rounded-xl p-4 cursor-pointer hover:border-teal-300 hover:bg-teal-50 transition">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className="w-9 h-9 rounded-full bg-teal-100 flex items-center justify-center">
+                              <User className="w-5 h-5 text-teal-600" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-bold text-slate-800">{patName}</p>
+                              {patPhone && <p className="text-xs text-slate-500">{patPhone}</p>}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {triageColor && (
+                              <span className={`w-2.5 h-2.5 rounded-full ${colorDot[triageColor] || ''}`} />
+                            )}
+                            <span className="text-xs text-slate-400">→</span>
+                          </div>
+                        </div>
+                        <p className="text-xs text-slate-400 mt-2 text-right">{selectedLocation.currentPatients.length > 1 ? `${selectedLocation.currentPatients.indexOf(pid) + 1}º na fila — ` : ''}Clique para ver detalhes</p>
+                      </div>
+                    );
+                  })
+                )}
               </div>
 
               {/* Footer */}
               <div className="p-4 border-t border-slate-100">
-                <button
-                  onClick={() => { handleCallNextPatient(selectedLocation.id); }}
-                  disabled={selectedLocation.status === 'manutencao' || triagedPatients.length === 0}
-                  className={`w-full py-2.5 text-sm font-bold rounded-lg transition cursor-pointer ${
-                    selectedLocation.status === 'manutencao' || triagedPatients.length === 0
-                      ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                      : 'bg-teal-600 hover:bg-teal-700 text-white'
-                  }`}
-                >
-                  Chamar Próximo
-                </button>
+                {(selectedLocation.capacity === 1 && selectedLocation.currentPatients.length === 1) || selectedDetailPatientId ? (
+                  // Consultório OU detalhe de paciente em local não-consultório: botões Redirecionar + Finalizar
+                  (() => {
+                    const pid = selectedLocation.capacity === 1 ? selectedLocation.currentPatients[0] : selectedDetailPatientId!;
+                    return (
+                      <div className="flex gap-2">
+                        <button
+                          onClick={async () => {
+                            if (supabase && (medDiagnosis.trim() || medCid10.trim() || medPrescription.trim() || medNotes.trim())) {
+                              const pat = patients.find(p => p.id === pid);
+                              if (pat) {
+                                try {
+                                  const triage = pat.clinicalHistory?.[0];
+                                  const vitals = triage?.vital_signs;
+                                  const medData = {
+                                    diagnosis: medDiagnosis || '',
+                                    cid10: medCid10 || 'Z00.0',
+                                    prescriptions: medPrescription ? medPrescription.split('\n').filter(Boolean) : [],
+                                    notes: medNotes || '',
+                                    doctor: 'Médico',
+                                    vital_signs: isEditingTriage ? {
+                                      bp: editTriageBP || vitals?.bp || '',
+                                      temp: editTriageTemp || vitals?.temp || '',
+                                      spo2: editTriageSpo2 || vitals?.spo2 || '',
+                                      hr: editTriageHR || vitals?.hr || '',
+                                      rr: editTriageRR || vitals?.rr || '',
+                                      weight: vitals?.weight || '', height: vitals?.height || '', imc: vitals?.imc || '',
+                                    } : vitals || null,
+                                    triage_priority: triage?.triage_priority || null,
+                                    triage_color: triage?.triage_color || null,
+                                    preliminary_procedures: triage?.preliminary_procedures || [],
+                                    attached_files: triage?.attached_files || [],
+                                  };
+                                  const { data: existing } = await supabase.from('clinical_history').select('id').eq('patient_id', pid).eq('type', 'Consulta Médica').order('date', { ascending: false }).limit(1);
+                                  if (existing && existing.length > 0) {
+                                    const { error } = await supabase.from('clinical_history').update(medData).eq('id', existing[0].id);
+                                    if (error) {
+                                      console.error('[SUPABASE] UPDATE med before redirect FAILED:', error.message);
+                                    } else {
+                                      console.log('[SUPABASE] UPDATE med before redirect OK:', existing[0].id);
+                                      setPatients(prev => prev.map(p => p.id === pid ? { ...p, clinicalHistory: p.clinicalHistory?.map((h: any) => h.id === existing[0].id ? { ...h, ...medData } : h) || [] } : p));
+                                    }
+                                  } else {
+                                    const medEntry = { id: `his_med_${++hisMedCounterRef.current}`, date: new Date().toISOString().split('T')[0], type: 'Consulta Médica', ...medData };
+                                    const { error } = await supabase.from('clinical_history').insert({ ...medEntry, patient_id: pid });
+                                    if (error) {
+                                      console.error('[SUPABASE] INSERT med before redirect FAILED:', error.message);
+                                    } else {
+                                      console.log('[SUPABASE] INSERT med before redirect OK:', medEntry.id);
+                                      setPatients(prev => prev.map(p => p.id === pid ? { ...p, clinicalHistory: [{ ...medEntry, patient_id: pid } as any, ...(p.clinicalHistory || [])] } : p));
+                                    }
+                                  }
+                                } catch (err) {
+                                  console.error('[SUPABASE] SAVE med before redirect FAILED:', err);
+                                }
+                              }
+                            }
+                            const pat = patients.find(p => p.id === pid);
+                            if (pat) { setRedirectPatient(pat); setShowRedirectModal(true); setShowLocationDetail(false); setSelectedDetailPatientId(null); setMedDiagnosis(''); setMedCid10(''); setMedPrescription(''); setMedNotes(''); setIsEditingTriage(false); }
+                          }}
+                          className="flex-1 py-2.5 text-sm font-bold rounded-lg transition cursor-pointer bg-blue-100 text-blue-700 hover:bg-blue-200 flex items-center justify-center gap-1"
+                        >
+                          <ChevronRight className="w-4 h-4" /> Redirecionar
+                        </button>
+                        <button
+                          onClick={async () => {
+                            if (!medDiagnosis.trim()) { alert('Preencha o diagnóstico para finalizar.'); return; }
+                            if (!confirm('Tem certeza que deseja finalizar o atendimento? Será registrada uma consulta médica.')) return;
+                            const pat = patients.find(p => p.id === pid);
+                            if (supabase && pat) {
+                              try {
+                                const triage = pat.clinicalHistory?.[0];
+                                const vitals = triage?.vital_signs;
+                                const medData = {
+                                  diagnosis: medDiagnosis,
+                                  cid10: medCid10 || 'Z00.0',
+                                  prescriptions: medPrescription ? medPrescription.split('\n').filter(Boolean) : [],
+                                  notes: medNotes || '',
+                                  doctor: 'Médico',
+                                  vital_signs: isEditingTriage ? {
+                                    bp: editTriageBP || vitals?.bp || '',
+                                    temp: editTriageTemp || vitals?.temp || '',
+                                    spo2: editTriageSpo2 || vitals?.spo2 || '',
+                                    hr: editTriageHR || vitals?.hr || '',
+                                    rr: editTriageRR || vitals?.rr || '',
+                                    weight: vitals?.weight || '',
+                                    height: vitals?.height || '',
+                                    imc: vitals?.imc || '',
+                                  } : vitals || null,
+                                  triage_priority: triage?.triage_priority || null,
+                                  triage_color: triage?.triage_color || null,
+                                  preliminary_procedures: triage?.preliminary_procedures || [],
+                                  attached_files: triage?.attached_files || [],
+                                };
+                                const { data: existing } = await supabase.from('clinical_history').select('id').eq('patient_id', pid).eq('type', 'Consulta Médica').order('date', { ascending: false }).limit(1);
+                                if (existing && existing.length > 0) {
+                                  const { error } = await supabase.from('clinical_history').update(medData).eq('id', existing[0].id);
+                                  if (error) {
+                                    console.error('[SUPABASE] UPDATE medical consultation FAILED:', error.message);
+                                  } else {
+                                    console.log('[SUPABASE] UPDATE medical consultation OK:', existing[0].id);
+                                    setPatients(prev => prev.map(p => p.id === pid ? { ...p, clinicalHistory: p.clinicalHistory?.map((h: any) => h.id === existing[0].id ? { ...h, ...medData } : h) || [] } : p));
+                                  }
+                                } else {
+                                  const medEntry = { id: `his_med_${++hisMedCounterRef.current}`, date: new Date().toISOString().split('T')[0], type: 'Consulta Médica', ...medData };
+                                  const { error } = await supabase.from('clinical_history').insert({ ...medEntry, patient_id: pid });
+                                  if (error) {
+                                    console.error('[SUPABASE] INSERT medical consultation FAILED:', error.message);
+                                  } else {
+                                    console.log('[SUPABASE] INSERT medical consultation OK:', medEntry.id);
+                                    setPatients(prev => prev.map(p => p.id === pid ? { ...p, clinicalHistory: [{ ...medEntry, patient_id: pid } as any, ...(p.clinicalHistory || [])] } : p));
+                                  }
+                                }
+                              } catch (err) {
+                                console.error('[SUPABASE] SAVE medical consultation FAILED:', err);
+                              }
+                            }
+                            handleCompleteSpecificPatient(selectedLocation.id, pid);
+                            setShowLocationDetail(false);
+                            setSelectedLocation(null);
+                            setSelectedDetailPatientId(null);
+                            setMedDiagnosis(''); setMedCid10(''); setMedPrescription(''); setMedNotes(''); setIsEditingTriage(false);
+                          }}
+                          className="flex-1 py-2.5 text-sm font-bold rounded-lg transition cursor-pointer bg-green-600 text-white hover:bg-green-700 flex items-center justify-center gap-1"
+                        >
+                          <CheckCircle2 className="w-4 h-4" /> Finalizar
+                        </button>
+                      </div>
+                    );
+                  })()
+                ) : (
+                  // Outros locais (lista): botão Chamar Próximo
+                  <button
+                    onClick={() => { handleCallNextPatient(selectedLocation.id); }}
+                    disabled={selectedLocation.status === 'manutencao' || triagedPatients.length === 0}
+                    className={`w-full py-2.5 text-sm font-bold rounded-lg transition cursor-pointer ${
+                      selectedLocation.status === 'manutencao' || triagedPatients.length === 0
+                        ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                        : 'bg-teal-600 hover:bg-teal-700 text-white'
+                    }`}
+                  >
+                    Chamar Próximo
+                  </button>
+                )}
               </div>
             </motion.div>
           </div>

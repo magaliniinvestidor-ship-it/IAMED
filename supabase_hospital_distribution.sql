@@ -68,3 +68,6 @@ INSERT INTO hospital_locations (id, name, type, capacity, status) VALUES
 ('loc_14', 'Laboratório', 'laboratorio', 3, 'livre'),
 ('loc_15', 'Sala de Cirurgia', 'cirurgia', 1, 'livre')
 ON CONFLICT (id) DO NOTHING;
+
+-- 7. Migration: Adicionar coluna triaged_at na tabela clinical_history
+ALTER TABLE clinical_history ADD COLUMN IF NOT EXISTS triaged_at TIMESTAMPTZ;
