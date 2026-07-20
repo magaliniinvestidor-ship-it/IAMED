@@ -518,6 +518,14 @@ export default function ReceptionModule({
       : selectedDetailPatientId;
     if (!activePatientId || !showLocationDetail) return;
 
+    const pat = patientsRef.current.find(p => p.id === activePatientId);
+    if (pat) {
+      setInternalNotifications(prev => prev.map(n => n.patientName === pat.name && !n.read ? { ...n, read: true } : n));
+      if (supabase) {
+        supabase.from('internal_notifications').update({ read: true }).eq('patient_name', pat.name).eq('read', false).then(() => {}).catch(() => {});
+      }
+    }
+
     let cancelled = false;
 
     const loadData = async () => {
@@ -533,7 +541,6 @@ export default function ReceptionModule({
       }
       if (cancelled) return;
 
-      const pat = patientsRef.current.find(p => p.id === activePatientId);
       const history = clinicalHistory.length > 0 ? clinicalHistory : (pat?.clinicalHistory || []);
 
       // Find the MOST RECENT med entry from any location
@@ -683,23 +690,41 @@ export default function ReceptionModule({
           .eq('active', false)
           .order('assigned_at', { ascending: false })
           .limit(50);
+        const attendedMap = new Map<string, any>();
         if (!completedError && completedAssignments && completedAssignments.length > 0) {
-          const byPatient = new Map<string, any>();
           for (const a of completedAssignments) {
-            const existing = byPatient.get(a.patient_id);
+            const existing = attendedMap.get(a.patient_id);
             if (!existing || new Date(a.assigned_at) > new Date(existing.assigned_at)) {
-              byPatient.set(a.patient_id, a);
+              const foundPatient = patients.find(p => p.id === a.patient_id);
+              attendedMap.set(a.patient_id, {
+                patient: foundPatient || { id: a.patient_id, name: a.patients?.name || 'Paciente', phone: a.patients?.phone || '', email: '', birthdate: '', gender: '', priority: 'normal' as const, status: 'atendido' as const, clinicalHistory: [] } as Patient,
+                locationName: a.hospital_locations?.name || 'Local',
+                completedAt: a.assigned_at,
+              });
             }
           }
-          const attended = Array.from(byPatient.values()).map((a: any) => {
-            const foundPatient = patients.find(p => p.id === a.patient_id);
-            return {
-              patient: foundPatient || { id: a.patient_id, name: a.patients?.name || 'Paciente', phone: a.patients?.phone || '', email: '', birthdate: '', gender: '', priority: 'normal' as const, status: 'atendido' as const, clinicalHistory: [] } as Patient,
-              locationName: a.hospital_locations?.name || 'Local',
-              completedAt: a.assigned_at,
-            };
-          });
-          setAttendedPatients(attended);
+        }
+        // Also include patients with status 'atendido' that have no assignment records
+        const { data: atendidoPatients } = await supabase
+          .from('patients')
+          .select('id, name, phone')
+          .eq('status', 'atendido');
+        if (atendidoPatients && atendidoPatients.length > 0) {
+          for (const p of atendidoPatients) {
+            if (!attendedMap.has(p.id)) {
+              const foundPatient = patients.find(pt => pt.id === p.id);
+              const hist = foundPatient?.clinicalHistory || [];
+              const lastMed = hist.filter((h: any) => h.type === 'Consulta Médica').sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())[0];
+              attendedMap.set(p.id, {
+                patient: foundPatient || { id: p.id, name: p.name || 'Paciente', phone: p.phone || '', email: '', birthdate: '', gender: '', priority: 'normal' as const, status: 'atendido' as const, clinicalHistory: [] } as Patient,
+                locationName: lastMed?.location_name || '—',
+                completedAt: lastMed?.created_at || new Date().toISOString(),
+              });
+            }
+          }
+        }
+        if (attendedMap.size > 0) {
+          setAttendedPatients(Array.from(attendedMap.values()));
         }
       } catch (err) {
         console.error('[SUPABASE] Load hospital data FAILED:', err);
@@ -1653,7 +1678,7 @@ export default function ReceptionModule({
       patientName: redirectPatient.name,
       fromLocation: fromLoc?.name || 'Origem',
       toLocation: targetLoc.name,
-      message: `Paciente ${redirectPatient.name} redirecionado de local anterior para ${targetLoc.name}`,
+      message: `Paciente ${redirectPatient.name} redirecionado para ${targetLoc.name}`,
       read: false,
       createdAt: new Date().toISOString(),
     };
@@ -1738,6 +1763,17 @@ export default function ReceptionModule({
           .order('created_at', { ascending: true });
         if (freshHistory && freshHistory.length > 0) {
           setTimelinePatient(prev => prev ? { ...prev, clinicalHistory: freshHistory as any } : prev);
+          // Fallback: build assignments from clinical_history if no assignments exist
+          if ((!allAssignments || allAssignments.length === 0)) {
+            const meds = freshHistory.filter((h: any) => h.type === 'Consulta Médica' && h.location_name);
+            if (meds.length > 0) {
+              setTimelineAssignments(meds.map((m: any, i: number) => ({
+                locationName: m.location_name,
+                assignedAt: m.created_at || m.date,
+                completedAt: meds[i + 1]?.created_at || null,
+              })));
+            }
+          }
         }
       }
     } catch (err) {
@@ -2889,7 +2925,7 @@ export default function ReceptionModule({
               <div className="space-y-3 max-h-[500px] overflow-y-auto">
                 {attendedPatients.length === 0 ? (
                   <p className="text-sm text-slate-400 text-center py-8">Nenhum atendimento realizado</p>
-                ) : attendedPatients.map((item, idx) => {
+                ) : [...attendedPatients].sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()).map((item, idx) => {
                   const triage = item.patient.clinicalHistory?.find((h: any) => h.type?.includes('Triagem'));
                   const triagedAt = triage?.triaged_at;
                   return (
@@ -3076,7 +3112,7 @@ export default function ReceptionModule({
                 <p className="text-sm text-slate-400 text-center py-8">Nenhuma notificação</p>
               ) : internalNotifications.map(n => (
                 <div key={n.id} className={`border rounded-lg p-3 transition ${
-                  n.read ? 'bg-slate-50 border-slate-200' : 'bg-blue-50 border-blue-200'
+                  n.read ? 'bg-blue-50/40 border-blue-100' : 'bg-blue-100 border-blue-300'
                 }`}>
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-sm font-bold text-slate-800">{n.patientName}</span>
@@ -4024,75 +4060,78 @@ export default function ReceptionModule({
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <button onClick={() => {
-                      const w = window.open('', '_blank');
-                      if (!w) return;
+                    <button onClick={async () => {
+                      const { jsPDF } = await import('jspdf');
+                      const doc = new jsPDF({ unit: 'mm', format: 'a4' });
                       const pat = timelinePatient;
                       const triageEntry = pat.clinicalHistory?.find((h: any) => h.type?.includes('Triagem'));
-                      let html = `<html><head><title></title><style>
-                        body{font-family:Arial,sans-serif;padding:20px;color:#333}
-                        h1{font-size:18px;border-bottom:2px solid #0d9488;padding-bottom:8px}
-                        h2{font-size:14px;color:#0d9488;margin-top:20px}
-                        .section{margin-bottom:12px;padding:10px;border:1px solid #e2e8f0;border-radius:8px}
-                        .label{font-weight:bold;font-size:11px;color:#64748b;text-transform:uppercase}
-                        .value{font-size:13px;margin-top:2px}
-                        .amber{color:#d97706;font-style:italic}
-                        @page{size:A4;margin:15mm}
-                        @media print{body{padding:10px} @page{margin:15mm} @top-left{content:none} @top-right{content:none} @bottom-left{content:none} @bottom-right{content:none}}
-                      </style></head><body>`;
-                      html += `<h1>Prontuário: ${pat.name}</h1>`;
-                      html += `<p style="font-size:12px;color:#64748b">${pat.document_type || 'CI'}: ${pat.document_number || '—'}${pat.blood_type ? ` | Tipo: ${pat.blood_type}` : ''}</p>`;
+                      let y = 20;
+                      const checkPage = (inc: number) => { if (y + inc > 270) { doc.addPage(); y = 20; } };
+                      doc.setFontSize(18);
+                      doc.setFont('helvetica', 'bold');
+                      doc.text(`Prontuario: ${pat.name}`, 15, y); y += 8;
+                      doc.setFontSize(10);
+                      doc.setFont('helvetica', 'normal');
+                      doc.setTextColor(100, 116, 139);
+                      doc.text(`${pat.document_type || 'CI'}: ${pat.document_number || '-'}${pat.blood_type ? ` | Tipo: ${pat.blood_type}` : ''}`, 15, y); y += 10;
+                      doc.setDrawColor(13, 148, 136); doc.setLineWidth(0.5); doc.line(15, y, 195, y); y += 8;
                       if (triageEntry) {
-                        html += `<div class="section"><h2>📍 Triagem</h2>`;
-                        if (triageEntry.triaged_at) html += `<p class="label">Data:</p><p class="value">${new Date(triageEntry.triaged_at).toLocaleString('pt-BR')}</p>`;
+                        doc.setTextColor(13, 148, 136); doc.setFontSize(12); doc.setFont('helvetica', 'bold');
+                        doc.text('Triagem', 15, y); y += 6;
+                        doc.setTextColor(100, 116, 139); doc.setFontSize(9); doc.setFont('helvetica', 'normal');
+                        if (triageEntry.triaged_at) { doc.text(`Data: ${new Date(triageEntry.triaged_at).toLocaleString('pt-BR')}`, 15, y); y += 5; }
                         if (triageEntry.vital_signs) {
                           const vs = triageEntry.vital_signs;
-                          html += `<p class="label">Sinais Vitais:</p><p class="value">`;
-                          if (vs.bp) html += `PA: ${vs.bp} | `;
-                          if (vs.temp) html += `Temp: ${vs.temp}°C | `;
-                          if (vs.spo2) html += `SpO2: ${vs.spo2}% | `;
-                          if (vs.hr) html += `FC: ${vs.hr} BPM | `;
-                          if (vs.rr) html += `FR: ${vs.rr} IRPM`;
-                          html += `</p>`;
+                          let vitals = '';
+                          if (vs.bp) vitals += `PA: ${vs.bp}  `;
+                          if (vs.temp) vitals += `Temp: ${vs.temp}C  `;
+                          if (vs.spo2) vitals += `SpO2: ${vs.spo2}%  `;
+                          if (vs.hr) vitals += `FC: ${vs.hr} BPM  `;
+                          if (vs.rr) vitals += `FR: ${vs.rr} IRPM`;
+                          doc.text(vitals, 15, y); y += 5;
                         }
-                        html += `</div>`;
+                        y += 4;
                       }
                       const usedMedIdsPdf = new Set<string>();
+                      const allMedsPdf = (pat.clinicalHistory || [])
+                        .filter((h: any) => h.type === 'Consulta Médica')
+                        .sort((a: any, b: any) => new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime());
                       timelineAssignments.forEach(a => {
-                        const assignmentDate = new Date(a.assignedAt).toISOString().split('T')[0];
-                        const locationMeds = (pat.clinicalHistory || [])
-                          .filter((h: any) => h.type === 'Consulta Médica' && h.location_name === a.locationName && !usedMedIdsPdf.has(h.id))
-                          .sort((a: any, b: any) => new Date(a.date || 0).getTime() - new Date(b.date || 0).getTime());
-                        const med = locationMeds.find((h: any) => h.date === assignmentDate) || locationMeds[0] || null;
+                        const locationMeds = allMedsPdf.filter((h: any) => h.location_name === a.locationName && !usedMedIdsPdf.has(h.id));
+                        const med = locationMeds[0] || null;
                         if (med) usedMedIdsPdf.add(med.id);
-                        html += `<div class="section"><h2>🏥 ${a.locationName}</h2>`;
-                        html += `<p class="label">Entrada:</p><p class="value">${new Date(a.assignedAt).toLocaleString('pt-BR')}</p>`;
-                        html += `<p class="label">Saída:</p><p class="value">${a.completedAt ? new Date(a.completedAt).toLocaleString('pt-BR') : 'Em andamento'}</p>`;
+                        checkPage(30);
+                        doc.setDrawColor(226, 232, 240); doc.setFillColor(248, 250, 252);
+                        doc.roundedRect(15, y - 4, 180, med ? 38 : 14, 2, 2, 'FD');
+                        doc.setTextColor(13, 148, 136); doc.setFontSize(11); doc.setFont('helvetica', 'bold');
+                        doc.text(a.locationName, 19, y + 2); y += 8;
+                        doc.setTextColor(100, 116, 139); doc.setFontSize(8); doc.setFont('helvetica', 'normal');
+                        doc.text(`Entrada: ${new Date(a.assignedAt).toLocaleString('pt-BR')}`, 19, y); y += 4;
+                        doc.text(`Saida: ${a.completedAt ? new Date(a.completedAt).toLocaleString('pt-BR') : new Date(a.assignedAt).toLocaleString('pt-BR')}`, 19, y); y += 5;
                         if (med) {
-                          if (med.triage_edits) {
-                            html += `<p class="amber">• Triagem editada — Motivo: ${med.triage_edits.diagnosis || ''}</p>`;
-                            if (med.triage_edits.vital_signs) {
-                              const te = med.triage_edits.vital_signs;
-                              html += `<p class="amber" style="margin-left:12px">PA: ${te.bp || ''} | Temp: ${te.temp || ''}°C | SpO2: ${te.spo2 || ''}% | FC: ${te.hr || ''} BPM | FR: ${te.rr || ''} IRPM</p>`;
-                            }
-                          }
-                          if (med.diagnosis) html += `<p>• <strong>DIAGNÓSTICO:</strong> ${med.diagnosis}</p>`;
-                          if (med.cid10 && med.cid10 !== 'Z00.0') html += `<p>• <strong>CID-10:</strong> ${med.cid10}</p>`;
-                          if (med.prescriptions && med.prescriptions.length > 0) html += `<p>• <strong>PRESCRIÇÃO:</strong> ${med.prescriptions.join(', ')}</p>`;
-                          if (med.notes) html += `<p>• <strong>OBSERVAÇÕES:</strong> ${med.notes}</p>`;
+                          doc.setFontSize(8); doc.setTextColor(51, 65, 85);
+                          if (med.diagnosis) { doc.setFont('helvetica', 'bold'); doc.text('DIAGNOSTICO: ', 19, y); doc.setFont('helvetica', 'normal'); doc.text(med.diagnosis, 52, y); y += 4; }
+                          if (med.cid10 && med.cid10 !== 'Z00.0') { doc.setFont('helvetica', 'bold'); doc.text('CID-10: ', 19, y); doc.setFont('helvetica', 'normal'); doc.text(med.cid10, 40, y); y += 4; }
+                          if (med.prescriptions && med.prescriptions.length > 0) { doc.setFont('helvetica', 'bold'); doc.text('PRESCRICAO: ', 19, y); doc.setFont('helvetica', 'normal'); doc.text(med.prescriptions.join(', '), 52, y); y += 4; }
+                          if (med.notes) { doc.setFont('helvetica', 'bold'); doc.text('OBSERVACOES: ', 19, y); doc.setFont('helvetica', 'normal'); doc.text(med.notes, 54, y); y += 4; }
                         }
-                        html += `</div>`;
+                        y += 4;
                       });
-                      html += `<p style="text-align:center;margin-top:20px;font-size:11px;color:#94a3b8">Atendimento Concluído — ${new Date().toLocaleString('pt-BR')}</p>`;
-                      html += `</body></html>`;
-                      w.document.write(html);
-                      w.document.close();
-                      w.print();
+                      const lastAssignmentPdf = timelineAssignments[timelineAssignments.length - 1];
+                      const completedTimePdf = lastAssignmentPdf?.completedAt || lastAssignmentPdf?.assignedAt || new Date().toISOString();
+                      y += 4; checkPage(10);
+                      doc.setTextColor(148, 163, 184); doc.setFontSize(9); doc.setFont('helvetica', 'normal');
+                      doc.text(`Atendimento Concluido - ${new Date(completedTimePdf).toLocaleString('pt-BR')}`, 105, y, { align: 'center' });
+                      doc.save(`Prontuario_${pat.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`);
                     }} className="text-slate-400 hover:text-teal-600 cursor-pointer" title="Exportar PDF">
-                      <FileText className="w-5 h-5" />
+                      <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                        <polyline points="14 2 14 8 20 8" stroke="#ef4444" />
+                        <text x="12" y="18" textAnchor="middle" fontSize="6" fontWeight="bold" fill="#ef4444" stroke="none">PDF</text>
+                      </svg>
                     </button>
-                    <button onClick={() => { setShowTimelineModal(false); setTimelinePatient(null); setTimelineAssignments([]); }} className="text-slate-400 hover:text-slate-600 cursor-pointer">
-                      <X className="w-5 h-5" />
+                    <button onClick={() => { setShowTimelineModal(false); setTimelinePatient(null); setTimelineAssignments([]); }} className="w-8 h-8 flex items-center justify-center border-2 border-blue-500 rounded-lg text-blue-500 hover:bg-blue-50 cursor-pointer ml-2">
+                      <X className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
@@ -4141,13 +4180,13 @@ export default function ReceptionModule({
                     {/* Location Assignments with Medical Data */}
                     {(() => {
                       const usedMedIds = new Set<string>();
+                      const allMeds = (timelinePatient.clinicalHistory || [])
+                        .filter((h: any) => h.type === 'Consulta Médica')
+                        .sort((a: any, b: any) => new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime());
                       return timelineAssignments.map((assignment, idx) => {
-                        const assignmentDate = new Date(assignment.assignedAt).toISOString().split('T')[0];
-                        const locationMeds = (timelinePatient.clinicalHistory || [])
-                          .filter((h: any) => h.type === 'Consulta Médica' && h.location_name === assignment.locationName && !usedMedIds.has(h.id))
-                          .sort((a: any, b: any) => new Date(a.date || 0).getTime() - new Date(b.date || 0).getTime());
-                        const locationMed = locationMeds.find((h: any) => h.date === assignmentDate) || locationMeds[0] || null;
-                        if (locationMed) usedMedIds.add(locationMed.id);
+                        const locationMeds = allMeds.filter((h: any) => h.location_name === assignment.locationName && !usedMedIds.has(h.id));
+                        const med = locationMeds[0] || null;
+                        if (med) usedMedIds.add(med.id);
                         return (
                       <div key={idx} className="flex gap-3">
                         <div className="flex flex-col items-center">
@@ -4166,35 +4205,35 @@ export default function ReceptionModule({
                           ) : (
                             <p className="text-[10px] text-amber-500 font-semibold">Em andamento</p>
                           )}
-                          {locationMed && (
+                          {med && (
                             <div className="mt-1.5 text-[10px] text-slate-500 space-y-0.5 border-l-2 border-blue-200 pl-2">
-                              {locationMed.triage_edits && (
+                              {med.triage_edits && (
                                 <div className="mb-1">
-                                  {locationMed.triage_edits.diagnosis && (
-                                    <p>• <span className="font-semibold text-amber-600">Triagem editada — Motivo:</span> {locationMed.triage_edits.diagnosis}</p>
+                                  {med.triage_edits.diagnosis && (
+                                    <p>• <span className="font-semibold text-amber-600">Triagem editada — Motivo:</span> {med.triage_edits.diagnosis}</p>
                                   )}
-                                  {locationMed.triage_edits.vital_signs && (
+                                  {med.triage_edits.vital_signs && (
                                     <div className="ml-2 space-y-0.5">
-                                      {locationMed.triage_edits.vital_signs.bp && <p className="text-amber-600">PA: {locationMed.triage_edits.vital_signs.bp}</p>}
-                                      {locationMed.triage_edits.vital_signs.temp && <p className="text-amber-600">Temp: {locationMed.triage_edits.vital_signs.temp}°C</p>}
-                                      {locationMed.triage_edits.vital_signs.spo2 && <p className="text-amber-600">SpO2: {locationMed.triage_edits.vital_signs.spo2}%</p>}
-                                      {locationMed.triage_edits.vital_signs.hr && <p className="text-amber-600">FC: {locationMed.triage_edits.vital_signs.hr} BPM</p>}
-                                      {locationMed.triage_edits.vital_signs.rr && <p className="text-amber-600">FR: {locationMed.triage_edits.vital_signs.rr} IRPM</p>}
+                                      {med.triage_edits.vital_signs.bp && <p className="text-amber-600">PA: {med.triage_edits.vital_signs.bp}</p>}
+                                      {med.triage_edits.vital_signs.temp && <p className="text-amber-600">Temp: {med.triage_edits.vital_signs.temp}°C</p>}
+                                      {med.triage_edits.vital_signs.spo2 && <p className="text-amber-600">SpO2: {med.triage_edits.vital_signs.spo2}%</p>}
+                                      {med.triage_edits.vital_signs.hr && <p className="text-amber-600">FC: {med.triage_edits.vital_signs.hr} BPM</p>}
+                                      {med.triage_edits.vital_signs.rr && <p className="text-amber-600">FR: {med.triage_edits.vital_signs.rr} IRPM</p>}
                                     </div>
                                   )}
                                 </div>
                               )}
-                              {locationMed.diagnosis && (
-                                <p>• <span className="font-semibold">DIAGNÓSTICO:</span> {locationMed.diagnosis}</p>
+                              {med.diagnosis && (
+                                <p>• <span className="font-semibold">DIAGNÓSTICO:</span> {med.diagnosis}</p>
                               )}
-                              {locationMed.cid10 && locationMed.cid10 !== 'Z00.0' && (
-                                <p>• <span className="font-semibold">CID-10:</span> {locationMed.cid10}</p>
+                              {med.cid10 && med.cid10 !== 'Z00.0' && (
+                                <p>• <span className="font-semibold">CID-10:</span> {med.cid10}</p>
                               )}
-                              {locationMed.prescriptions && locationMed.prescriptions.length > 0 && locationMed.prescriptions[0] !== 'Nenhum procedimento preliminar' && (
-                                <p>• <span className="font-semibold">PRESCRIÇÃO:</span> {locationMed.prescriptions.join(', ')}</p>
+                              {med.prescriptions && med.prescriptions.length > 0 && med.prescriptions[0] !== 'Nenhum procedimento preliminar' && (
+                                <p>• <span className="font-semibold">PRESCRIÇÃO:</span> {med.prescriptions.join(', ')}</p>
                               )}
-                              {locationMed.notes && locationMed.notes !== 'Triagem realizada sem observações adicionais.' && (
-                                <p>• <span className="font-semibold">OBSERVAÇÕES MÉDICAS:</span> {locationMed.notes}</p>
+                              {med.notes && med.notes !== 'Triagem realizada sem observações adicionais.' && (
+                                <p>• <span className="font-semibold">OBSERVAÇÕES MÉDICAS:</span> {med.notes}</p>
                               )}
                             </div>
                           )}
@@ -4244,9 +4283,11 @@ export default function ReceptionModule({
                       <div>
                         <p className="text-xs font-bold text-green-700">✅ Atendimento Concluído</p>
                         <p className="text-[10px] text-slate-400">
-                          {timelineAssignments.length > 0 && timelineAssignments[timelineAssignments.length - 1].completedAt
-                            ? new Date(timelineAssignments[timelineAssignments.length - 1].completedAt!).toLocaleString('pt-BR')
-                            : '—'}
+                          {(() => {
+                            const lastAssignment = timelineAssignments[timelineAssignments.length - 1];
+                            const completedTime = lastAssignment?.completedAt || lastAssignment?.assignedAt;
+                            return completedTime ? new Date(completedTime).toLocaleString('pt-BR') : '—';
+                          })()}
                         </p>
                       </div>
                     </div>
