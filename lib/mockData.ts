@@ -27,6 +27,17 @@ export interface ClinicalHistoryEntry {
     url?: string;
   }[];
   triaged_at?: string;
+  location_name?: string;
+  triage_edits?: {
+    diagnosis?: string | null;
+    vital_signs?: {
+      bp?: string | null;
+      temp?: string | null;
+      spo2?: string | null;
+      hr?: string | null;
+      rr?: string | null;
+    };
+  } | null;
 }
 
 // ==========================================

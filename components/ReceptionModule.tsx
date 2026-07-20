@@ -103,6 +103,11 @@ export default function ReceptionModule({
   const locCounterRef = useRef(0);
   const hisCounterRef = useRef(0);
   const hisMedCounterRef = useRef(0);
+  const patientsRef = useRef(patients);
+  const pendingMedDataRef = useRef<any>(null);
+
+  // Keep patientsRef in sync with latest patients prop
+  useEffect(() => { patientsRef.current = patients; });
 
   // --- Validation & Alerts (derived state) ---
   const calculatedDV = useMemo(() => {
@@ -276,19 +281,30 @@ export default function ReceptionModule({
   const [redirectPatient, setRedirectPatient] = useState<Patient | null>(null);
   const [redirectTargetLocation, setRedirectTargetLocation] = useState('');
   const [showRedirectModal, setShowRedirectModal] = useState(false);
-  const [triageTab, setTriageTab] = useState<'aguardando' | 'atendidos'>('aguardando');
+  const [triageTab, setTriageTab] = useState<'aguardando' | 'em_atendimento' | 'atendidos'>('aguardando');
   const [attendedPatients, setAttendedPatients] = useState<{ patient: Patient; locationName: string; completedAt: string }[]>([]);
   const [patientNameMap, setPatientNameMap] = useState<Record<string, string>>({});
   const [selectedLocation, setSelectedLocation] = useState<HospitalLocation | null>(null);
   const [selectedDetailPatientId, setSelectedDetailPatientId] = useState<string | null>(null);
   const [showLocationDetail, setShowLocationDetail] = useState(false);
   
+  // Patient Timeline Modal states
+  const [showTimelineModal, setShowTimelineModal] = useState(false);
+  const [timelinePatient, setTimelinePatient] = useState<Patient | null>(null);
+  const [timelineAssignments, setTimelineAssignments] = useState<{ locationName: string; assignedAt: string; completedAt: string | null }[]>([]);
+  const [timelineLoading, setTimelineLoading] = useState(false);
+  
   // Medical consultation fields (for consultório modal)
   const [medDiagnosis, setMedDiagnosis] = useState('');
   const [medCid10, setMedCid10] = useState('');
   const [medPrescription, setMedPrescription] = useState('');
   const [medNotes, setMedNotes] = useState('');
+  const [prevMedDiagnosis, setPrevMedDiagnosis] = useState('');
+  const [prevMedCid10, setPrevMedCid10] = useState('');
+  const [prevMedPrescription, setPrevMedPrescription] = useState('');
+  const [prevMedNotes, setPrevMedNotes] = useState('');
   const [isEditingTriage, setIsEditingTriage] = useState(false);
+  const [hasTriageEdits, setHasTriageEdits] = useState(false);
   const [editTriageReason, setEditTriageReason] = useState('');
   const [editTriageBP, setEditTriageBP] = useState('');
   const [editTriageTemp, setEditTriageTemp] = useState('');
@@ -501,23 +517,79 @@ export default function ReceptionModule({
       ? selectedLocation.currentPatients[0]
       : selectedDetailPatientId;
     if (!activePatientId || !showLocationDetail) return;
-    const pat = patients.find(p => p.id === activePatientId);
-    if (!pat) return;
-    const existing = pat.clinicalHistory?.find((h: any) => h.type === 'Consulta Médica');
-    if (existing) {
-      setMedDiagnosis(existing.diagnosis || '');
-      setMedCid10(existing.cid10 || '');
-      setMedPrescription(existing.prescriptions?.join?.('\n') || (Array.isArray(existing.prescriptions) ? existing.prescriptions.join('\n') : ''));
-      setMedNotes(existing.notes || '');
-    } else {
+
+    let cancelled = false;
+
+    const loadData = async () => {
+      // Always fetch fresh clinical history from Supabase
+      let clinicalHistory: any[] = [];
+      if (supabase) {
+        const { data } = await supabase
+          .from('clinical_history')
+          .select('*')
+          .eq('patient_id', activePatientId)
+          .order('created_at', { ascending: true });
+        if (data) clinicalHistory = data;
+      }
+      if (cancelled) return;
+
+      const pat = patientsRef.current.find(p => p.id === activePatientId);
+      const history = clinicalHistory.length > 0 ? clinicalHistory : (pat?.clinicalHistory || []);
+
+      // Find the MOST RECENT med entry from any location
+      const allMeds = history.filter((h: any) => h.type === 'Consulta Médica');
+      const sortedMeds = [...allMeds].sort((a: any, b: any) => {
+        const dateA = new Date(a.created_at || a.date || 0).getTime();
+        const dateB = new Date(b.created_at || b.date || 0).getTime();
+        return dateB - dateA;
+      });
+      const mostRecentMed = sortedMeds.length > 0 ? sortedMeds[0] : null;
+
+      if (mostRecentMed) {
+        const rx = mostRecentMed.prescriptions?.join?.('\n') || (Array.isArray(mostRecentMed.prescriptions) ? mostRecentMed.prescriptions.join('\n') : '');
+        setPrevMedDiagnosis(mostRecentMed.diagnosis || '');
+        setPrevMedCid10(mostRecentMed.cid10 || '');
+        setPrevMedPrescription(rx);
+        setPrevMedNotes(mostRecentMed.notes || '');
+      } else {
+        setPrevMedDiagnosis('');
+        setPrevMedCid10('');
+        setPrevMedPrescription('');
+        setPrevMedNotes('');
+      }
+
+      // Always open with empty fields for new data
       setMedDiagnosis('');
       setMedCid10('');
       setMedPrescription('');
       setMedNotes('');
-    }
-    setIsEditingTriage(false);
+
+      // Load triage edits
+      if (mostRecentMed?.triage_edits) {
+        const te = mostRecentMed.triage_edits;
+        setEditTriageReason(te.diagnosis || '');
+        setEditTriageBP(te.vital_signs?.bp || '');
+        setEditTriageTemp(te.vital_signs?.temp || '');
+        setEditTriageSpo2(te.vital_signs?.spo2 || '');
+        setEditTriageHR(te.vital_signs?.hr || '');
+        setEditTriageRR(te.vital_signs?.rr || '');
+      } else {
+        const triage = history.find((h: any) => h.type?.includes('Triagem'));
+        setEditTriageReason(triage?.diagnosis || '');
+        setEditTriageBP(triage?.vital_signs?.bp || '');
+        setEditTriageTemp(triage?.vital_signs?.temp || '');
+        setEditTriageSpo2(triage?.vital_signs?.spo2 || '');
+        setEditTriageHR(triage?.vital_signs?.hr || '');
+        setEditTriageRR(triage?.vital_signs?.rr || '');
+      }
+      setIsEditingTriage(false);
+      setHasTriageEdits(!!mostRecentMed?.triage_edits);
+    };
+
+    loadData();
+    return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showLocationDetail, selectedDetailPatientId, selectedLocation?.currentPatients]);
+  }, [showLocationDetail, selectedDetailPatientId, selectedLocation?.currentPatients, selectedLocation?.name]);
 
   // --- Load Hospital Data from Supabase on Mount ---
   useEffect(() => {
@@ -612,7 +684,14 @@ export default function ReceptionModule({
           .order('assigned_at', { ascending: false })
           .limit(50);
         if (!completedError && completedAssignments && completedAssignments.length > 0) {
-          const attended = completedAssignments.map((a: any) => {
+          const byPatient = new Map<string, any>();
+          for (const a of completedAssignments) {
+            const existing = byPatient.get(a.patient_id);
+            if (!existing || new Date(a.assigned_at) > new Date(existing.assigned_at)) {
+              byPatient.set(a.patient_id, a);
+            }
+          }
+          const attended = Array.from(byPatient.values()).map((a: any) => {
             const foundPatient = patients.find(p => p.id === a.patient_id);
             return {
               patient: foundPatient || { id: a.patient_id, name: a.patients?.name || 'Paciente', phone: a.patients?.phone || '', email: '', birthdate: '', gender: '', priority: 'normal' as const, status: 'atendido' as const, clinicalHistory: [] } as Patient,
@@ -1529,7 +1608,7 @@ export default function ReceptionModule({
     }
     if (supabase) {
       try {
-        await supabase.from('patient_location_assignments').update({ active: false }).eq('patient_id', patientId).eq('location_id', locId).eq('active', true);
+        await supabase.from('patient_location_assignments').update({ active: false, completed_at: new Date().toISOString() }).eq('patient_id', patientId).eq('location_id', locId).eq('active', true);
         const newStatus = remaining.length > 0 ? 'ocupado' : 'livre';
         await supabase.from('hospital_locations').update({ status: newStatus }).eq('id', locId);
       } catch (err) {
@@ -1545,6 +1624,20 @@ export default function ReceptionModule({
     if (targetLoc.currentPatients.length >= targetLoc.capacity) {
       alert('Este local está com capacidade máxima.');
       return;
+    }
+    // Save med data for current location before redirecting
+    if (pendingMedDataRef.current && supabase) {
+      try {
+        const { pid, medData } = pendingMedDataRef.current;
+        const medEntry = { id: `his_med_${++hisMedCounterRef.current}`, date: new Date().toISOString().split('T')[0], created_at: new Date().toISOString(), type: 'Consulta Médica', ...medData };
+        const { error } = await supabase.from('clinical_history').insert({ ...medEntry, patient_id: pid });
+        if (!error) {
+          setPatients(prev => prev.map(p => p.id === pid ? { ...p, clinicalHistory: [{ ...medEntry, patient_id: pid } as any, ...(p.clinicalHistory || [])] } : p));
+        }
+      } catch (err) {
+        console.error('[SUPABASE] SAVE med before redirect FAILED:', err);
+      }
+      pendingMedDataRef.current = null;
     }
     const fromLoc = hospitalLocations.find(l => l.currentPatients.includes(redirectPatient.id));
     setHospitalLocations(prev => prev.map(l => {
@@ -1568,7 +1661,7 @@ export default function ReceptionModule({
     if (supabase) {
       try {
         if (fromLoc) {
-          await supabase.from('patient_location_assignments').update({ active: false }).eq('patient_id', redirectPatient.id).eq('location_id', fromLoc.id).eq('active', true);
+          await supabase.from('patient_location_assignments').update({ active: false, completed_at: new Date().toISOString() }).eq('patient_id', redirectPatient.id).eq('location_id', fromLoc.id).eq('active', true);
           const fromRemaining = fromLoc.currentPatients.filter(pid => pid !== redirectPatient.id);
           await supabase.from('hospital_locations').update({ status: fromRemaining.length > 0 ? 'ocupado' : 'livre' }).eq('id', fromLoc.id);
         }
@@ -1600,11 +1693,60 @@ export default function ReceptionModule({
     (p.status === 'atendimento' || (p.status === 'atendido' && !attendedPatients.some(a => a.patient.id === p.id))) && 
     !hospitalLocations.some(l => l.currentPatients.includes(p.id))
   ).sort((a, b) => {
-    const aTime = a.clinicalHistory?.[0]?.triaged_at || '';
-    const bTime = b.clinicalHistory?.[0]?.triaged_at || '';
+    const aTime = a.clinicalHistory?.find((h: any) => h.type?.includes('Triagem'))?.triaged_at || '';
+    const bTime = b.clinicalHistory?.find((h: any) => h.type?.includes('Triagem'))?.triaged_at || '';
     return aTime.localeCompare(bTime);
   });
   const patientsInLocations = hospitalLocations.filter(l => l.currentPatients.length > 0);
+  const patientsInTreatment = useMemo(() => {
+    const result: { patient: Patient; locationName: string; locationId: string }[] = [];
+    for (const loc of hospitalLocations) {
+      for (const patientId of loc.currentPatients) {
+        const patient = patients.find(p => p.id === patientId);
+        if (patient) {
+          result.push({ patient, locationName: loc.name, locationId: loc.id });
+        }
+      }
+    }
+    return result;
+  }, [hospitalLocations, patients]);
+
+  const handleOpenTimeline = async (patient: Patient) => {
+    const freshPatient = patientsRef.current.find(p => p.id === patient.id) || patient;
+    setTimelinePatient(freshPatient);
+    setShowTimelineModal(true);
+    setTimelineLoading(true);
+    setTimelineAssignments([]);
+    try {
+      if (supabase) {
+        const { data: allAssignments } = await supabase
+          .from('patient_location_assignments')
+          .select('*, hospital_locations!inner(name)')
+          .eq('patient_id', patient.id)
+          .order('assigned_at', { ascending: true });
+        if (allAssignments && allAssignments.length > 0) {
+          setTimelineAssignments(allAssignments.map((a: any) => ({
+            locationName: a.hospital_locations?.name || 'Local',
+            assignedAt: a.assigned_at,
+            completedAt: a.completed_at || null,
+          })));
+        }
+        const { data: freshHistory } = await supabase
+          .from('clinical_history')
+          .select('*')
+          .eq('patient_id', patient.id)
+          .order('created_at', { ascending: true });
+        if (freshHistory && freshHistory.length > 0) {
+          setTimelinePatient(prev => prev ? { ...prev, clinicalHistory: freshHistory as any } : prev);
+        }
+      }
+    } catch (err) {
+      console.error('[SUPABASE] Load timeline FAILED:', err);
+    } finally {
+      setTimelineLoading(false);
+    }
+  };
+
   const unreadNotifications = internalNotifications.filter(n => !n.read);
 
   const filteredPatients = patients.filter(p => {
@@ -2427,74 +2569,58 @@ export default function ReceptionModule({
                 </div>
               ) : (
                 filteredPatients.map(p => {
-                  // Approximate age from birthdate
                   const pAge = p.birthdate ? new Date().getFullYear() - new Date(p.birthdate).getFullYear() : 30;
                   const pIsMinor = pAge < 18;
                   
                   return (
-                    <div key={p.id} data-testid={`patient-card-${p.id}`} className="p-4 bg-slate-50 hover:bg-slate-100/70 border border-slate-200/80 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-4 transition text-sm">
-                      <div className="flex items-start gap-3">
-                        <div className="w-12 h-12 rounded-lg border border-slate-200 bg-white overflow-hidden flex items-center justify-center shrink-0 shadow-xs">
-                          {p.photo_url ? (
-                            <img src={p.photo_url} className="w-full h-full object-cover" alt="Profile" />
-                          ) : (
-                            <User className="w-6 h-6 text-slate-300" />
+                    <div key={p.id} data-testid={`patient-card-${p.id}`} className="p-4 bg-white hover:shadow-md border border-slate-200/80 rounded-2xl flex flex-col md:flex-row md:items-start justify-between gap-4 transition-all duration-200 text-sm shadow-sm">
+                      <div className="flex-1 flex flex-col gap-2.5">
+                        {p.priority === 'emergência' && (
+                          <span className="self-start px-3 py-1 bg-rose-100 text-rose-800 text-[11px] font-black uppercase rounded-lg border border-rose-200 animate-pulse flex items-center gap-1">
+                            🚨 Emergência
+                          </span>
+                        )}
+                        {p.priority === 'preferencial' && (
+                          <span className="self-start px-3 py-1 bg-amber-50 text-amber-700 text-[11px] font-black uppercase rounded-lg border border-amber-200 flex items-center gap-1.5 shadow-sm">
+                            <span className="text-amber-500">⭐</span> PREFERENCIAL
+                          </span>
+                        )}
+                        {p.priority === 'normal' && (
+                          <span className="self-start px-3 py-1 bg-slate-100 text-slate-600 text-[11px] font-bold uppercase rounded-lg border border-slate-200">
+                            Normal
+                          </span>
+                        )}
+                        {pIsMinor && (
+                          <span className="self-start px-3 py-1 bg-indigo-50 text-indigo-700 text-[11px] font-bold uppercase rounded-lg border border-indigo-200">
+                            Menor
+                          </span>
+                        )}
+                        
+                        <div className="text-[12px] text-slate-700 space-y-0.5 leading-relaxed">
+                          <p><span className="text-slate-500 font-medium">Nome Completo:</span> <span className="font-bold text-slate-800">{p.name}</span></p>
+                          <p><span className="text-slate-500 font-medium">Data Nascimento:</span> <span className="font-semibold">{p.birthdate ? new Date(p.birthdate).toLocaleDateString('pt-BR') : '—'} {pAge ? `(${pAge} anos)` : ''}</span></p>
+                          <p><span className="text-slate-500 font-medium">Sexo/Gênero:</span> <span className="font-semibold">{p.gender || '—'}</span></p>
+                          <p><span className="text-slate-500 font-medium">Celular:</span> <span className="font-semibold">{p.phone}</span> {p.whatsapp_verified && <span className="text-green-600 font-bold text-[10px]">WA</span>}</p>
+                          {p.blood_type && p.blood_type !== 'Não Informado' && (
+                            <p><span className="text-slate-500 font-medium">Tipo Sanguíneo:</span> <span className="font-bold text-rose-600">{p.blood_type}</span></p>
                           )}
-                        </div>
-                        <div className="space-y-1">
-                          <div className="flex items-center flex-wrap gap-2">
-                            <span className="font-bold text-slate-800 text-sm leading-tight">{p.name}</span>
-                            {p.priority === 'emergência' && (
-                              <span className="px-1.5 py-0.5 bg-rose-100 text-rose-800 text-[9px] font-black uppercase rounded border border-rose-200 animate-pulse">
-                                🚨 Emergência
-                              </span>
-                            )}
-                            {p.priority === 'preferencial' && (
-                              <span className="px-1.5 py-0.5 bg-amber-100 text-amber-800 text-[9px] font-black uppercase rounded border border-amber-200">
-                                ⭐ Preferencial
-                              </span>
-                            )}
-                            {p.priority === 'normal' && (
-                              <span className="px-1.5 py-0.5 bg-slate-200 text-slate-700 text-[9px] font-semibold rounded">
-                                Normal
-                              </span>
-                            )}
-                            {pIsMinor && (
-                              <span className="px-1.5 py-0.5 bg-indigo-50 text-indigo-700 text-[9px] font-bold rounded border border-indigo-100">
-                                Menor
-                              </span>
-                            )}
-                          </div>
-                          
-                          <div className="text-[11px] text-slate-500 flex flex-wrap gap-x-3 gap-y-1">
-                            <span>🎂 {p.birthdate} ({pAge} anos)</span>
-                            {p.document_number && (
-                              <span>🪪 {p.document_type || 'CI'}: {p.document_number}</span>
-                            )}
-                            <span>📞 {p.phone} {p.whatsapp_verified && '🟢 WA'}</span>
-                            {p.blood_type && (
-                              <span>🩸 Tipo: <span className="font-bold text-rose-600">{p.blood_type}</span></span>
-                            )}
-                          </div>
-
-                          {p.address_city && (
-                            <div className="text-[10px] text-slate-400">
-                              📍 {p.address_street}, {p.address_number} - {p.address_neighborhood}, {p.address_city} ({p.address_department})
-                            </div>
+                          {p.preferred_language && (
+                            <p><span className="text-slate-500 font-medium">Idioma Pref.:</span> <span className="font-semibold">{p.preferred_language === 'es' ? 'Espanhol' : p.preferred_language === 'gn' ? 'Guarani' : p.preferred_language === 'pt' ? 'Português' : p.preferred_language === 'en' ? 'Inglês' : p.preferred_language}</span></p>
                           )}
-
+                          {p.allergies && (
+                            <p><span className="text-slate-500 font-medium">Alergias / Antecedentes Clínicos:</span> <span className="font-semibold">{p.allergies}</span></p>
+                          )}
+                          {p.health_insurance_type && (
+                            <p><span className="text-slate-500 font-medium">Seguro / Convênio:</span> <span className="font-semibold">{p.health_insurance_type === 'Particular' ? 'Particular' : p.health_insurance_type === 'IPS' ? 'IPS (Segurado)' : p.health_insurance_type === 'Sanidade Militar' ? 'Sanidade Militar' : p.health_insurance_type === 'Sanidade Policial' ? 'Sanidade Policial' : p.health_insurance_type === 'Pré-paga' ? 'Pré-paga / Privado' : p.health_insurance_type === 'Seguro Privado' ? 'Seguro Internacional' : p.health_insurance_type}</span></p>
+                          )}
                           {pIsMinor && p.guardian_name && (
-                            <div className="text-[10px] bg-indigo-50/50 text-indigo-900 px-2 py-0.5 rounded border border-indigo-100/30 w-fit">
-                              👤 Responsável: <span className="font-semibold">{p.guardian_name} ({p.guardian_relationship})</span> - Doc: {p.guardian_document}
-                            </div>
+                            <p><span className="text-slate-500 font-medium">Responsável:</span> <span className="font-semibold">{p.guardian_name} ({p.guardian_relationship})</span></p>
                           )}
                         </div>
-                      </div>
 
-                      <div className="flex items-center gap-2 self-end md:self-auto">
                         {p.status === 'aguardando' && (
-                          <>
-                            <span className="text-xs font-bold px-2.5 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-full flex items-center gap-1">
+                          <div className="flex items-center gap-2 mt-1 pt-1">
+                            <span className="text-[11px] font-bold px-2.5 py-1 bg-amber-50 text-amber-600 border border-amber-200 rounded-full flex items-center gap-1">
                               <Clock className="w-3" /> Aguardando Triagem
                             </span>
                             <button
@@ -2519,71 +2645,97 @@ export default function ReceptionModule({
                                 setShowTriageModal(true);
                               }}
                               data-testid="attend"
-                              className="bg-teal-600 hover:bg-teal-700 text-white text-xs px-3 py-1.5 rounded-lg font-bold shadow-xs transition cursor-pointer flex items-center gap-1"
+                              className="bg-teal-600 hover:bg-teal-700 text-white text-[11px] px-3 py-1.5 rounded-lg font-bold shadow-sm transition cursor-pointer flex items-center gap-1"
                             >
                               <HeartPulse className="w-3.5 h-3.5 text-white animate-pulse" />
                               Realizar Triagem
                             </button>
-                            <button
-                              onClick={() => handleEditPatient(p)}
-                              data-testid="edit-patient"
-                              className="bg-blue-500 hover:bg-blue-600 text-white text-xs px-2.5 py-1.5 rounded-lg font-semibold shadow-xs transition cursor-pointer flex items-center gap-1"
-                              title="Editar Paciente"
-                            >
-                              <Pencil className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => handleDeletePatient(p.id, p.name)}
-                              data-testid="delete-patient"
-                              className="bg-red-500 hover:bg-red-600 text-white text-xs px-2.5 py-1.5 rounded-lg font-semibold shadow-xs transition cursor-pointer flex items-center gap-1"
-                              title="Excluir Paciente"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </>
+                          </div>
                         )}
 
                         {p.status === 'triado' && (
-                          <>
-                            <span className="text-xs font-bold px-2.5 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-full flex items-center gap-1">
+                          <div className="flex items-center gap-2 mt-1 pt-1">
+                            <span className="text-[11px] font-bold px-2.5 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-full flex items-center gap-1">
                               <Clock className="w-3" /> Triado — Aguardando Liberação
                             </span>
                             <button
                               onClick={() => handleUpdatePatientStatus(p.id, 'atendimento')}
                               data-testid="liberar"
-                              className="bg-slate-700 hover:bg-slate-800 text-white text-xs px-3 py-1.5 rounded-lg font-semibold shadow-xs transition cursor-pointer"
+                              className="bg-slate-700 hover:bg-slate-800 text-white text-[11px] px-3 py-1.5 rounded-lg font-semibold shadow-xs transition cursor-pointer"
                             >
                               Liberado
                             </button>
-                          </>
+                          </div>
                         )}
 
                         {p.status === 'atendimento' && (
-                          <span className="text-xs font-bold px-2.5 py-1 bg-green-50 text-green-700 border border-green-200 rounded-full flex items-center gap-1">
-                            <CheckCircle2 className="w-3" /> Atendimento Concluído
-                          </span>
+                          <div className="flex items-center gap-2 mt-1 flex-wrap">
+                            <span className="text-[11px] font-bold px-2.5 py-1 bg-green-50 text-green-700 border border-green-200 rounded-full flex items-center gap-1">
+                              <CheckCircle2 className="w-3" /> Atendimento Concluído
+                            </span>
+                            {p.clinicalHistory?.find((h: any) => h.type?.includes('Triagem'))?.triaged_at && (
+                              <span className="text-[11px] font-bold text-teal-600">
+                                Triagem: {new Date(p.clinicalHistory?.find((h: any) => h.type?.includes('Triagem'))?.triaged_at || '').toLocaleString('pt-BR')}
+                              </span>
+                            )}
+                          </div>
                         )}
 
                         {p.status === 'atendido' && (
-                          <span className="text-xs font-bold px-2.5 py-1 bg-green-50 text-green-700 border border-green-200 rounded-full flex items-center gap-1">
-                            <CheckCircle2 className="w-3" /> Atendimento Concluído
-                          </span>
+                          <div className="flex items-center gap-2 mt-1 flex-wrap">
+                            <span className="text-[11px] font-bold px-2.5 py-1 bg-green-50 text-green-700 border border-green-200 rounded-full flex items-center gap-1">
+                              <CheckCircle2 className="w-3" /> Atendimento Concluído
+                            </span>
+                            {p.clinicalHistory?.find((h: any) => h.type?.includes('Triagem'))?.triaged_at && (
+                              <span className="text-[11px] font-bold text-teal-600">
+                                Triagem: {new Date(p.clinicalHistory?.find((h: any) => h.type?.includes('Triagem'))?.triaged_at || '').toLocaleString('pt-BR')}
+                              </span>
+                            )}
+                          </div>
                         )}
 
                         {p.status === 'agendado' && (
-                          <>
-                            <span className="text-xs font-bold px-2.5 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded-full flex items-center gap-1">
+                          <div className="flex items-center gap-2 mt-1 pt-1">
+                            <span className="text-[11px] font-bold px-2.5 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded-full flex items-center gap-1">
                               <CalendarDays className="w-3" /> Agendado
                             </span>
                             <button
                               onClick={() => handleUpdatePatientStatus(p.id, 'aguardando')}
                               data-testid="check-in"
-                              className="bg-teal-600 hover:bg-teal-700 text-white text-xs px-3 py-1.5 rounded-lg font-semibold shadow-xs transition cursor-pointer"
+                              className="bg-teal-600 hover:bg-teal-700 text-white text-[11px] px-3 py-1.5 rounded-lg font-semibold shadow-xs transition cursor-pointer"
                             >
                               Dar Entrada
                             </button>
-                          </>
+                          </div>
                         )}
+                      </div>
+
+                      <div className="flex flex-col items-center gap-2 shrink-0">
+                        <div className="w-20 h-20 rounded-xl border-2 border-slate-200 bg-white overflow-hidden flex items-center justify-center shadow-md">
+                          {p.photo_url ? (
+                            <img src={p.photo_url} className="w-full h-full object-cover" alt="Profile" />
+                          ) : (
+                            <User className="w-10 h-10 text-slate-300" />
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => handleEditPatient(p)}
+                            data-testid="edit-patient"
+                            className="bg-blue-500 hover:bg-blue-600 text-white w-8 h-8 rounded-lg font-semibold shadow-sm transition cursor-pointer flex items-center justify-center"
+                            title="Editar Paciente"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDeletePatient(p.id, p.name)}
+                            data-testid="delete-patient"
+                            className="bg-red-500 hover:bg-red-600 text-white w-8 h-8 rounded-lg font-semibold shadow-sm transition cursor-pointer flex items-center justify-center"
+                            title="Excluir Paciente"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );
@@ -2610,6 +2762,14 @@ export default function ReceptionModule({
                   Aguardando ({triagedPatients.length})
                 </button>
                 <button
+                  onClick={() => setTriageTab('em_atendimento')}
+                  className={`flex-1 py-1.5 px-2 rounded-md transition text-center cursor-pointer ${
+                    triageTab === 'em_atendimento' ? 'bg-amber-500 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  Consulta/Intervenção ({patientsInTreatment.length})
+                </button>
+                <button
                   onClick={() => setTriageTab('atendidos')}
                   className={`flex-1 py-1.5 px-2 rounded-md transition text-center cursor-pointer ${
                     triageTab === 'atendidos' ? 'bg-green-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'
@@ -2624,19 +2784,57 @@ export default function ReceptionModule({
               <div className="space-y-3 max-h-[500px] overflow-y-auto">
                 {triagedPatients.length === 0 ? (
                   <p className="text-sm text-slate-400 text-center py-8">Nenhum paciente aguardando direcionamento</p>
-                ) : triagedPatients.map(p => (
+                ) : triagedPatients.map(p => {
+                  const triage = p.clinicalHistory?.find((h: any) => h.type?.includes('Triagem'));
+                  const triagedAt = triage?.triaged_at;
+                  const age = p.birthdate ? Math.floor((Date.now() - new Date(p.birthdate).getTime()) / (365.25 * 24 * 60 * 60 * 1000)) : null;
+                  return (
                   <div key={p.id} className="bg-slate-50 border border-slate-200 rounded-lg p-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-bold text-slate-800">{p.name}</span>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                        p.priority === 'emergência' ? 'bg-red-100 text-red-700' :
-                        p.priority === 'preferencial' ? 'bg-amber-100 text-amber-700' :
-                        'bg-blue-100 text-blue-700'
-                      }`}>
-                        {p.priority === 'emergência' ? 'Emergência' : p.priority === 'preferencial' ? 'Preferencial' : 'Normal'}
-                      </span>
+                    <div className="flex items-start gap-3 mb-2">
+                      {p.photo_url ? (
+                        <img src={p.photo_url} alt={p.name} className="w-10 h-10 rounded-full object-cover border border-slate-200" />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-teal-100 flex items-center justify-center text-teal-700 font-bold text-xs flex-shrink-0">
+                          {p.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-sm font-bold text-slate-800 truncate">{p.name}</span>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ml-1 ${
+                            p.priority === 'emergência' ? 'bg-red-100 text-red-700' :
+                            p.priority === 'preferencial' ? 'bg-amber-100 text-amber-700' :
+                            'bg-blue-100 text-blue-700'
+                          }`}>
+                            {p.priority === 'emergência' ? 'Emergência' : p.priority === 'preferencial' ? 'Preferencial' : 'Normal'}
+                          </span>
+                        </div>
+                        {p.birthdate && (
+                          <p className="text-[11px] text-slate-500">
+                            {new Date(p.birthdate).toLocaleDateString('pt-BR')} {age !== null && `| ${age} anos`}
+                          </p>
+                        )}
+                        {p.document_number && (
+                          <p className="text-[11px] text-slate-500">
+                            {p.document_type || 'CI'}: {p.document_number}
+                          </p>
+                        )}
+                        <p className="text-[11px] text-slate-500 flex items-center gap-1">
+                          {p.phone}
+                          {p.whatsapp_verified && <span className="text-green-500 font-bold">WA</span>}
+                        </p>
+                        {p.blood_type && p.blood_type !== 'Não Informado' && (
+                          <p className="text-[11px] text-slate-500">
+                            Tipo: <span className="font-semibold">{p.blood_type}</span>
+                          </p>
+                        )}
+                        {triagedAt && (
+                          <p className="text-[10px] text-teal-600 font-semibold mt-1">
+                            Triagem: {new Date(triagedAt).toLocaleString('pt-BR')}
+                          </p>
+                        )}
+                      </div>
                     </div>
-                    <p className="text-xs text-slate-500 mb-2">{p.phone}</p>
                     <button
                       onClick={() => { setDistributePatient(p); setShowDistributeModal(true); }}
                       className="w-full bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold py-1.5 rounded-lg transition cursor-pointer flex items-center justify-center gap-1"
@@ -2644,7 +2842,45 @@ export default function ReceptionModule({
                       <ChevronRight className="w-3 h-3" /> Direcionar
                     </button>
                   </div>
-                ))}
+                  );
+                })}
+              </div>
+              )}
+
+              {/* Aba: Consulta / Intervenção (em atendimento nos locais) */}
+              {triageTab === 'em_atendimento' && (
+              <div className="space-y-3 max-h-[500px] overflow-y-auto">
+                {patientsInTreatment.length === 0 ? (
+                  <p className="text-sm text-slate-400 text-center py-8">Nenhum paciente em atendimento</p>
+                ) : patientsInTreatment.map((item, idx) => {
+                  const triage = item.patient.clinicalHistory?.find((h: any) => h.type?.includes('Triagem'));
+                  const triagedAt = triage?.triaged_at;
+                  return (
+                  <div key={idx} className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-bold text-slate-800">{item.patient.name}</span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                        Em Atendimento
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 mb-1">{item.patient.phone}</p>
+                    {triagedAt && (
+                      <p className="text-[10px] text-amber-600 font-semibold mb-1">
+                        Triagem: {new Date(triagedAt).toLocaleString('pt-BR')}
+                      </p>
+                    )}
+                    <p className="text-xs text-slate-600">
+                      <span className="font-semibold">{item.locationName}</span>
+                    </p>
+                    <button
+                      onClick={() => { setSelectedLocation(hospitalLocations.find(l => l.id === item.locationId) || null); setShowLocationDetail(true); }}
+                      className="w-full mt-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold py-1.5 rounded-lg transition cursor-pointer flex items-center justify-center gap-1"
+                    >
+                      <ChevronRight className="w-3 h-3" /> Ver Detalhes
+                    </button>
+                  </div>
+                  );
+                })}
               </div>
               )}
 
@@ -2653,8 +2889,15 @@ export default function ReceptionModule({
               <div className="space-y-3 max-h-[500px] overflow-y-auto">
                 {attendedPatients.length === 0 ? (
                   <p className="text-sm text-slate-400 text-center py-8">Nenhum atendimento realizado</p>
-                ) : attendedPatients.map((item, idx) => (
-                  <div key={idx} className="bg-green-50 border border-green-200 rounded-lg p-3">
+                ) : attendedPatients.map((item, idx) => {
+                  const triage = item.patient.clinicalHistory?.find((h: any) => h.type?.includes('Triagem'));
+                  const triagedAt = triage?.triaged_at;
+                  return (
+                  <div 
+                    key={idx} 
+                    onClick={() => handleOpenTimeline(item.patient)}
+                    className="bg-green-50 border border-green-200 rounded-lg p-3 cursor-pointer hover:shadow-md transition"
+                  >
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-sm font-bold text-slate-800">{item.patient.name}</span>
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700">
@@ -2665,11 +2908,17 @@ export default function ReceptionModule({
                     <p className="text-xs text-slate-600">
                       <span className="font-semibold">{item.locationName}</span>
                     </p>
+                    {triagedAt && (
+                      <p className="text-[10px] text-green-600 font-semibold mt-1">
+                        Triagem: {new Date(triagedAt).toLocaleString('pt-BR')}
+                      </p>
+                    )}
                     <p className="text-[10px] text-slate-400 mt-1">
                       {new Date(item.completedAt).toLocaleString('pt-BR')}
                     </p>
                   </div>
-                ))}
+                  );
+                })}
               </div>
               )}
             </div>
@@ -3220,9 +3469,14 @@ export default function ReceptionModule({
                       <div>
                         <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Peso (kg)</label>
                         <input
-                          type="number"
+                          type="text"
                           value={triageWeight}
-                          onChange={e => setTriageWeight(e.target.value)}
+                          onChange={e => {
+                            const raw = e.target.value.replace(/[^0-9.]/g, '');
+                            const dotCount = (raw.match(/\./g) || []).length;
+                            if (dotCount > 1) return;
+                            setTriageWeight(raw);
+                          }}
                           placeholder="Ex: 72.5"
                           className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans font-bold"
                         />
@@ -3268,7 +3522,12 @@ export default function ReceptionModule({
                         <input
                           type="text"
                           value={triageBP}
-                          onChange={e => setTriageBP(e.target.value)}
+                          onChange={e => {
+                            const raw = e.target.value.replace(/[^0-9/]/g, '');
+                            const slashCount = (raw.match(/\//g) || []).length;
+                            if (slashCount > 1) return;
+                            setTriageBP(raw);
+                          }}
                           placeholder="Ex: 120/80"
                           className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans"
                         />
@@ -3295,11 +3554,15 @@ export default function ReceptionModule({
                       <div>
                         <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Temperatura (°C)</label>
                         <input
-                          type="number"
+                          type="text"
                           value={triageTemp}
-                          onChange={e => setTriageTemp(e.target.value)}
+                          onChange={e => {
+                            const raw = e.target.value.replace(/[^0-9.]/g, '');
+                            const dotCount = (raw.match(/\./g) || []).length;
+                            if (dotCount > 1) return;
+                            setTriageTemp(raw);
+                          }}
                           placeholder="Ex: 36.8"
-                          step="0.1"
                           className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans"
                         />
                         {triageTemp && (() => {
@@ -3579,8 +3842,7 @@ export default function ReceptionModule({
                     // Persist to Supabase
                     if (supabase) {
                       try {
-                        await supabase.from('clinical_history').insert({
-                          id: triageEntry.id,
+                        const triageData = {
                           patient_id: triagePatient.id,
                           date: triageEntry.date,
                           type: triageEntry.type,
@@ -3595,7 +3857,22 @@ export default function ReceptionModule({
                           preliminary_procedures: triageEntry.preliminary_procedures || [],
                           attached_files: triageEntry.attached_files || [],
                           triaged_at: triageEntry.triaged_at || null,
-                        });
+                        };
+
+                        const { data: existingTriage } = await supabase
+                          .from('clinical_history')
+                          .select('id')
+                          .eq('patient_id', triagePatient.id)
+                          .eq('type', 'Triagem Inicial de Enfermagem')
+                          .order('date', { ascending: false })
+                          .limit(1);
+
+                        if (existingTriage && existingTriage.length > 0) {
+                          await supabase.from('clinical_history').update(triageData).eq('id', existingTriage[0].id);
+                        } else {
+                          await supabase.from('clinical_history').insert({ id: triageEntry.id, ...triageData });
+                        }
+
                         await supabase.from('patients').update({
                           status: 'triado',
                           priority: newPriority,
@@ -3708,8 +3985,283 @@ export default function ReceptionModule({
                 }`}>
                   Redirecionar
                 </button>
-                <button onClick={() => { setShowRedirectModal(false); setRedirectPatient(null); setRedirectTargetLocation(''); }} className="py-2 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs rounded-lg transition">
+                <button onClick={() => { setShowRedirectModal(false); setRedirectPatient(null); setRedirectTargetLocation(''); pendingMedDataRef.current = null; }} className="py-2 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs rounded-lg transition">
                   Cancelar
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* --- MODAL: TIMELINE DO PACIENTE ATENDIDO --- */}
+      <AnimatePresence>
+        {showTimelineModal && timelinePatient && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full max-h-[85vh] overflow-hidden flex flex-col"
+            >
+              {/* Header */}
+              <div className="p-5 border-b border-slate-100">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-3">
+                    {timelinePatient.photo_url ? (
+                      <img src={timelinePatient.photo_url} alt={timelinePatient.name} className="w-12 h-12 rounded-full object-cover border border-slate-200" />
+                    ) : (
+                      <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center text-green-700 font-bold text-sm flex-shrink-0">
+                        {timelinePatient.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
+                      </div>
+                    )}
+                    <div>
+                      <h3 className="font-bold text-slate-800 text-lg">{timelinePatient.name}</h3>
+                      <p className="text-xs text-slate-500">
+                        {timelinePatient.document_type || 'CI'}: {timelinePatient.document_number || '—'}
+                        {timelinePatient.blood_type && timelinePatient.blood_type !== 'Não Informado' && ` | Tipo: ${timelinePatient.blood_type}`}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => {
+                      const w = window.open('', '_blank');
+                      if (!w) return;
+                      const pat = timelinePatient;
+                      const triageEntry = pat.clinicalHistory?.find((h: any) => h.type?.includes('Triagem'));
+                      let html = `<html><head><title></title><style>
+                        body{font-family:Arial,sans-serif;padding:20px;color:#333}
+                        h1{font-size:18px;border-bottom:2px solid #0d9488;padding-bottom:8px}
+                        h2{font-size:14px;color:#0d9488;margin-top:20px}
+                        .section{margin-bottom:12px;padding:10px;border:1px solid #e2e8f0;border-radius:8px}
+                        .label{font-weight:bold;font-size:11px;color:#64748b;text-transform:uppercase}
+                        .value{font-size:13px;margin-top:2px}
+                        .amber{color:#d97706;font-style:italic}
+                        @page{size:A4;margin:15mm}
+                        @media print{body{padding:10px} @page{margin:15mm} @top-left{content:none} @top-right{content:none} @bottom-left{content:none} @bottom-right{content:none}}
+                      </style></head><body>`;
+                      html += `<h1>Prontuário: ${pat.name}</h1>`;
+                      html += `<p style="font-size:12px;color:#64748b">${pat.document_type || 'CI'}: ${pat.document_number || '—'}${pat.blood_type ? ` | Tipo: ${pat.blood_type}` : ''}</p>`;
+                      if (triageEntry) {
+                        html += `<div class="section"><h2>📍 Triagem</h2>`;
+                        if (triageEntry.triaged_at) html += `<p class="label">Data:</p><p class="value">${new Date(triageEntry.triaged_at).toLocaleString('pt-BR')}</p>`;
+                        if (triageEntry.vital_signs) {
+                          const vs = triageEntry.vital_signs;
+                          html += `<p class="label">Sinais Vitais:</p><p class="value">`;
+                          if (vs.bp) html += `PA: ${vs.bp} | `;
+                          if (vs.temp) html += `Temp: ${vs.temp}°C | `;
+                          if (vs.spo2) html += `SpO2: ${vs.spo2}% | `;
+                          if (vs.hr) html += `FC: ${vs.hr} BPM | `;
+                          if (vs.rr) html += `FR: ${vs.rr} IRPM`;
+                          html += `</p>`;
+                        }
+                        html += `</div>`;
+                      }
+                      const usedMedIdsPdf = new Set<string>();
+                      timelineAssignments.forEach(a => {
+                        const assignmentDate = new Date(a.assignedAt).toISOString().split('T')[0];
+                        const locationMeds = (pat.clinicalHistory || [])
+                          .filter((h: any) => h.type === 'Consulta Médica' && h.location_name === a.locationName && !usedMedIdsPdf.has(h.id))
+                          .sort((a: any, b: any) => new Date(a.date || 0).getTime() - new Date(b.date || 0).getTime());
+                        const med = locationMeds.find((h: any) => h.date === assignmentDate) || locationMeds[0] || null;
+                        if (med) usedMedIdsPdf.add(med.id);
+                        html += `<div class="section"><h2>🏥 ${a.locationName}</h2>`;
+                        html += `<p class="label">Entrada:</p><p class="value">${new Date(a.assignedAt).toLocaleString('pt-BR')}</p>`;
+                        html += `<p class="label">Saída:</p><p class="value">${a.completedAt ? new Date(a.completedAt).toLocaleString('pt-BR') : 'Em andamento'}</p>`;
+                        if (med) {
+                          if (med.triage_edits) {
+                            html += `<p class="amber">• Triagem editada — Motivo: ${med.triage_edits.diagnosis || ''}</p>`;
+                            if (med.triage_edits.vital_signs) {
+                              const te = med.triage_edits.vital_signs;
+                              html += `<p class="amber" style="margin-left:12px">PA: ${te.bp || ''} | Temp: ${te.temp || ''}°C | SpO2: ${te.spo2 || ''}% | FC: ${te.hr || ''} BPM | FR: ${te.rr || ''} IRPM</p>`;
+                            }
+                          }
+                          if (med.diagnosis) html += `<p>• <strong>DIAGNÓSTICO:</strong> ${med.diagnosis}</p>`;
+                          if (med.cid10 && med.cid10 !== 'Z00.0') html += `<p>• <strong>CID-10:</strong> ${med.cid10}</p>`;
+                          if (med.prescriptions && med.prescriptions.length > 0) html += `<p>• <strong>PRESCRIÇÃO:</strong> ${med.prescriptions.join(', ')}</p>`;
+                          if (med.notes) html += `<p>• <strong>OBSERVAÇÕES:</strong> ${med.notes}</p>`;
+                        }
+                        html += `</div>`;
+                      });
+                      html += `<p style="text-align:center;margin-top:20px;font-size:11px;color:#94a3b8">Atendimento Concluído — ${new Date().toLocaleString('pt-BR')}</p>`;
+                      html += `</body></html>`;
+                      w.document.write(html);
+                      w.document.close();
+                      w.print();
+                    }} className="text-slate-400 hover:text-teal-600 cursor-pointer" title="Exportar PDF">
+                      <FileText className="w-5 h-5" />
+                    </button>
+                    <button onClick={() => { setShowTimelineModal(false); setTimelinePatient(null); setTimelineAssignments([]); }} className="text-slate-400 hover:text-slate-600 cursor-pointer">
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Timeline Content */}
+              <div className="flex-1 overflow-y-auto p-5">
+                {timelineLoading ? (
+                  <p className="text-sm text-slate-400 text-center py-8">Carregando histórico...</p>
+                ) : (
+                  <div className="space-y-0">
+                    {/* Triage Event */}
+                    {timelinePatient.clinicalHistory?.find((h: any) => h.type?.includes('Triagem')) && (
+                      <div className="flex gap-3">
+                        <div className="flex flex-col items-center">
+                          <div className="w-3 h-3 rounded-full bg-green-500 flex-shrink-0"></div>
+                          <div className="w-0.5 flex-1 bg-slate-200"></div>
+                        </div>
+                        <div className="pb-4 flex-1">
+                          <p className="text-xs font-bold text-slate-800">📍 Triagem</p>
+                          {(() => {
+                            const triageEntry = timelinePatient.clinicalHistory?.find((h: any) => h.type?.includes('Triagem'));
+                            return triageEntry ? (
+                              <>
+                                <p className="text-[10px] text-slate-400">
+                                  {triageEntry.triaged_at 
+                                    ? new Date(triageEntry.triaged_at).toLocaleString('pt-BR')
+                                    : '—'}
+                                </p>
+                                {triageEntry.vital_signs && (
+                                  <div className="mt-1 text-[10px] text-slate-500 space-y-0.5">
+                                    {triageEntry.vital_signs.bp && <p>PA: {triageEntry.vital_signs.bp}</p>}
+                                    {triageEntry.vital_signs.spo2 && <p>SpO2: {triageEntry.vital_signs.spo2}</p>}
+                                    {triageEntry.vital_signs.temp && <p>Temp: {triageEntry.vital_signs.temp}</p>}
+                                    {triageEntry.vital_signs.hr && <p>FC: {triageEntry.vital_signs.hr}</p>}
+                                    {triageEntry.vital_signs.rr && <p>FR: {triageEntry.vital_signs.rr}</p>}
+                                  </div>
+                                )}
+                              </>
+                            ) : <p className="text-[10px] text-slate-400">—</p>;
+                          })()}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Location Assignments with Medical Data */}
+                    {(() => {
+                      const usedMedIds = new Set<string>();
+                      return timelineAssignments.map((assignment, idx) => {
+                        const assignmentDate = new Date(assignment.assignedAt).toISOString().split('T')[0];
+                        const locationMeds = (timelinePatient.clinicalHistory || [])
+                          .filter((h: any) => h.type === 'Consulta Médica' && h.location_name === assignment.locationName && !usedMedIds.has(h.id))
+                          .sort((a: any, b: any) => new Date(a.date || 0).getTime() - new Date(b.date || 0).getTime());
+                        const locationMed = locationMeds.find((h: any) => h.date === assignmentDate) || locationMeds[0] || null;
+                        if (locationMed) usedMedIds.add(locationMed.id);
+                        return (
+                      <div key={idx} className="flex gap-3">
+                        <div className="flex flex-col items-center">
+                          <div className="w-3 h-3 rounded-full bg-blue-500 flex-shrink-0"></div>
+                          <div className="w-0.5 flex-1 bg-slate-200"></div>
+                        </div>
+                        <div className="pb-4 flex-1">
+                          <p className="text-xs font-bold text-slate-800">🏥 {assignment.locationName}</p>
+                          <p className="text-[10px] text-slate-400">
+                            Entrada: {new Date(assignment.assignedAt).toLocaleString('pt-BR')}
+                          </p>
+                          {assignment.completedAt ? (
+                            <p className="text-[10px] text-slate-400">
+                              Saída: {new Date(assignment.completedAt).toLocaleString('pt-BR')}
+                            </p>
+                          ) : (
+                            <p className="text-[10px] text-amber-500 font-semibold">Em andamento</p>
+                          )}
+                          {locationMed && (
+                            <div className="mt-1.5 text-[10px] text-slate-500 space-y-0.5 border-l-2 border-blue-200 pl-2">
+                              {locationMed.triage_edits && (
+                                <div className="mb-1">
+                                  {locationMed.triage_edits.diagnosis && (
+                                    <p>• <span className="font-semibold text-amber-600">Triagem editada — Motivo:</span> {locationMed.triage_edits.diagnosis}</p>
+                                  )}
+                                  {locationMed.triage_edits.vital_signs && (
+                                    <div className="ml-2 space-y-0.5">
+                                      {locationMed.triage_edits.vital_signs.bp && <p className="text-amber-600">PA: {locationMed.triage_edits.vital_signs.bp}</p>}
+                                      {locationMed.triage_edits.vital_signs.temp && <p className="text-amber-600">Temp: {locationMed.triage_edits.vital_signs.temp}°C</p>}
+                                      {locationMed.triage_edits.vital_signs.spo2 && <p className="text-amber-600">SpO2: {locationMed.triage_edits.vital_signs.spo2}%</p>}
+                                      {locationMed.triage_edits.vital_signs.hr && <p className="text-amber-600">FC: {locationMed.triage_edits.vital_signs.hr} BPM</p>}
+                                      {locationMed.triage_edits.vital_signs.rr && <p className="text-amber-600">FR: {locationMed.triage_edits.vital_signs.rr} IRPM</p>}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                              {locationMed.diagnosis && (
+                                <p>• <span className="font-semibold">DIAGNÓSTICO:</span> {locationMed.diagnosis}</p>
+                              )}
+                              {locationMed.cid10 && locationMed.cid10 !== 'Z00.0' && (
+                                <p>• <span className="font-semibold">CID-10:</span> {locationMed.cid10}</p>
+                              )}
+                              {locationMed.prescriptions && locationMed.prescriptions.length > 0 && locationMed.prescriptions[0] !== 'Nenhum procedimento preliminar' && (
+                                <p>• <span className="font-semibold">PRESCRIÇÃO:</span> {locationMed.prescriptions.join(', ')}</p>
+                              )}
+                              {locationMed.notes && locationMed.notes !== 'Triagem realizada sem observações adicionais.' && (
+                                <p>• <span className="font-semibold">OBSERVAÇÕES MÉDICAS:</span> {locationMed.notes}</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      );
+                      });
+                    })()}
+
+                    {/* Remaining medical consultations without location (hide if all have location_name) */}
+                    {(() => {
+                      const orphans = timelinePatient.clinicalHistory?.filter((h: any) => h.type === 'Consulta Médica' && !h.location_name) || [];
+                      const assignedNames = new Set(timelineAssignments.map(a => a.locationName));
+                      const unassigned = orphans.filter((h: any) => !assignedNames.has(h.location_name || ''));
+                      if (unassigned.length === 0) return null;
+                      return unassigned.map((entry, idx) => (
+                      <div key={`med-${idx}`} className="flex gap-3">
+                        <div className="flex flex-col items-center">
+                          <div className="w-3 h-3 rounded-full bg-purple-500 flex-shrink-0"></div>
+                          <div className="w-0.5 flex-1 bg-slate-200"></div>
+                        </div>
+                        <div className="pb-4 flex-1">
+                          <p className="text-xs font-bold text-slate-800">💊 {entry.type}</p>
+                          <p className="text-[10px] text-slate-400">{entry.date}</p>
+                          {entry.diagnosis && (
+                            <p className="text-[10px] text-slate-500">Diagnóstico: {entry.diagnosis}</p>
+                          )}
+                          {entry.cid10 && entry.cid10 !== 'Z00.0' && (
+                            <p className="text-[10px] text-slate-500">CID-10: {entry.cid10}</p>
+                          )}
+                          {entry.prescriptions && entry.prescriptions.length > 0 && (
+                            <p className="text-[10px] text-slate-500">Prescrição: {entry.prescriptions.join(', ')}</p>
+                          )}
+                          {entry.notes && (
+                            <p className="text-[10px] text-slate-500">Observações: {entry.notes}</p>
+                          )}
+                        </div>
+                      </div>
+                      ));
+                    })()}
+
+                    {/* Conclusion */}
+                    <div className="flex gap-3">
+                      <div className="flex flex-col items-center">
+                        <div className="w-3 h-3 rounded-full bg-green-600 flex-shrink-0"></div>
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-green-700">✅ Atendimento Concluído</p>
+                        <p className="text-[10px] text-slate-400">
+                          {timelineAssignments.length > 0 && timelineAssignments[timelineAssignments.length - 1].completedAt
+                            ? new Date(timelineAssignments[timelineAssignments.length - 1].completedAt!).toLocaleString('pt-BR')
+                            : '—'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {timelineAssignments.length === 0 && (!timelinePatient.clinicalHistory || timelinePatient.clinicalHistory.length === 0) && (
+                      <p className="text-sm text-slate-400 text-center py-8">Nenhum histórico disponível</p>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="p-4 border-t border-slate-100">
+                <button onClick={() => { setShowTimelineModal(false); setTimelinePatient(null); setTimelineAssignments([]); }} className="w-full py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs rounded-lg transition cursor-pointer">
+                  Fechar
                 </button>
               </div>
             </motion.div>
@@ -3821,7 +4373,7 @@ export default function ReceptionModule({
                       <p className="text-xs text-slate-500">{locationTypeLabel[selectedLocation.type]}</p>
                     </div>
                   </div>
-                  <button onClick={() => { setShowLocationDetail(false); setSelectedLocation(null); setSelectedDetailPatientId(null); setMedDiagnosis(''); setMedCid10(''); setMedPrescription(''); setMedNotes(''); setIsEditingTriage(false); }} className="text-slate-400 hover:text-slate-600 cursor-pointer">
+                   <button onClick={() => { setShowLocationDetail(false); setSelectedLocation(null); setSelectedDetailPatientId(null); setMedDiagnosis(''); setMedCid10(''); setMedPrescription(''); setMedNotes(''); setPrevMedDiagnosis(''); setPrevMedCid10(''); setPrevMedPrescription(''); setPrevMedNotes(''); setIsEditingTriage(false); }} className="text-slate-400 hover:text-slate-600 cursor-pointer">
                     <X className="w-5 h-5" />
                   </button>
                 </div>
@@ -3852,7 +4404,7 @@ export default function ReceptionModule({
                     const pid = selectedLocation.currentPatients[0];
                     const pat = patients.find(p => p.id === pid);
                     if (!pat) return <p className="text-sm text-slate-400 text-center py-8">Paciente não encontrado</p>;
-                    const triage = pat.clinicalHistory?.[0];
+                    const triage = pat.clinicalHistory?.find((h: any) => h.type?.includes('Triagem'));
                     const vitals = triage?.vital_signs;
                     const colorDot: Record<string, string> = {
                       red: 'bg-red-500', orange: 'bg-orange-500', yellow: 'bg-amber-400', green: 'bg-green-500', blue: 'bg-blue-500',
@@ -3897,20 +4449,8 @@ export default function ReceptionModule({
                                     ✏️ Editar
                                   </button>
                                 ) : (
-                                  <button onClick={async () => {
-                                    if (supabase) {
-                                      try {
-                                        await supabase.from('clinical_history').update({
-                                          diagnosis: editTriageReason,
-                                          vital_signs: {
-                                            bp: editTriageBP, temp: editTriageTemp, spo2: editTriageSpo2, hr: editTriageHR, rr: editTriageRR,
-                                            weight: vitals?.weight || '', height: vitals?.height || '', imc: vitals?.imc || '',
-                                          },
-                                        }).eq('id', triage.id);
-                                      } catch (err) {
-                                        console.error('[SUPABASE] UPDATE triage FAILED:', err);
-                                      }
-                                    }
+                                  <button onClick={() => {
+                                    setHasTriageEdits(true);
                                     setIsEditingTriage(false);
                                   }} className="text-xs text-green-600 hover:text-green-800 font-bold cursor-pointer px-2 py-1 rounded hover:bg-green-50 transition">
                                     ✓ Salvar
@@ -3925,8 +4465,8 @@ export default function ReceptionModule({
                                   <input type="text" value={editTriageReason} onChange={e => setEditTriageReason(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
                                 </div>
                                 <div className="grid grid-cols-2 gap-2">
-                                  <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">PA</label><input type="text" value={editTriageBP} onChange={e => setEditTriageBP(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
-                                  <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Temp °C</label><input type="text" value={editTriageTemp} onChange={e => setEditTriageTemp(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
+                                  <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">PA</label><input type="text" value={editTriageBP} onChange={e => { const raw = e.target.value.replace(/[^0-9/]/g, ''); if ((raw.match(/\//g) || []).length > 1) return; setEditTriageBP(raw); }} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
+                                  <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Temp °C</label><input type="text" value={editTriageTemp} onChange={e => { const raw = e.target.value.replace(/[^0-9.]/g, ''); if ((raw.match(/\./g) || []).length > 1) return; setEditTriageTemp(raw); }} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
                                   <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">SpO2 %</label><input type="text" value={editTriageSpo2} onChange={e => setEditTriageSpo2(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
                                   <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">FC BPM</label><input type="text" value={editTriageHR} onChange={e => setEditTriageHR(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
                                   <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">FR IRPM</label><input type="text" value={editTriageRR} onChange={e => setEditTriageRR(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
@@ -3934,14 +4474,14 @@ export default function ReceptionModule({
                               </div>
                             ) : (
                               <div className="space-y-2">
-                                <p className="text-xs text-slate-600"><span className="font-bold">Motivo:</span> {triage.diagnosis}</p>
-                                {vitals && (
+                                <p className="text-xs text-slate-600"><span className="font-bold">Motivo:</span> {hasTriageEdits ? editTriageReason : triage.diagnosis}</p>
+                                {(hasTriageEdits || vitals) && (
                                   <div className="grid grid-cols-2 gap-2 text-[11px]">
-                                    {vitals.bp && <p className="text-slate-600">PA: <span className="font-bold">{vitals.bp}</span></p>}
-                                    {vitals.temp && <p className="text-slate-600">Temp: <span className="font-bold">{vitals.temp}°C</span></p>}
-                                    {vitals.spo2 && <p className="text-slate-600">SpO2: <span className="font-bold">{vitals.spo2}%</span></p>}
-                                    {vitals.hr && <p className="text-slate-600">FC: <span className="font-bold">{vitals.hr} BPM</span></p>}
-                                    {vitals.rr && <p className="text-slate-600">FR: <span className="font-bold">{vitals.rr} IRPM</span></p>}
+                                    {(hasTriageEdits ? editTriageBP : vitals?.bp) && <p className="text-slate-600">PA: <span className="font-bold">{hasTriageEdits ? editTriageBP : vitals?.bp}</span></p>}
+                                    {(hasTriageEdits ? editTriageTemp : vitals?.temp) && <p className="text-slate-600">Temp: <span className="font-bold">{hasTriageEdits ? editTriageTemp : vitals?.temp}°C</span></p>}
+                                    {(hasTriageEdits ? editTriageSpo2 : vitals?.spo2) && <p className="text-slate-600">SpO2: <span className="font-bold">{hasTriageEdits ? editTriageSpo2 : vitals?.spo2}%</span></p>}
+                                    {(hasTriageEdits ? editTriageHR : vitals?.hr) && <p className="text-slate-600">FC: <span className="font-bold">{hasTriageEdits ? editTriageHR : vitals?.hr} BPM</span></p>}
+                                    {(hasTriageEdits ? editTriageRR : vitals?.rr) && <p className="text-slate-600">FR: <span className="font-bold">{hasTriageEdits ? editTriageRR : vitals?.rr} IRPM</span></p>}
                                   </div>
                                 )}
                                 {triage.preliminary_procedures && triage.preliminary_procedures.length > 0 && (
@@ -3956,21 +4496,52 @@ export default function ReceptionModule({
                         {/* Medical Consultation */}
                         <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
                           <p className="text-xs font-bold text-blue-800">Consulta Médica</p>
+                          {prevMedDiagnosis && (
+                            <p className="text-[10px] text-slate-400 italic">Dados do atendimento anterior aparecem em cinza</p>
+                          )}
                           <div>
                             <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Diagnóstico *</label>
-                            <input type="text" value={medDiagnosis} onChange={e => setMedDiagnosis(e.target.value)} placeholder="Descreva o diagnóstico..." className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
+                            {prevMedDiagnosis ? (
+                              <div className="flex">
+                                <span className="bg-slate-100 text-slate-500 text-xs px-2 py-2 rounded-l-lg border border-r-0 border-slate-200 whitespace-nowrap max-w-[50%] overflow-hidden text-ellipsis">{prevMedDiagnosis} -</span>
+                                <input type="text" value={medDiagnosis} onChange={e => setMedDiagnosis(e.target.value)} placeholder="Adicionar..." className="flex-1 p-2 bg-white border border-slate-200 rounded-r-lg text-xs focus:outline-blue-500" />
+                              </div>
+                            ) : (
+                              <input type="text" value={medDiagnosis} onChange={e => setMedDiagnosis(e.target.value)} placeholder="Descreva o diagnóstico..." className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
+                            )}
                           </div>
                           <div>
                             <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">CID-10</label>
-                            <input type="text" value={medCid10} onChange={e => setMedCid10(e.target.value)} placeholder="Ex: I10" className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
+                            {prevMedCid10 ? (
+                              <div className="flex">
+                                <span className="bg-slate-100 text-slate-500 text-xs px-2 py-2 rounded-l-lg border border-r-0 border-slate-200 whitespace-nowrap max-w-[50%] overflow-hidden text-ellipsis">{prevMedCid10} -</span>
+                                <input type="text" value={medCid10} onChange={e => setMedCid10(e.target.value)} placeholder="Adicionar..." className="flex-1 p-2 bg-white border border-slate-200 rounded-r-lg text-xs focus:outline-blue-500" />
+                              </div>
+                            ) : (
+                              <input type="text" value={medCid10} onChange={e => setMedCid10(e.target.value)} placeholder="Ex: I10" className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
+                            )}
                           </div>
                           <div>
                             <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Prescrição / Receita</label>
-                            <textarea value={medPrescription} onChange={e => setMedPrescription(e.target.value)} placeholder="Medicamentos e orientações..." rows={3} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
+                            {prevMedPrescription ? (
+                              <div className="flex">
+                                <span className="bg-slate-100 text-slate-500 text-xs px-2 py-2 rounded-l-lg border border-r-0 border-slate-200 whitespace-nowrap max-w-[50%] overflow-hidden text-ellipsis">{prevMedPrescription} -</span>
+                                <textarea value={medPrescription} onChange={e => setMedPrescription(e.target.value)} placeholder="Adicionar..." rows={3} className="flex-1 p-2 bg-white border border-slate-200 rounded-r-lg text-xs focus:outline-blue-500" />
+                              </div>
+                            ) : (
+                              <textarea value={medPrescription} onChange={e => setMedPrescription(e.target.value)} placeholder="Medicamentos e orientações..." rows={3} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
+                            )}
                           </div>
                           <div>
                             <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Observações Médicas</label>
-                            <textarea value={medNotes} onChange={e => setMedNotes(e.target.value)} placeholder="Notas clínicas adicionais..." rows={2} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
+                            {prevMedNotes ? (
+                              <div className="flex">
+                                <span className="bg-slate-100 text-slate-500 text-xs px-2 py-2 rounded-l-lg border border-r-0 border-slate-200 whitespace-nowrap max-w-[50%] overflow-hidden text-ellipsis">{prevMedNotes} -</span>
+                                <textarea value={medNotes} onChange={e => setMedNotes(e.target.value)} placeholder="Adicionar..." rows={2} className="flex-1 p-2 bg-white border border-slate-200 rounded-r-lg text-xs focus:outline-blue-500" />
+                              </div>
+                            ) : (
+                              <textarea value={medNotes} onChange={e => setMedNotes(e.target.value)} placeholder="Notas clínicas adicionais..." rows={2} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
+                            )}
                           </div>
                         </div>
                       </div>
@@ -3982,7 +4553,7 @@ export default function ReceptionModule({
                     const pid = selectedDetailPatientId;
                     const pat = patients.find(p => p.id === pid);
                     if (!pat) return <p className="text-sm text-slate-400 text-center py-8">Paciente não encontrado</p>;
-                    const triage = pat.clinicalHistory?.[0];
+                    const triage = pat.clinicalHistory?.find((h: any) => h.type?.includes('Triagem'));
                     const vitals = triage?.vital_signs;
                     const colorDot: Record<string, string> = {
                       red: 'bg-red-500', orange: 'bg-orange-500', yellow: 'bg-amber-400', green: 'bg-green-500', blue: 'bg-blue-500',
@@ -4030,20 +4601,8 @@ export default function ReceptionModule({
                                     ✏️ Editar
                                   </button>
                                 ) : (
-                                  <button onClick={async () => {
-                                    if (supabase) {
-                                      try {
-                                        await supabase.from('clinical_history').update({
-                                          diagnosis: editTriageReason,
-                                          vital_signs: {
-                                            bp: editTriageBP, temp: editTriageTemp, spo2: editTriageSpo2, hr: editTriageHR, rr: editTriageRR,
-                                            weight: vitals?.weight || '', height: vitals?.height || '', imc: vitals?.imc || '',
-                                          },
-                                        }).eq('id', triage.id);
-                                      } catch (err) {
-                                        console.error('[SUPABASE] UPDATE triage FAILED:', err);
-                                      }
-                                    }
+                                  <button onClick={() => {
+                                    setHasTriageEdits(true);
                                     setIsEditingTriage(false);
                                   }} className="text-xs text-green-600 hover:text-green-800 font-bold cursor-pointer px-2 py-1 rounded hover:bg-green-50 transition">
                                     ✓ Salvar
@@ -4058,8 +4617,8 @@ export default function ReceptionModule({
                                   <input type="text" value={editTriageReason} onChange={e => setEditTriageReason(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
                                 </div>
                                 <div className="grid grid-cols-2 gap-2">
-                                  <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">PA</label><input type="text" value={editTriageBP} onChange={e => setEditTriageBP(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
-                                  <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Temp °C</label><input type="text" value={editTriageTemp} onChange={e => setEditTriageTemp(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
+                                  <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">PA</label><input type="text" value={editTriageBP} onChange={e => { const raw = e.target.value.replace(/[^0-9/]/g, ''); if ((raw.match(/\//g) || []).length > 1) return; setEditTriageBP(raw); }} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
+                                  <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Temp °C</label><input type="text" value={editTriageTemp} onChange={e => { const raw = e.target.value.replace(/[^0-9.]/g, ''); if ((raw.match(/\./g) || []).length > 1) return; setEditTriageTemp(raw); }} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
                                   <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">SpO2 %</label><input type="text" value={editTriageSpo2} onChange={e => setEditTriageSpo2(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
                                   <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">FC BPM</label><input type="text" value={editTriageHR} onChange={e => setEditTriageHR(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
                                   <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">FR IRPM</label><input type="text" value={editTriageRR} onChange={e => setEditTriageRR(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
@@ -4067,14 +4626,14 @@ export default function ReceptionModule({
                               </div>
                             ) : (
                               <div className="space-y-2">
-                                <p className="text-xs text-slate-600"><span className="font-bold">Motivo:</span> {triage.diagnosis}</p>
-                                {vitals && (
+                                <p className="text-xs text-slate-600"><span className="font-bold">Motivo:</span> {hasTriageEdits ? editTriageReason : triage.diagnosis}</p>
+                                {(hasTriageEdits || vitals) && (
                                   <div className="grid grid-cols-2 gap-2 text-[11px]">
-                                    {vitals.bp && <p className="text-slate-600">PA: <span className="font-bold">{vitals.bp}</span></p>}
-                                    {vitals.temp && <p className="text-slate-600">Temp: <span className="font-bold">{vitals.temp}°C</span></p>}
-                                    {vitals.spo2 && <p className="text-slate-600">SpO2: <span className="font-bold">{vitals.spo2}%</span></p>}
-                                    {vitals.hr && <p className="text-slate-600">FC: <span className="font-bold">{vitals.hr} BPM</span></p>}
-                                    {vitals.rr && <p className="text-slate-600">FR: <span className="font-bold">{vitals.rr} IRPM</span></p>}
+                                    {(hasTriageEdits ? editTriageBP : vitals?.bp) && <p className="text-slate-600">PA: <span className="font-bold">{hasTriageEdits ? editTriageBP : vitals?.bp}</span></p>}
+                                    {(hasTriageEdits ? editTriageTemp : vitals?.temp) && <p className="text-slate-600">Temp: <span className="font-bold">{hasTriageEdits ? editTriageTemp : vitals?.temp}°C</span></p>}
+                                    {(hasTriageEdits ? editTriageSpo2 : vitals?.spo2) && <p className="text-slate-600">SpO2: <span className="font-bold">{hasTriageEdits ? editTriageSpo2 : vitals?.spo2}%</span></p>}
+                                    {(hasTriageEdits ? editTriageHR : vitals?.hr) && <p className="text-slate-600">FC: <span className="font-bold">{hasTriageEdits ? editTriageHR : vitals?.hr} BPM</span></p>}
+                                    {(hasTriageEdits ? editTriageRR : vitals?.rr) && <p className="text-slate-600">FR: <span className="font-bold">{hasTriageEdits ? editTriageRR : vitals?.rr} IRPM</span></p>}
                                   </div>
                                 )}
                                 {triage.preliminary_procedures && triage.preliminary_procedures.length > 0 && (
@@ -4089,21 +4648,52 @@ export default function ReceptionModule({
                         {/* Medical Consultation */}
                         <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
                           <p className="text-xs font-bold text-blue-800">Consulta Médica</p>
+                          {prevMedDiagnosis && (
+                            <p className="text-[10px] text-slate-400 italic">Dados do atendimento anterior aparecem em cinza</p>
+                          )}
                           <div>
                             <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Diagnóstico *</label>
-                            <input type="text" value={medDiagnosis} onChange={e => setMedDiagnosis(e.target.value)} placeholder="Descreva o diagnóstico..." className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
+                            {prevMedDiagnosis ? (
+                              <div className="flex">
+                                <span className="bg-slate-100 text-slate-500 text-xs px-2 py-2 rounded-l-lg border border-r-0 border-slate-200 whitespace-nowrap max-w-[50%] overflow-hidden text-ellipsis">{prevMedDiagnosis} -</span>
+                                <input type="text" value={medDiagnosis} onChange={e => setMedDiagnosis(e.target.value)} placeholder="Adicionar..." className="flex-1 p-2 bg-white border border-slate-200 rounded-r-lg text-xs focus:outline-blue-500" />
+                              </div>
+                            ) : (
+                              <input type="text" value={medDiagnosis} onChange={e => setMedDiagnosis(e.target.value)} placeholder="Descreva o diagnóstico..." className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
+                            )}
                           </div>
                           <div>
                             <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">CID-10</label>
-                            <input type="text" value={medCid10} onChange={e => setMedCid10(e.target.value)} placeholder="Ex: I10" className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
+                            {prevMedCid10 ? (
+                              <div className="flex">
+                                <span className="bg-slate-100 text-slate-500 text-xs px-2 py-2 rounded-l-lg border border-r-0 border-slate-200 whitespace-nowrap max-w-[50%] overflow-hidden text-ellipsis">{prevMedCid10} -</span>
+                                <input type="text" value={medCid10} onChange={e => setMedCid10(e.target.value)} placeholder="Adicionar..." className="flex-1 p-2 bg-white border border-slate-200 rounded-r-lg text-xs focus:outline-blue-500" />
+                              </div>
+                            ) : (
+                              <input type="text" value={medCid10} onChange={e => setMedCid10(e.target.value)} placeholder="Ex: I10" className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
+                            )}
                           </div>
                           <div>
                             <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Prescrição / Receita</label>
-                            <textarea value={medPrescription} onChange={e => setMedPrescription(e.target.value)} placeholder="Medicamentos e orientações..." rows={3} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
+                            {prevMedPrescription ? (
+                              <div className="flex">
+                                <span className="bg-slate-100 text-slate-500 text-xs px-2 py-2 rounded-l-lg border border-r-0 border-slate-200 whitespace-nowrap max-w-[50%] overflow-hidden text-ellipsis">{prevMedPrescription} -</span>
+                                <textarea value={medPrescription} onChange={e => setMedPrescription(e.target.value)} placeholder="Adicionar..." rows={3} className="flex-1 p-2 bg-white border border-slate-200 rounded-r-lg text-xs focus:outline-blue-500" />
+                              </div>
+                            ) : (
+                              <textarea value={medPrescription} onChange={e => setMedPrescription(e.target.value)} placeholder="Medicamentos e orientações..." rows={3} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
+                            )}
                           </div>
                           <div>
                             <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Observações Médicas</label>
-                            <textarea value={medNotes} onChange={e => setMedNotes(e.target.value)} placeholder="Notas clínicas adicionais..." rows={2} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
+                            {prevMedNotes ? (
+                              <div className="flex">
+                                <span className="bg-slate-100 text-slate-500 text-xs px-2 py-2 rounded-l-lg border border-r-0 border-slate-200 whitespace-nowrap max-w-[50%] overflow-hidden text-ellipsis">{prevMedNotes} -</span>
+                                <textarea value={medNotes} onChange={e => setMedNotes(e.target.value)} placeholder="Adicionar..." rows={2} className="flex-1 p-2 bg-white border border-slate-200 rounded-r-lg text-xs focus:outline-blue-500" />
+                              </div>
+                            ) : (
+                              <textarea value={medNotes} onChange={e => setMedNotes(e.target.value)} placeholder="Notas clínicas adicionais..." rows={2} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
+                            )}
                           </div>
                         </div>
                       </div>
@@ -4115,7 +4705,7 @@ export default function ReceptionModule({
                     const pat = patients.find(p => p.id === pid);
                     const patName = pat?.name || patientNameMap[pid] || 'Paciente';
                     const patPhone = pat?.phone || '';
-                    const triage = pat?.clinicalHistory?.[0];
+                    const triage = pat?.clinicalHistory?.find((h: any) => h.type?.includes('Triagem'));
                     const triageColor = triage?.triage_color;
                     const colorDot: Record<string, string> = {
                       red: 'bg-red-500', orange: 'bg-orange-500', yellow: 'bg-amber-400', green: 'bg-green-500', blue: 'bg-blue-500',
@@ -4155,58 +4745,38 @@ export default function ReceptionModule({
                     return (
                       <div className="flex gap-2">
                         <button
-                          onClick={async () => {
-                            if (supabase && (medDiagnosis.trim() || medCid10.trim() || medPrescription.trim() || medNotes.trim())) {
-                              const pat = patients.find(p => p.id === pid);
-                              if (pat) {
-                                try {
-                                  const triage = pat.clinicalHistory?.[0];
-                                  const vitals = triage?.vital_signs;
-                                  const medData = {
-                                    diagnosis: medDiagnosis || '',
-                                    cid10: medCid10 || 'Z00.0',
-                                    prescriptions: medPrescription ? medPrescription.split('\n').filter(Boolean) : [],
-                                    notes: medNotes || '',
-                                    doctor: 'Médico',
-                                    vital_signs: isEditingTriage ? {
-                                      bp: editTriageBP || vitals?.bp || '',
-                                      temp: editTriageTemp || vitals?.temp || '',
-                                      spo2: editTriageSpo2 || vitals?.spo2 || '',
-                                      hr: editTriageHR || vitals?.hr || '',
-                                      rr: editTriageRR || vitals?.rr || '',
-                                      weight: vitals?.weight || '', height: vitals?.height || '', imc: vitals?.imc || '',
-                                    } : vitals || null,
-                                    triage_priority: triage?.triage_priority || null,
-                                    triage_color: triage?.triage_color || null,
-                                    preliminary_procedures: triage?.preliminary_procedures || [],
-                                    attached_files: triage?.attached_files || [],
-                                  };
-                                  const { data: existing } = await supabase.from('clinical_history').select('id').eq('patient_id', pid).eq('type', 'Consulta Médica').order('date', { ascending: false }).limit(1);
-                                  if (existing && existing.length > 0) {
-                                    const { error } = await supabase.from('clinical_history').update(medData).eq('id', existing[0].id);
-                                    if (error) {
-                                      console.error('[SUPABASE] UPDATE med before redirect FAILED:', error.message);
-                                    } else {
-                                      console.log('[SUPABASE] UPDATE med before redirect OK:', existing[0].id);
-                                      setPatients(prev => prev.map(p => p.id === pid ? { ...p, clinicalHistory: p.clinicalHistory?.map((h: any) => h.id === existing[0].id ? { ...h, ...medData } : h) || [] } : p));
-                                    }
-                                  } else {
-                                    const medEntry = { id: `his_med_${++hisMedCounterRef.current}`, date: new Date().toISOString().split('T')[0], type: 'Consulta Médica', ...medData };
-                                    const { error } = await supabase.from('clinical_history').insert({ ...medEntry, patient_id: pid });
-                                    if (error) {
-                                      console.error('[SUPABASE] INSERT med before redirect FAILED:', error.message);
-                                    } else {
-                                      console.log('[SUPABASE] INSERT med before redirect OK:', medEntry.id);
-                                      setPatients(prev => prev.map(p => p.id === pid ? { ...p, clinicalHistory: [{ ...medEntry, patient_id: pid } as any, ...(p.clinicalHistory || [])] } : p));
-                                    }
-                                  }
-                                } catch (err) {
-                                  console.error('[SUPABASE] SAVE med before redirect FAILED:', err);
-                                }
-                              }
-                            }
-                            const pat = patients.find(p => p.id === pid);
-                            if (pat) { setRedirectPatient(pat); setShowRedirectModal(true); setShowLocationDetail(false); setSelectedDetailPatientId(null); setMedDiagnosis(''); setMedCid10(''); setMedPrescription(''); setMedNotes(''); setIsEditingTriage(false); }
+                          onClick={() => {
+                            const pat = patientsRef.current.find(p => p.id === pid);
+                            const triage = pat?.clinicalHistory?.find((h: any) => h.type?.includes('Triagem'));
+                            const vitals = triage?.vital_signs;
+                            const triageEdits = hasTriageEdits ? {
+                              diagnosis: editTriageReason || null,
+                              vital_signs: { bp: editTriageBP || null, temp: editTriageTemp || null, spo2: editTriageSpo2 || null, hr: editTriageHR || null, rr: editTriageRR || null },
+                            } : null;
+                            pendingMedDataRef.current = {
+                              pid,
+                              medData: {
+                                diagnosis: prevMedDiagnosis ? (medDiagnosis ? `${prevMedDiagnosis} - ${medDiagnosis}` : prevMedDiagnosis) : medDiagnosis || '',
+                                cid10: prevMedCid10 ? (medCid10 ? `${prevMedCid10} - ${medCid10}` : prevMedCid10) : (medCid10 || 'Z00.0'),
+                                prescriptions: prevMedPrescription ? (medPrescription ? [`${prevMedPrescription} - ${medPrescription}`] : [prevMedPrescription]) : (medPrescription ? medPrescription.split('\n').filter(Boolean) : []),
+                                notes: prevMedNotes ? (medNotes ? `${prevMedNotes} - ${medNotes}` : prevMedNotes) : (medNotes || ''),
+                                doctor: 'Médico',
+                                location_name: selectedLocation?.name || null,
+                                triage_edits: triageEdits,
+                                vital_signs: hasTriageEdits ? {
+                                  bp: editTriageBP || vitals?.bp || '', temp: editTriageTemp || vitals?.temp || '',
+                                  spo2: editTriageSpo2 || vitals?.spo2 || '', hr: editTriageHR || vitals?.hr || '',
+                                  rr: editTriageRR || vitals?.rr || '', weight: vitals?.weight || '', height: vitals?.height || '', imc: vitals?.imc || '',
+                                } : vitals || null,
+                                triage_priority: triage?.triage_priority || null,
+                                triage_color: triage?.triage_color || null,
+                                preliminary_procedures: triage?.preliminary_procedures || [],
+                                attached_files: triage?.attached_files || [],
+                                triaged_at: triage?.triaged_at || null,
+                              },
+                            };
+                            const patFinal = patientsRef.current.find(p => p.id === pid);
+                            if (patFinal) { setRedirectPatient(patFinal); setShowRedirectModal(true); setShowLocationDetail(false); setSelectedDetailPatientId(null); setMedDiagnosis(''); setMedCid10(''); setMedPrescription(''); setMedNotes(''); setPrevMedDiagnosis(''); setPrevMedCid10(''); setPrevMedPrescription(''); setPrevMedNotes(''); setIsEditingTriage(false); setHasTriageEdits(false); }
                           }}
                           className="flex-1 py-2.5 text-sm font-bold rounded-lg transition cursor-pointer bg-blue-100 text-blue-700 hover:bg-blue-200 flex items-center justify-center gap-1"
                         >
@@ -4216,17 +4786,29 @@ export default function ReceptionModule({
                           onClick={async () => {
                             if (!medDiagnosis.trim()) { alert('Preencha o diagnóstico para finalizar.'); return; }
                             if (!confirm('Tem certeza que deseja finalizar o atendimento? Será registrada uma consulta médica.')) return;
-                            const pat = patients.find(p => p.id === pid);
+                            const pat = patientsRef.current.find(p => p.id === pid);
+                            const triage = pat?.clinicalHistory?.find((h: any) => h.type?.includes('Triagem'));
+                            const vitals = triage?.vital_signs;
+                            const triageEdits = hasTriageEdits ? {
+                              diagnosis: editTriageReason || null,
+                              vital_signs: {
+                                bp: editTriageBP || null,
+                                temp: editTriageTemp || null,
+                                spo2: editTriageSpo2 || null,
+                                hr: editTriageHR || null,
+                                rr: editTriageRR || null,
+                              },
+                            } : null;
                             if (supabase && pat) {
                               try {
-                                const triage = pat.clinicalHistory?.[0];
-                                const vitals = triage?.vital_signs;
                                 const medData = {
-                                  diagnosis: medDiagnosis,
-                                  cid10: medCid10 || 'Z00.0',
-                                  prescriptions: medPrescription ? medPrescription.split('\n').filter(Boolean) : [],
-                                  notes: medNotes || '',
+                                  diagnosis: prevMedDiagnosis ? (medDiagnosis ? `${prevMedDiagnosis} - ${medDiagnosis}` : prevMedDiagnosis) : medDiagnosis || '',
+                                  cid10: prevMedCid10 ? (medCid10 ? `${prevMedCid10} - ${medCid10}` : prevMedCid10) : (medCid10 || 'Z00.0'),
+                                  prescriptions: prevMedPrescription ? (medPrescription ? [`${prevMedPrescription} - ${medPrescription}`] : [prevMedPrescription]) : (medPrescription ? medPrescription.split('\n').filter(Boolean) : []),
+                                  notes: prevMedNotes ? (medNotes ? `${prevMedNotes} - ${medNotes}` : prevMedNotes) : (medNotes || ''),
                                   doctor: 'Médico',
+                                  location_name: selectedLocation?.name || null,
+                                  triage_edits: triageEdits,
                                   vital_signs: isEditingTriage ? {
                                     bp: editTriageBP || vitals?.bp || '',
                                     temp: editTriageTemp || vitals?.temp || '',
@@ -4241,25 +4823,15 @@ export default function ReceptionModule({
                                   triage_color: triage?.triage_color || null,
                                   preliminary_procedures: triage?.preliminary_procedures || [],
                                   attached_files: triage?.attached_files || [],
+                                  triaged_at: triage?.triaged_at || null,
                                 };
-                                const { data: existing } = await supabase.from('clinical_history').select('id').eq('patient_id', pid).eq('type', 'Consulta Médica').order('date', { ascending: false }).limit(1);
-                                if (existing && existing.length > 0) {
-                                  const { error } = await supabase.from('clinical_history').update(medData).eq('id', existing[0].id);
-                                  if (error) {
-                                    console.error('[SUPABASE] UPDATE medical consultation FAILED:', error.message);
-                                  } else {
-                                    console.log('[SUPABASE] UPDATE medical consultation OK:', existing[0].id);
-                                    setPatients(prev => prev.map(p => p.id === pid ? { ...p, clinicalHistory: p.clinicalHistory?.map((h: any) => h.id === existing[0].id ? { ...h, ...medData } : h) || [] } : p));
-                                  }
+                                const medEntry = { id: `his_med_${++hisMedCounterRef.current}`, date: new Date().toISOString().split('T')[0], created_at: new Date().toISOString(), type: 'Consulta Médica', ...medData };
+                                const { error } = await supabase.from('clinical_history').insert({ ...medEntry, patient_id: pid });
+                                if (error) {
+                                  console.error('[SUPABASE] INSERT medical consultation FAILED:', error.message);
                                 } else {
-                                  const medEntry = { id: `his_med_${++hisMedCounterRef.current}`, date: new Date().toISOString().split('T')[0], type: 'Consulta Médica', ...medData };
-                                  const { error } = await supabase.from('clinical_history').insert({ ...medEntry, patient_id: pid });
-                                  if (error) {
-                                    console.error('[SUPABASE] INSERT medical consultation FAILED:', error.message);
-                                  } else {
-                                    console.log('[SUPABASE] INSERT medical consultation OK:', medEntry.id);
-                                    setPatients(prev => prev.map(p => p.id === pid ? { ...p, clinicalHistory: [{ ...medEntry, patient_id: pid } as any, ...(p.clinicalHistory || [])] } : p));
-                                  }
+                                  console.log('[SUPABASE] INSERT medical consultation OK:', medEntry.id);
+                                  setPatients(prev => prev.map(p => p.id === pid ? { ...p, clinicalHistory: [{ ...medEntry, patient_id: pid } as any, ...(p.clinicalHistory || [])] } : p));
                                 }
                               } catch (err) {
                                 console.error('[SUPABASE] SAVE medical consultation FAILED:', err);
@@ -4269,7 +4841,7 @@ export default function ReceptionModule({
                             setShowLocationDetail(false);
                             setSelectedLocation(null);
                             setSelectedDetailPatientId(null);
-                            setMedDiagnosis(''); setMedCid10(''); setMedPrescription(''); setMedNotes(''); setIsEditingTriage(false);
+                            setMedDiagnosis(''); setMedCid10(''); setMedPrescription(''); setMedNotes(''); setPrevMedDiagnosis(''); setPrevMedCid10(''); setPrevMedPrescription(''); setPrevMedNotes(''); setIsEditingTriage(false);
                           }}
                           className="flex-1 py-2.5 text-sm font-bold rounded-lg transition cursor-pointer bg-green-600 text-white hover:bg-green-700 flex items-center justify-center gap-1"
                         >
@@ -4278,20 +4850,7 @@ export default function ReceptionModule({
                       </div>
                     );
                   })()
-                ) : (
-                  // Outros locais (lista): botão Chamar Próximo
-                  <button
-                    onClick={() => { handleCallNextPatient(selectedLocation.id); }}
-                    disabled={selectedLocation.status === 'manutencao' || triagedPatients.length === 0}
-                    className={`w-full py-2.5 text-sm font-bold rounded-lg transition cursor-pointer ${
-                      selectedLocation.status === 'manutencao' || triagedPatients.length === 0
-                        ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                        : 'bg-teal-600 hover:bg-teal-700 text-white'
-                    }`}
-                  >
-                    Chamar Próximo
-                  </button>
-                )}
+                ) : null}
               </div>
             </motion.div>
           </div>

@@ -71,3 +71,6 @@ ON CONFLICT (id) DO NOTHING;
 
 -- 7. Migration: Adicionar coluna triaged_at na tabela clinical_history
 ALTER TABLE clinical_history ADD COLUMN IF NOT EXISTS triaged_at TIMESTAMPTZ;
+
+-- 8. Migration: Adicionar coluna completed_at na tabela patient_location_assignments
+ALTER TABLE patient_location_assignments ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ;
