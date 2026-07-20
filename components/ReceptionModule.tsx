@@ -522,7 +522,7 @@ export default function ReceptionModule({
     if (pat) {
       setInternalNotifications(prev => prev.map(n => n.patientName === pat.name && !n.read ? { ...n, read: true } : n));
       if (supabase) {
-        supabase.from('internal_notifications').update({ read: true }).eq('patient_name', pat.name).eq('read', false).then(() => {}).catch(() => {});
+        supabase.from('internal_notifications').update({ read: true }).eq('patient_name', pat.name).eq('read', false).then(() => {}, () => {});
       }
     }
 
@@ -718,7 +718,7 @@ export default function ReceptionModule({
               attendedMap.set(p.id, {
                 patient: foundPatient || { id: p.id, name: p.name || 'Paciente', phone: p.phone || '', email: '', birthdate: '', gender: '', priority: 'normal' as const, status: 'atendido' as const, clinicalHistory: [] } as Patient,
                 locationName: lastMed?.location_name || '—',
-                completedAt: lastMed?.created_at || new Date().toISOString(),
+                completedAt: (lastMed as any)?.created_at || new Date().toISOString(),
               });
             }
           }
