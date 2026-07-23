@@ -12,11 +12,13 @@ import {
   Play, Pause, RotateCcw, MessageSquare, Users, Timer, Phone,
   TrendingUp, TrendingDown, Minus, Zap, Bell, Settings, Filter,
   ChevronDown, X, AlertCircle, CheckCircle2, XCircle, Clock3,
-  UserCheck, UserX, MapPin, Stethoscope, Building2, HeartPulse
+  UserCheck, UserX, MapPin, Stethoscope, Building2, HeartPulse,
+  UserPlus, Camera, Upload, Info
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PermissionGate, WithPermissions, useUserPermissions } from '@/components/ui/PermissionGate';
 import { Button } from '@/components/ui/button';
+import PhoneInput from '@/components/PhoneInput';
 import { Badge } from '@/components/ui/badge';
 
 // ==============================================================
@@ -108,6 +110,44 @@ interface CallLog {
   duration_seconds: number;
   recording_url: string | null;
   created_at: string;
+}
+
+// ==============================================================
+// CLINIC PATIENT (Pacientes de consultas clínicas)
+// ==============================================================
+export interface ClinicPatient {
+  id: string;
+  name: string;
+  document_type: string;
+  document_number: string;
+  birth_date: string;
+  gender: string;
+  nationality: string;
+  civil_status: string;
+  photo_url: string | null;
+  phone: string;
+  email: string;
+  address_department: string;
+  address_district: string;
+  address_city: string;
+  address_neighborhood: string;
+  address_street: string;
+  address_number: string;
+  country: string;
+  insurance_type: string;
+  insurance_number: string;
+  preferred_language: string;
+  allergies: string;
+  responsible_name: string;
+  responsible_document_type: string;
+  responsible_document_number: string;
+  responsible_phone: string;
+  responsible_relationship: string;
+  whatsapp_verified: boolean;
+  notes: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
 }
 
 // ==============================================================
@@ -257,8 +297,38 @@ const AgendaModuleContent = ({
                   activeRole === 'Médico' ||
                   activeRole === 'Diretor Clínico';
 
+  // Clinic Patients (Cadastro)
+  const [clinicPatients, setClinicPatients] = useState<ClinicPatient[]>([]);
+  const [showNewPatientModal, setShowNewPatientModal] = useState(false);
+  const [editingClinicPatient, setEditingClinicPatient] = useState<ClinicPatient | null>(null);
+  const [clinicPatientSearch, setClinicPatientSearch] = useState('');
+  const [clinicPatientFormTab, setClinicPatientFormTab] = useState<'identification' | 'contact' | 'complementary' | 'guardian'>('identification');
+  const [cpForm, setCpForm] = useState({
+    name: '', document_type: '', document_number: '', birth_date: '', gender: '',
+    nationality: '', civil_status: '', photo_url: '',
+    phone: '', email: '',
+    address_department: '', address_district: '', address_city: '', address_neighborhood: '', address_street: '', address_number: '', country: 'Paraguai',
+    insurance_type: '', insurance_number: '', preferred_language: '', allergies: '',
+    responsible_name: '', responsible_document_type: '', responsible_document_number: '', responsible_phone: '', responsible_relationship: '',
+    whatsapp_verified: false,
+    notes: '',
+  });
+  const [cpIsCameraActive, setCpIsCameraActive] = useState(false);
+  const [cpCameraCountdown, setCpCameraCountdown] = useState<number | null>(null);
+  const [cpWebcamPlaceholder, setCpWebcamPlaceholder] = useState<string | null>(null);
+  const cpVideoRef = useRef<HTMLVideoElement>(null);
+  const cpCanvasRef = useRef<HTMLCanvasElement>(null);
+  const cpStreamRef = useRef<MediaStream | null>(null);
+  const cpPhotoCounterRef = useRef(0);
+  const cpPendingCaptureRef = useRef<'real' | 'simulation' | null>(null);
+  const cpSimulationFileRef = useRef('');
+
+  // Patient search in appointment form
+  const [patientSearchQuery, setPatientSearchQuery] = useState('');
+  const [showPatientDropdown, setShowPatientDropdown] = useState(false);
+
   // Tabs
-  const [activeTab, setActiveTab] = useState<'calendar' | 'whatsapp' | 'waitlist' | 'callcenter'>('calendar');
+  const [activeTab, setActiveTab] = useState<'register' | 'calendar' | 'whatsapp' | 'waitlist' | 'callcenter'>('register');
 
   // Calendar states
   const [calendarView, setCalendarView] = useState<'day' | 'week' | 'month'>('day');
@@ -416,6 +486,21 @@ const AgendaModuleContent = ({
       }
     };
     load();
+  }, []);
+
+  // Load clinic_patients from Supabase
+  useEffect(() => {
+    const loadClinicPatients = async () => {
+      if (!supabase) return;
+      try {
+        const { data, error } = await supabase.from('clinic_patients').select('*').eq('status', 'ativo').order('name');
+        if (data) setClinicPatients(data);
+        if (error) console.warn('[SUPABASE] load clinic_patients error:', error.message);
+      } catch (e) {
+        console.warn('clinic_patients load error:', e);
+      }
+    };
+    loadClinicPatients();
   }, []);
 
   // Load locations and rooms from Supabase
@@ -1414,6 +1499,292 @@ const AgendaModuleContent = ({
   };
 
   // ============================================================
+  // CLINIC PATIENTS CRUD
+  // ============================================================
+  const cpCalculatedDV = useMemo(() => {
+    if (cpForm.document_type !== 'CI' || !cpForm.document_number) return null;
+    const cleanDoc = cpForm.document_number.replace(/\D/g, '');
+    if (cleanDoc.length === 0) return null;
+    let sum = 0;
+    let factor = 2;
+    for (let i = cleanDoc.length - 1; i >= 0; i--) {
+      sum += parseInt(cleanDoc.charAt(i)) * factor;
+      factor++;
+      if (factor > 11) factor = 2;
+    }
+    const remainder = sum % 11;
+    return remainder > 1 ? 11 - remainder : 0;
+  }, [cpForm.document_number, cpForm.document_type]);
+
+  const cpAge = useMemo(() => {
+    if (!cpForm.birth_date) return 0;
+    const today = new Date();
+    const birthDate = new Date(cpForm.birth_date);
+    let calculatedAge = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) calculatedAge--;
+    return calculatedAge;
+  }, [cpForm.birth_date]);
+
+  const cpIsMinor = cpAge < 18;
+
+  const guardianCalculatedDV = useMemo(() => {
+    if (cpForm.responsible_document_type !== 'CI' || !cpForm.responsible_document_number) return null;
+    const cleanDoc = cpForm.responsible_document_number.replace(/\D/g, '');
+    if (cleanDoc.length === 0) return null;
+    let sum = 0;
+    let factor = 2;
+    for (let i = cleanDoc.length - 1; i >= 0; i--) {
+      sum += parseInt(cleanDoc.charAt(i)) * factor;
+      factor++;
+      if (factor > 11) factor = 2;
+    }
+    const remainder = sum % 11;
+    return remainder > 1 ? 11 - remainder : 0;
+  }, [cpForm.responsible_document_number, cpForm.responsible_document_type]);
+
+  const filteredClinicPatients = useMemo(() => {
+    if (!patientSearchQuery) return clinicPatients;
+    const q = patientSearchQuery.toLowerCase();
+    return clinicPatients.filter(p =>
+      p.name.toLowerCase().includes(q) ||
+      (p.document_number && p.document_number.includes(q)) ||
+      (p.phone && p.phone.includes(q))
+    );
+  }, [clinicPatients, patientSearchQuery]);
+
+  const resetCpForm = () => {
+    setCpForm({
+      name: '', document_type: '', document_number: '', birth_date: '', gender: '',
+      nationality: '', civil_status: '', photo_url: '',
+      phone: '', email: '',
+      address_department: '', address_district: '', address_city: '', address_neighborhood: '', address_street: '', address_number: '', country: 'Paraguai',
+      insurance_type: '', insurance_number: '', preferred_language: '', allergies: '',
+      responsible_name: '', responsible_document_type: '', responsible_document_number: '', responsible_phone: '', responsible_relationship: '',
+    whatsapp_verified: false,
+      notes: '',
+    });
+    setCpWebcamPlaceholder(null);
+    setEditingClinicPatient(null);
+    setClinicPatientFormTab('identification');
+  };
+
+  const handleClinicPatientSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // ID do paciente: ao editar usa o existente, ao criar gera um novo
+    const patientId = editingClinicPatient?.id || `cp_${Date.now()}`;
+
+    // Upload da foto se houver preview em base64 (camera/upload ainda nao salvou no storage)
+    let finalPhotoUrl = cpForm.photo_url;
+    const hasNewPhoto = cpWebcamPlaceholder && cpWebcamPlaceholder.startsWith('data:');
+    if (hasNewPhoto) {
+      const fileName = `patient_${patientId}.jpg`;
+      try {
+        const res = await fetch(cpWebcamPlaceholder);
+        const blob = await res.blob();
+        const { data } = await supabase.storage.from('patient-photos').upload(fileName, blob, { contentType: 'image/jpeg', upsert: true });
+        if (data) {
+          const { data: urlData } = supabase.storage.from('patient-photos').getPublicUrl(data.path);
+          finalPhotoUrl = urlData.publicUrl;
+        }
+      } catch (err) { console.warn('Upload error:', err); }
+    }
+
+    if (editingClinicPatient) {
+      const updated: ClinicPatient = {
+        ...editingClinicPatient,
+        ...cpForm,
+        photo_url: finalPhotoUrl,
+        updated_at: new Date().toISOString(),
+      };
+      setClinicPatients(prev => prev.map(p => p.id === editingClinicPatient.id ? updated : p));
+      addAuditLog('Editou Paciente Clinico', cpForm.name);
+      if (supabase) {
+        const { error } = await supabase.from('clinic_patients').update({
+          name: cpForm.name, document_type: cpForm.document_type, document_number: cpForm.document_number,
+          birth_date: cpForm.birth_date, gender: cpForm.gender, nationality: cpForm.nationality,
+          civil_status: cpForm.civil_status, photo_url: finalPhotoUrl,
+          phone: cpForm.phone, email: cpForm.email,
+          address_department: cpForm.address_department, address_district: cpForm.address_district,
+          address_city: cpForm.address_city, address_neighborhood: cpForm.address_neighborhood,
+          address_street: cpForm.address_street, address_number: cpForm.address_number,
+          country: cpForm.country,
+          insurance_type: cpForm.insurance_type, insurance_number: cpForm.insurance_number,
+          preferred_language: cpForm.preferred_language, allergies: cpForm.allergies,
+          responsible_name: cpForm.responsible_name, responsible_document_type: cpForm.responsible_document_type,
+          responsible_document_number: cpForm.responsible_document_number, responsible_phone: cpForm.responsible_phone,
+          responsible_relationship: cpForm.responsible_relationship, whatsapp_verified: cpForm.whatsapp_verified, notes: cpForm.notes,
+        }).eq('id', editingClinicPatient.id);
+      }
+    } else {
+      // Gerar ID sequencial: CLI001, CLI002, etc.
+      const numericIds = clinicPatients.map(p => {
+        const match = p.id.match(/^CLI(\d+)$/);
+        return match ? parseInt(match[1], 10) : 0;
+      });
+      const nextIdNum = Math.max(...numericIds, 0) + 1;
+      const tempId = `CLI${String(nextIdNum).padStart(3, '0')}`;
+      const newPatient: ClinicPatient = {
+        id: tempId,
+        ...cpForm,
+        photo_url: '',
+        status: 'ativo',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      setClinicPatients(prev => [...prev, newPatient]);
+      addAuditLog('Cadastrou Paciente Clinico', cpForm.name);
+      if (supabase) {
+        const { data, error } = await supabase.from('clinic_patients').insert({
+          name: cpForm.name, document_type: cpForm.document_type, document_number: cpForm.document_number,
+          birth_date: cpForm.birth_date, gender: cpForm.gender, nationality: cpForm.nationality,
+          civil_status: cpForm.civil_status, photo_url: '',
+          phone: cpForm.phone, email: cpForm.email,
+          address_department: cpForm.address_department, address_district: cpForm.address_district,
+          address_city: cpForm.address_city, address_neighborhood: cpForm.address_neighborhood,
+          address_street: cpForm.address_street, address_number: cpForm.address_number,
+          country: cpForm.country,
+          insurance_type: cpForm.insurance_type, insurance_number: cpForm.insurance_number,
+          preferred_language: cpForm.preferred_language, allergies: cpForm.allergies,
+          responsible_name: cpForm.responsible_name, responsible_document_type: cpForm.responsible_document_type,
+          responsible_document_number: cpForm.responsible_document_number, responsible_phone: cpForm.responsible_phone,
+          responsible_relationship: cpForm.responsible_relationship, whatsapp_verified: cpForm.whatsapp_verified, notes: cpForm.notes,
+          status: 'ativo',
+        }).select('id').single();
+        if (data) {
+          const realId = data.id;
+          setClinicPatients(prev => prev.map(p => p.id === tempId ? { ...p, id: realId } : p));
+          // Upload da foto com o ID correto do Supabase
+          if (hasNewPhoto) {
+            const fileName = `patient_${realId}.jpg`;
+            try {
+              const res = await fetch(cpWebcamPlaceholder!);
+              const blob = await res.blob();
+              const { data: uploadData } = await supabase.storage.from('patient-photos').upload(fileName, blob, { contentType: 'image/jpeg', upsert: true });
+              if (uploadData) {
+                const { data: urlData } = supabase.storage.from('patient-photos').getPublicUrl(uploadData.path);
+                await supabase.from('clinic_patients').update({ photo_url: urlData.publicUrl }).eq('id', realId);
+                setClinicPatients(prev => prev.map(p => p.id === realId ? { ...p, photo_url: urlData.publicUrl } : p));
+              }
+            } catch (err) { console.warn('Upload error:', err); }
+          }
+        }
+      }
+    }
+    setShowNewPatientModal(false);
+    resetCpForm();
+  };
+
+  const handleDeleteClinicPatient = async (patient: ClinicPatient) => {
+    if (!confirm(`Tem certeza que deseja excluir o paciente ${patient.name}?`)) return;
+    setClinicPatients(prev => prev.filter(p => p.id !== patient.id));
+    addAuditLog('Excluiu Paciente Clinico', patient.name);
+    if (supabase) {
+      await supabase.from('clinic_patients').delete().eq('id', patient.id);
+    }
+  };
+
+  const handleEditClinicPatient = (patient: ClinicPatient) => {
+    setEditingClinicPatient(patient);
+    setCpForm({
+      name: patient.name, document_type: patient.document_type, document_number: patient.document_number,
+      birth_date: patient.birth_date, gender: patient.gender, nationality: patient.nationality,
+      civil_status: patient.civil_status, photo_url: patient.photo_url || '',
+      phone: patient.phone, email: patient.email,
+      address_department: patient.address_department, address_district: patient.address_district,
+      address_city: patient.address_city, address_neighborhood: patient.address_neighborhood,
+      address_street: patient.address_street, address_number: patient.address_number,
+      country: patient.country,
+      insurance_type: patient.insurance_type, insurance_number: patient.insurance_number,
+      preferred_language: patient.preferred_language, allergies: patient.allergies,
+      responsible_name: patient.responsible_name, responsible_document_type: patient.responsible_document_type,
+      responsible_document_number: patient.responsible_document_number, responsible_phone: patient.responsible_phone,
+      responsible_relationship: patient.responsible_relationship, whatsapp_verified: patient.whatsapp_verified || false, notes: patient.notes,
+    });
+    setCpWebcamPlaceholder(patient.photo_url || null);
+    setShowNewPatientModal(true);
+  };
+
+  // Camera handlers for clinic patient form
+  const cpStartCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 320, height: 240 } });
+      cpStreamRef.current = stream;
+      setCpIsCameraActive(true);
+      setCpCameraCountdown(3);
+      setTimeout(() => { if (cpVideoRef.current) { cpVideoRef.current.srcObject = stream; cpVideoRef.current.play(); } }, 100);
+      const interval = setInterval(() => {
+        setCpCameraCountdown(prev => {
+          if (prev === null) return null;
+          if (prev <= 1) { clearInterval(interval); cpPendingCaptureRef.current = 'real'; return null; }
+          return prev - 1;
+        });
+      }, 1000);
+    } catch {
+      cpStartCameraFallback();
+    }
+  };
+
+  const cpStartCameraFallback = () => {
+    setCpIsCameraActive(true);
+    setCpCameraCountdown(3);
+    cpSimulationFileRef.current = `patient_${++cpPhotoCounterRef.current}.svg`;
+    const interval = setInterval(() => {
+      setCpCameraCountdown(prev => {
+        if (prev === null) return null;
+        if (prev <= 1) { clearInterval(interval); cpPendingCaptureRef.current = 'simulation'; return null; }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  const cpCapturePhoto = async () => {
+    if (cpVideoRef.current && cpCanvasRef.current) {
+      const canvas = cpCanvasRef.current;
+      const video = cpVideoRef.current;
+      canvas.width = video.videoWidth || 320;
+      canvas.height = video.videoHeight || 240;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const photoData = canvas.toDataURL('image/jpeg', 0.8);
+        setCpWebcamPlaceholder(photoData);
+      }
+    }
+    cpStopCamera();
+  };
+
+  const cpStopCamera = () => {
+    if (cpStreamRef.current) { cpStreamRef.current.getTracks().forEach(t => t.stop()); cpStreamRef.current = null; }
+    setCpIsCameraActive(false);
+    setCpCameraCountdown(null);
+  };
+
+  useEffect(() => {
+    if (cpCameraCountdown !== null) return;
+    if (cpPendingCaptureRef.current === 'real') { cpPendingCaptureRef.current = null; cpCapturePhoto(); }
+    else if (cpPendingCaptureRef.current === 'simulation') {
+      cpPendingCaptureRef.current = null;
+      const svgPlaceholder = `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect fill="%23e2e8f0" width="200" height="200"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="%2394a3b8" font-size="48">CP</text></svg>`)}`;
+      setCpWebcamPlaceholder(svgPlaceholder);
+      setCpForm(prev => ({ ...prev, photo_url: svgPlaceholder }));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cpCameraCountdown]);
+
+  const cpHandleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const dataUrl = ev.target?.result as string;
+      setCpWebcamPlaceholder(dataUrl);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // ============================================================
   // CALL CENTER KPIs
   // ============================================================
   const callCenterKPIs = useMemo(() => {
@@ -1488,9 +1859,10 @@ const AgendaModuleContent = ({
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-slate-200 mb-6">
+      <div className="flex border-b border-slate-200 mb-6 overflow-x-auto">
         {([
-          { id: 'calendar', label: 'Calendário', icon: CalendarDays, badge: filteredAppointments.length },
+          { id: 'register', label: 'Cadastro', icon: UserPlus, badge: clinicPatients.length },
+          { id: 'calendar', label: 'Calendario', icon: CalendarDays, badge: filteredAppointments.length },
           { id: 'whatsapp', label: 'WhatsApp', icon: Send, badge: reminders.length },
           { id: 'waitlist', label: 'Lista Espera', icon: ClipboardList, badge: waitlist.filter(w => w.status === 'aguardando').length },
           { id: 'callcenter', label: 'Call Center', icon: PhoneCall, badge: callLogs.length },
@@ -1514,6 +1886,471 @@ const AgendaModuleContent = ({
           </button>
         ))}
       </div>
+
+      {/* ==================== REGISTER TAB ==================== */}
+      {activeTab === 'register' && (
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h3 className="font-bold text-slate-800 flex items-center gap-2">
+              <UserPlus className="w-5 h-5 text-teal-600" />
+              Cadastro de Pacientes Clinic ({clinicPatients.length})
+            </h3>
+            {canEdit && (
+              <button onClick={() => { resetCpForm(); setShowNewPatientModal(true); }}
+                className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-lg transition flex items-center gap-2">
+                <Plus className="w-4 h-4" /> Novo Paciente
+              </button>
+            )}
+          </div>
+
+          {/* Patient List */}
+          {clinicPatients.length === 0 ? (
+            <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
+              <UserPlus className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+              <p className="font-semibold text-slate-600">Nenhum paciente cadastrado</p>
+              <p className="text-sm text-slate-400 mt-1">Cadastre o primeiro paciente clinico</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {clinicPatients.map(cp => (
+                <div key={cp.id} className="p-4 bg-white rounded-xl border border-slate-200 hover:shadow-md transition-all">
+                  <div className="flex items-start gap-3">
+                    {cp.photo_url ? (
+                      <img src={cp.photo_url} alt={cp.name} className="w-20 h-20 rounded-full object-cover border-2 border-slate-200" />
+                    ) : (
+                      <div className="w-20 h-20 rounded-full bg-teal-100 flex items-center justify-center text-teal-700 font-bold text-sm">
+                        {cp.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-sm text-slate-800 truncate">{cp.name}</p>
+                      {cp.birth_date && (() => {
+                        const today = new Date();
+                        const birth = new Date(cp.birth_date);
+                        let age = today.getFullYear() - birth.getFullYear();
+                        const m = today.getMonth() - birth.getMonth();
+                        if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+                        return <p className="text-xs text-slate-500">Data Nasc.: {new Date(cp.birth_date).toLocaleDateString('pt-BR')} ({age} anos)</p>;
+                      })()}
+                      {cp.gender && <p className="text-xs text-slate-500">Sexo/Gênero: {cp.gender}</p>}
+                      {cp.phone && <p className="text-xs text-slate-500">Celular: {cp.phone}</p>}
+                      {cp.preferred_language && <p className="text-xs text-slate-500">Idioma Pref.: {cp.preferred_language === 'es' ? 'Espanhol' : cp.preferred_language === 'es-AR' ? 'Espanhol (Argentina)' : cp.preferred_language === 'es-PY' ? 'Espanhol (Paraguay)' : cp.preferred_language === 'gn' ? 'Guarani' : cp.preferred_language === 'pt-BR' ? 'Português (Brasil)' : cp.preferred_language === 'pt-PT' ? 'Português (Portugal)' : cp.preferred_language === 'en' ? 'English' : cp.preferred_language === 'outros' ? 'Outros' : cp.preferred_language}</p>}
+                      {cp.allergies && <p className="text-xs text-slate-500 truncate" title={cp.allergies}>Alergias: {cp.allergies}</p>}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 mt-3 pt-2 border-t border-slate-100">
+                    {cp.insurance_type && (
+                      <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-blue-100 text-blue-700">{cp.insurance_type}</span>
+                    )}
+                    <div className="flex-1" />
+                    {canEdit && (
+                      <>
+                        <button onClick={() => handleEditClinicPatient(cp)} className="text-blue-600 hover:text-blue-800 text-xs font-semibold">Editar</button>
+                        <button onClick={() => handleDeleteClinicPatient(cp)} className="text-rose-500 hover:text-rose-700 text-xs font-semibold">Excluir</button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Blocked Slots List */}
+          <div className="bg-white rounded-xl border border-slate-200 p-4">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-amber-600" />
+                Bloqueios de Agenda ({blockedSlots.length})
+              </h3>
+              {canEdit && (
+                <button onClick={() => setShowBlockageModal(true)} className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-lg transition">
+                  + Novo Bloqueio
+                </button>
+              )}
+            </div>
+            {blockedSlots.length === 0 ? (
+              <p className="text-center text-slate-400 py-6">Nenhum bloqueio cadastrado</p>
+            ) : (
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {blockedSlots.map(b => (
+                  <div key={b.id} className="p-3 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-2 h-2 rounded-full ${b.reason === 'feriado' ? 'bg-red-500' : b.reason === 'férias' ? 'bg-blue-500' : b.reason === 'capacitação' ? 'bg-purple-500' : 'bg-rose-500'}`} />
+                      <div>
+                        <p className="font-semibold text-sm">{b.description}</p>
+                        <p className="text-xs text-slate-500">
+                          {b.start_date} a {b.end_date} {b.start_time && `(${normalizeTime(b.start_time)}-${normalizeTime(b.end_time || '')})`}
+                          {b.doctor_name && ` • ${b.doctor_name}`}
+                          {b.branch && ` • ${b.branch}`}
+                        </p>
+                      </div>
+                    </div>
+                    {canEdit && (
+                      <button onClick={() => handleDeleteBlockage(b.id)} className="text-rose-500 hover:text-rose-700 text-xs font-semibold">Remover</button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ==================== NEW CLINIC PATIENT MODAL ==================== */}
+      <InlineModal open={showNewPatientModal} onClose={() => { setShowNewPatientModal(false); resetCpForm(); }} className="max-w-2xl">
+        <div className="p-6">
+          <form onSubmit={handleClinicPatientSubmit} className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-lg">{editingClinicPatient ? 'Editar Paciente Clinico' : 'Check-In & Admissão'}</h3>
+            </div>
+
+            {/* Sub-tabs */}
+            <div className="flex border-b border-slate-200">
+              {([
+                { id: 'identification' as const, label: 'Identificação' },
+                { id: 'contact' as const, label: 'Contato/End.' },
+                { id: 'complementary' as const, label: 'Convênio/Comp.' },
+                ...(cpIsMinor ? [{ id: 'guardian' as const, label: 'Responsável' }] : []),
+              ]).map(tab => (
+                <button key={tab.id} type="button" onClick={() => setClinicPatientFormTab(tab.id)}
+                  className={`px-4 py-2 text-sm font-semibold border-b-2 transition ${
+                    clinicPatientFormTab === tab.id ? 'border-teal-600 text-teal-600' : 'border-transparent text-slate-500 hover:text-slate-700'
+                  }`}>{tab.label}</button>
+              ))}
+            </div>
+
+            {/* Aba Identificacao */}
+            {clinicPatientFormTab === 'identification' && (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-600 mb-1">Nome Completo *</label>
+                  <input type="text" value={cpForm.name} onChange={e => setCpForm({ ...cpForm, name: e.target.value })}
+                    placeholder="" className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-600 mb-1">Tipo Documento *</label>
+                    <select value={cpForm.document_type} onChange={e => setCpForm({ ...cpForm, document_type: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
+                      <option value="">Selecionar...</option>
+                      <option value="CI">Cédula CI (Paraguay)</option>
+                      <option value="Pasaporte">Pasaporte</option>
+                      <option value="RG">RG (Brasil)</option>
+                      <option value="DNI / Outro">DNI / Outro</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-600 mb-1">Número Doc *</label>
+                    <div className="flex gap-1">
+                      <input type="text" value={cpForm.document_number} onChange={e => setCpForm({ ...cpForm, document_number: e.target.value })}
+                        placeholder="" className="flex-1 p-2 bg-slate-50 border border-slate-200 rounded-lg" required />
+                      {cpCalculatedDV !== null && cpForm.document_type === 'CI' && (
+                        <span className="px-2 py-1 bg-teal-100 text-teal-700 text-xs font-bold rounded-lg self-center">DV: {cpCalculatedDV}</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-600 mb-1">Data Nascimento *</label>
+                    <input type="date" value={cpForm.birth_date} onChange={e => setCpForm({ ...cpForm, birth_date: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required />
+                    {cpForm.birth_date && <p className="text-xs text-slate-400 mt-1">{cpAge} anos{cpIsMinor ? ' (Menor - Aba Responsavel obrigatoria)' : ''}</p>}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-600 mb-1">Sexo/Gênero *</label>
+                    <select value={cpForm.gender} onChange={e => setCpForm({ ...cpForm, gender: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
+                      <option value="">Selecionar...</option>
+                      <option value="Masculino">Masculino</option>
+                      <option value="Feminino">Feminino</option>
+                      <option value="Outro">Outro</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-600 mb-1">Nacionalidade *</label>
+                    <input type="text" value={cpForm.nationality} onChange={e => setCpForm({ ...cpForm, nationality: e.target.value })} placeholder="" className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-600 mb-1">Civil *</label>
+                    <select value={cpForm.civil_status} onChange={e => setCpForm({ ...cpForm, civil_status: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
+                      <option value="">Selecionar...</option>
+                      <option value="Solteiro(a)">Solteiro(a)</option>
+                      <option value="Casado(a)">Casado(a)</option>
+                      <option value="Divorciado(a)">Divorciado(a)</option>
+                      <option value="Viuvo(a)">Viúvo(a)</option>
+                      <option value="Uniao Estavel">União</option>
+                    </select>
+                  </div>
+                </div>
+                {/* Foto do Paciente */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-600 mb-2">Foto do Paciente</label>
+                  <div className="flex items-center gap-4">
+                    <div className="w-20 h-20 rounded-full bg-slate-100 border-2 border-slate-200 flex items-center justify-center overflow-hidden">
+                      {cpWebcamPlaceholder ? (
+                        <img src={cpWebcamPlaceholder} alt="Foto" className="w-full h-full object-cover" />
+                      ) : (
+                        <User className="w-8 h-8 text-slate-300" />
+                      )}
+                    </div>
+                    <div className="flex-1 space-y-2">
+                      {cpIsCameraActive ? (
+                        <div className="relative w-full max-w-xs">
+                          <video ref={cpVideoRef} className="w-full rounded-lg" playsInline muted />
+                          <canvas ref={cpCanvasRef} className="hidden" />
+                          {cpCameraCountdown !== null && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-lg">
+                              <span className="text-4xl font-bold text-white">{cpCameraCountdown}</span>
+                            </div>
+                          )}
+                          <button type="button" onClick={cpStopCamera} className="mt-1 text-xs text-red-500 hover:text-red-700 font-semibold">Cancelar</button>
+                        </div>
+                      ) : (
+                        <>
+                          <button type="button" onClick={cpStartCamera}
+                            className="w-full py-2 px-4 bg-teal-50 hover:bg-teal-100 text-teal-700 font-semibold rounded-lg flex items-center justify-center gap-2 border border-teal-200 transition">
+                            <Camera className="w-4 h-4" /> Capturar via Camara
+                          </button>
+                          <label className="w-full py-2 px-4 bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold rounded-lg flex items-center justify-center gap-2 border border-slate-200 cursor-pointer transition">
+                            <Upload className="w-4 h-4" /> Upload de Arquivo
+                            <input type="file" accept="image/*" onChange={cpHandleFileUpload} className="hidden" />
+                          </label>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Aba Contato / Endereco */}
+            {clinicPatientFormTab === 'contact' && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <PhoneInput
+                    value={cpForm.phone}
+                    onChange={phone => setCpForm({ ...cpForm, phone })}
+                    label="Celular"
+                    required
+                    allowEmpty
+                  />
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">WhatsApp</label>
+                    <button type="button" onClick={() => setCpForm({ ...cpForm, whatsapp_verified: !cpForm.whatsapp_verified })}
+                      className={`w-full py-2.5 px-2.5 rounded-lg border font-bold text-xs transition cursor-pointer flex items-center justify-center gap-1.5 ${
+                        cpForm.whatsapp_verified 
+                          ? 'bg-emerald-50 text-emerald-800 border-emerald-300' 
+                          : 'bg-slate-100 text-slate-500 border-slate-300'
+                      }`}>
+                      <Check className={`w-3.5 h-3.5 ${cpForm.whatsapp_verified ? 'text-emerald-700' : 'text-slate-400'}`} />
+                      {cpForm.whatsapp_verified ? 'Verificado & Integrado' : 'Validar WhatsApp'}
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">E-mail *</label>
+                  <input type="email" value={cpForm.email} onChange={e => setCpForm({ ...cpForm, email: e.target.value })}
+                    placeholder="" className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm" required />
+                </div>
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                  <div className="flex items-center gap-1.5 text-slate-700 font-bold text-sm pb-1 border-b border-slate-200">
+                    <MapPin className="w-4 h-4 text-teal-600" />
+                    <span>Endereco Completo</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1">Departamento *</label>
+                      <input type="text" value={cpForm.address_department} onChange={e => setCpForm({ ...cpForm, address_department: e.target.value })}
+                        placeholder="" className="w-full p-2 bg-white border border-slate-200 rounded-md text-sm" required />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1">Distrito *</label>
+                      <input type="text" value={cpForm.address_district} onChange={e => setCpForm({ ...cpForm, address_district: e.target.value })}
+                        placeholder="" className="w-full p-2 bg-white border border-slate-200 rounded-md text-sm" required />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1">Cidade *</label>
+                      <input type="text" value={cpForm.address_city} onChange={e => setCpForm({ ...cpForm, address_city: e.target.value })}
+                        placeholder="" className="w-full p-2 bg-white border border-slate-200 rounded-md text-sm" required />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1">Bairro *</label>
+                      <input type="text" value={cpForm.address_neighborhood} onChange={e => setCpForm({ ...cpForm, address_neighborhood: e.target.value })}
+                        placeholder="" className="w-full p-2 bg-white border border-slate-200 rounded-md text-sm" required />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="col-span-2">
+                      <label className="block text-xs font-semibold text-slate-500 mb-1">Rua *</label>
+                      <input type="text" value={cpForm.address_street} onChange={e => setCpForm({ ...cpForm, address_street: e.target.value })}
+                        placeholder="" className="w-full p-2 bg-white border border-slate-200 rounded-md text-sm" required />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1">Numero *</label>
+                      <input type="text" value={cpForm.address_number} onChange={e => setCpForm({ ...cpForm, address_number: e.target.value })}
+                        placeholder="" className="w-full p-2 bg-white border border-slate-200 rounded-md text-sm" required />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Aba Convenio / Complementares */}
+            {clinicPatientFormTab === 'complementary' && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-600 mb-1">Tipo Convenio *</label>
+                    <select value={cpForm.insurance_type} onChange={e => setCpForm({ ...cpForm, insurance_type: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
+                      <option value="">Selecionar...</option>
+                      <option value="IPS">IPS</option>
+                      <option value="Sanidade Militar">Sanidade Militar</option>
+                      <option value="Sanidade Policial">Sanidade Policial</option>
+                      <option value="Pre-paga">Pre-paga (EMP)</option>
+                      <option value="Seguro Privado">Seguro Privado</option>
+                      <option value="Particular">Particular</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-600 mb-1">Numero do Convenio *</label>
+                    <input type="text" value={cpForm.insurance_number} onChange={e => setCpForm({ ...cpForm, insurance_number: e.target.value })}
+                      disabled={cpForm.insurance_type === 'Particular'}
+                      className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg disabled:opacity-50 disabled:bg-slate-100"
+                      required={cpForm.insurance_type !== 'Particular'} />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-600 mb-1">Idioma Pref. *</label>
+                  <select value={cpForm.preferred_language} onChange={e => setCpForm({ ...cpForm, preferred_language: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
+                    <option value="">Selecionar...</option>
+                    <option value="pt-BR">🇧🇷 Português (Brasil)</option>
+                    <option value="pt-PT">🇵🇹 Português (Portugal)</option>
+                    <option value="es-AR">🇦🇷 Español (Argentina)</option>
+                    <option value="es-PY">🇵🇾 Español (Paraguay)</option>
+                    <option value="es">🇪🇸 Español (Geral)</option>
+                    <option value="en">🇺🇸 English (US/UK)</option>
+                    <option value="outros">Outros</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-600 mb-1">Alergias / Antecedentes Clinicos *</label>
+                  <textarea value={cpForm.allergies} onChange={e => setCpForm({ ...cpForm, allergies: e.target.value })} rows={3}
+                    placeholder="" className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-600 mb-1">Observacoes</label>
+                  <textarea value={cpForm.notes} onChange={e => setCpForm({ ...cpForm, notes: e.target.value })} rows={2}
+                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
+                </div>
+              </div>
+            )}
+
+            {/* Aba Responsavel (so aparece se menor de idade) */}
+            {clinicPatientFormTab === 'guardian' && (
+              <div className="space-y-4">
+                {cpIsMinor && cpForm.birth_date && (
+                  <div className="bg-amber-50 p-3 rounded-lg border border-amber-200">
+                    <p className="text-xs font-bold text-amber-700 flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3" /> O paciente é menor de {cpAge} anos.
+                      <br />
+                      O preenchimento do responsável legal/financeiro é <span className="font-black">obrigatório</span> para concluir o cadastro.
+                    </p>
+                  </div>
+                )}
+                {!cpIsMinor && (
+                  <p className="text-xs text-slate-500 mb-2">
+                    Opcional para pacientes maiores de idade (útil em casos de acompanhantes de idosos ou incapazes).
+                  </p>
+                )}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Nome do Responsável{cpIsMinor ? ' *' : ''}</label>
+                  <input type="text" value={cpForm.responsible_name} onChange={e => setCpForm({ ...cpForm, responsible_name: e.target.value })}
+                    placeholder="" className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg"
+                    required={cpIsMinor} />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Tipo Documento{cpIsMinor ? ' *' : ''}</label>
+                    <select value={cpForm.responsible_document_type} onChange={e => setCpForm({ ...cpForm, responsible_document_type: e.target.value })}
+                      className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs" required={cpIsMinor}>
+                      <option value="">Selecionar...</option>
+                      <option value="CI">Cédula CI (Paraguai)</option>
+                      <option value="Passaporte">Passaporte</option>
+                      <option value="RG">RG (Brasil)</option>
+                      <option value="Outro">DNI / Outro</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Nº Cédula / Doc{cpIsMinor ? ' *' : ''}</label>
+                    <div className="relative">
+                      <input type="text" value={cpForm.responsible_document_number} onChange={e => setCpForm({ ...cpForm, responsible_document_number: e.target.value })}
+                        placeholder="" className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg"
+                        required={cpIsMinor} />
+                      {guardianCalculatedDV !== null && (
+                        <span className="absolute right-2 top-2 px-1.5 py-0.5 bg-teal-50 border border-teal-100 text-teal-800 font-bold text-[10px] rounded">
+                          DV: {guardianCalculatedDV}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Telefone do Responsável *</label>
+                  <input type="tel" value={cpForm.responsible_phone} onChange={e => setCpForm({ ...cpForm, responsible_phone: e.target.value })}
+                    placeholder="" className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg"
+                    required />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Vínculo Familiar{cpIsMinor ? ' *' : ''}</label>
+                  <select value={cpForm.responsible_relationship} onChange={e => setCpForm({ ...cpForm, responsible_relationship: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs"
+                    required={cpIsMinor}>
+                    <option value="">Selecione o vínculo...</option>
+                    <option value="Pai">Pai</option>
+                    <option value="Mãe">Mãe</option>
+                    <option value="Tutor Legal">Tutor Legal</option>
+                    <option value="Cônjuge">Cônjuge</option>
+                    <option value="Filho(a)">Filho(a)</option>
+                    <option value="Outros">Outros</option>
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {/* Actions */}
+            {(() => {
+              const isLastTab = cpIsMinor
+                ? clinicPatientFormTab === 'guardian'
+                : clinicPatientFormTab === 'complementary';
+
+              const tabOrder: Array<'identification' | 'contact' | 'complementary' | 'guardian'> = cpIsMinor
+                ? ['identification', 'contact', 'complementary', 'guardian']
+                : ['identification', 'contact', 'complementary'];
+              const currentIdx = tabOrder.indexOf(clinicPatientFormTab);
+              const nextTab = currentIdx < tabOrder.length - 1 ? tabOrder[currentIdx + 1] : null;
+
+              return (
+                <div className="flex justify-end gap-2 pt-2 border-t border-slate-200">
+                  {nextTab && (
+                    <button type="button" onClick={() => setClinicPatientFormTab(nextTab)}
+                      className="py-2 px-4 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-lg transition flex items-center gap-1">
+                      Próximo <ChevronRight className="w-4 h-4" />
+                    </button>
+                  )}
+                  {isLastTab && (
+                    <button type="submit" className="py-2 px-4 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-lg transition">
+                      {editingClinicPatient ? 'Salvar Alteracoes' : 'Registrar Paciente'}
+                    </button>
+                  )}
+                  <button type="button" onClick={() => { setShowNewPatientModal(false); resetCpForm(); }}
+                    className="py-2 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg transition">Cancelar</button>
+                </div>
+              );
+            })()}
+          </form>
+        </div>
+      </InlineModal>
 
       {/* ==================== CALENDAR TAB ==================== */}
       {activeTab === 'calendar' && (
@@ -2399,16 +3236,116 @@ const AgendaModuleContent = ({
             </div>
 
 
-            {/* Paciente */}
-            <div>
+            {/* Paciente (Busca em clinic_patients) */}
+            <div className="relative">
               <label className="block text-sm font-medium text-slate-600 mb-1">Paciente *</label>
-              <select value={newApptForm.patient_id} onChange={e => {
-                const p = patients.find(p => p.id === e.target.value);
-                setNewApptForm({ ...newApptForm, patient_id: e.target.value, patient_name: p?.name || '' });
-              }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
-                <option value="">Selecionar paciente...</option>
-                {patients.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  type="text"
+                  value={newApptForm.patient_name || patientSearchQuery}
+                  onChange={e => {
+                    setPatientSearchQuery(e.target.value);
+                    setShowPatientDropdown(true);
+                    if (newApptForm.patient_id) {
+                      setNewApptForm({ ...newApptForm, patient_id: '', patient_name: '' });
+                    }
+                  }}
+                  onFocus={() => { setShowPatientDropdown(true); setPatientSearchQuery(''); }}
+                  placeholder="Buscar por nome, documento ou telefone..."
+                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg"
+                  required={!newApptForm.patient_id}
+                />
+                {newApptForm.patient_id && (
+                  <button type="button" onClick={() => { setNewApptForm({ ...newApptForm, patient_id: '', patient_name: '' }); setPatientSearchQuery(''); }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+              {showPatientDropdown && !newApptForm.patient_id && (
+                <div className="absolute z-50 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                  {clinicPatients.filter(cp => {
+                    if (!patientSearchQuery) return true;
+                    const q = patientSearchQuery.toLowerCase();
+                    return cp.name.toLowerCase().includes(q) ||
+                      (cp.document_number && cp.document_number.includes(q)) ||
+                      (cp.phone && cp.phone.includes(q));
+                  }).slice(0, 20).map(cp => (
+                    <button key={cp.id} type="button"
+                      onClick={() => { setNewApptForm({ ...newApptForm, patient_id: cp.id, patient_name: cp.name }); setShowPatientDropdown(false); setPatientSearchQuery(''); }}
+                      className="w-full px-4 py-3 text-left hover:bg-teal-50 flex items-center gap-3 border-b border-slate-100 last:border-0 transition">
+                      {cp.photo_url ? (
+                        <img src={cp.photo_url} alt="" className="w-8 h-8 rounded-full object-cover" />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center text-teal-700 text-xs font-bold">
+                          {cp.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-sm text-slate-800 truncate">{cp.name}</p>
+                        <p className="text-xs text-slate-500">{cp.document_type}: {cp.document_number || '-'} {cp.phone ? `| ${cp.phone}` : ''}</p>
+                      </div>
+                      {cp.insurance_type && (
+                        <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-blue-100 text-blue-700">{cp.insurance_type}</span>
+                      )}
+                    </button>
+                  ))}
+                  {clinicPatients.filter(cp => {
+                    if (!patientSearchQuery) return true;
+                    const q = patientSearchQuery.toLowerCase();
+                    return cp.name.toLowerCase().includes(q) || (cp.document_number && cp.document_number.includes(q)) || (cp.phone && cp.phone.includes(q));
+                  }).length === 0 && (
+                    <div className="px-4 py-6 text-center">
+                      <p className="text-sm text-slate-500">Nenhum paciente encontrado</p>
+                      <button type="button" onClick={() => { setShowPatientDropdown(false); resetCpForm(); setShowNewPatientModal(true); }}
+                        className="mt-2 text-sm font-semibold text-teal-600 hover:text-teal-800">+ Cadastrar novo paciente</button>
+            </div>
+          )}
+
+          {/* Blocked Slots List */}
+          <div className="bg-white rounded-xl border border-slate-200 p-4">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-amber-600" />
+                Bloqueios de Agenda ({blockedSlots.length})
+              </h3>
+              {canEdit && (
+                <button onClick={() => setShowBlockageModal(true)} className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-lg transition">
+                  + Novo Bloqueio
+                </button>
+              )}
+            </div>
+            {blockedSlots.length === 0 ? (
+              <p className="text-center text-slate-400 py-6">Nenhum bloqueio cadastrado</p>
+            ) : (
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {blockedSlots.map(b => (
+                  <div key={b.id} className="p-3 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-2 h-2 rounded-full ${b.reason === 'feriado' ? 'bg-red-500' : b.reason === 'férias' ? 'bg-blue-500' : b.reason === 'capacitação' ? 'bg-purple-500' : 'bg-rose-500'}`} />
+                      <div>
+                        <p className="font-semibold text-sm">{b.description}</p>
+                        <p className="text-xs text-slate-500">
+                          {b.start_date} a {b.end_date} {b.start_time && `(${normalizeTime(b.start_time)}-${normalizeTime(b.end_time || '')})`}
+                          {b.doctor_name && ` • ${b.doctor_name}`}
+                          {b.branch && ` • ${b.branch}`}
+                        </p>
+                      </div>
+                    </div>
+                    {canEdit && (
+                      <button onClick={() => handleDeleteBlockage(b.id)} className="text-rose-500 hover:text-rose-700 text-xs font-semibold">Remover</button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+              {showPatientDropdown && (
+                <div className="fixed inset-0 z-40" onClick={() => setShowPatientDropdown(false)} />
+              )}
             </div>
 
             {/* Modalidade + Sede + Sala */}

@@ -10,6 +10,7 @@ interface PhoneInputProps {
   required?: boolean;
   placeholder?: string;
   className?: string;
+  allowEmpty?: boolean;
 }
 
 const COUNTRIES: { code: CountryCode; name: string; flag: string }[] = [
@@ -193,10 +194,11 @@ export default function PhoneInput({
   onChange,
   label,
   required = false,
-  placeholder = '+595 981 123 456',
+  placeholder = '',
   className = '',
+  allowEmpty = false,
 }: PhoneInputProps) {
-  const [selectedCountry, setSelectedCountry] = useState<CountryCode>('PY');
+  const [selectedCountry, setSelectedCountry] = useState<CountryCode | ''>(allowEmpty ? '' : 'PY');
 
   useEffect(() => {
     if (value && value.startsWith('+')) {
@@ -208,8 +210,8 @@ export default function PhoneInput({
   }, [value]);
 
   const isPhoneValid = useMemo(() => {
-    if (!value) return false;
-    return isValidPhoneNumber(value, selectedCountry);
+    if (!value || !selectedCountry) return false;
+    return isValidPhoneNumber(value, selectedCountry as CountryCode);
   }, [value, selectedCountry]);
 
   const handleChange = (val: string) => {
@@ -221,9 +223,9 @@ export default function PhoneInput({
     if (detected) {
       setSelectedCountry(detected);
       onChange(val);
-    } else if (!val.startsWith('+')) {
+    } else if (!val.startsWith('+') && selectedCountry) {
       try {
-        const code = getCountryCallingCode(selectedCountry);
+        const code = getCountryCallingCode(selectedCountry as CountryCode);
         onChange('+' + code + val.replace(/\D/g, ''));
       } catch {
         onChange(val);
@@ -234,9 +236,9 @@ export default function PhoneInput({
   };
 
   const formatPhone = () => {
-    if (!value) return value;
+    if (!value || !selectedCountry) return value;
     try {
-      const parsed = parsePhoneNumber(value, selectedCountry);
+      const parsed = parsePhoneNumber(value, selectedCountry as CountryCode);
       if (parsed && parsed.isValid()) {
         return parsed.formatInternational();
       }
@@ -245,10 +247,10 @@ export default function PhoneInput({
   };
 
   const handleBlur = () => {
-    if (!value) return;
+    if (!value || !selectedCountry) return;
     if (!value.startsWith('+')) {
       try {
-        const code = getCountryCallingCode(selectedCountry);
+        const code = getCountryCallingCode(selectedCountry as CountryCode);
         onChange('+' + code + value.replace(/\D/g, ''));
       } catch {}
       return;
@@ -290,6 +292,7 @@ export default function PhoneInput({
           }}
           className="w-20 p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold cursor-pointer shrink-0"
         >
+          {allowEmpty && <option value="">...</option>}
           {COUNTRIES.map(c => (
             <option key={c.code} value={c.code}>
               {c.flag} +{getCountryCallingCode(c.code)}

@@ -58,13 +58,13 @@ export default function ReceptionModule({
   const [newBirthdate, setNewBirthdate] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [newPhone, setNewPhone] = useState('');
-  const [newGender, setNewGender] = useState('Masculino');
+  const [newGender, setNewGender] = useState('');
   const [newPriority, setNewPriority] = useState<'normal' | 'preferencial' | 'emergência'>('normal');
-  const [documentType, setDocumentType] = useState<'CI' | 'Passaporte' | 'RG' | 'Outro'>('CI');
+  const [documentType, setDocumentType] = useState<'CI' | 'Passaporte' | 'RG' | 'Outro' | ''>('');
   const [documentNumber, setDocumentNumber] = useState('');
   const [placeOfBirth, setPlaceOfBirth] = useState('');
-  const [civilStatus, setCivilStatus] = useState<'Solteiro(a)' | 'Casado(a)' | 'Divorciado(a)' | 'Viúvo(a)' | 'União Estável'>('Solteiro(a)');
-  const [nationality, setNationality] = useState('Paraguaia');
+  const [civilStatus, setCivilStatus] = useState<'Solteiro(a)' | 'Casado(a)' | 'Divorciado(a)' | 'Viúvo(a)' | 'União Estável' | ''>('');
+  const [nationality, setNationality] = useState('');
   const [addressDepartment, setAddressDepartment] = useState('');
   const [addressDistrict, setAddressDistrict] = useState('');
   const [addressCity, setAddressCity] = useState('');
@@ -74,17 +74,18 @@ export default function ReceptionModule({
   const [whatsappVerified, setWhatsappVerified] = useState(false);
   
   // Complementary fields
-  const [bloodType, setBloodType] = useState<'A+' | 'A-' | 'B+' | 'B-' | 'AB+' | 'AB-' | 'O+' | 'O-' | 'Não Informado'>('Não Informado');
+  const [bloodType, setBloodType] = useState<'A+' | 'A-' | 'B+' | 'B-' | 'AB+' | 'AB-' | 'O+' | 'O-' | 'Não Informado' | ''>('');
   const [allergies, setAllergies] = useState('');
-  const [healthInsuranceType, setHealthInsuranceType] = useState<'IPS' | 'Sanidade Militar' | 'Sanidade Policial' | 'Pré-paga' | 'Seguro Privado' | 'Particular'>('Particular');
+  const [healthInsuranceType, setHealthInsuranceType] = useState<'IPS' | 'Sanidade Militar' | 'Sanidade Policial' | 'Pré-paga' | 'Seguro Privado' | 'Particular' | ''>('');
   const [healthInsuranceNumber, setHealthInsuranceNumber] = useState('');
   const [healthInsuranceCompany, setHealthInsuranceCompany] = useState('');
   const [employer, setEmployer] = useState('');
   const [guardianName, setGuardianName] = useState('');
-  const [guardianDocumentType, setGuardianDocumentType] = useState<'CI' | 'Passaporte' | 'RG' | 'Outro'>('CI');
+  const [guardianDocumentType, setGuardianDocumentType] = useState<'CI' | 'Passaporte' | 'RG' | 'Outro' | ''>('');
   const [guardianDocument, setGuardianDocument] = useState('');
   const [guardianRelationship, setGuardianRelationship] = useState('');
-  const [preferredLanguage, setPreferredLanguage] = useState<'es' | 'gn' | 'pt' | 'en' | 'outros'>('es');
+  const [guardianPhone, setGuardianPhone] = useState('');
+  const [preferredLanguage, setPreferredLanguage] = useState<'es' | 'es-AR' | 'es-PY' | 'gn' | 'pt-BR' | 'pt-PT' | 'en' | 'outros' | ''>('');
   const [photoUrl, setPhotoUrl] = useState('');
 
   // --- Photo states (webcam) ---
@@ -873,15 +874,15 @@ export default function ReceptionModule({
       email: newEmail || 'sem-email@iamed.com',
       phone: newPhone,
       birthdate: newBirthdate,
-      gender: newGender,
+      gender: newGender || 'Masculino',
       priority: newPriority,
       status: 'aguardando',
       clinicalHistory: [],
       
-      document_type: documentType,
+      document_type: documentType || undefined as any,
       document_number: documentNumber,
       place_of_birth: placeOfBirth,
-      civil_status: civilStatus,
+      civil_status: civilStatus || undefined as any,
       nationality: nationality,
       address_department: addressDepartment,
       address_district: addressDistrict,
@@ -901,6 +902,7 @@ export default function ReceptionModule({
       guardian_document_type: isMinor ? guardianDocumentType : undefined,
       guardian_document: isMinor ? guardianDocument : undefined,
       guardian_relationship: isMinor ? guardianRelationship : undefined,
+      guardian_phone: isMinor ? guardianPhone : undefined,
       photo_url: finalPhotoUrl,
       preferred_language: preferredLanguage
     };
@@ -989,13 +991,16 @@ export default function ReceptionModule({
     setAddressNumber('');
     setWhatsappVerified(false);
     setAllergies('');
+    setBloodType('');
     setHealthInsuranceNumber('');
     setHealthInsuranceCompany('');
     setEmployer('');
     setGuardianName('');
-    setGuardianDocumentType('CI');
+    setGuardianDocumentType('');
     setGuardianDocument('');
     setGuardianRelationship('');
+    setGuardianPhone('');
+    setHealthInsuranceType('');
     setWebcamPlaceholder(null);
     setPhotoUrl('');
     setSelectedPatientId('');
@@ -1968,7 +1973,7 @@ export default function ReceptionModule({
                         type="text" 
                         value={newName} 
                         onChange={e => setNewName(e.target.value)}
-                        placeholder="Ex: Carlos Alberto Duarte Gómez" 
+                        placeholder=""
                         className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans"
                         required
                       />
@@ -1983,6 +1988,7 @@ export default function ReceptionModule({
                           className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans"
                           required
                         >
+                          <option value="">Selecionar...</option>
                           <option value="CI">Cédula CI (Paraguai)</option>
                           <option value="Passaporte">Passaporte</option>
                           <option value="RG">RG (Brasil)</option>
@@ -1996,7 +2002,7 @@ export default function ReceptionModule({
                             type="text" 
                             value={documentNumber} 
                             onChange={e => setDocumentNumber(e.target.value)}
-                            placeholder="Número do Documento" 
+                            placeholder=""
                             className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans"
                             required
                           />
@@ -2031,7 +2037,7 @@ export default function ReceptionModule({
                           type="text" 
                           value={placeOfBirth} 
                           onChange={e => setPlaceOfBirth(e.target.value)}
-                          placeholder="Cidade/País de origem" 
+                          placeholder=""
                           className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans"
                           required
                         />
@@ -2047,8 +2053,9 @@ export default function ReceptionModule({
                           className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans text-xs"
                           required
                         >
-                          <option value="Masculino">Masc.</option>
-                          <option value="Feminino">Fem.</option>
+                          <option value="">Selecionar...</option>
+                          <option value="Masculino">Masculino</option>
+                          <option value="Feminino">Feminino</option>
                           <option value="Outro">Outro</option>
                         </select>
                       </div>
@@ -2058,7 +2065,7 @@ export default function ReceptionModule({
                           type="text" 
                           value={nationality} 
                           onChange={e => setNationality(e.target.value)}
-                          placeholder="Nacionalidade" 
+                          placeholder=""
                           className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans text-xs"
                           required
                         />
@@ -2071,10 +2078,11 @@ export default function ReceptionModule({
                           className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans text-xs"
                           required
                         >
-                          <option value="Solteiro(a)">Solt.</option>
-                          <option value="Casado(a)">Cas.</option>
-                          <option value="Divorciado(a)">Div.</option>
-                          <option value="Viúvo(a)">Viúvo</option>
+                          <option value="">Selecionar...</option>
+                          <option value="Solteiro(a)">Solteiro(a)</option>
+                          <option value="Casado(a)">Casado(a)</option>
+                          <option value="Divorciado(a)">Divorciado(a)</option>
+                          <option value="Viúvo(a)">Viúvo(a)</option>
                           <option value="União Estável">União</option>
                         </select>
                       </div>
@@ -2084,59 +2092,50 @@ export default function ReceptionModule({
                     <div className="p-3 bg-slate-50 border border-slate-200/80 rounded-xl space-y-2">
                       <label className="block text-xs font-semibold text-slate-600">Foto do Paciente</label>
                       <div className="flex items-center gap-4">
-                        <div className="w-16 h-16 bg-slate-100 rounded-lg border border-slate-300 overflow-hidden flex items-center justify-center relative">
-                          {isCameraActive ? (
-                            <video 
-                              ref={videoRef} 
-                              className="w-full h-full object-cover" 
-                              autoPlay 
-                              playsInline 
-                              muted
-                            />
-                          ) : webcamPlaceholder ? (
+                        <div className="w-20 h-20 bg-slate-100 rounded-full border-2 border-slate-200 overflow-hidden flex items-center justify-center relative">
+                          {webcamPlaceholder ? (
                             <img src={webcamPlaceholder} className="w-full h-full object-cover" alt="Patient Capture" />
                           ) : (
                             <User className="w-8 h-8 text-slate-300" />
                           )}
-                          {isCameraActive && cameraCountdown !== null && (
-                            <div className="absolute inset-0 bg-slate-900/80 flex items-center justify-center text-white text-xs font-bold font-sans">
-                              {cameraCountdown}
-                            </div>
-                          )}
                         </div>
                         <div className="flex-1 space-y-2">
-                          <button
-                            type="button"
-                            onClick={isCameraActive ? stopCamera : handleSimulateWebcam}
-                            className={`w-full py-1.5 px-3 font-bold text-xs rounded-lg flex items-center justify-center gap-1.5 cursor-pointer transition ${
-                              isCameraActive 
-                                ? 'bg-red-50 text-red-700 hover:bg-red-100 border border-red-200' 
-                                : 'bg-teal-50 text-teal-700 hover:bg-teal-100 border border-teal-200'
-                            }`}
-                          >
-                            {isCameraActive ? (
-                              <>
-                                <X className="w-3.5 h-3.5" />
-                                Cancelar
-                              </>
-                            ) : (
-                              <>
-                                <Camera className="w-3.5 h-3.5" />
-                                Capturar via Câmera
-                              </>
-                            )}
-                          </button>
-                          
-                          <label className="w-full py-1.5 px-3 bg-slate-200 hover:bg-slate-300 border border-slate-300 font-semibold text-xs rounded-lg flex items-center justify-center gap-1.5 cursor-pointer text-slate-700 transition text-center">
-                            <Upload className="w-3.5 h-3.5" />
-                            Upload de Arquivo
-                            <input 
-                              type="file" 
-                              accept="image/*" 
-                              className="hidden" 
-                              onChange={handlePhotoUpload} 
-                            />
-                          </label>
+                          {isCameraActive ? (
+                            <div className="relative w-full max-w-xs">
+                              <video 
+                                ref={videoRef} 
+                                className="w-full rounded-lg" 
+                                autoPlay 
+                                playsInline 
+                                muted
+                              />
+                              {cameraCountdown !== null && (
+                                <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-lg">
+                                  <span className="text-4xl font-bold text-white">{cameraCountdown}</span>
+                                </div>
+                              )}
+                              <button type="button" onClick={stopCamera} className="mt-1 text-xs text-red-500 hover:text-red-700 font-semibold">Cancelar</button>
+                            </div>
+                          ) : (
+                            <>
+                              <button
+                                type="button"
+                                onClick={handleSimulateWebcam}
+                                className="w-full py-2 px-4 bg-teal-50 hover:bg-teal-100 text-teal-700 font-semibold rounded-lg flex items-center justify-center gap-2 border border-teal-200 transition">
+                                <Camera className="w-4 h-4" /> Capturar via Câmera
+                              </button>
+                              <label className="w-full py-2 px-4 bg-slate-200 hover:bg-slate-300 border border-slate-300 font-semibold text-xs rounded-lg flex items-center justify-center gap-2 cursor-pointer text-slate-700 transition text-center">
+                                <Upload className="w-4 h-4" />
+                                Upload de Arquivo
+                                <input 
+                                  type="file" 
+                                  accept="image/*" 
+                                  className="hidden" 
+                                  onChange={handlePhotoUpload} 
+                                />
+                              </label>
+                            </>
+                          )}
                         </div>
                       </div>
                       <canvas ref={canvasRef} className="hidden" />
@@ -2158,6 +2157,7 @@ export default function ReceptionModule({
                         onChange={setNewPhone}
                         label="Celular"
                         required
+                        allowEmpty
                       />
                       <div>
                         <label className="block text-xs font-semibold text-slate-600 mb-1">WhatsApp</label>
@@ -2187,7 +2187,7 @@ export default function ReceptionModule({
                         type="email" 
                         value={newEmail} 
                         onChange={e => setNewEmail(e.target.value)}
-                        placeholder="paciente@exemplo.com" 
+                        placeholder=""
                         className={`w-full p-2.5 bg-slate-50 border rounded-lg focus:outline-teal-500 font-sans ${
                           !isEmailValid ? 'border-rose-400 bg-rose-50/20' : 'border-slate-200'
                         }`}
@@ -2208,7 +2208,7 @@ export default function ReceptionModule({
                             type="text" 
                             value={addressDepartment} 
                             onChange={e => setAddressDepartment(e.target.value)}
-                            placeholder="Ex: Itapúa" 
+                            placeholder=""
                             className="w-full p-2 bg-white border border-slate-200 rounded-md text-xs font-sans focus:outline-teal-500"
                             required
                           />
@@ -2219,7 +2219,7 @@ export default function ReceptionModule({
                             type="text" 
                             value={addressDistrict} 
                             onChange={e => setAddressDistrict(e.target.value)}
-                            placeholder="Ex: Encarnación" 
+                            placeholder=""
                             className="w-full p-2 bg-white border border-slate-200 rounded-md text-xs font-sans focus:outline-teal-500"
                             required
                           />
@@ -2233,7 +2233,7 @@ export default function ReceptionModule({
                             type="text" 
                             value={addressCity} 
                             onChange={e => setAddressCity(e.target.value)}
-                            placeholder="Ex: Encarnación" 
+                            placeholder=""
                             className="w-full p-2 bg-white border border-slate-200 rounded-md text-xs font-sans focus:outline-teal-500"
                             required
                           />
@@ -2244,7 +2244,7 @@ export default function ReceptionModule({
                             type="text" 
                             value={addressNeighborhood} 
                             onChange={e => setAddressNeighborhood(e.target.value)}
-                            placeholder="Ex: Loma Clavel" 
+                            placeholder=""
                             className="w-full p-2 bg-white border border-slate-200 rounded-md text-xs font-sans focus:outline-teal-500"
                             required
                           />
@@ -2258,7 +2258,7 @@ export default function ReceptionModule({
                             type="text" 
                             value={addressStreet} 
                             onChange={e => setAddressStreet(e.target.value)}
-                            placeholder="Ex: Calle Constitución" 
+                            placeholder=""
                             className="w-full p-2 bg-white border border-slate-200 rounded-md text-xs font-sans focus:outline-teal-500"
                             required
                           />
@@ -2269,7 +2269,7 @@ export default function ReceptionModule({
                             type="text" 
                             value={addressNumber} 
                             onChange={e => setAddressNumber(e.target.value)}
-                            placeholder="Ex: 482" 
+                            placeholder=""
                             className="w-full p-2 bg-white border border-slate-200 rounded-md text-xs font-sans focus:outline-teal-500"
                             required
                           />
@@ -2297,6 +2297,7 @@ export default function ReceptionModule({
                           className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans"
                           required
                         >
+                          <option value="">Selecionar...</option>
                           <option value="A+">A+</option>
                           <option value="A-">A-</option>
                           <option value="B+">B+</option>
@@ -2316,10 +2317,13 @@ export default function ReceptionModule({
                           className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans text-xs"
                           required
                         >
-                          <option value="es">Español 🇪🇸</option>
-                          <option value="gn">Guaraní 🇵🇾</option>
-                          <option value="pt">Português 🇧🇷</option>
-                          <option value="en">English 🇺🇸</option>
+                          <option value="">Selecionar...</option>
+                          <option value="pt-BR">🇧🇷 Português (Brasil)</option>
+                          <option value="pt-PT">🇵🇹 Português (Portugal)</option>
+                          <option value="es-AR">🇦🇷 Español (Argentina)</option>
+                          <option value="es-PY">🇵🇾 Español (Paraguay)</option>
+                          <option value="es">🇪🇸 Español (Geral)</option>
+                          <option value="en">🇺🇸 English (US/UK)</option>
                           <option value="outros">Outros</option>
                         </select>
                       </div>
@@ -2330,7 +2334,7 @@ export default function ReceptionModule({
                       <textarea 
                         value={allergies} 
                         onChange={e => setAllergies(e.target.value)}
-                        placeholder="Ex: Alergia a Penicilina, Diabético..." 
+                        placeholder=""
                         rows={2}
                         className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans text-xs"
                         required
@@ -2352,6 +2356,7 @@ export default function ReceptionModule({
                             className="w-full p-2 bg-white border border-slate-200 rounded-md text-xs font-sans focus:outline-teal-500"
                             required
                           >
+                            <option value="">Selecionar...</option>
                             <option value="Particular">Particular</option>
                             <option value="IPS">IPS (Segurado)</option>
                             <option value="Sanidade Militar">Sanidade Militar</option>
@@ -2366,7 +2371,7 @@ export default function ReceptionModule({
                             type="text" 
                             value={healthInsuranceNumber} 
                             onChange={e => setHealthInsuranceNumber(e.target.value)}
-                            placeholder="Nº da carteirinha" 
+                            placeholder=""
                             className="w-full p-2 bg-white border border-slate-200 rounded-md text-xs font-sans focus:outline-teal-500"
                             disabled={healthInsuranceType === 'Particular'}
                             required={healthInsuranceType !== 'Particular'}
@@ -2381,7 +2386,7 @@ export default function ReceptionModule({
                             type="text" 
                             value={healthInsuranceCompany} 
                             onChange={e => setHealthInsuranceCompany(e.target.value)}
-                            placeholder="Ex: Asismed S.A. / Santa Clara" 
+                            placeholder=""
                             className="w-full p-2 bg-white border border-slate-200 rounded-md text-xs font-sans focus:outline-teal-500"
                           />
                         </div>
@@ -2393,7 +2398,7 @@ export default function ReceptionModule({
                           type="text" 
                           value={employer} 
                           onChange={e => setEmployer(e.target.value)}
-                          placeholder="Razão Social / CNPJ / RUC" 
+                          placeholder=""
                           className="w-full p-2 bg-white border border-slate-200 rounded-md text-xs font-sans focus:outline-teal-500"
                           required
                         />
@@ -2431,7 +2436,7 @@ export default function ReceptionModule({
                         type="text" 
                         value={guardianName} 
                         onChange={e => setGuardianName(e.target.value)}
-                        placeholder="Nome Completo do Responsável" 
+                        placeholder=""
                         className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans"
                         required={isMinor}
                       />
@@ -2446,6 +2451,7 @@ export default function ReceptionModule({
                           className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans text-xs"
                           required={isMinor}
                         >
+                          <option value="">Selecionar...</option>
                           <option value="CI">Cédula CI (Paraguai)</option>
                           <option value="Passaporte">Passaporte</option>
                           <option value="RG">RG (Brasil)</option>
@@ -2470,6 +2476,18 @@ export default function ReceptionModule({
                           )}
                         </div>
                       </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Telefone do Responsável *</label>
+                      <input 
+                        type="tel" 
+                        value={guardianPhone} 
+                        onChange={e => setGuardianPhone(e.target.value)}
+                        placeholder="" 
+                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans"
+                        required
+                      />
                     </div>
 
                     <div>
@@ -2641,7 +2659,7 @@ export default function ReceptionModule({
                             <p><span className="text-slate-500 font-medium">Tipo Sanguíneo:</span> <span className="font-bold text-rose-600">{p.blood_type}</span></p>
                           )}
                           {p.preferred_language && (
-                            <p><span className="text-slate-500 font-medium">Idioma Pref.:</span> <span className="font-semibold">{p.preferred_language === 'es' ? 'Espanhol' : p.preferred_language === 'gn' ? 'Guarani' : p.preferred_language === 'pt' ? 'Português' : p.preferred_language === 'en' ? 'Inglês' : p.preferred_language}</span></p>
+                            <p><span className="text-slate-500 font-medium">Idioma Pref.:</span> <span className="font-semibold">{p.preferred_language === 'es' ? 'Español' : p.preferred_language === 'es-AR' ? 'Español (Argentina)' : p.preferred_language === 'es-PY' ? 'Español (Paraguay)' : p.preferred_language === 'gn' ? 'Guaraní' : p.preferred_language === 'pt-BR' ? 'Português (Brasil)' : p.preferred_language === 'pt-PT' ? 'Português (Portugal)' : p.preferred_language === 'en' ? 'English' : p.preferred_language === 'outros' ? 'Outros' : p.preferred_language}</span></p>
                           )}
                           {p.allergies && (
                             <p><span className="text-slate-500 font-medium">Alergias / Antecedentes Clínicos:</span> <span className="font-semibold">{p.allergies}</span></p>

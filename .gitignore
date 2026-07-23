@@ -19,3 +19,5 @@ testsprite_tests/
 # Tool configs (contain secrets)
 .testsprite/
 opencode.json
+
+testsprite_tests\tmp\config.json
