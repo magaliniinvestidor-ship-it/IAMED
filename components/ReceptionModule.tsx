@@ -356,7 +356,7 @@ export default function ReceptionModule({
     const isChild = patientAgeMonths >= 12 && patientAgeMonths < 216;
     if (isBaby) {
       return {
-        label: 'Bebê (< 1 ano)',
+        label: t('rcpt_vitals_baby', 'app'),
         spo2: { red: (v: number) => v < 90, orange: (v: number) => v >= 90 && v <= 94 },
         pa: { red: (s: number) => s < 60, orange: (s: number) => s >= 60 && s <= 70, yellow: () => false },
         fc: { red: (v: number) => v > 180 || v < 60, orange: (v: number) => (v >= 161 && v <= 180) || (v >= 60 && v <= 79), yellow: (v: number) => v >= 140 && v <= 160 },
@@ -366,7 +366,7 @@ export default function ReceptionModule({
     }
     if (isChild) {
       return {
-        label: 'Criança (1-17 anos)',
+        label: t('rcpt_vitals_child', 'app'),
         spo2: { red: (v: number) => v < 90, orange: (v: number) => v >= 90 && v <= 94 },
         pa: { red: (s: number) => s < 70, orange: (s: number) => s >= 70 && s <= 85, yellow: () => false },
         fc: { red: (v: number) => v > 140 || v < 50, orange: (v: number) => (v >= 121 && v <= 140) || (v >= 50 && v <= 59), yellow: (v: number) => v >= 100 && v <= 120 },
@@ -375,7 +375,7 @@ export default function ReceptionModule({
       };
     }
     return {
-      label: 'Adulto (≥ 18 anos)',
+      label: t('rcpt_vitals_adult', 'app'),
       spo2: { red: (v: number) => v < 85, orange: (v: number) => v >= 85 && v <= 94 },
       pa: { red: (s: number) => s <= 70, orange: (s: number) => (s >= 71 && s <= 89) || s > 200, yellow: (s: number) => s >= 140 && s <= 199 },
       fc: { red: (v: number) => v > 150 || v < 30, orange: (v: number) => (v >= 131 && v <= 150) || (v >= 30 && v <= 39), yellow: (v: number) => v >= 100 && v <= 130 },
@@ -474,7 +474,7 @@ export default function ReceptionModule({
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         const photoData = canvas.toDataURL('image/jpeg', 0.8);
         setWebcamPlaceholder(photoData);
-        addAuditLog('Capturou foto do Paciente via Câmera', newName || 'Pendente');
+        addAuditLog(t('rcpt_audit_camera_photo', 'app'), newName || 'Pendente');
         const uploadedUrl = await uploadPhotoToStorage(photoData, fileName);
         if (uploadedUrl) setPhotoUrl(uploadedUrl);
       }
@@ -504,7 +504,7 @@ export default function ReceptionModule({
       const svgData = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200"><rect width="200" height="200" fill="hsl(${randomHue}, 45%, 90%)"/><circle cx="100" cy="80" r="40" fill="hsl(${randomHue}, 45%, 45%)"/><path d="M40 160 C 40 120, 160 120, 160 160" fill="hsl(${randomHue}, 45%, 45%)"/><text x="100" y="180" font-family="sans-serif" font-size="14" font-weight="bold" fill="hsl(${randomHue}, 45%, 25%)" text-anchor="middle">Foto Capturada (${initials})</text></svg>`;
       setWebcamPlaceholder(svgData);
       setIsCameraActive(false);
-      addAuditLog('Capturou foto do Paciente via Webcam (Simulação)', newName || 'Pendente');
+      addAuditLog(t('rcpt_audit_webcam_photo', 'app'), newName || 'Pendente');
       uploadPhotoToStorage(svgData, simulationFileRef.current).then(url => {
         if (url) setPhotoUrl(url);
       });
@@ -698,7 +698,7 @@ export default function ReceptionModule({
             if (!existing || new Date(a.assigned_at) > new Date(existing.assigned_at)) {
               const foundPatient = patients.find(p => p.id === a.patient_id);
               attendedMap.set(a.patient_id, {
-                patient: foundPatient || { id: a.patient_id, name: a.patients?.name || 'Paciente', phone: a.patients?.phone || '', email: '', birthdate: '', gender: '', priority: 'normal' as const, status: 'atendido' as const, clinicalHistory: [] } as Patient,
+                patient: foundPatient || { id: a.patient_id, name: a.patients?.name || t('rcpt_patient_fallback', 'app'), phone: a.patients?.phone || '', email: '', birthdate: '', gender: '', priority: 'normal' as const, status: 'atendido' as const, clinicalHistory: [] } as Patient,
                 locationName: a.hospital_locations?.name || 'Local',
                 completedAt: a.assigned_at,
               });
@@ -717,7 +717,7 @@ export default function ReceptionModule({
               const hist = foundPatient?.clinicalHistory || [];
               const lastMed = hist.filter((h: any) => h.type === 'Consulta Médica').sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())[0];
               attendedMap.set(p.id, {
-                patient: foundPatient || { id: p.id, name: p.name || 'Paciente', phone: p.phone || '', email: '', birthdate: '', gender: '', priority: 'normal' as const, status: 'atendido' as const, clinicalHistory: [] } as Patient,
+                patient: foundPatient || { id: p.id, name: p.name || t('rcpt_patient_fallback', 'app'), phone: p.phone || '', email: '', birthdate: '', gender: '', priority: 'normal' as const, status: 'atendido' as const, clinicalHistory: [] } as Patient,
                 locationName: lastMed?.location_name || '—',
                 completedAt: (lastMed as any)?.created_at || new Date().toISOString(),
               });
@@ -743,7 +743,7 @@ export default function ReceptionModule({
       reader.onloadend = async () => {
         const result = reader.result as string;
         setWebcamPlaceholder(result);
-        addAuditLog('Carregou foto do Paciente', newName || 'Pendente');
+        addAuditLog(t('rcpt_audit_loaded_photo', 'app'), newName || 'Pendente');
         const uploadedUrl = await uploadPhotoToStorage(result, fileName);
         if (uploadedUrl) setPhotoUrl(uploadedUrl);
       };
@@ -759,71 +759,71 @@ export default function ReceptionModule({
 
     // Identifytab Identification fields
     if (!newName.trim()) {
-      alert("Campo obrigatório não preenchido: Nome Completo");
+      alert(t('rcpt_alert_required_full_name', 'app'));
       setActiveFormTab('identification');
       return;
     }
     if (!documentNumber.trim()) {
-      alert("Campo obrigatório não preenchido: Número do Documento");
+      alert(t('rcpt_alert_required_doc_number', 'app'));
       setActiveFormTab('identification');
       return;
     }
     if (!newBirthdate) {
-      alert("Campo obrigatório não preenchido: Data de Nascimento");
+      alert(t('rcpt_alert_required_birthdate', 'app'));
       setActiveFormTab('identification');
       return;
     }
     if (!isEditing && !placeOfBirth.trim()) {
-      alert("Campo obrigatório não preenchido: Local de Nascimento");
+      alert(t('rcpt_alert_required_place_of_birth', 'app'));
       setActiveFormTab('identification');
       return;
     }
     if (!isEditing && !nationality.trim()) {
-      alert("Campo obrigatório não preenchido: Nacionalidade");
+      alert(t('rcpt_alert_required_nationality', 'app'));
       setActiveFormTab('identification');
       return;
     }
 
     // Contact/Address tab fields
     if (!newPhone.trim()) {
-      alert("Campo obrigatório não preenchido: Celular");
+      alert(t('rcpt_alert_required_phone', 'app'));
       setActiveFormTab('contact_address');
       return;
     }
     if (!isPhoneValid) {
-      alert("Formato de telefone inválido. Use o formato internacional (+595 981 123 456).");
+      alert(t('rcpt_alert_invalid_phone', 'app'));
       setActiveFormTab('contact_address');
       return;
     }
     if (!newEmail.trim()) {
-      alert("Campo obrigatório não preenchido: E-mail");
+      alert(t('rcpt_alert_required_email', 'app'));
       setActiveFormTab('contact_address');
       return;
     }
     if (!addressDepartment.trim()) {
-      alert("Campo obrigatório não preenchido: Departamento");
+      alert(t('rcpt_alert_required_department', 'app'));
       setActiveFormTab('contact_address');
       return;
     }
     if (!addressCity.trim()) {
-      alert("Campo obrigatório não preenchido: Cidade");
+      alert(t('rcpt_alert_required_city', 'app'));
       setActiveFormTab('contact_address');
       return;
     }
 
     // Complementary tab fields (only required for new patients)
     if (!isEditing && !allergies.trim()) {
-      alert("Campo obrigatório não preenchido: Alergias / Antecedentes Clínicos");
+      alert(t('rcpt_alert_required_allergies', 'app'));
       setActiveFormTab('complementary');
       return;
     }
     if (healthInsuranceType !== 'Particular' && !healthInsuranceNumber.trim()) {
-      alert("Campo obrigatório não preenchido: Nº de Afiliação / Segurado");
+      alert(t('rcpt_alert_required_insurance_number', 'app'));
       setActiveFormTab('complementary');
       return;
     }
     if (!isEditing && !employer.trim()) {
-      alert("Campo obrigatório não preenchido: Empresa Empregadora");
+      alert(t('rcpt_alert_required_employer', 'app'));
       setActiveFormTab('complementary');
       return;
     }
@@ -831,17 +831,17 @@ export default function ReceptionModule({
     // Guardian fields are required only for minors
     if (isMinor) {
       if (!guardianName.trim()) {
-        alert("Campo obrigatório não preenchido: Nome do Responsável");
+        alert(t('rcpt_alert_required_guardian_name', 'app'));
         setActiveFormTab('guardian');
         return;
       }
       if (!guardianDocument.trim()) {
-        alert("Campo obrigatório não preenchido: Nº Cédula / Doc do Responsável");
+        alert(t('rcpt_alert_required_guardian_doc', 'app'));
         setActiveFormTab('guardian');
         return;
       }
       if (!guardianRelationship.trim()) {
-        alert("Campo obrigatório não preenchido: Vínculo Familiar");
+        alert(t('rcpt_alert_required_guardian_relationship', 'app'));
         setActiveFormTab('guardian');
         return;
       }
@@ -910,10 +910,10 @@ export default function ReceptionModule({
     // Optimistic UI update
     if (isEditing) {
       setPatients(prev => prev.map(p => p.id === patientId ? { ...p, ...newPatient } : p));
-      addAuditLog('Editou Paciente', newPatient.name);
+      addAuditLog(t('rcpt_audit_edited_patient', 'app'), newPatient.name);
     } else {
       setPatients(prev => [newPatient, ...prev]);
-      addAuditLog('Admitiu Paciente', newPatient.name);
+      addAuditLog(t('rcpt_audit_admitted_patient', 'app'), newPatient.name);
     }
 
     // Save to Supabase (dynamic fields included)
@@ -958,7 +958,7 @@ export default function ReceptionModule({
       const { error: updateError } = await supabase.from('patients').update(patientData).eq('id', patientId);
       if (updateError) {
         console.error("[SUPABASE] UPDATE patients FAILED:", updateError.code, updateError.message, updateError.details);
-        alert("Erro ao atualizar paciente no servidor: " + updateError.message);
+        alert(t('rcpt_alert_error_update', 'app') + updateError.message);
         return;
       }
     } else {
@@ -966,7 +966,7 @@ export default function ReceptionModule({
       if (insertError) {
         console.error("[SUPABASE] INSERT patients FAILED:", insertError.code, insertError.message, insertError.details);
         setPatients(prev => prev.filter(p => p.id !== newPatient.id));
-        alert("Erro ao salvar paciente no servidor: " + insertError.message);
+        alert(t('rcpt_alert_error_insert', 'app') + insertError.message);
         return;
       }
     }
@@ -1024,7 +1024,7 @@ export default function ReceptionModule({
   // Perform Merge Action
   const handleConfirmMerge = async () => {
     if (supervisorPin !== '1234') {
-      setPinError('PIN de Autorização Inválido!');
+      setPinError(t('rcpt_pin_invalid', 'app'));
       return;
     }
 
@@ -1072,7 +1072,7 @@ export default function ReceptionModule({
 
     // Update frontend state
     setPatients(prev => prev.map(p => p.id === duplicatePatient.id ? mergedPatient : p));
-    addAuditLog('Mesclou e Fusio Fichas de Paciente', duplicatePatient.name);
+    addAuditLog(t('rcpt_audit_merged_records', 'app'), duplicatePatient.name);
 
     // Save to Supabase
     if (!supabase) return;
@@ -1144,7 +1144,7 @@ export default function ReceptionModule({
     // 1. Check strict overlap
     const exactOverlap = doctorApps.find(a => a.time === appData.time);
     if (exactOverlap && enableOverlapBlocking) {
-      conflicts.push(`Conflito: Já existe consulta agendada exatamente às ${appData.time} para o(a) ${appData.doctorName}.`);
+      conflicts.push(t('rcpt_conflict_overlap', 'app').replace('{time}', appData.time).replace('{doctor}', appData.doctorName));
     }
 
     // 2. Check minimum time between appointments
@@ -1154,7 +1154,7 @@ export default function ReceptionModule({
       const diff = Math.abs(newMinutes - appMinutes);
       if (diff < minMinutesBetween) {
         conflicts.push(
-          `Intervalo Insuficiente: Consulta das ${appData.time} viola o tempo mínimo configurado de ${minMinutesBetween} minutos em relação ao agendamento das ${a.time} (diferença de ${diff}m).`
+          t('rcpt_conflict_interval', 'app').replace('{time}', appData.time).replace('{minutes}', String(minMinutesBetween)).replace('{otherTime}', a.time).replace('{diff}', String(diff))
         );
       }
     });
@@ -1163,13 +1163,13 @@ export default function ReceptionModule({
     if (appData.modality === 'Virtual') {
       const virtualCount = doctorApps.filter(a => a.modality === 'Virtual').length;
       if (virtualCount >= telemedQuota) {
-        conflicts.push(`Cota de Telemedicina Excedida: Limite diário de ${telemedQuota} consultas virtuais atingido para o(a) ${appData.doctorName}.`);
+        conflicts.push(t('rcpt_conflict_telequota', 'app').replace('{quota}', String(telemedQuota)).replace('{doctor}', appData.doctorName));
       }
     }
 
     const totalCount = doctorApps.length;
     if (totalCount >= totalQuota) {
-      conflicts.push(`Cota Total Excedida: Limite de ${totalQuota} atendimentos diários atingido para o(a) ${appData.doctorName}.`);
+      conflicts.push(t('rcpt_conflict_total_quota', 'app').replace('{quota}', String(totalQuota)).replace('{doctor}', appData.doctorName));
     }
 
     // 4. Insurance rules (agenda diferenciada)
@@ -1177,13 +1177,13 @@ export default function ReceptionModule({
     if (appData.insurance === 'IPS') {
       const dayOfWeek = new Date(appData.date).getDay(); // 0 = Sunday, 6 = Saturday
       if (dayOfWeek === 0 || dayOfWeek === 6) {
-        conflicts.push("Restrição de Convênio: O convênio IPS não permite agendamentos aos finais de semana.");
+        conflicts.push(t('rcpt_conflict_weekend', 'app'));
       }
       if (h < 7 || h >= 12) {
-        conflicts.push("Restrição de Horário: A agenda preferencial para o convênio IPS limita-se ao turno da manhã (07:00 às 12:00).");
+        conflicts.push(t('rcpt_conflict_time_restr', 'app'));
       }
       if (appData.type === 'procedimento' || appData.type === 'exame diagnóstico') {
-        conflicts.push(`Restrição de Procedimento: O convênio IPS exige autorização prévia por escrito para a modalidade "${appData.type}".`);
+        conflicts.push(t('rcpt_conflict_procedure', 'app').replace('{type}', appData.type));
       }
     }
 
@@ -1234,7 +1234,7 @@ export default function ReceptionModule({
     // Add to UI State
     setAppointments(prev => [...prev, newApp]);
     addAuditLog(
-      newApp.is_overturn ? 'Encaixe de Consulta Autorizado' : 'Agendou Consulta',
+      newApp.is_overturn ? t('rcpt_audit_overturn_authorized', 'app') : t('rcpt_audit_scheduled_appointment', 'app'),
       `${newApp.patientName} com ${newApp.doctorName} às ${newApp.time} (${newApp.branch})`
     );
 
@@ -1270,12 +1270,12 @@ export default function ReceptionModule({
   // Handler for authorizing Encaixe (Overbooking)
   const handleConfirmOverturn = async () => {
     if (overturnPin !== '1234') {
-      setOverturnPinError('PIN de Autorização Inválido!');
+      setOverturnPinError(t('rcpt_pin_invalid', 'app'));
       return;
     }
 
     if (!overturnReason.trim()) {
-      setOverturnPinError('Descreva o motivo do encaixe!');
+      setOverturnPinError(t('rcpt_describe_reason', 'app'));
       return;
     }
 
@@ -1303,7 +1303,7 @@ export default function ReceptionModule({
     setOnlineErrorMessage('');
 
     if (!onlinePatientId) {
-      setOnlineErrorMessage('Selecione um paciente para simular a reserva online.');
+      setOnlineErrorMessage(t('rcpt_alert_select_patient_simulation', 'app'));
       return;
     }
 
@@ -1332,9 +1332,9 @@ export default function ReceptionModule({
 
     if (conflicts) {
       setOnlineErrorMessage(
-        `Reserva Recusada por Indisponibilidade: ${conflicts.join(' | ')}`
+        t('rcpt_booking_refused', 'app') + conflicts.join(' | ')
       );
-      addAuditLog('Reserva Online Recusada (Indisponível)', `${patient.name} - ${onlineDoctor} às ${onlineTime}`);
+      addAuditLog(t('rcpt_audit_booking_refused', 'app'), `${patient.name} - ${onlineDoctor} às ${onlineTime}`);
       return;
     }
 
@@ -1344,12 +1344,12 @@ export default function ReceptionModule({
       status: 'confirmado',
     });
 
-    setOnlineSuccessMessage('Reserva realizada com sucesso via Portal do Paciente!');
+    setOnlineSuccessMessage(t('rcpt_booking_success', 'app'));
     setOnlinePatientId('');
   };
 
   const handleDeletePatient = async (id: string, patientName: string) => {
-    if (!confirm(`Tem certeza que deseja excluir o paciente "${patientName}"? Esta ação não pode ser desfeita.\n\nIsso também excluirá agendamentos, lembretes do WhatsApp e registros na lista de espera vinculados.`)) return;
+    if (!confirm(t('rcpt_confirm_delete_patient', 'app').replace('{name}', patientName))) return;
 
     setPatients(prev => prev.filter(p => p.id !== id));
 
@@ -1380,7 +1380,7 @@ export default function ReceptionModule({
       if (error) console.error("[SUPABASE] DELETE patients FAILED:", error.message);
     }
 
-    addAuditLog('Exclusão Paciente', `${patientName} (+ ${linkedAppointments.length} agendamento(s) e lembretes do WhatsApp)`);
+    addAuditLog(t('rcpt_audit_deleted_patient', 'app'), `${patientName} (+ ${linkedAppointments.length} agendamento(s) e lembretes do WhatsApp)`);
   };
 
   const handleEditPatient = (patient: Patient) => {
@@ -1422,7 +1422,7 @@ export default function ReceptionModule({
   const handleUpdatePatientStatus = async (id: string, status: Patient['status']) => {
     setPatients(prev => prev.map(p => {
       if (p.id === id) {
-        addAuditLog(`Status Paciente (${status})`, p.name);
+        addAuditLog(t('rcpt_audit_patient_status', 'app').replace('{status}', status), p.name);
         return { ...p, status };
       }
       return p;
@@ -1438,7 +1438,7 @@ export default function ReceptionModule({
   const handleUpdateAppStatus = async (id: string, status: Appointment['status']) => {
     setAppointments(prev => prev.map(a => {
       if (a.id === id) {
-        addAuditLog(`Status Consulta (${status})`, a.patientName);
+        addAuditLog(t('rcpt_audit_appointment_status', 'app').replace('{status}', status), a.patientName);
         return { ...a, status };
       }
       return a;
@@ -1486,7 +1486,7 @@ export default function ReceptionModule({
     setHospitalLocations(prev => [...prev, newLoc]);
     setNewLocationForm({ name: '', type: 'consultorio', capacity: 1 });
     setShowNewLocationModal(false);
-    addAuditLog('Cadastrou Local Hospitalar', newLoc.name);
+    addAuditLog(t('rcpt_audit_created_location', 'app'), newLoc.name);
     if (supabase) {
       try {
         await supabase.from('hospital_locations').insert({
@@ -1506,12 +1506,12 @@ export default function ReceptionModule({
     const loc = hospitalLocations.find(l => l.id === locId);
     if (!loc) return;
     if (loc.currentPatients.length > 0) {
-      alert('Não é possível excluir um local com pacientes.');
+      alert(t('rcpt_alert_cannot_delete_location', 'app'));
       return;
     }
-    if (!confirm(`Excluir ${loc.name}?`)) return;
+    if (!confirm(t('rcpt_confirm_delete_location', 'app').replace('{name}', loc.name))) return;
     setHospitalLocations(prev => prev.filter(l => l.id !== locId));
-    addAuditLog('Excluiu Local Hospitalar', loc.name);
+    addAuditLog(t('rcpt_audit_deleted_location', 'app'), loc.name);
     if (supabase) {
       try {
         await supabase.from('hospital_locations').delete().eq('id', locId);
@@ -1526,7 +1526,7 @@ export default function ReceptionModule({
     const targetLoc = hospitalLocations.find(l => l.id === distributeTargetLocation);
     if (!targetLoc) return;
     if (targetLoc.currentPatients.length >= targetLoc.capacity) {
-      alert('Este local está com capacidade máxima.');
+      alert(t('rcpt_alert_capacity_full', 'app'));
       return;
     }
     setHospitalLocations(prev => prev.map(l => {
@@ -1537,7 +1537,7 @@ export default function ReceptionModule({
     }));
     const patient = patients.find(p => p.id === distributePatient.id);
     if (patient) {
-      addAuditLog(`Paciente Direcionado → ${targetLoc.name}`, patient.name);
+      addAuditLog(t('rcpt_audit_patient_directed', 'app').replace('{location}', targetLoc.name), patient.name);
       const newNotif: InternalNotification = {
         id: `notif_${++notifCounterRef.current}`,
         patientName: patient.name,
@@ -1597,7 +1597,7 @@ export default function ReceptionModule({
       return prev;
     });
     handleUpdatePatientStatus(nextPatient.id, 'atendimento');
-    addAuditLog(`Paciente Chamado → ${loc.name}`, nextPatient.name);
+    addAuditLog(t('rcpt_audit_patient_called', 'app').replace('{location}', loc.name), nextPatient.name);
     setPatientNameMap(prev => ({ ...prev, [nextPatient.id]: nextPatient.name }));
     if (supabase) {
       try {
@@ -1633,7 +1633,7 @@ export default function ReceptionModule({
     handleUpdatePatientStatus(patientId, 'atendido');
     const patient = patients.find(p => p.id === patientId);
     if (patient) {
-      addAuditLog(`Atendimento Realizado → ${loc.name}`, patient.name);
+      addAuditLog(t('rcpt_audit_visit_completed', 'app').replace('{location}', loc.name), patient.name);
       setAttendedPatients(prev => [...prev, { patient, locationName: loc.name, completedAt: new Date().toISOString() }]);
     }
     if (supabase) {
@@ -1652,7 +1652,7 @@ export default function ReceptionModule({
     const targetLoc = hospitalLocations.find(l => l.id === redirectTargetLocation);
     if (!targetLoc) return;
     if (targetLoc.currentPatients.length >= targetLoc.capacity) {
-      alert('Este local está com capacidade máxima.');
+      alert(t('rcpt_alert_capacity_full', 'app'));
       return;
     }
     // Save med data for current location before redirecting
@@ -1677,7 +1677,7 @@ export default function ReceptionModule({
       }
       return { ...l, currentPatients: newCurrent, status: newCurrent.length > 0 ? l.status : l.type === 'consultorio' ? 'livre' as const : l.status };
     }));
-    addAuditLog(`Paciente Redirecionado → ${targetLoc.name}`, redirectPatient.name);
+    addAuditLog(t('rcpt_audit_patient_redirected', 'app').replace('{location}', targetLoc.name), redirectPatient.name);
     const newNotif: InternalNotification = {
       id: `notif_${++notifCounterRef.current}`,
       patientName: redirectPatient.name,
@@ -1819,7 +1819,7 @@ export default function ReceptionModule({
               }`}
             >
               <Contact className="w-4 h-4 inline mr-1" />
-              Recepção
+              {t('rcpt_tab_reception', 'app')}
             </button>
             <button
               type="button"
@@ -1831,7 +1831,7 @@ export default function ReceptionModule({
               }`}
             >
               <MapPin className="w-4 h-4 inline mr-1" />
-              Atendimentos
+              {t('rcpt_tab_attendances', 'app')}
             </button>
             <button
               type="button"
@@ -1843,7 +1843,7 @@ export default function ReceptionModule({
               }`}
             >
               <Sliders className="w-4 h-4 inline mr-1" />
-              Locais
+              {t('rcpt_tab_locations', 'app')}
             </button>
             <button
               type="button"
@@ -1855,7 +1855,7 @@ export default function ReceptionModule({
               }`}
             >
               <Bell className="w-4 h-4 inline mr-1" />
-              Notificações
+              {t('rcpt_tab_notifications', 'app')}
               {unreadNotifications.length > 0 && (
                 <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
                   {unreadNotifications.length}
@@ -1890,7 +1890,7 @@ export default function ReceptionModule({
                       : 'text-slate-500 hover:text-slate-800'
                   }`}
                 >
-                  Identificação
+                  {t('rcpt_tab_identification', 'app')}
                 </button>
                 <button
                   type="button"
@@ -1902,7 +1902,7 @@ export default function ReceptionModule({
                       : 'text-slate-500 hover:text-slate-800'
                   }`}
                 >
-                  Contato/End.
+                  {t('rcpt_tab_contact', 'app')}
                 </button>
                 <button
                   type="button"
@@ -1914,7 +1914,7 @@ export default function ReceptionModule({
                       : 'text-slate-500 hover:text-slate-800'
                   }`}
                 >
-                  Convênio/Comp.
+                  {t('rcpt_tab_insurance', 'app')}
                 </button>
                 <button
                   type="button"
@@ -1929,7 +1929,7 @@ export default function ReceptionModule({
                   }`}
                 >
                   {isMinor && <AlertCircle className="w-3 h-3 text-amber-500" />}
-                  Responsável
+                  {t('rcpt_tab_guardian', 'app')}
                 </button>
               </div>
 
@@ -1944,14 +1944,14 @@ export default function ReceptionModule({
                   >
                     <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
                     <div className="space-y-1">
-                      <p className="font-bold">Possível Duplicidade Detectada!</p>
-                      <p className="text-[11px] leading-relaxed">Já existe um paciente cadastrado com este documento ({documentNumber}) e data de nascimento ({newBirthdate}).</p>
+                      <p className="font-bold">{t('rcpt_duplicate_title', 'app')}</p>
+                      <p className="text-[11px] leading-relaxed">{t('rcpt_duplicate_message', 'app').replace('{doc}', documentNumber).replace('{birthdate}', newBirthdate)}</p>
                       <button
                         type="button"
                         onClick={handleOpenMerge}
                         className="mt-2 text-xs font-bold text-teal-700 bg-white border border-teal-200 rounded px-2.5 py-1 hover:bg-teal-50 cursor-pointer shadow-xs transition"
                       >
-                        Iniciar Fusão de Fichas (Merge)
+                        {t('rcpt_duplicate_merge_button', 'app')}
                       </button>
                     </div>
                   </motion.div>
@@ -1968,7 +1968,7 @@ export default function ReceptionModule({
                     className="space-y-3"
                   >
                     <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">Nome Completo *</label>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">{t('rcpt_full_name', 'app')}</label>
                       <input 
                         type="text" 
                         value={newName} 
@@ -1981,22 +1981,22 @@ export default function ReceptionModule({
 
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">Tipo Documento *</label>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">{t('rcpt_doc_type', 'app')}</label>
                         <select 
                           value={documentType} 
                           onChange={e => setDocumentType(e.target.value as any)}
                           className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans"
                           required
                         >
-                          <option value="">Selecionar...</option>
-                          <option value="CI">Cédula CI (Paraguai)</option>
+                          <option value="">{t('rcpt_select', 'app')}</option>
+                          <option value="CI">{t('rcpt_doc_ci', 'app')}</option>
                           <option value="Passaporte">Passaporte</option>
-                          <option value="RG">RG (Brasil)</option>
+                          <option value="RG">{t('rcpt_doc_rg', 'app')}</option>
                           <option value="Outro">DNI / Outro</option>
                         </select>
                       </div>
                       <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">Número Doc *</label>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">{t('rcpt_doc_number', 'app')}</label>
                         <div className="relative">
                           <input 
                             type="text" 
@@ -2017,7 +2017,7 @@ export default function ReceptionModule({
 
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">Data Nascimento *</label>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">{t('rcpt_birth_date', 'app')}</label>
                         <input 
                           type="date" 
                           value={newBirthdate} 
@@ -2027,12 +2027,12 @@ export default function ReceptionModule({
                         />
                         {age > 0 && (
                           <span className={`text-[10px] font-bold ${isMinor ? 'text-amber-600' : 'text-slate-500'}`}>
-                            {age} anos {isMinor && '(Menor)'}
+                            {age} {t('rcpt_list_years', 'app')} {isMinor && t('rcpt_list_minor_badge', 'app')}
                           </span>
                         )}
                       </div>
                       <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">Local Nascimento *</label>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">{t('rcpt_birth_location', 'app')}</label>
                         <input 
                           type="text" 
                           value={placeOfBirth} 
@@ -2046,21 +2046,21 @@ export default function ReceptionModule({
 
                     <div className="grid grid-cols-3 gap-2">
                       <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">Sexo/Gênero *</label>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">{t('rcpt_gender', 'app')}</label>
                         <select 
                           value={newGender} 
                           onChange={e => setNewGender(e.target.value)}
                           className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans text-xs"
                           required
                         >
-                          <option value="">Selecionar...</option>
-                          <option value="Masculino">Masculino</option>
-                          <option value="Feminino">Feminino</option>
-                          <option value="Outro">Outro</option>
+                          <option value="">{t('rcpt_select', 'app')}</option>
+                          <option value="Masculino">{t('rcpt_gender_male', 'app')}</option>
+                          <option value="Feminino">{t('rcpt_gender_female', 'app')}</option>
+                          <option value="Outro">{t('rcpt_gender_other', 'app')}</option>
                         </select>
                       </div>
                       <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">Nacionalidade *</label>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">{t('rcpt_nationality', 'app')}</label>
                         <input 
                           type="text" 
                           value={nationality} 
@@ -2071,26 +2071,26 @@ export default function ReceptionModule({
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">Civil *</label>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">{t('rcpt_civil_status', 'app')}</label>
                         <select 
                           value={civilStatus} 
                           onChange={e => setCivilStatus(e.target.value as any)}
                           className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans text-xs"
                           required
                         >
-                          <option value="">Selecionar...</option>
-                          <option value="Solteiro(a)">Solteiro(a)</option>
-                          <option value="Casado(a)">Casado(a)</option>
-                          <option value="Divorciado(a)">Divorciado(a)</option>
-                          <option value="Viúvo(a)">Viúvo(a)</option>
-                          <option value="União Estável">União</option>
+                          <option value="">{t('rcpt_select', 'app')}</option>
+                          <option value="Solteiro(a)">{t('rcpt_civil_single', 'app')}</option>
+                          <option value="Casado(a)">{t('rcpt_civil_married', 'app')}</option>
+                          <option value="Divorciado(a)">{t('rcpt_civil_divorced', 'app')}</option>
+                          <option value="Viúvo(a)">{t('rcpt_civil_widowed', 'app')}</option>
+                          <option value="União Estável">{t('rcpt_civil_union', 'app')}</option>
                         </select>
                       </div>
                     </div>
 
                     {/* Camera Capture Panel */}
                     <div className="p-3 bg-slate-50 border border-slate-200/80 rounded-xl space-y-2">
-                      <label className="block text-xs font-semibold text-slate-600">Foto do Paciente</label>
+                      <label className="block text-xs font-semibold text-slate-600">{t('rcpt_patient_photo', 'app')}</label>
                       <div className="flex items-center gap-4">
                         <div className="w-20 h-20 bg-slate-100 rounded-full border-2 border-slate-200 overflow-hidden flex items-center justify-center relative">
                           {webcamPlaceholder ? (
@@ -2114,7 +2114,7 @@ export default function ReceptionModule({
                                   <span className="text-4xl font-bold text-white">{cameraCountdown}</span>
                                 </div>
                               )}
-                              <button type="button" onClick={stopCamera} className="mt-1 text-xs text-red-500 hover:text-red-700 font-semibold">Cancelar</button>
+                              <button type="button" onClick={stopCamera} className="mt-1 text-xs text-red-500 hover:text-red-700 font-semibold">{t('rcpt_cancel', 'app')}</button>
                             </div>
                           ) : (
                             <>
@@ -2122,11 +2122,11 @@ export default function ReceptionModule({
                                 type="button"
                                 onClick={handleSimulateWebcam}
                                 className="w-full py-2 px-4 bg-teal-50 hover:bg-teal-100 text-teal-700 font-semibold rounded-lg flex items-center justify-center gap-2 border border-teal-200 transition">
-                                <Camera className="w-4 h-4" /> Capturar via Câmera
+                                <Camera className="w-4 h-4" /> {t('rcpt_capture_camera', 'app')}
                               </button>
                               <label className="w-full py-2 px-4 bg-slate-200 hover:bg-slate-300 border border-slate-300 font-semibold text-xs rounded-lg flex items-center justify-center gap-2 cursor-pointer text-slate-700 transition text-center">
                                 <Upload className="w-4 h-4" />
-                                Upload de Arquivo
+                                {t('rcpt_upload_file', 'app')}
                                 <input 
                                   type="file" 
                                   accept="image/*" 
@@ -2155,7 +2155,7 @@ export default function ReceptionModule({
                       <PhoneInput
                         value={newPhone}
                         onChange={setNewPhone}
-                        label="Celular"
+                        label={t('rcpt_phone', 'app')}
                         required
                         allowEmpty
                       />
@@ -2171,7 +2171,7 @@ export default function ReceptionModule({
                           }`}
                         >
                           <Check className={`w-3.5 h-3.5 ${whatsappVerified ? 'text-emerald-700' : 'text-slate-400'}`} />
-                          {whatsappVerified ? 'Verificado & Integrado' : 'Validar WhatsApp'}
+                          {whatsappVerified ? t('rcpt_whatsapp_verified', 'app') : t('rcpt_whatsapp_validate', 'app')}
                         </button>
                       </div>
                     </div>
@@ -2180,7 +2180,7 @@ export default function ReceptionModule({
                       <label className="block text-xs font-semibold text-slate-600 mb-1 flex items-center gap-1">
                         E-mail *
                         {!isEmailValid && (
-                          <span className="text-rose-500 font-semibold text-[10px]">Inválido</span>
+                          <span className="text-rose-500 font-semibold text-[10px]">{t('rcpt_label_invalid', 'app')}</span>
                         )}
                       </label>
                       <input 
@@ -2198,12 +2198,12 @@ export default function ReceptionModule({
                     <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5">
                       <div className="flex items-center gap-1.5 text-slate-700 font-bold text-xs pb-1 border-b border-slate-200">
                         <MapPin className="w-4 h-4 text-teal-600" />
-                        <span>Endereço Completo</span>
+                        <span>{t('rcpt_address', 'app')}</span>
                       </div>
                       
                       <div className="grid grid-cols-2 gap-2">
                         <div>
-                          <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">Departamento *</label>
+                          <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">{t('rcpt_department', 'app')}</label>
                           <input 
                             type="text" 
                             value={addressDepartment} 
@@ -2214,7 +2214,7 @@ export default function ReceptionModule({
                           />
                         </div>
                         <div>
-                          <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">Distrito *</label>
+                          <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">{t('rcpt_district', 'app')}</label>
                           <input 
                             type="text" 
                             value={addressDistrict} 
@@ -2228,7 +2228,7 @@ export default function ReceptionModule({
 
                       <div className="grid grid-cols-2 gap-2">
                         <div>
-                          <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">Cidade *</label>
+                          <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">{t('rcpt_city', 'app')}</label>
                           <input 
                             type="text" 
                             value={addressCity} 
@@ -2239,7 +2239,7 @@ export default function ReceptionModule({
                           />
                         </div>
                         <div>
-                          <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">Bairro *</label>
+                          <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">{t('rcpt_neighborhood', 'app')}</label>
                           <input 
                             type="text" 
                             value={addressNeighborhood} 
@@ -2253,7 +2253,7 @@ export default function ReceptionModule({
 
                       <div className="grid grid-cols-3 gap-2">
                         <div className="col-span-2">
-                          <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">Rua *</label>
+                          <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">{t('rcpt_street', 'app')}</label>
                           <input 
                             type="text" 
                             value={addressStreet} 
@@ -2264,7 +2264,7 @@ export default function ReceptionModule({
                           />
                         </div>
                         <div>
-                          <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">Número *</label>
+                          <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">{t('rcpt_label_number', 'app')}</label>
                           <input 
                             type="text" 
                             value={addressNumber} 
@@ -2290,14 +2290,14 @@ export default function ReceptionModule({
                   >
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">Tipo Sanguíneo *</label>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">{t('rcpt_label_blood_type', 'app')}</label>
                         <select 
                           value={bloodType} 
                           onChange={e => setBloodType(e.target.value as any)}
                           className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans"
                           required
                         >
-                          <option value="">Selecionar...</option>
+                          <option value="">{t('rcpt_select', 'app')}</option>
                           <option value="A+">A+</option>
                           <option value="A-">A-</option>
                           <option value="B+">B+</option>
@@ -2306,31 +2306,32 @@ export default function ReceptionModule({
                           <option value="AB-">AB-</option>
                           <option value="O+">O+</option>
                           <option value="O-">O-</option>
-                          <option value="Não Informado">Não Informado</option>
+                          <option value="Não Informado">{t('rcpt_blood_not_informed', 'app')}</option>
                         </select>
                       </div>
                       <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">Idioma Pref. *</label>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">{t('rcpt_label_preferred_language', 'app')}</label>
                         <select 
                           value={preferredLanguage} 
                           onChange={e => setPreferredLanguage(e.target.value as any)}
                           className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans text-xs"
                           required
                         >
-                          <option value="">Selecionar...</option>
+                          <option value="">{t('rcpt_select', 'app')}</option>
                           <option value="pt-BR">🇧🇷 Português (Brasil)</option>
                           <option value="pt-PT">🇵🇹 Português (Portugal)</option>
                           <option value="es-AR">🇦🇷 Español (Argentina)</option>
                           <option value="es-PY">🇵🇾 Español (Paraguay)</option>
                           <option value="es">🇪🇸 Español (Geral)</option>
+                          <option value="gn">🇵🇾 {t('rcpt_lang_gn', 'app')}</option>
                           <option value="en">🇺🇸 English (US/UK)</option>
-                          <option value="outros">Outros</option>
+                          <option value="outros">{t('rcpt_lang_other', 'app')}</option>
                         </select>
                       </div>
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">Alergias / Antecedentes Clínicos *</label>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">{t('rcpt_allergies', 'app')} *</label>
                       <textarea 
                         value={allergies} 
                         onChange={e => setAllergies(e.target.value)}
@@ -2344,29 +2345,29 @@ export default function ReceptionModule({
                     <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5">
                       <div className="flex items-center gap-1.5 text-slate-700 font-bold text-xs pb-1 border-b border-slate-200">
                         <HeartPulse className="w-4 h-4 text-teal-600" />
-                        <span>Cobertura de Saúde / Convênio</span>
+                        <span>{t('rcpt_insurance_type', 'app')}</span>
                       </div>
 
                       <div className="grid grid-cols-2 gap-2">
                         <div>
-                          <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">Seguro / Convênio *</label>
+                          <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">{t('rcpt_insurance_type', 'app')} *</label>
                           <select 
                             value={healthInsuranceType} 
                             onChange={e => setHealthInsuranceType(e.target.value as any)}
                             className="w-full p-2 bg-white border border-slate-200 rounded-md text-xs font-sans focus:outline-teal-500"
                             required
                           >
-                            <option value="">Selecionar...</option>
-                            <option value="Particular">Particular</option>
+                            <option value="">{t('rcpt_select', 'app')}</option>
+                            <option value="Particular">{t('rcpt_insurance_particular', 'app')}</option>
                             <option value="IPS">IPS (Segurado)</option>
-                            <option value="Sanidade Militar">Sanidade Militar</option>
-                            <option value="Sanidade Policial">Sanidade Policial</option>
+                            <option value="Sanidade Militar">{t('rcpt_insurance_military', 'app')}</option>
+                            <option value="Sanidade Policial">{t('rcpt_insurance_police', 'app')}</option>
                             <option value="Pré-paga">Pré-paga / Privado</option>
                             <option value="Seguro Privado">Seguro Internacional</option>
                           </select>
                         </div>
                         <div>
-                          <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">Nº de Afiliação / Segurado *</label>
+                          <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">{t('rcpt_insurance_number', 'app')} *</label>
                           <input 
                             type="text" 
                             value={healthInsuranceNumber} 
@@ -2381,7 +2382,7 @@ export default function ReceptionModule({
 
                       {healthInsuranceType === 'Pré-paga' && (
                         <div>
-                          <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">Razão Social do Convênio</label>
+                          <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">{t('rcpt_label_insurance_company', 'app')}</label>
                           <input 
                             type="text" 
                             value={healthInsuranceCompany} 
@@ -2393,7 +2394,7 @@ export default function ReceptionModule({
                       )}
 
                       <div>
-                        <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">Empresa Empregadora (Med. do Trabalho) *</label>
+                        <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">{t('rcpt_label_employer', 'app')}</label>
                         <input 
                           type="text" 
                           value={employer} 
@@ -2421,17 +2422,17 @@ export default function ReceptionModule({
                         <div>
                           O paciente é menor de idade ({age} anos).
                           <br />
-                          O preenchimento do responsável legal/financeiro é <span className="font-black">obrigatório</span> para concluir o cadastro.
+                          {t('rcpt_form_minor_text', 'app').split('obrigatório')[0]} <span className="font-black">obrigatório</span> {t('rcpt_form_minor_text', 'app').split('obrigatório para')[1] || ''}
                         </div>
                       </div>
                     ) : (
                       <p className="text-xs text-slate-500 mb-2">
-                        Opcional para pacientes maiores de idade (útil em casos de acompanhantes de idosos ou incapazes).
+                        {t('rcpt_form_adult_optional', 'app')}
                       </p>
                     )}
 
                     <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">Nome do Responsável {isMinor && '*'}</label>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">{t('rcpt_guardian_name', 'app')} {isMinor && '*'}</label>
                       <input 
                         type="text" 
                         value={guardianName} 
@@ -2444,28 +2445,28 @@ export default function ReceptionModule({
 
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">Tipo Documento {isMinor && '*'}</label>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">{t('rcpt_guardian_doc_type', 'app')} {isMinor && '*'}</label>
                         <select 
                           value={guardianDocumentType} 
                           onChange={e => setGuardianDocumentType(e.target.value as any)}
                           className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans text-xs"
                           required={isMinor}
                         >
-                          <option value="">Selecionar...</option>
-                          <option value="CI">Cédula CI (Paraguai)</option>
+                          <option value="">{t('rcpt_select', 'app')}</option>
+                          <option value="CI">{t('rcpt_doc_ci', 'app')}</option>
                           <option value="Passaporte">Passaporte</option>
-                          <option value="RG">RG (Brasil)</option>
+                          <option value="RG">{t('rcpt_doc_rg', 'app')}</option>
                           <option value="Outro">DNI / Outro</option>
                         </select>
                       </div>
                       <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">Nº Cédula / Doc {isMinor && '*'}</label>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">{t('rcpt_guardian_doc_number', 'app')} {isMinor && '*'}</label>
                         <div className="relative">
                           <input 
                             type="text" 
                             value={guardianDocument} 
                             onChange={e => setGuardianDocument(e.target.value)}
-                            placeholder="Número do documento" 
+                            placeholder={t('rcpt_label_number', 'app').replace(' *', '')} 
                             className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans"
                             required={isMinor}
                           />
@@ -2479,7 +2480,7 @@ export default function ReceptionModule({
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">Telefone do Responsável *</label>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">{t('rcpt_phone', 'app')}</label>
                       <input 
                         type="tel" 
                         value={guardianPhone} 
@@ -2491,20 +2492,20 @@ export default function ReceptionModule({
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">Vínculo Familiar {isMinor && '*'}</label>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">{t('rcpt_guardian_relationship', 'app')} {isMinor && '*'}</label>
                       <select 
                         value={guardianRelationship} 
                         onChange={e => setGuardianRelationship(e.target.value)}
                         className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans text-xs"
                         required={isMinor}
                       >
-                        <option value="">Selecione o vínculo...</option>
-                        <option value="Pai">Pai</option>
-                        <option value="Mãe">Mãe</option>
-                        <option value="Tutor Legal">Tutor Legal</option>
-                        <option value="Cônjuge">Cônjuge</option>
-                        <option value="Filho(a)">Filho(a)</option>
-                        <option value="Outros">Outros</option>
+                        <option value="">{t('rcpt_guardian_select_vinculo', 'app')}</option>
+                        <option value="Pai">{t('rcpt_guardian_father', 'app')}</option>
+                        <option value="Mãe">{t('rcpt_guardian_mother', 'app')}</option>
+                        <option value="Tutor Legal">{t('rcpt_guardian_legal', 'app')}</option>
+                        <option value="Cônjuge">{t('rcpt_guardian_spouse', 'app')}</option>
+                        <option value="Filho(a)">{t('rcpt_guardian_child', 'app')}</option>
+                        <option value="Outros">{t('rcpt_guardian_other', 'app')}</option>
                       </select>
                     </div>
                   </motion.div>
@@ -2522,7 +2523,7 @@ export default function ReceptionModule({
                       }}
                       className="py-2 px-3 border border-slate-200 text-slate-600 text-xs font-semibold rounded-lg hover:bg-slate-50 flex items-center gap-1 cursor-pointer transition"
                     >
-                      <ChevronLeft className="w-4 h-4" /> Anterior
+                      <ChevronLeft className="w-4 h-4" /> {t('rcpt_previous', 'app')}
                     </button>
                   ) : <div />}
 
@@ -2537,7 +2538,7 @@ export default function ReceptionModule({
                       }}
                       className="py-2 px-3 bg-slate-100 text-slate-700 hover:bg-slate-200 text-xs font-semibold rounded-lg flex items-center gap-1 cursor-pointer transition ml-auto"
                     >
-                      Próximo <ChevronRight className="w-4 h-4" />
+                      {t('rcpt_next', 'app')} <ChevronRight className="w-4 h-4" />
                     </button>
                   ) : (
                     <button 
@@ -2552,9 +2553,9 @@ export default function ReceptionModule({
                       disabled={isMinor && (!guardianName.trim() || !guardianDocument.trim() || !guardianRelationship.trim())}
                     >
                       {selectedPatientId ? (
-                        <><Check className="w-4 h-4" /> Salvar Edição</>
+                        <><Check className="w-4 h-4" /> {t('rcpt_label_save_edit', 'app')}</>
                       ) : (
-                        <><Plus className="w-4 h-4" /> Admitir na Triagem</>
+                        <><Plus className="w-4 h-4" /> {t('rcpt_admit_triage', 'app')}</>
                       )}
                     </button>
                   )}
@@ -2566,7 +2567,7 @@ export default function ReceptionModule({
             {/* Compliance Footer */}
             <div className="mt-6 pt-3 border-t border-slate-100/70 text-[10px] text-slate-400 text-center flex items-center justify-center gap-1.5">
               <Shield className="w-3.5 h-3.5 text-teal-600 shrink-0" />
-              <span>🔐 Dados Criptografados em Trânsito/Repouso (Lei Paraguai nº 1682/2001)</span>
+              <span>{t('rcpt_label_encrypted', 'app')}</span>
             </div>
 
           </div>
@@ -2576,14 +2577,14 @@ export default function ReceptionModule({
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
               <div className="flex items-center gap-2">
                 <Contact className="w-5 h-5 text-teal-600 animate-pulse" />
-                <h3 className="font-bold text-slate-800 text-base">Fila de Triagem & Admissão</h3>
+                <h3 className="font-bold text-slate-800 text-base">{t('rcpt_triage_queue', 'app')}</h3>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">
-                  Total Geral: {patients.length}
+                  {t('rcpt_queue_total', 'app')}: {patients.length}
                 </span>
                 <span className="text-xs font-bold text-rose-700 bg-rose-50 px-2.5 py-1 rounded-full border border-rose-100 animate-pulse">
-                  Fila: {activeWaitingList.length} aguardando
+                  {t('rcpt_triage_queue', 'app')}: {activeWaitingList.length} {t('rcpt_queue_waiting', 'app')}
                 </span>
               </div>
             </div>
@@ -2596,7 +2597,7 @@ export default function ReceptionModule({
                   type="text" 
                   value={patientSearch}
                   onChange={e => setPatientSearch(e.target.value)}
-                  placeholder="Buscar paciente por nome, tel ou Cédula..." 
+                  placeholder={t('rcpt_search_patient', 'app')}
                   className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-teal-500 font-sans"
                 />
               </div>
@@ -2607,9 +2608,9 @@ export default function ReceptionModule({
                   onChange={e => setFilterPriority(e.target.value)}
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans"
                 >
-                  <option value="todos">Todas Prioridades</option>
-                  <option value="normal">Normal</option>
-                  <option value="preferencial">Preferencial (60+)</option>
+                  <option value="todos">{t('rcpt_all_priorities', 'app')}</option>
+                  <option value="normal">{t('rcpt_priority_normal', 'app')}</option>
+                  <option value="preferencial">{t('rcpt_priority_preferential', 'app')}</option>
                   <option value="emergência">Emergência</option>
                 </select>
               </div>
@@ -2619,7 +2620,7 @@ export default function ReceptionModule({
             <div className="max-h-[460px] overflow-y-auto space-y-3 pr-1">
               {filteredPatients.length === 0 ? (
                 <div className="text-center py-12 text-slate-400 text-xs">
-                  Nenhum paciente localizado nesta lista. Adicione novos na aba esquerda!
+                  {t('rcpt_list_empty', 'app')}
                 </div>
               ) : (
                 filteredPatients.map(p => {
@@ -2631,7 +2632,7 @@ export default function ReceptionModule({
                       <div className="flex-1 flex flex-col gap-2.5">
                         {p.priority === 'emergência' && (
                           <span className="self-start px-3 py-1 bg-rose-100 text-rose-800 text-[11px] font-black uppercase rounded-lg border border-rose-200 animate-pulse flex items-center gap-1">
-                            🚨 Emergência
+                            {t('rcpt_priority_emergency', 'app')}
                           </span>
                         )}
                         {p.priority === 'preferencial' && (
@@ -2651,31 +2652,31 @@ export default function ReceptionModule({
                         )}
                         
                         <div className="text-[12px] text-slate-700 space-y-0.5 leading-relaxed">
-                          <p><span className="text-slate-500 font-medium">Nome Completo:</span> <span className="font-bold text-slate-800">{p.name}</span></p>
-                          <p><span className="text-slate-500 font-medium">Data Nascimento:</span> <span className="font-semibold">{p.birthdate ? new Date(p.birthdate).toLocaleDateString('pt-BR') : '—'} {pAge ? `(${pAge} anos)` : ''}</span></p>
-                          <p><span className="text-slate-500 font-medium">Sexo/Gênero:</span> <span className="font-semibold">{p.gender || '—'}</span></p>
-                          <p><span className="text-slate-500 font-medium">Celular:</span> <span className="font-semibold">{p.phone}</span> {p.whatsapp_verified && <span className="text-green-600 font-bold text-[10px]">WA</span>}</p>
+                          <p><span className="text-slate-500 font-medium">{t('rcpt_list_full_name', 'app')}</span> <span className="font-bold text-slate-800">{p.name}</span></p>
+                          <p><span className="text-slate-500 font-medium">{t('rcpt_list_birth_date', 'app')}</span> <span className="font-semibold">{p.birthdate ? new Date(p.birthdate).toLocaleDateString('pt-BR') : '—'} {pAge ? `(${pAge} anos)` : ''}</span></p>
+                          <p><span className="text-slate-500 font-medium">{t('rcpt_list_gender', 'app')}</span> <span className="font-semibold">{p.gender || '—'}</span></p>
+                          <p><span className="text-slate-500 font-medium">{t('rcpt_merge_phone_label', 'app')}</span> <span className="font-semibold">{p.phone}</span> {p.whatsapp_verified && <span className="text-green-600 font-bold text-[10px]">WA</span>}</p>
                           {p.blood_type && p.blood_type !== 'Não Informado' && (
-                            <p><span className="text-slate-500 font-medium">Tipo Sanguíneo:</span> <span className="font-bold text-rose-600">{p.blood_type}</span></p>
+                            <p><span className="text-slate-500 font-medium">{t('rcpt_list_blood_type', 'app')}</span> <span className="font-bold text-rose-600">{p.blood_type}</span></p>
                           )}
                           {p.preferred_language && (
-                            <p><span className="text-slate-500 font-medium">Idioma Pref.:</span> <span className="font-semibold">{p.preferred_language === 'es' ? 'Español' : p.preferred_language === 'es-AR' ? 'Español (Argentina)' : p.preferred_language === 'es-PY' ? 'Español (Paraguay)' : p.preferred_language === 'gn' ? 'Guaraní' : p.preferred_language === 'pt-BR' ? 'Português (Brasil)' : p.preferred_language === 'pt-PT' ? 'Português (Portugal)' : p.preferred_language === 'en' ? 'English' : p.preferred_language === 'outros' ? 'Outros' : p.preferred_language}</span></p>
+                            <p><span className="text-slate-500 font-medium">{t('rcpt_list_pref_language', 'app')}</span> <span className="font-semibold">{p.preferred_language === 'es' ? 'Español' : p.preferred_language === 'es-AR' ? 'Español (Argentina)' : p.preferred_language === 'es-PY' ? 'Español (Paraguay)' : p.preferred_language === 'gn' ? 'Guaraní' : p.preferred_language === 'pt-BR' ? 'Português (Brasil)' : p.preferred_language === 'pt-PT' ? 'Português (Portugal)' : p.preferred_language === 'en' ? 'English' : p.preferred_language === 'outros' ? 'Outros' : p.preferred_language}</span></p>
                           )}
                           {p.allergies && (
-                            <p><span className="text-slate-500 font-medium">Alergias / Antecedentes Clínicos:</span> <span className="font-semibold">{p.allergies}</span></p>
+                            <p><span className="text-slate-500 font-medium">{t('rcpt_list_allergies', 'app')}</span> <span className="font-semibold">{p.allergies}</span></p>
                           )}
                           {p.health_insurance_type && (
-                            <p><span className="text-slate-500 font-medium">Seguro / Convênio:</span> <span className="font-semibold">{p.health_insurance_type === 'Particular' ? 'Particular' : p.health_insurance_type === 'IPS' ? 'IPS (Segurado)' : p.health_insurance_type === 'Sanidade Militar' ? 'Sanidade Militar' : p.health_insurance_type === 'Sanidade Policial' ? 'Sanidade Policial' : p.health_insurance_type === 'Pré-paga' ? 'Pré-paga / Privado' : p.health_insurance_type === 'Seguro Privado' ? 'Seguro Internacional' : p.health_insurance_type}</span></p>
+                            <p><span className="text-slate-500 font-medium">{t('rcpt_list_insurance', 'app')}</span> <span className="font-semibold">{p.health_insurance_type === 'Particular' ? 'Particular' : p.health_insurance_type === 'IPS' ? 'IPS (Segurado)' : p.health_insurance_type === 'Sanidade Militar' ? 'Sanidade Militar' : p.health_insurance_type === 'Sanidade Policial' ? 'Sanidade Policial' : p.health_insurance_type === 'Pré-paga' ? 'Pré-paga / Privado' : p.health_insurance_type === 'Seguro Privado' ? 'Seguro Internacional' : p.health_insurance_type}</span></p>
                           )}
                           {pIsMinor && p.guardian_name && (
-                            <p><span className="text-slate-500 font-medium">Responsável:</span> <span className="font-semibold">{p.guardian_name} ({p.guardian_relationship})</span></p>
+                            <p><span className="text-slate-500 font-medium">{t('rcpt_list_guardian', 'app')}</span> <span className="font-semibold">{p.guardian_name} ({p.guardian_relationship})</span></p>
                           )}
                         </div>
 
                         {p.status === 'aguardando' && (
                           <div className="flex items-center gap-2 mt-1 pt-1">
                             <span className="text-[11px] font-bold px-2.5 py-1 bg-amber-50 text-amber-600 border border-amber-200 rounded-full flex items-center gap-1">
-                              <Clock className="w-3" /> Aguardando Triagem
+                              <Clock className="w-3" /> {t('rcpt_list_waiting_triage', 'app')}
                             </span>
                             <button
                               onClick={() => {
@@ -2702,7 +2703,7 @@ export default function ReceptionModule({
                               className="bg-teal-600 hover:bg-teal-700 text-white text-[11px] px-3 py-1.5 rounded-lg font-bold shadow-sm transition cursor-pointer flex items-center gap-1"
                             >
                               <HeartPulse className="w-3.5 h-3.5 text-white animate-pulse" />
-                              Realizar Triagem
+                              {t('rcpt_list_perform_triage', 'app')}
                             </button>
                           </div>
                         )}
@@ -2710,7 +2711,7 @@ export default function ReceptionModule({
                         {p.status === 'triado' && (
                           <div className="flex items-center gap-2 mt-1 pt-1">
                             <span className="text-[11px] font-bold px-2.5 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-full flex items-center gap-1">
-                              <Clock className="w-3" /> Triado — Aguardando Liberação
+                              <Clock className="w-3" /> {t('rcpt_list_triaged', 'app')}
                             </span>
                             <button
                               onClick={() => handleUpdatePatientStatus(p.id, 'atendimento')}
@@ -2751,14 +2752,14 @@ export default function ReceptionModule({
                         {p.status === 'agendado' && (
                           <div className="flex items-center gap-2 mt-1 pt-1">
                             <span className="text-[11px] font-bold px-2.5 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded-full flex items-center gap-1">
-                              <CalendarDays className="w-3" /> Agendado
+                              <CalendarDays className="w-3" /> {t('rcpt_list_scheduled', 'app')}
                             </span>
                             <button
                               onClick={() => handleUpdatePatientStatus(p.id, 'aguardando')}
                               data-testid="check-in"
                               className="bg-teal-600 hover:bg-teal-700 text-white text-[11px] px-3 py-1.5 rounded-lg font-semibold shadow-xs transition cursor-pointer"
                             >
-                              Dar Entrada
+                              {t('rcpt_list_check_in', 'app')}
                             </button>
                           </div>
                         )}
@@ -2777,7 +2778,7 @@ export default function ReceptionModule({
                             onClick={() => handleEditPatient(p)}
                             data-testid="edit-patient"
                             className="bg-blue-500 hover:bg-blue-600 text-white w-8 h-8 rounded-lg font-semibold shadow-sm transition cursor-pointer flex items-center justify-center"
-                            title="Editar Paciente"
+                            title={t('rcpt_list_edit_patient', 'app')}
                           >
                             <Pencil className="w-3.5 h-3.5" />
                           </button>
@@ -2785,7 +2786,7 @@ export default function ReceptionModule({
                             onClick={() => handleDeletePatient(p.id, p.name)}
                             data-testid="delete-patient"
                             className="bg-red-500 hover:bg-red-600 text-white w-8 h-8 rounded-lg font-semibold shadow-sm transition cursor-pointer flex items-center justify-center"
-                            title="Excluir Paciente"
+                            title={t('rcpt_list_delete_patient', 'app')}
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -2813,7 +2814,7 @@ export default function ReceptionModule({
                     triageTab === 'aguardando' ? 'bg-teal-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'
                   }`}
                 >
-                  Aguardando ({triagedPatients.length})
+                  {t('rcpt_attendance_waiting', 'app')} ({triagedPatients.length})
                 </button>
                 <button
                   onClick={() => setTriageTab('em_atendimento')}
@@ -2821,7 +2822,7 @@ export default function ReceptionModule({
                     triageTab === 'em_atendimento' ? 'bg-amber-500 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'
                   }`}
                 >
-                  Consulta/Intervenção ({patientsInTreatment.length})
+                  {t('rcpt_attendance_consultation', 'app')} ({patientsInTreatment.length})
                 </button>
                 <button
                   onClick={() => setTriageTab('atendidos')}
@@ -2829,7 +2830,7 @@ export default function ReceptionModule({
                     triageTab === 'atendidos' ? 'bg-green-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'
                   }`}
                 >
-                  Atendidos ({attendedPatients.length})
+                  {t('rcpt_attendance_attended', 'app')} ({attendedPatients.length})
                 </button>
               </div>
 
@@ -2837,7 +2838,7 @@ export default function ReceptionModule({
               {triageTab === 'aguardando' && (
               <div className="space-y-3 max-h-[500px] overflow-y-auto">
                 {triagedPatients.length === 0 ? (
-                  <p className="text-sm text-slate-400 text-center py-8">Nenhum paciente aguardando direcionamento</p>
+                  <p className="text-sm text-slate-400 text-center py-8">{t('rcpt_no_patients_waiting', 'app')}</p>
                 ) : triagedPatients.map(p => {
                   const triage = p.clinicalHistory?.find((h: any) => h.type?.includes('Triagem'));
                   const triagedAt = triage?.triaged_at;
@@ -2905,7 +2906,7 @@ export default function ReceptionModule({
               {triageTab === 'em_atendimento' && (
               <div className="space-y-3 max-h-[500px] overflow-y-auto">
                 {patientsInTreatment.length === 0 ? (
-                  <p className="text-sm text-slate-400 text-center py-8">Nenhum paciente em atendimento</p>
+                  <p className="text-sm text-slate-400 text-center py-8">{t('rcpt_dist_no_in_treatment', 'app')}</p>
                 ) : patientsInTreatment.map((item, idx) => {
                   const triage = item.patient.clinicalHistory?.find((h: any) => h.type?.includes('Triagem'));
                   const triagedAt = triage?.triaged_at;
@@ -2914,7 +2915,7 @@ export default function ReceptionModule({
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-sm font-bold text-slate-800">{item.patient.name}</span>
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
-                        Em Atendimento
+                        {t('rcpt_dist_in_treatment', 'app')}
                       </span>
                     </div>
                     <p className="text-xs text-slate-500 mb-1">{item.patient.phone}</p>
@@ -2930,7 +2931,7 @@ export default function ReceptionModule({
                       onClick={() => { setSelectedLocation(hospitalLocations.find(l => l.id === item.locationId) || null); setShowLocationDetail(true); }}
                       className="w-full mt-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold py-1.5 rounded-lg transition cursor-pointer flex items-center justify-center gap-1"
                     >
-                      <ChevronRight className="w-3 h-3" /> Ver Detalhes
+                      <ChevronRight className="w-3 h-3" /> {t('rcpt_dist_view_details', 'app')}
                     </button>
                   </div>
                   );
@@ -2942,7 +2943,7 @@ export default function ReceptionModule({
               {triageTab === 'atendidos' && (
               <div className="space-y-3 max-h-[500px] overflow-y-auto">
                 {attendedPatients.length === 0 ? (
-                  <p className="text-sm text-slate-400 text-center py-8">Nenhum atendimento realizado</p>
+                  <p className="text-sm text-slate-400 text-center py-8">{t('rcpt_dist_no_visits', 'app')}</p>
                 ) : [...attendedPatients].sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()).map((item, idx) => {
                   const triage = item.patient.clinicalHistory?.find((h: any) => h.type?.includes('Triagem'));
                   const triagedAt = triage?.triaged_at;
@@ -2955,7 +2956,7 @@ export default function ReceptionModule({
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-sm font-bold text-slate-800">{item.patient.name}</span>
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700">
-                        ✓ Atendido
+                        {t('rcpt_dist_attended', 'app')}
                       </span>
                     </div>
                     <p className="text-xs text-slate-500 mb-1">{item.patient.phone}</p>
@@ -2981,7 +2982,7 @@ export default function ReceptionModule({
             <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-md lg:col-span-2">
               <div className="flex items-center gap-2 pb-3 mb-4 border-b border-slate-100">
                 <MapPin className="w-5 h-5 text-teal-600" />
-                <h3 className="font-bold text-slate-800 text-base">Locais Hospitalares</h3>
+                <h3 className="font-bold text-slate-800 text-base">{t('rcpt_locations_title', 'app')}</h3>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {[...hospitalLocations].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })).map(loc => (
@@ -3003,9 +3004,9 @@ export default function ReceptionModule({
                         loc.currentPatients.length > 0 ? 'bg-amber-100 text-amber-700' :
                         'bg-green-100 text-green-700'
                       }`}>
-                        {loc.status === 'manutencao' ? 'Manutenção' :
-                         loc.currentPatients.length >= loc.capacity ? 'Ocupado' :
-                         loc.currentPatients.length > 0 ? 'Atendendo' : 'Livre'}
+                         {loc.status === 'manutencao' ? t('rcpt_loc_maintenance', 'app') :
+                         loc.currentPatients.length >= loc.capacity ? t('rcpt_loc_occupied', 'app') :
+                         loc.currentPatients.length > 0 ? t('rcpt_loc_attending', 'app') : t('rcpt_loc_free', 'app')}
                       </span>
                     </div>
                     <h4 className="text-sm font-bold text-slate-800 mb-1">{loc.name}</h4>
@@ -3018,7 +3019,7 @@ export default function ReceptionModule({
                     {loc.capacity === 1 && loc.currentPatients.length > 0 && (
                       <div className="mb-3 bg-white/60 rounded-lg px-3 py-2 border border-white/50">
                         <p className="text-[10px] text-slate-500">
-                          1 paciente — <span className="text-teal-600 font-semibold">Clique para ver detalhes</span>
+                          1 paciente — <span className="text-teal-600 font-semibold">{t('rcpt_locations_n_patients', 'app').split('{count}')[1] ? t('rcpt_dist_view_details', 'app') : ''}</span>
                         </p>
                       </div>
                     )}
@@ -3027,7 +3028,7 @@ export default function ReceptionModule({
                     {loc.capacity > 1 && loc.currentPatients.length > 0 && (
                       <div className="mb-3 bg-white/60 rounded-lg px-3 py-2 border border-white/50">
                         <p className="text-[10px] text-slate-500">
-                          {loc.currentPatients.length} paciente{loc.currentPatients.length > 1 ? 's' : ''} — <span className="text-teal-600 font-semibold">Clique para ver detalhes</span>
+                          {loc.currentPatients.length} paciente{loc.currentPatients.length > 1 ? 's' : ''} — <span className="text-teal-600 font-semibold">{t('rcpt_locations_n_patients', 'app').split('{count}')[1] ? t('rcpt_dist_view_details', 'app') : ''}</span>
                         </p>
                       </div>
                     )}
@@ -3042,7 +3043,7 @@ export default function ReceptionModule({
                           : 'bg-teal-600 hover:bg-teal-700 text-white'
                       }`}
                     >
-                      Chamar Próximo
+                      {t('rcpt_locations_call_next', 'app')}
                     </button>
                     )}
                   </div>
@@ -3058,13 +3059,13 @@ export default function ReceptionModule({
             <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <Sliders className="w-5 h-5 text-teal-600" />
-                <h3 className="font-bold text-slate-800 text-base">Cadastro de Locais Hospitalares</h3>
+                <h3 className="font-bold text-slate-800 text-base">{t('rcpt_location_registration', 'app')}</h3>
               </div>
               <button
                 onClick={() => { setEditingLocation(null); setNewLocationForm({ name: '', type: 'consultorio', capacity: 1 }); setShowNewLocationModal(true); }}
                 className="bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold py-2 px-3 rounded-lg transition cursor-pointer flex items-center gap-1"
               >
-                <Plus className="w-4 h-4" /> Novo Local
+                <Plus className="w-4 h-4" /> {t('rcpt_modal_new', 'app')} Local
               </button>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -3102,9 +3103,9 @@ export default function ReceptionModule({
             <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <Bell className="w-5 h-5 text-teal-600" />
-                <h3 className="font-bold text-slate-800 text-base">Notificações Internas</h3>
+                <h3 className="font-bold text-slate-800 text-base">{t('rcpt_internal_notifications', 'app')}</h3>
                 {unreadNotifications.length > 0 && (
-                  <span className="text-xs font-bold text-red-700 bg-red-50 px-2 py-0.5 rounded-full">{unreadNotifications.length} não lidas</span>
+                  <span className="text-xs font-bold text-red-700 bg-red-50 px-2 py-0.5 rounded-full">{unreadNotifications.length} {t('rcpt_notif_unread', 'app')}</span>
                 )}
               </div>
               {internalNotifications.length > 0 && (
@@ -3121,13 +3122,13 @@ export default function ReceptionModule({
                   }}
                   className="text-xs text-teal-600 hover:text-teal-800 font-semibold cursor-pointer"
                 >
-                  Marcar todas como lidas
+                  {t('rcpt_notif_mark_all_read', 'app')}
                 </button>
               )}
             </div>
             <div className="space-y-3 max-h-[500px] overflow-y-auto">
               {internalNotifications.length === 0 ? (
-                <p className="text-sm text-slate-400 text-center py-8">Nenhuma notificação</p>
+                <p className="text-sm text-slate-400 text-center py-8">{t('rcpt_notif_none', 'app')}</p>
               ) : internalNotifications.map(n => (
                 <div key={n.id} className={`border rounded-lg p-3 transition ${
                   n.read ? 'bg-blue-50/40 border-blue-100' : 'bg-blue-100 border-blue-300'
@@ -3162,9 +3163,9 @@ export default function ReceptionModule({
               <div className="flex items-center gap-3 border-b border-slate-200 pb-3">
                 <AlertTriangle className="w-6 h-6 text-amber-500 animate-pulse" />
                 <div>
-                  <h3 className="font-bold text-slate-800 text-lg">Fusão de Fichas Duplicadas</h3>
+                  <h3 className="font-bold text-slate-800 text-lg">{t('rcpt_merge_title', 'app')}</h3>
                   <p className="text-xs text-slate-500">
-                    Selecione quais dados manter para consolidar os cadastros em um perfil único.
+                    {t('rcpt_modal_merge_desc', 'app')}
                   </p>
                 </div>
               </div>
@@ -3172,16 +3173,16 @@ export default function ReceptionModule({
               {/* Side by side comparison */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
                 
-                {/* 1. Ficha Existente */}
+                {/* 1. Ficha {t('rcpt_modal_existing', 'app')} */}
                 <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
                   <div className="flex justify-between items-center border-b border-slate-200 pb-2">
-                    <span className="font-black text-slate-700 uppercase">Ficha 1 (Existente no Banco)</span>
+                    <span className="font-black text-slate-700 uppercase">{t('rcpt_modal_record1', 'app')}</span>
                     <span className="px-2 py-0.5 bg-blue-50 text-blue-700 font-bold rounded">ID: {duplicatePatient.id}</span>
                   </div>
                   
                   <div className="space-y-2">
                     <div className="flex justify-between">
-                      <span className="text-slate-500">Nome:</span>
+                      <span className="text-slate-500">{t('rcpt_merge_name', 'app')}</span>
                       <span className="font-bold">{duplicatePatient.name}</span>
                     </div>
                     <div className="flex justify-between">
@@ -3189,25 +3190,25 @@ export default function ReceptionModule({
                       <span className="font-bold">{duplicatePatient.document_number}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-slate-500">Celular:</span>
+                      <span className="text-slate-500">{t('rcpt_merge_phone_label', 'app')}</span>
                       <span className="font-bold">{duplicatePatient.phone}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-slate-500">E-mail:</span>
+                      <span className="text-slate-500">{t('rcpt_merge_email_label', 'app')}</span>
                       <span className="font-bold">{duplicatePatient.email}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-slate-500">Endereço:</span>
+                      <span className="text-slate-500">{t('rcpt_merge_address', 'app')}</span>
                       <span className="font-bold text-right max-w-[200px]">
                         {duplicatePatient.address_street || 'N/A'}, {duplicatePatient.address_number || ''}
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-slate-500">Convênio:</span>
+                      <span className="text-slate-500">{t('rcpt_merge_insurance', 'app')}</span>
                       <span className="font-bold">{duplicatePatient.health_insurance_type || 'Particular'}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-slate-500">Alergias:</span>
+                      <span className="text-slate-500">{t('rcpt_merge_allergies_label', 'app')}</span>
                       <span className="font-semibold text-rose-600">{duplicatePatient.allergies || 'Nenhuma'}</span>
                     </div>
                   </div>
@@ -3216,14 +3217,14 @@ export default function ReceptionModule({
                 {/* 2. Nova Ficha / Mesclar Opções */}
                 <div className="p-4 bg-teal-50/30 border border-teal-200 rounded-xl space-y-3">
                   <div className="flex justify-between items-center border-b border-teal-200 pb-2">
-                    <span className="font-black text-teal-800 uppercase">Valores a Salvar (Mesclado)</span>
-                    <span className="px-2 py-0.5 bg-teal-100 text-teal-800 font-bold rounded">Selecione para manter</span>
+                    <span className="font-black text-teal-800 uppercase">{t('rcpt_modal_values_to_save', 'app')}</span>
+                    <span className="px-2 py-0.5 bg-teal-100 text-teal-800 font-bold rounded">{t('rcpt_modal_select_to_keep', 'app')}</span>
                   </div>
 
                   <div className="space-y-2.5">
                     {/* Select Nome */}
                     <div className="flex flex-col gap-1">
-                      <span className="text-[10px] text-slate-500 font-bold">Nome Completo:</span>
+                      <span className="text-[10px] text-slate-500 font-bold">{t('rcpt_list_full_name', 'app')}</span>
                       <div className="flex gap-2">
                         <label className="flex items-center gap-1 bg-white border px-2 py-1 rounded flex-1">
                           <input type="radio" checked={mergeSelections.name === duplicatePatient.name} onChange={() => setMergeSelections(prev => ({...prev, name: duplicatePatient.name}))} />
@@ -3240,7 +3241,7 @@ export default function ReceptionModule({
 
                     {/* Select Telefone */}
                     <div className="flex flex-col gap-1">
-                      <span className="text-[10px] text-slate-500 font-bold">Celular:</span>
+                      <span className="text-[10px] text-slate-500 font-bold">{t('rcpt_merge_phone_label', 'app')}</span>
                       <div className="flex gap-2">
                         <label className="flex items-center gap-1 bg-white border px-2 py-1 rounded flex-1">
                           <input type="radio" checked={mergeSelections.phone === duplicatePatient.phone} onChange={() => setMergeSelections(prev => ({...prev, phone: duplicatePatient.phone}))} />
@@ -3257,7 +3258,7 @@ export default function ReceptionModule({
 
                     {/* Select Endereço */}
                     <div className="flex flex-col gap-1">
-                      <span className="text-[10px] text-slate-500 font-bold">Endereço:</span>
+                      <span className="text-[10px] text-slate-500 font-bold">{t('rcpt_merge_address', 'app')}</span>
                       <div className="flex gap-2">
                         <label className="flex items-center gap-1 bg-white border px-2 py-1 rounded flex-1">
                           <input type="radio" checked={mergeSelections.address_city === duplicatePatient.address_city} onChange={() => setMergeSelections(prev => ({
@@ -3269,7 +3270,7 @@ export default function ReceptionModule({
                             address_street: duplicatePatient.address_street,
                             address_number: duplicatePatient.address_number,
                           }))} />
-                          <span>Existente ({duplicatePatient.address_city || 'N/A'})</span>
+                          <span>{t('rcpt_modal_existing', 'app')} ({duplicatePatient.address_city || 'N/A'})</span>
                         </label>
                         {addressCity && addressCity !== duplicatePatient.address_city && (
                           <label className="flex items-center gap-1 bg-white border px-2 py-1 rounded flex-1">
@@ -3282,7 +3283,7 @@ export default function ReceptionModule({
                               address_street: addressStreet,
                               address_number: addressNumber,
                             }))} />
-                            <span className="text-teal-700 font-semibold">Novo ({addressCity})</span>
+                            <span className="text-teal-700 font-semibold">{t('rcpt_modal_new', 'app')} ({addressCity})</span>
                           </label>
                         )}
                       </div>
@@ -3290,7 +3291,7 @@ export default function ReceptionModule({
 
                     {/* Select Convênio */}
                     <div className="flex flex-col gap-1">
-                      <span className="text-[10px] text-slate-500 font-bold">Convênio / Seguro:</span>
+                      <span className="text-[10px] text-slate-500 font-bold">{t('rcpt_merge_insurance_label', 'app')}</span>
                       <div className="flex gap-2">
                         <label className="flex items-center gap-1 bg-white border px-2 py-1 rounded flex-1">
                           <input type="radio" checked={mergeSelections.health_insurance_type === duplicatePatient.health_insurance_type} onChange={() => setMergeSelections(prev => ({
@@ -3299,7 +3300,7 @@ export default function ReceptionModule({
                             health_insurance_number: duplicatePatient.health_insurance_number,
                             health_insurance_company: duplicatePatient.health_insurance_company,
                           }))} />
-                          <span>Existente ({duplicatePatient.health_insurance_type})</span>
+                          <span>{t('rcpt_modal_existing', 'app')} ({duplicatePatient.health_insurance_type})</span>
                         </label>
                         {healthInsuranceType !== duplicatePatient.health_insurance_type && (
                           <label className="flex items-center gap-1 bg-white border px-2 py-1 rounded flex-1">
@@ -3309,7 +3310,7 @@ export default function ReceptionModule({
                               health_insurance_number: healthInsuranceNumber,
                               health_insurance_company: healthInsuranceCompany,
                             }))} />
-                            <span className="text-teal-700 font-semibold">Novo ({healthInsuranceType})</span>
+                            <span className="text-teal-700 font-semibold">{t('rcpt_modal_new', 'app')} ({healthInsuranceType})</span>
                           </label>
                         )}
                       </div>
@@ -3324,7 +3325,7 @@ export default function ReceptionModule({
               <div className="p-4 bg-slate-100 rounded-xl border border-slate-200 space-y-3">
                 <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
                   <KeyRound className="w-4 h-4 text-teal-600" />
-                  <span>Autorização do Supervisor Requerida</span>
+                  <span>{t('rcpt_merge_supervisor_auth', 'app')}</span>
                 </div>
                 
                 <div className="flex items-center gap-3">
@@ -3336,7 +3337,7 @@ export default function ReceptionModule({
                       setSupervisorPin(e.target.value);
                       setPinError('');
                     }}
-                    placeholder="Digite o PIN de Supervisor (Tente: 1234)"
+                    placeholder={t('rcpt_overbook_pin_placeholder', 'app')}
                     className="p-2.5 bg-white border border-slate-300 rounded-lg text-sm text-center font-sans focus:outline-teal-500 max-w-[240px] tracking-widest"
                   />
                   
@@ -3355,7 +3356,7 @@ export default function ReceptionModule({
                   onClick={() => setShowMergeModal(false)}
                   className="py-2.5 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs rounded-lg transition cursor-pointer"
                 >
-                  Cancelar Fusão
+                  {t('rcpt_cancel', 'app')} Fusão
                 </button>
                 <button
                   type="button"
@@ -3363,7 +3364,7 @@ export default function ReceptionModule({
                   className="py-2.5 px-5 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-lg shadow-sm flex items-center gap-1.5 cursor-pointer transition"
                 >
                   <Sparkles className="w-4 h-4" />
-                  Autorizar & Mesclar Fichas
+                  {t('rcpt_merge_authorize_button', 'app')}
                 </button>
               </div>
 
@@ -3387,15 +3388,15 @@ export default function ReceptionModule({
                   <AlertTriangle className="w-6 h-6 text-amber-600 animate-pulse" />
                 </div>
                 <div>
-                  <h3 className="font-extrabold text-slate-800 text-base">Conflito de Agenda — Encaixe Requerido</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">O agendamento violou uma ou mais regras clínicas configuradas.</p>
+                  <h3 className="font-extrabold text-slate-800 text-base">{t('rcpt_overbook_title', 'app')}</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">{t('rcpt_overbook_description', 'app')}</p>
                 </div>
               </div>
 
               {/* Conflict details */}
               {pendingAppointmentData && (
                 <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs space-y-1.5">
-                  <p className="font-bold text-amber-800 mb-1">⚠️ Motivos da restrição:</p>
+                  <p className="font-bold text-amber-800 mb-1">{t('rcpt_overbook_reasons', 'app')}</p>
                   {validateAppointment({
                     doctorName: pendingAppointmentData.doctorName,
                     date: pendingAppointmentData.date,
@@ -3414,23 +3415,23 @@ export default function ReceptionModule({
 
               <div className="space-y-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Motivo do Encaixe *</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">{t('rcpt_overbook_reason_label', 'app')}</label>
                   <textarea
                     value={overturnReason}
                     onChange={e => { setOverturnReason(e.target.value); setOverturnPinError(''); }}
-                    placeholder="Descreva a justificativa clínica para o encaixe (ex.: urgência médica, retorno pós-cirúrgico urgente)..."
+                    placeholder={t('rcpt_triage_chief_complaint_placeholder', 'app')}
                     rows={3}
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-amber-500 font-sans"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">PIN de Autorização do Supervisor *</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">{t('rcpt_overbook_pin_label', 'app')}</label>
                   <input
                     type="password"
                     maxLength={4}
                     value={overturnPin}
                     onChange={e => { setOverturnPin(e.target.value); setOverturnPinError(''); }}
-                    placeholder="••••   (Tente: 1234)"
+                    placeholder={t('rcpt_ph_pin', 'app')}
                     className="w-32 p-2.5 bg-white border border-slate-300 rounded-lg text-sm text-center font-mono tracking-widest focus:outline-amber-500"
                   />
                 </div>
@@ -3447,7 +3448,7 @@ export default function ReceptionModule({
                   onClick={() => { setShowOverturnModal(false); setPendingAppointmentData(null); }}
                   className="py-2.5 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs rounded-lg transition cursor-pointer"
                 >
-                  Cancelar
+                  {t('rcpt_cancel', 'app')}
                 </button>
                 <button
                   type="button"
@@ -3455,7 +3456,7 @@ export default function ReceptionModule({
                   className="py-2.5 px-5 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-lg shadow-sm flex items-center gap-1.5 cursor-pointer transition"
                 >
                   <KeyRound className="w-4 h-4" />
-                  Autorizar Encaixe
+                  {t('rcpt_overbook_authorize_button', 'app')}
                 </button>
               </div>
             </motion.div>
@@ -3480,7 +3481,7 @@ export default function ReceptionModule({
                     <HeartPulse className="w-6 h-6 text-teal-600 animate-pulse" />
                   </div>
                   <div>
-                    <h3 className="font-extrabold text-slate-800 text-base">Triagem Inicial de Enfermagem</h3>
+                    <h3 className="font-extrabold text-slate-800 text-base">{t('rcpt_triage_title', 'app')}</h3>
                     <p className="text-xs text-slate-500 font-medium">
                       Paciente: <b className="text-teal-700">{triagePatient.name}</b> — {triagePatient.health_insurance_type || 'Particular'} | {triagePatient.birthdate}
                     </p>
@@ -3498,11 +3499,11 @@ export default function ReceptionModule({
 
                   {/* Motivo da Consulta */}
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Motivo Principal da Consulta / Queixa *</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">{t('rcpt_main_complaint', 'app')} *</label>
                     <textarea
                       value={triageReason}
                       onChange={e => setTriageReason(e.target.value)}
-                      placeholder="Descreva brevemente o motivo do atendimento de hoje..."
+                      placeholder={t('rcpt_triage_chief_complaint_placeholder', 'app')}
                       rows={2}
                       className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans"
                     />
@@ -3513,7 +3514,7 @@ export default function ReceptionModule({
                     <div className="flex items-center justify-between text-xs font-bold text-slate-700 pb-1 border-b border-slate-200">
                       <div className="flex items-center gap-2">
                         <HeartPulse className="w-4 h-4 text-rose-500" />
-                        <span>Sinais Vitais</span>
+                        <span>{t('rcpt_vital_signs', 'app')}</span>
                       </div>
                       <span className="text-[10px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">{vitalsLimits.label}</span>
                     </div>
@@ -3521,7 +3522,7 @@ export default function ReceptionModule({
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                       {/* Weight */}
                       <div>
-                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Peso (kg)</label>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_triage_weight', 'app')}</label>
                         <input
                           type="text"
                           value={triageWeight}
@@ -3531,24 +3532,24 @@ export default function ReceptionModule({
                             if (dotCount > 1) return;
                             setTriageWeight(raw);
                           }}
-                          placeholder="Ex: 72.5"
+                          placeholder={t('rcpt_ph_weight', 'app')}
                           className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans font-bold"
                         />
                       </div>
                       {/* Height */}
                       <div>
-                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Altura (cm)</label>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_triage_height', 'app')}</label>
                         <input
                           type="number"
                           value={triageHeight}
                           onChange={e => setTriageHeight(e.target.value)}
-                          placeholder="Ex: 170"
+                          placeholder={t('rcpt_ph_height', 'app')}
                           className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans font-bold"
                         />
                       </div>
                       {/* BMI (auto-calculated) */}
                       <div>
-                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">IMC (Calculado)</label>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_triage_bmi', 'app')}</label>
                         <div className={`w-full p-2 rounded-lg text-xs font-black text-center border ${
                           triageWeight && triageHeight
                             ? (() => {
@@ -3563,16 +3564,16 @@ export default function ReceptionModule({
                           {triageWeight && triageHeight
                             ? (() => {
                                 const bmi = parseFloat(triageWeight) / Math.pow(parseFloat(triageHeight) / 100, 2);
-                                const label = bmi < 18.5 ? 'Abaixo do Peso' : bmi < 25 ? 'Normal' : bmi < 30 ? 'Sobrepeso' : 'Obeso';
+                                const label = bmi < 18.5 ? t('rcpt_triage_bmi_underweight', 'app') : bmi < 25 ? 'Normal' : bmi < 30 ? 'Sobrepeso' : 'Obeso';
                                 return `${bmi.toFixed(1)} — ${label}`;
                               })()
-                            : 'Informe peso/altura'
+                            : t('rcpt_triage_bmi_info', 'app')
                           }
                         </div>
                       </div>
                       {/* Blood pressure */}
                       <div>
-                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Pressão Arterial</label>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_triage_blood_pressure', 'app')}</label>
                         <input
                           type="text"
                           value={triageBP}
@@ -3582,7 +3583,7 @@ export default function ReceptionModule({
                             if (slashCount > 1) return;
                             setTriageBP(raw);
                           }}
-                          placeholder="Ex: 120/80"
+                          placeholder={t('rcpt_ph_bp', 'app')}
                           className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans"
                         />
                         {triageBP && (() => {
@@ -3591,13 +3592,13 @@ export default function ReceptionModule({
                           const diastolic = parseInt(parts[1]);
                           if (!isNaN(systolic)) {
                             if (vitalsLimits.pa.red(systolic) || (!isNaN(diastolic) && diastolic > 120)) {
-                              return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> Vermelho — PA criticamente baixa</p>;
+                              return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> {t('rcpt_triage_bp_critical_low', 'app')}</p>;
                             }
                             if (vitalsLimits.pa.orange(systolic)) {
-                              return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-500 inline-block" /> Laranja — PA alterada</p>;
+                              return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-500 inline-block" /> {t('rcpt_triage_bp_abnormal', 'app')}</p>;
                             }
                             if (vitalsLimits.pa.yellow(systolic) || (!isNaN(diastolic) && diastolic >= 90 && diastolic <= 119)) {
-                              return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block" /> Amarelo — PA elevada</p>;
+                              return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block" /> {t('rcpt_triage_bp_elevated', 'app')}</p>;
                             }
                             return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> Normal</p>;
                           }
@@ -3606,7 +3607,7 @@ export default function ReceptionModule({
                       </div>
                       {/* Temperature */}
                       <div>
-                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Temperatura (°C)</label>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_triage_temperature', 'app')}</label>
                         <input
                           type="text"
                           value={triageTemp}
@@ -3616,7 +3617,7 @@ export default function ReceptionModule({
                             if (dotCount > 1) return;
                             setTriageTemp(raw);
                           }}
-                          placeholder="Ex: 36.8"
+                          placeholder={t('rcpt_ph_temp', 'app')}
                           className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans"
                         />
                         {triageTemp && (() => {
@@ -3635,12 +3636,12 @@ export default function ReceptionModule({
                       </div>
                       {/* SpO2 */}
                       <div>
-                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Saturação O₂ (%)</label>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_triage_spo2', 'app')}</label>
                         <input
                           type="number"
                           value={triageSpo2}
                           onChange={e => setTriageSpo2(e.target.value)}
-                          placeholder="Ex: 98"
+                          placeholder={t('rcpt_ph_spo2', 'app')}
                           min={60}
                           max={100}
                           className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans"
@@ -3648,35 +3649,35 @@ export default function ReceptionModule({
                         {triageSpo2 && (() => {
                           const spo2 = Number(triageSpo2);
                           if (vitalsLimits.spo2.red(spo2)) {
-                            return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> Vermelho — SpO2 criticamente baixa</p>;
+                            return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> {t('rcpt_triage_spo2_critical', 'app')}</p>;
                           }
                           if (vitalsLimits.spo2.orange(spo2)) {
-                            return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-500 inline-block" /> Laranja — SpO2 reduzida</p>;
+                            return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-500 inline-block" /> {t('rcpt_triage_spo2_low', 'app')}</p>;
                           }
-                          return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> Normal — SpO2 adequada</p>;
+                          return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> {t('rcpt_triage_spo2_normal', 'app')}</p>;
                         })()}
                       </div>
                       {/* Heart rate */}
                       <div>
-                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Freq. Cardíaca (bpm)</label>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_triage_heart_rate', 'app')}</label>
                         <input
                           type="number"
                           value={triageHR}
                           onChange={e => setTriageHR(e.target.value)}
-                          placeholder="Ex: 78"
+                          placeholder={t('rcpt_ph_hr', 'app')}
                           className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans"
                         />
                         {triageHR && (() => {
                           const hr = parseInt(triageHR);
                           if (!isNaN(hr)) {
                             if (vitalsLimits.fc.red(hr)) {
-                              return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> Vermelho — FC fora da faixa crítica</p>;
+                              return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> {t('rcpt_triage_hr_critical', 'app')}</p>;
                             }
                             if (vitalsLimits.fc.orange(hr)) {
-                              return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-500 inline-block" /> Laranja — FC fora da faixa aceitável</p>;
+                              return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-500 inline-block" /> {t('rcpt_triage_hr_abnormal', 'app')}</p>;
                             }
                             if (vitalsLimits.fc.yellow(hr)) {
-                              return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block" /> Amarelo — FC levemente elevada</p>;
+                              return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block" /> {t('rcpt_triage_hr_elevated', 'app')}</p>;
                             }
                             return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> Normal</p>;
                           }
@@ -3685,25 +3686,25 @@ export default function ReceptionModule({
                       </div>
                       {/* Respiratory rate */}
                       <div>
-                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Freq. Respiratória (irpm)</label>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_triage_resp_rate', 'app')}</label>
                         <input
                           type="number"
                           value={triageRR}
                           onChange={e => setTriageRR(e.target.value)}
-                          placeholder="Ex: 16"
+                          placeholder={t('rcpt_ph_rr', 'app')}
                           className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans"
                         />
                         {triageRR && (() => {
                           const rr = parseInt(triageRR);
                           if (!isNaN(rr)) {
                             if (vitalsLimits.fr.red(rr)) {
-                              return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> Vermelho — FR fora da faixa crítica</p>;
+                              return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> {t('rcpt_triage_rr_critical', 'app')}</p>;
                             }
                             if (vitalsLimits.fr.orange(rr)) {
-                              return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-500 inline-block" /> Laranja — FR elevada</p>;
+                              return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-500 inline-block" /> {t('rcpt_triage_rr_elevated', 'app')}</p>;
                             }
                             if (vitalsLimits.fr.yellow(rr)) {
-                              return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block" /> Amarelo — FR levemente elevada</p>;
+                              return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block" /> {t('rcpt_triage_rr_slightly', 'app')}</p>;
                             }
                             return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> Normal</p>;
                           }
@@ -3715,17 +3716,17 @@ export default function ReceptionModule({
 
                     {/* Procedimentos Preliminares */}
                   <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                    <p className="text-xs font-bold text-slate-700 pb-1 border-b border-slate-200">Procedimentos Preliminares de Enfermagem</p>
+                    <p className="text-xs font-bold text-slate-700 pb-1 border-b border-slate-200">{t('rcpt_nursing_procedures', 'app')}</p>
                     <div className="grid grid-cols-2 gap-2">
                       {[
-                        'Glicemia Capilar (HGT)',
-                        'Eletrocardiograma (ECG)',
-                        'Coleta de Sangue (Hemograma)',
-                        'Coleta de Urina (EAS)',
-                        'Pesagem e Antropometria',
-                        'Pré-medicação / Analgesia',
-                        'Inalação / Nebulização',
-                        'Curativo / Ferida',
+                        t('rcpt_triage_proc_hgt', 'app'),
+                        t('rcpt_triage_proc_ecg', 'app'),
+                        t('rcpt_triage_proc_blood', 'app'),
+                        t('rcpt_triage_proc_urine', 'app'),
+                        t('rcpt_triage_proc_anthropometry', 'app'),
+                        t('rcpt_triage_proc_pre_med', 'app'),
+                        t('rcpt_triage_proc_inhalation', 'app'),
+                        t('rcpt_triage_proc_dressing', 'app'),
                       ].map(proc => (
                         <label key={proc} className="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer group">
                           <input
@@ -3746,11 +3747,11 @@ export default function ReceptionModule({
 
                   {/* Observações de Enfermagem */}
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Observações de Enfermagem</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">{t('rcpt_nursing_observations', 'app')}</label>
                     <textarea
                       value={triageNursingNotes}
                       onChange={e => setTriageNursingNotes(e.target.value)}
-                      placeholder="Registre aqui as observações clínicas iniciais, comportamento do paciente, informações adicionais relevantes..."
+                      placeholder={t('rcpt_triage_notes_placeholder', 'app')}
                       rows={3}
                       className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans"
                     />
@@ -3762,14 +3763,14 @@ export default function ReceptionModule({
 
                   {/* Manchester Triage Priority */}
                   <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
-                    <p className="text-xs font-bold text-slate-700 pb-1 border-b border-slate-200">Classificação de Risco (Manchester)</p>
+                    <p className="text-xs font-bold text-slate-700 pb-1 border-b border-slate-200">{t('rcpt_risk_classification', 'app')}</p>
                     <div className="space-y-2">
                       {[
-                        { color: 'red', label: '🔴 Vermelho — Emergência', desc: 'Atendimento imediato' },
-                        { color: 'orange', label: '🟠 Laranja — Muito Urgente', desc: '≤ 10 min' },
-                        { color: 'yellow', label: '🟡 Amarelo — Urgente', desc: '≤ 60 min' },
-                        { color: 'green', label: '🟢 Verde — Pouco Urgente', desc: '≤ 120 min' },
-                        { color: 'blue', label: '🔵 Azul — Não Urgente', desc: '≤ 240 min' },
+                        { color: 'red', label: t('rcpt_triage_risk_red', 'app'), desc: t('rcpt_triage_risk_red_time', 'app') },
+                        { color: 'orange', label: t('rcpt_triage_risk_orange', 'app'), desc: '≤ 10 min' },
+                        { color: 'yellow', label: t('rcpt_triage_risk_yellow', 'app'), desc: '≤ 60 min' },
+                        { color: 'green', label: t('rcpt_triage_risk_green', 'app'), desc: '≤ 120 min' },
+                        { color: 'blue', label: t('rcpt_triage_risk_blue', 'app'), desc: '≤ 240 min' },
                       ].map(item => (
                         <label
                           key={item.color}
@@ -3803,7 +3804,7 @@ export default function ReceptionModule({
                   {/* Foto do Paciente */}
                   {triagePatient && (
                     <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl">
-                      <p className="text-xs font-bold text-slate-700 pb-1 border-b border-slate-200 mb-3">Foto do Paciente</p>
+                      <p className="text-xs font-bold text-slate-700 pb-1 border-b border-slate-200 mb-3">{t('rcpt_patient_photo', 'app')}</p>
                       <div className="flex flex-col items-center gap-2">
                         <div className="w-32 h-32 rounded-lg border border-slate-200 bg-white overflow-hidden flex items-center justify-center shadow-xs">
                           {triagePatient.photo_url ? (
@@ -3832,7 +3833,7 @@ export default function ReceptionModule({
                   onClick={() => setShowTriageModal(false)}
                   className="py-2.5 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs rounded-lg transition cursor-pointer"
                 >
-                  Cancelar
+                  {t('rcpt_cancel', 'app')}
                 </button>
                 <button
                   type="button"
@@ -3846,12 +3847,12 @@ export default function ReceptionModule({
                     const triageEntry = {
                       id: `his_triage_${++hisCounterRef.current}`,
                       date: new Date().toISOString().split('T')[0],
-                      type: 'Triagem Inicial de Enfermagem',
+                      type: t('rcpt_triage_type', 'app'),
                       diagnosis: triageReason,
                       cid10: 'Z00.0',
-                      prescriptions: triageProcedures.length > 0 ? triageProcedures : ['Nenhum procedimento preliminar'],
-                      notes: triageNursingNotes || 'Triagem realizada sem observações adicionais.',
-                      doctor: 'Enf. de Triagem',
+                      prescriptions: triageProcedures.length > 0 ? triageProcedures : [t('rcpt_triage_no_procedure', 'app')],
+                      notes: triageNursingNotes || t('rcpt_triage_default_note', 'app'),
+                      doctor: t('rcpt_triage_nurse', 'app'),
                       vital_signs: {
                         weight: triageWeight,
                         height: triageHeight,
@@ -3889,7 +3890,7 @@ export default function ReceptionModule({
                     }));
 
                     addAuditLog(
-                      `Triagem Realizada (${triagePriorityLevel.toUpperCase()})`,
+                      t('rcpt_audit_triage_performed', 'app').replace('{level}', triagePriorityLevel.toUpperCase()),
                       `${triagePatient.name} — ${triageReason.slice(0, 60)}`
                     );
 
@@ -3917,7 +3918,7 @@ export default function ReceptionModule({
                           .from('clinical_history')
                           .select('id')
                           .eq('patient_id', triagePatient.id)
-                          .eq('type', 'Triagem Inicial de Enfermagem')
+                          .eq('type', t('rcpt_triage_type', 'app'))
                           .order('date', { ascending: false })
                           .limit(1);
 
@@ -3945,7 +3946,7 @@ export default function ReceptionModule({
                   }`}
                 >
                   <HeartPulse className="w-4 h-4" />
-                  Salvar Triagem & Encaminhar para Atendimento
+                  {t('rcpt_save_triage', 'app')}
                 </button>
               </div>
             </motion.div>
@@ -3967,18 +3968,18 @@ export default function ReceptionModule({
               <div className="flex items-center gap-3 border-b border-slate-200 pb-3">
                 <MapPin className="w-6 h-6 text-teal-600" />
                 <div>
-                  <h3 className="font-bold text-slate-800 text-lg">Direcionar Paciente</h3>
+                  <h3 className="font-bold text-slate-800 text-lg">{t('app_distribute_patient', 'app')}</h3>
                   <p className="text-xs text-slate-500">{distributePatient.name}</p>
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">Selecionar Local</label>
+                <label className="block text-sm font-medium text-slate-600 mb-1">{t('app_select_location', 'app')}</label>
                 <select
                   value={distributeTargetLocation}
                   onChange={e => setDistributeTargetLocation(e.target.value)}
                   className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm"
                 >
-                  <option value="">Selecione um local...</option>
+                  <option value="">{t('app_select_location_option', 'app')}</option>
                   {hospitalLocations.filter(l => l.status !== 'manutencao' && l.currentPatients.length < l.capacity).map(l => (
                     <option key={l.id} value={l.id}>
                       {locationTypeIcon[l.type]} {l.name} ({l.currentPatients.length}/{l.capacity})
@@ -3993,7 +3994,7 @@ export default function ReceptionModule({
                   Direcionar
                 </button>
                 <button onClick={() => { setShowDistributeModal(false); setDistributePatient(null); setDistributeTargetLocation(''); }} className="py-2 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs rounded-lg transition">
-                  Cancelar
+                  {t('rcpt_cancel', 'app')}
                 </button>
               </div>
             </motion.div>
@@ -4014,18 +4015,18 @@ export default function ReceptionModule({
               <div className="flex items-center gap-3 border-b border-slate-200 pb-3">
                 <ChevronRight className="w-6 h-6 text-blue-600" />
                 <div>
-                  <h3 className="font-bold text-slate-800 text-lg">Redirecionar Paciente</h3>
+                  <h3 className="font-bold text-slate-800 text-lg">{t('app_redirect_patient', 'app')}</h3>
                   <p className="text-xs text-slate-500">{redirectPatient.name}</p>
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">Novo Local</label>
+                <label className="block text-sm font-medium text-slate-600 mb-1">{t('app_new_location', 'app')}</label>
                 <select
                   value={redirectTargetLocation}
                   onChange={e => setRedirectTargetLocation(e.target.value)}
                   className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm"
                 >
-                  <option value="">Selecione um local...</option>
+                  <option value="">{t('app_select_location_option', 'app')}</option>
                   {hospitalLocations.filter(l => l.status !== 'manutencao' && l.currentPatients.length < l.capacity && !l.currentPatients.includes(redirectPatient.id)).map(l => (
                     <option key={l.id} value={l.id}>
                       {locationTypeIcon[l.type]} {l.name} ({l.currentPatients.length}/{l.capacity})
@@ -4037,10 +4038,10 @@ export default function ReceptionModule({
                 <button onClick={handleRedirectPatient} disabled={!redirectTargetLocation} className={`py-2 px-4 font-bold text-xs rounded-lg transition ${
                   redirectTargetLocation ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-slate-300 text-slate-500 cursor-not-allowed'
                 }`}>
-                  Redirecionar
+                  {t('rcpt_detail_redirect', 'app')}
                 </button>
                 <button onClick={() => { setShowRedirectModal(false); setRedirectPatient(null); setRedirectTargetLocation(''); pendingMedDataRef.current = null; }} className="py-2 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs rounded-lg transition">
-                  Cancelar
+                  {t('rcpt_cancel', 'app')}
                 </button>
               </div>
             </motion.div>
@@ -4087,17 +4088,17 @@ export default function ReceptionModule({
                       const checkPage = (inc: number) => { if (y + inc > 270) { doc.addPage(); y = 20; } };
                       doc.setFontSize(18);
                       doc.setFont('helvetica', 'bold');
-                      doc.text(`Prontuario: ${pat.name}`, 15, y); y += 8;
+                      doc.text(`${t('rcpt_pdf_record', 'app')}: ${pat.name}`, 15, y); y += 8;
                       doc.setFontSize(10);
                       doc.setFont('helvetica', 'normal');
                       doc.setTextColor(100, 116, 139);
-                      doc.text(`${pat.document_type || 'CI'}: ${pat.document_number || '-'}${pat.blood_type ? ` | Tipo: ${pat.blood_type}` : ''}`, 15, y); y += 10;
+                      doc.text(`${pat.document_type || 'CI'}: ${pat.document_number || '-'}${pat.blood_type ? ` | ${t('rcpt_pdf_type', 'app')}: ${pat.blood_type}` : ''}`, 15, y); y += 10;
                       doc.setDrawColor(13, 148, 136); doc.setLineWidth(0.5); doc.line(15, y, 195, y); y += 8;
                       if (triageEntry) {
                         doc.setTextColor(13, 148, 136); doc.setFontSize(12); doc.setFont('helvetica', 'bold');
-                        doc.text('Triagem', 15, y); y += 6;
+                        doc.text(t('rcpt_pdf_triage', 'app'), 15, y); y += 6;
                         doc.setTextColor(100, 116, 139); doc.setFontSize(9); doc.setFont('helvetica', 'normal');
-                        if (triageEntry.triaged_at) { doc.text(`Data: ${new Date(triageEntry.triaged_at).toLocaleString('pt-BR')}`, 15, y); y += 5; }
+                        if (triageEntry.triaged_at) { doc.text(`${t('rcpt_pdf_date', 'app')}: ${new Date(triageEntry.triaged_at).toLocaleString('pt-BR')}`, 15, y); y += 5; }
                         if (triageEntry.vital_signs) {
                           const vs = triageEntry.vital_signs;
                           let vitals = '';
@@ -4124,14 +4125,14 @@ export default function ReceptionModule({
                         doc.setTextColor(13, 148, 136); doc.setFontSize(11); doc.setFont('helvetica', 'bold');
                         doc.text(a.locationName, 19, y + 2); y += 8;
                         doc.setTextColor(100, 116, 139); doc.setFontSize(8); doc.setFont('helvetica', 'normal');
-                        doc.text(`Entrada: ${new Date(a.assignedAt).toLocaleString('pt-BR')}`, 19, y); y += 4;
-                        doc.text(`Saida: ${a.completedAt ? new Date(a.completedAt).toLocaleString('pt-BR') : new Date(a.assignedAt).toLocaleString('pt-BR')}`, 19, y); y += 5;
+                        doc.text(`${t('rcpt_pdf_entry', 'app')}: ${new Date(a.assignedAt).toLocaleString('pt-BR')}`, 19, y); y += 4;
+                        doc.text(`${t('rcpt_pdf_exit', 'app')}: ${a.completedAt ? new Date(a.completedAt).toLocaleString('pt-BR') : new Date(a.assignedAt).toLocaleString('pt-BR')}`, 19, y); y += 5;
                         if (med) {
                           doc.setFontSize(8); doc.setTextColor(51, 65, 85);
-                          if (med.diagnosis) { doc.setFont('helvetica', 'bold'); doc.text('DIAGNOSTICO: ', 19, y); doc.setFont('helvetica', 'normal'); doc.text(med.diagnosis, 52, y); y += 4; }
-                          if (med.cid10 && med.cid10 !== 'Z00.0') { doc.setFont('helvetica', 'bold'); doc.text('CID-10: ', 19, y); doc.setFont('helvetica', 'normal'); doc.text(med.cid10, 40, y); y += 4; }
-                          if (med.prescriptions && med.prescriptions.length > 0) { doc.setFont('helvetica', 'bold'); doc.text('PRESCRICAO: ', 19, y); doc.setFont('helvetica', 'normal'); doc.text(med.prescriptions.join(', '), 52, y); y += 4; }
-                          if (med.notes) { doc.setFont('helvetica', 'bold'); doc.text('OBSERVACOES: ', 19, y); doc.setFont('helvetica', 'normal'); doc.text(med.notes, 54, y); y += 4; }
+                          if (med.diagnosis) { doc.setFont('helvetica', 'bold'); doc.text(t('rcpt_pdf_diagnosis', 'app') + ': ', 19, y); doc.setFont('helvetica', 'normal'); doc.text(med.diagnosis, 52, y); y += 4; }
+                          if (med.cid10 && med.cid10 !== 'Z00.0') { doc.setFont('helvetica', 'bold'); doc.text(t('rcpt_timeline_cid10', 'app') + ': ', 19, y); doc.setFont('helvetica', 'normal'); doc.text(med.cid10, 40, y); y += 4; }
+                          if (med.prescriptions && med.prescriptions.length > 0) { doc.setFont('helvetica', 'bold'); doc.text(t('rcpt_pdf_prescription', 'app') + ': ', 19, y); doc.setFont('helvetica', 'normal'); doc.text(med.prescriptions.join(', '), 52, y); y += 4; }
+                          if (med.notes) { doc.setFont('helvetica', 'bold'); doc.text(t('rcpt_pdf_observations', 'app') + ': ', 19, y); doc.setFont('helvetica', 'normal'); doc.text(med.notes, 54, y); y += 4; }
                         }
                         y += 4;
                       });
@@ -4139,9 +4140,9 @@ export default function ReceptionModule({
                       const completedTimePdf = lastAssignmentPdf?.completedAt || lastAssignmentPdf?.assignedAt || new Date().toISOString();
                       y += 4; checkPage(10);
                       doc.setTextColor(148, 163, 184); doc.setFontSize(9); doc.setFont('helvetica', 'normal');
-                      doc.text(`Atendimento Concluido - ${new Date(completedTimePdf).toLocaleString('pt-BR')}`, 105, y, { align: 'center' });
-                      doc.save(`Prontuario_${pat.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`);
-                    }} className="text-slate-400 hover:text-teal-600 cursor-pointer" title="Exportar PDF">
+                      doc.text(`${t('rcpt_pdf_visit_completed', 'app')} - ${new Date(completedTimePdf).toLocaleString('pt-BR')}`, 105, y, { align: 'center' });
+                      doc.save(`${t('rcpt_pdf_filename_prefix', 'app')}_${pat.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`);
+                    }} className="text-slate-400 hover:text-teal-600 cursor-pointer" title={t('rcpt_pdf_export_title', 'app')}>
                       <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                         <polyline points="14 2 14 8 20 8" stroke="#ef4444" />
@@ -4158,7 +4159,7 @@ export default function ReceptionModule({
               {/* Timeline Content */}
               <div className="flex-1 overflow-y-auto p-5">
                 {timelineLoading ? (
-                  <p className="text-sm text-slate-400 text-center py-8">Carregando histórico...</p>
+                  <p className="text-sm text-slate-400 text-center py-8">{t('rcpt_timeline_loading', 'app')}</p>
                 ) : (
                   <div className="space-y-0">
                     {/* Triage Event */}
@@ -4169,7 +4170,7 @@ export default function ReceptionModule({
                           <div className="w-0.5 flex-1 bg-slate-200"></div>
                         </div>
                         <div className="pb-4 flex-1">
-                          <p className="text-xs font-bold text-slate-800">📍 Triagem</p>
+                          <p className="text-xs font-bold text-slate-800">{t('rcpt_timeline_triage', 'app')}</p>
                           {(() => {
                             const triageEntry = timelinePatient.clinicalHistory?.find((h: any) => h.type?.includes('Triagem'));
                             return triageEntry ? (
@@ -4221,14 +4222,14 @@ export default function ReceptionModule({
                               Saída: {new Date(assignment.completedAt).toLocaleString('pt-BR')}
                             </p>
                           ) : (
-                            <p className="text-[10px] text-amber-500 font-semibold">Em andamento</p>
+                            <p className="text-[10px] text-amber-500 font-semibold">{t('rcpt_timeline_ongoing', 'app')}</p>
                           )}
                           {med && (
                             <div className="mt-1.5 text-[10px] text-slate-500 space-y-0.5 border-l-2 border-blue-200 pl-2">
                               {med.triage_edits && (
                                 <div className="mb-1">
                                   {med.triage_edits.diagnosis && (
-                                    <p>• <span className="font-semibold text-amber-600">Triagem editada — Motivo:</span> {med.triage_edits.diagnosis}</p>
+                                    <p>• <span className="font-semibold text-amber-600">{t('rcpt_timeline_triage_edited', 'app')}</span> {med.triage_edits.diagnosis}</p>
                                   )}
                                   {med.triage_edits.vital_signs && (
                                     <div className="ml-2 space-y-0.5">
@@ -4242,16 +4243,16 @@ export default function ReceptionModule({
                                 </div>
                               )}
                               {med.diagnosis && (
-                                <p>• <span className="font-semibold">DIAGNÓSTICO:</span> {med.diagnosis}</p>
+                                <p>• <span className="font-semibold">{t('rcpt_timeline_diagnosis', 'app')}</span> {med.diagnosis}</p>
                               )}
                               {med.cid10 && med.cid10 !== 'Z00.0' && (
-                                <p>• <span className="font-semibold">CID-10:</span> {med.cid10}</p>
+                                <p>• <span className="font-semibold">{t('rcpt_timeline_cid10', 'app')}</span> {med.cid10}</p>
                               )}
-                              {med.prescriptions && med.prescriptions.length > 0 && med.prescriptions[0] !== 'Nenhum procedimento preliminar' && (
-                                <p>• <span className="font-semibold">PRESCRIÇÃO:</span> {med.prescriptions.join(', ')}</p>
+                              {med.prescriptions && med.prescriptions.length > 0 && med.prescriptions[0] !== t('rcpt_triage_no_procedure', 'app') && (
+                                <p>• <span className="font-semibold">{t('rcpt_timeline_prescription', 'app')}</span> {med.prescriptions.join(', ')}</p>
                               )}
-                              {med.notes && med.notes !== 'Triagem realizada sem observações adicionais.' && (
-                                <p>• <span className="font-semibold">OBSERVAÇÕES MÉDICAS:</span> {med.notes}</p>
+                              {med.notes && med.notes !== t('rcpt_triage_default_note', 'app') && (
+                                <p>• <span className="font-semibold">{t('rcpt_timeline_medical_notes', 'app')}</span> {med.notes}</p>
                               )}
                             </div>
                           )}
@@ -4277,16 +4278,16 @@ export default function ReceptionModule({
                           <p className="text-xs font-bold text-slate-800">💊 {entry.type}</p>
                           <p className="text-[10px] text-slate-400">{entry.date}</p>
                           {entry.diagnosis && (
-                            <p className="text-[10px] text-slate-500">Diagnóstico: {entry.diagnosis}</p>
+                            <p className="text-[10px] text-slate-500">{t('rcpt_timeline_diagnosis_label', 'app')} {entry.diagnosis}</p>
                           )}
                           {entry.cid10 && entry.cid10 !== 'Z00.0' && (
-                            <p className="text-[10px] text-slate-500">CID-10: {entry.cid10}</p>
+                            <p className="text-[10px] text-slate-500">{t('rcpt_timeline_cid10', 'app')} {entry.cid10}</p>
                           )}
                           {entry.prescriptions && entry.prescriptions.length > 0 && (
-                            <p className="text-[10px] text-slate-500">Prescrição: {entry.prescriptions.join(', ')}</p>
+                            <p className="text-[10px] text-slate-500">{t('rcpt_timeline_prescription_label', 'app')} {entry.prescriptions.join(', ')}</p>
                           )}
                           {entry.notes && (
-                            <p className="text-[10px] text-slate-500">Observações: {entry.notes}</p>
+                            <p className="text-[10px] text-slate-500">{t('rcpt_timeline_notes_label', 'app')} {entry.notes}</p>
                           )}
                         </div>
                       </div>
@@ -4299,7 +4300,7 @@ export default function ReceptionModule({
                         <div className="w-3 h-3 rounded-full bg-green-600 flex-shrink-0"></div>
                       </div>
                       <div>
-                        <p className="text-xs font-bold text-green-700">✅ Atendimento Concluído</p>
+                        <p className="text-xs font-bold text-green-700">{t('rcpt_timeline_visit_completed', 'app')}</p>
                         <p className="text-[10px] text-slate-400">
                           {(() => {
                             const lastAssignment = timelineAssignments[timelineAssignments.length - 1];
@@ -4311,7 +4312,7 @@ export default function ReceptionModule({
                     </div>
 
                     {timelineAssignments.length === 0 && (!timelinePatient.clinicalHistory || timelinePatient.clinicalHistory.length === 0) && (
-                      <p className="text-sm text-slate-400 text-center py-8">Nenhum histórico disponível</p>
+                      <p className="text-sm text-slate-400 text-center py-8">{t('rcpt_timeline_no_history', 'app')}</p>
                     )}
                   </div>
                 )}
@@ -4340,38 +4341,38 @@ export default function ReceptionModule({
             >
               <div className="flex items-center gap-3 border-b border-slate-200 pb-3">
                 <Sliders className="w-6 h-6 text-teal-600" />
-                <h3 className="font-bold text-slate-800 text-lg">{editingLocation ? 'Editar Local' : 'Novo Local'}</h3>
+                <h3 className="font-bold text-slate-800 text-lg">{editingLocation ? t('rcpt_location_edit', 'app') : t('rcpt_location_new', 'app')}</h3>
               </div>
               <div className="space-y-3">
                 <div>
-                  <label className="block text-sm font-medium text-slate-600 mb-1">Nome</label>
+                  <label className="block text-sm font-medium text-slate-600 mb-1">{t('rcpt_location_name', 'app')}</label>
                   <input
                     type="text"
                     value={newLocationForm.name}
                     onChange={e => setNewLocationForm({ ...newLocationForm, name: e.target.value })}
                     className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm"
-                    placeholder="Ex: Consultório 11"
+                    placeholder={t('rcpt_location_name_placeholder', 'app')}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-600 mb-1">Tipo</label>
+                  <label className="block text-sm font-medium text-slate-600 mb-1">{t('rcpt_location_type', 'app')}</label>
                   <select
                     value={newLocationForm.type}
                     onChange={e => setNewLocationForm({ ...newLocationForm, type: e.target.value as HospitalLocation['type'] })}
                     className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm"
                   >
-                    <option value="consultorio">Consultório</option>
-                    <option value="enfermaria">Enfermaria</option>
-                    <option value="uti">UTI</option>
-                    <option value="raio_x">Sala de Raio-X</option>
-                    <option value="laboratorio">Laboratório</option>
-                    <option value="cirurgia">Sala de Cirurgia</option>
-                    <option value="sala_espera">Sala de Espera</option>
-                    <option value="outro">Outro</option>
+                    <option value="consultorio">{t('rcpt_loc_type_consultorio', 'app')}</option>
+                    <option value="enfermaria">{t('rcpt_loc_type_enfermaria', 'app')}</option>
+                    <option value="uti">{t('rcpt_loc_type_uti', 'app')}</option>
+                    <option value="raio_x">{t('rcpt_loc_type_raio_x', 'app')}</option>
+                    <option value="laboratorio">{t('rcpt_loc_type_laboratorio', 'app')}</option>
+                    <option value="cirurgia">{t('rcpt_loc_type_cirurgia', 'app')}</option>
+                    <option value="sala_espera">{t('rcpt_loc_type_sala_espera', 'app')}</option>
+                    <option value="outro">{t('rcpt_loc_type_outro', 'app')}</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-600 mb-1">Capacidade</label>
+                  <label className="block text-sm font-medium text-slate-600 mb-1">{t('rcpt_location_capacity_label', 'app')}</label>
                   <input
                     type="number"
                     min="1"
@@ -4385,7 +4386,7 @@ export default function ReceptionModule({
                 <button onClick={async () => {
                   if (editingLocation) {
                     setHospitalLocations(prev => prev.map(l => l.id === editingLocation.id ? { ...l, name: newLocationForm.name, type: newLocationForm.type, capacity: newLocationForm.capacity } : l));
-                    addAuditLog('Editou Local Hospitalar', newLocationForm.name);
+                    addAuditLog(t('rcpt_audit_edited_location', 'app'), newLocationForm.name);
                     if (supabase) {
                       try {
                         await supabase.from('hospital_locations').update({ name: newLocationForm.name, type: newLocationForm.type, capacity: newLocationForm.capacity }).eq('id', editingLocation.id);
@@ -4404,7 +4405,7 @@ export default function ReceptionModule({
                   {editingLocation ? 'Salvar' : 'Cadastrar'}
                 </button>
                 <button onClick={() => { setShowNewLocationModal(false); setEditingLocation(null); setNewLocationForm({ name: '', type: 'consultorio', capacity: 1 }); }} className="py-2 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs rounded-lg transition">
-                  Cancelar
+                  {t('rcpt_cancel', 'app')}
                 </button>
               </div>
             </motion.div>
@@ -4443,9 +4444,9 @@ export default function ReceptionModule({
                     selectedLocation.currentPatients.length > 0 ? 'bg-amber-100 text-amber-700' :
                     'bg-green-100 text-green-700'
                   }`}>
-                    {selectedLocation.status === 'manutencao' ? 'Manutenção' :
-                     selectedLocation.currentPatients.length >= selectedLocation.capacity ? 'Ocupado' :
-                     selectedLocation.currentPatients.length > 0 ? 'Atendendo' : 'Livre'}
+                     {selectedLocation.status === 'manutencao' ? t('rcpt_loc_maintenance', 'app') :
+                     selectedLocation.currentPatients.length >= selectedLocation.capacity ? t('rcpt_loc_occupied', 'app') :
+                     selectedLocation.currentPatients.length > 0 ? t('rcpt_loc_attending', 'app') : t('rcpt_loc_free', 'app')}
                   </span>
                   <span className="text-xs text-slate-500">
                     Fila: <span className="font-bold text-slate-700">{selectedLocation.currentPatients.length}</span> / {selectedLocation.capacity}
@@ -4456,13 +4457,13 @@ export default function ReceptionModule({
               {/* Patient List / Consultório Detail / Non-consultório Detail */}
               <div className="flex-1 overflow-y-auto p-5 space-y-3">
                 {selectedLocation.currentPatients.length === 0 ? (
-                  <p className="text-sm text-slate-400 text-center py-8">Nenhum paciente neste local</p>
+                  <p className="text-sm text-slate-400 text-center py-8">{t('rcpt_detail_no_patient', 'app')}</p>
                 ) : selectedLocation.capacity === 1 && selectedLocation.currentPatients.length === 1 ? (
                   // Consultório: visualização com dados da triagem + campos médicos
                   (() => {
                     const pid = selectedLocation.currentPatients[0];
                     const pat = patients.find(p => p.id === pid);
-                    if (!pat) return <p className="text-sm text-slate-400 text-center py-8">Paciente não encontrado</p>;
+                    if (!pat) return <p className="text-sm text-slate-400 text-center py-8">{t('rcpt_detail_patient_not_found', 'app')}</p>;
                     const triage = pat.clinicalHistory?.find((h: any) => h.type?.includes('Triagem'));
                     const vitals = triage?.vital_signs;
                     const colorDot: Record<string, string> = {
@@ -4478,7 +4479,7 @@ export default function ReceptionModule({
                             </div>
                             <div>
                               <p className="text-sm font-bold text-slate-800">{pat.name}</p>
-                              <p className="text-xs text-slate-500">{pat.birthdate ? `${new Date().getFullYear() - new Date(pat.birthdate).getFullYear()} anos` : ''} | {pat.document_type || 'CI'}: {pat.document_number || 'N/A'} | Tipo Sanguíneo: <span className="font-bold text-rose-600">{pat.blood_type || '-'}</span></p>
+                              <p className="text-xs text-slate-500">{pat.birthdate ? `${new Date().getFullYear() - new Date(pat.birthdate).getFullYear()} anos` : ''} | {pat.document_type || 'CI'}: {pat.document_number || 'N/A'} | {t('rcpt_list_blood_type', 'app')} <span className="font-bold text-rose-600">{pat.blood_type || '-'}</span></p>
                             </div>
                           </div>
                         </div>
@@ -4487,7 +4488,7 @@ export default function ReceptionModule({
                         {triage && (
                           <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
                             <div className="flex items-center justify-between">
-                              <p className="text-xs font-bold text-slate-700">Dados da Triagem</p>
+                              <p className="text-xs font-bold text-slate-700">{t('rcpt_detail_triage_data', 'app')}</p>
                               <div className="flex items-center gap-2">
                                 {triage.triage_color && (
                                   <span className="text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1.5" style={{ backgroundColor: triage.triage_color === 'red' ? '#fee2e2' : triage.triage_color === 'orange' ? '#ffedd5' : triage.triage_color === 'yellow' ? '#fef3c7' : triage.triage_color === 'green' ? '#dcfce7' : '#dbeafe', color: triage.triage_color === 'red' ? '#991b1b' : triage.triage_color === 'orange' ? '#9a3412' : triage.triage_color === 'yellow' ? '#92400e' : triage.triage_color === 'green' ? '#166534' : '#1e40af' }}>
@@ -4505,14 +4506,14 @@ export default function ReceptionModule({
                                     setEditTriageRR(vitals?.rr || '');
                                     setIsEditingTriage(true);
                                   }} className="text-xs text-blue-600 hover:text-blue-800 font-bold cursor-pointer px-2 py-1 rounded hover:bg-blue-50 transition">
-                                    ✏️ Editar
+                                    {t('rcpt_detail_edit', 'app')}
                                   </button>
                                 ) : (
                                   <button onClick={() => {
                                     setHasTriageEdits(true);
                                     setIsEditingTriage(false);
                                   }} className="text-xs text-green-600 hover:text-green-800 font-bold cursor-pointer px-2 py-1 rounded hover:bg-green-50 transition">
-                                    ✓ Salvar
+                                    {t('rcpt_detail_save', 'app')}
                                   </button>
                                 )}
                               </div>
@@ -4533,7 +4534,7 @@ export default function ReceptionModule({
                               </div>
                             ) : (
                               <div className="space-y-2">
-                                <p className="text-xs text-slate-600"><span className="font-bold">Motivo:</span> {hasTriageEdits ? editTriageReason : triage.diagnosis}</p>
+                                <p className="text-xs text-slate-600"><span className="font-bold">{t('rcpt_detail_reason_label', 'app')}</span> {hasTriageEdits ? editTriageReason : triage.diagnosis}</p>
                                 {(hasTriageEdits || vitals) && (
                                   <div className="grid grid-cols-2 gap-2 text-[11px]">
                                     {(hasTriageEdits ? editTriageBP : vitals?.bp) && <p className="text-slate-600">PA: <span className="font-bold">{hasTriageEdits ? editTriageBP : vitals?.bp}</span></p>}
@@ -4544,7 +4545,7 @@ export default function ReceptionModule({
                                   </div>
                                 )}
                                 {triage.preliminary_procedures && triage.preliminary_procedures.length > 0 && (
-                                  <p className="text-[11px] text-slate-600"><span className="font-bold">Procedimentos:</span> {triage.preliminary_procedures.join(', ')}</p>
+                                  <p className="text-[11px] text-slate-600"><span className="font-bold">{t('rcpt_detail_procedures', 'app')}</span> {triage.preliminary_procedures.join(', ')}</p>
                                 )}
                                 {triage.notes && <p className="text-[11px] text-slate-500 italic">{triage.notes}</p>}
                               </div>
@@ -4554,52 +4555,52 @@ export default function ReceptionModule({
 
                         {/* Medical Consultation */}
                         <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
-                          <p className="text-xs font-bold text-blue-800">Consulta Médica</p>
+                          <p className="text-xs font-bold text-blue-800">{t('rcpt_detail_medical_consultation', 'app')}</p>
                           {prevMedDiagnosis && (
-                            <p className="text-[10px] text-slate-400 italic">Dados do atendimento anterior aparecem em cinza</p>
+                            <p className="text-[10px] text-slate-400 italic">{t('rcpt_detail_previous_data_gray', 'app')}</p>
                           )}
                           <div>
-                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Diagnóstico *</label>
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_detail_diagnosis', 'app')}</label>
                             {prevMedDiagnosis ? (
                               <div className="flex">
                                 <span className="bg-slate-100 text-slate-500 text-xs px-2 py-2 rounded-l-lg border border-r-0 border-slate-200 whitespace-nowrap max-w-[50%] overflow-hidden text-ellipsis">{prevMedDiagnosis} -</span>
-                                <input type="text" value={medDiagnosis} onChange={e => setMedDiagnosis(e.target.value)} placeholder="Adicionar..." className="flex-1 p-2 bg-white border border-slate-200 rounded-r-lg text-xs focus:outline-blue-500" />
+                                <input type="text" value={medDiagnosis} onChange={e => setMedDiagnosis(e.target.value)} placeholder={t('rcpt_ph_add', 'app')} className="flex-1 p-2 bg-white border border-slate-200 rounded-r-lg text-xs focus:outline-blue-500" />
                               </div>
                             ) : (
-                              <input type="text" value={medDiagnosis} onChange={e => setMedDiagnosis(e.target.value)} placeholder="Descreva o diagnóstico..." className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
+                              <input type="text" value={medDiagnosis} onChange={e => setMedDiagnosis(e.target.value)} placeholder={t('rcpt_ph_describe_diagnosis', 'app')} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
                             )}
                           </div>
                           <div>
-                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">CID-10</label>
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_detail_cid10', 'app')}</label>
                             {prevMedCid10 ? (
                               <div className="flex">
                                 <span className="bg-slate-100 text-slate-500 text-xs px-2 py-2 rounded-l-lg border border-r-0 border-slate-200 whitespace-nowrap max-w-[50%] overflow-hidden text-ellipsis">{prevMedCid10} -</span>
-                                <input type="text" value={medCid10} onChange={e => setMedCid10(e.target.value)} placeholder="Adicionar..." className="flex-1 p-2 bg-white border border-slate-200 rounded-r-lg text-xs focus:outline-blue-500" />
+                                <input type="text" value={medCid10} onChange={e => setMedCid10(e.target.value)} placeholder={t('rcpt_ph_add', 'app')} className="flex-1 p-2 bg-white border border-slate-200 rounded-r-lg text-xs focus:outline-blue-500" />
                               </div>
                             ) : (
-                              <input type="text" value={medCid10} onChange={e => setMedCid10(e.target.value)} placeholder="Ex: I10" className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
+                              <input type="text" value={medCid10} onChange={e => setMedCid10(e.target.value)} placeholder={t('rcpt_ph_cid10', 'app')} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
                             )}
                           </div>
                           <div>
-                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Prescrição / Receita</label>
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_detail_prescription', 'app')}</label>
                             {prevMedPrescription ? (
                               <div className="flex">
                                 <span className="bg-slate-100 text-slate-500 text-xs px-2 py-2 rounded-l-lg border border-r-0 border-slate-200 whitespace-nowrap max-w-[50%] overflow-hidden text-ellipsis">{prevMedPrescription} -</span>
-                                <textarea value={medPrescription} onChange={e => setMedPrescription(e.target.value)} placeholder="Adicionar..." rows={3} className="flex-1 p-2 bg-white border border-slate-200 rounded-r-lg text-xs focus:outline-blue-500" />
+                                <textarea value={medPrescription} onChange={e => setMedPrescription(e.target.value)} placeholder={t('rcpt_ph_add', 'app')} rows={3} className="flex-1 p-2 bg-white border border-slate-200 rounded-r-lg text-xs focus:outline-blue-500" />
                               </div>
                             ) : (
-                              <textarea value={medPrescription} onChange={e => setMedPrescription(e.target.value)} placeholder="Medicamentos e orientações..." rows={3} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
+                              <textarea value={medPrescription} onChange={e => setMedPrescription(e.target.value)} placeholder={t('rcpt_ph_prescription', 'app')} rows={3} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
                             )}
                           </div>
                           <div>
-                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Observações Médicas</label>
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_detail_medical_notes', 'app')}</label>
                             {prevMedNotes ? (
                               <div className="flex">
                                 <span className="bg-slate-100 text-slate-500 text-xs px-2 py-2 rounded-l-lg border border-r-0 border-slate-200 whitespace-nowrap max-w-[50%] overflow-hidden text-ellipsis">{prevMedNotes} -</span>
-                                <textarea value={medNotes} onChange={e => setMedNotes(e.target.value)} placeholder="Adicionar..." rows={2} className="flex-1 p-2 bg-white border border-slate-200 rounded-r-lg text-xs focus:outline-blue-500" />
+                                <textarea value={medNotes} onChange={e => setMedNotes(e.target.value)} placeholder={t('rcpt_ph_add', 'app')} rows={2} className="flex-1 p-2 bg-white border border-slate-200 rounded-r-lg text-xs focus:outline-blue-500" />
                               </div>
                             ) : (
-                              <textarea value={medNotes} onChange={e => setMedNotes(e.target.value)} placeholder="Notas clínicas adicionais..." rows={2} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
+                              <textarea value={medNotes} onChange={e => setMedNotes(e.target.value)} placeholder={t('rcpt_ph_notes', 'app')} rows={2} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
                             )}
                           </div>
                         </div>
@@ -4611,7 +4612,7 @@ export default function ReceptionModule({
                   (() => {
                     const pid = selectedDetailPatientId;
                     const pat = patients.find(p => p.id === pid);
-                    if (!pat) return <p className="text-sm text-slate-400 text-center py-8">Paciente não encontrado</p>;
+                    if (!pat) return <p className="text-sm text-slate-400 text-center py-8">{t('rcpt_detail_patient_not_found', 'app')}</p>;
                     const triage = pat.clinicalHistory?.find((h: any) => h.type?.includes('Triagem'));
                     const vitals = triage?.vital_signs;
                     const colorDot: Record<string, string> = {
@@ -4620,7 +4621,7 @@ export default function ReceptionModule({
                     return (
                       <div className="space-y-4">
                         <button onClick={() => setSelectedDetailPatientId(null)} className="text-xs text-teal-600 hover:text-teal-800 font-bold cursor-pointer flex items-center gap-1">
-                          ← Voltar à lista
+                          {t('rcpt_detail_back_to_list', 'app')}
                         </button>
                         {/* Patient Info */}
                         <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
@@ -4630,7 +4631,7 @@ export default function ReceptionModule({
                             </div>
                             <div>
                               <p className="text-sm font-bold text-slate-800">{pat.name}</p>
-                              <p className="text-xs text-slate-500">{pat.birthdate ? `${new Date().getFullYear() - new Date(pat.birthdate).getFullYear()} anos` : ''} | {pat.document_type || 'CI'}: {pat.document_number || 'N/A'} | Tipo Sanguíneo: <span className="font-bold text-rose-600">{pat.blood_type || '-'}</span></p>
+                              <p className="text-xs text-slate-500">{pat.birthdate ? `${new Date().getFullYear() - new Date(pat.birthdate).getFullYear()} anos` : ''} | {pat.document_type || 'CI'}: {pat.document_number || 'N/A'} | {t('rcpt_list_blood_type', 'app')} <span className="font-bold text-rose-600">{pat.blood_type || '-'}</span></p>
                             </div>
                           </div>
                         </div>
@@ -4639,7 +4640,7 @@ export default function ReceptionModule({
                         {triage && (
                           <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
                             <div className="flex items-center justify-between">
-                              <p className="text-xs font-bold text-slate-700">Dados da Triagem</p>
+                              <p className="text-xs font-bold text-slate-700">{t('rcpt_detail_triage_data', 'app')}</p>
                               <div className="flex items-center gap-2">
                                 {triage.triage_color && (
                                   <span className="text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1.5" style={{ backgroundColor: triage.triage_color === 'red' ? '#fee2e2' : triage.triage_color === 'orange' ? '#ffedd5' : triage.triage_color === 'yellow' ? '#fef3c7' : triage.triage_color === 'green' ? '#dcfce7' : '#dbeafe', color: triage.triage_color === 'red' ? '#991b1b' : triage.triage_color === 'orange' ? '#9a3412' : triage.triage_color === 'yellow' ? '#92400e' : triage.triage_color === 'green' ? '#166534' : '#1e40af' }}>
@@ -4657,14 +4658,14 @@ export default function ReceptionModule({
                                     setEditTriageRR(vitals?.rr || '');
                                     setIsEditingTriage(true);
                                   }} className="text-xs text-blue-600 hover:text-blue-800 font-bold cursor-pointer px-2 py-1 rounded hover:bg-blue-50 transition">
-                                    ✏️ Editar
+                                    {t('rcpt_detail_edit', 'app')}
                                   </button>
                                 ) : (
                                   <button onClick={() => {
                                     setHasTriageEdits(true);
                                     setIsEditingTriage(false);
                                   }} className="text-xs text-green-600 hover:text-green-800 font-bold cursor-pointer px-2 py-1 rounded hover:bg-green-50 transition">
-                                    ✓ Salvar
+                                    {t('rcpt_detail_save', 'app')}
                                   </button>
                                 )}
                               </div>
@@ -4685,7 +4686,7 @@ export default function ReceptionModule({
                               </div>
                             ) : (
                               <div className="space-y-2">
-                                <p className="text-xs text-slate-600"><span className="font-bold">Motivo:</span> {hasTriageEdits ? editTriageReason : triage.diagnosis}</p>
+                                <p className="text-xs text-slate-600"><span className="font-bold">{t('rcpt_detail_reason_label', 'app')}</span> {hasTriageEdits ? editTriageReason : triage.diagnosis}</p>
                                 {(hasTriageEdits || vitals) && (
                                   <div className="grid grid-cols-2 gap-2 text-[11px]">
                                     {(hasTriageEdits ? editTriageBP : vitals?.bp) && <p className="text-slate-600">PA: <span className="font-bold">{hasTriageEdits ? editTriageBP : vitals?.bp}</span></p>}
@@ -4696,7 +4697,7 @@ export default function ReceptionModule({
                                   </div>
                                 )}
                                 {triage.preliminary_procedures && triage.preliminary_procedures.length > 0 && (
-                                  <p className="text-[11px] text-slate-600"><span className="font-bold">Procedimentos:</span> {triage.preliminary_procedures.join(', ')}</p>
+                                  <p className="text-[11px] text-slate-600"><span className="font-bold">{t('rcpt_detail_procedures', 'app')}</span> {triage.preliminary_procedures.join(', ')}</p>
                                 )}
                                 {triage.notes && <p className="text-[11px] text-slate-500 italic">{triage.notes}</p>}
                               </div>
@@ -4706,52 +4707,52 @@ export default function ReceptionModule({
 
                         {/* Medical Consultation */}
                         <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
-                          <p className="text-xs font-bold text-blue-800">Consulta Médica</p>
+                          <p className="text-xs font-bold text-blue-800">{t('rcpt_detail_medical_consultation', 'app')}</p>
                           {prevMedDiagnosis && (
-                            <p className="text-[10px] text-slate-400 italic">Dados do atendimento anterior aparecem em cinza</p>
+                            <p className="text-[10px] text-slate-400 italic">{t('rcpt_detail_previous_data_gray', 'app')}</p>
                           )}
                           <div>
-                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Diagnóstico *</label>
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_detail_diagnosis', 'app')}</label>
                             {prevMedDiagnosis ? (
                               <div className="flex">
                                 <span className="bg-slate-100 text-slate-500 text-xs px-2 py-2 rounded-l-lg border border-r-0 border-slate-200 whitespace-nowrap max-w-[50%] overflow-hidden text-ellipsis">{prevMedDiagnosis} -</span>
-                                <input type="text" value={medDiagnosis} onChange={e => setMedDiagnosis(e.target.value)} placeholder="Adicionar..." className="flex-1 p-2 bg-white border border-slate-200 rounded-r-lg text-xs focus:outline-blue-500" />
+                                <input type="text" value={medDiagnosis} onChange={e => setMedDiagnosis(e.target.value)} placeholder={t('rcpt_ph_add', 'app')} className="flex-1 p-2 bg-white border border-slate-200 rounded-r-lg text-xs focus:outline-blue-500" />
                               </div>
                             ) : (
-                              <input type="text" value={medDiagnosis} onChange={e => setMedDiagnosis(e.target.value)} placeholder="Descreva o diagnóstico..." className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
+                              <input type="text" value={medDiagnosis} onChange={e => setMedDiagnosis(e.target.value)} placeholder={t('rcpt_ph_describe_diagnosis', 'app')} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
                             )}
                           </div>
                           <div>
-                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">CID-10</label>
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_detail_cid10', 'app')}</label>
                             {prevMedCid10 ? (
                               <div className="flex">
                                 <span className="bg-slate-100 text-slate-500 text-xs px-2 py-2 rounded-l-lg border border-r-0 border-slate-200 whitespace-nowrap max-w-[50%] overflow-hidden text-ellipsis">{prevMedCid10} -</span>
-                                <input type="text" value={medCid10} onChange={e => setMedCid10(e.target.value)} placeholder="Adicionar..." className="flex-1 p-2 bg-white border border-slate-200 rounded-r-lg text-xs focus:outline-blue-500" />
+                                <input type="text" value={medCid10} onChange={e => setMedCid10(e.target.value)} placeholder={t('rcpt_ph_add', 'app')} className="flex-1 p-2 bg-white border border-slate-200 rounded-r-lg text-xs focus:outline-blue-500" />
                               </div>
                             ) : (
-                              <input type="text" value={medCid10} onChange={e => setMedCid10(e.target.value)} placeholder="Ex: I10" className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
+                              <input type="text" value={medCid10} onChange={e => setMedCid10(e.target.value)} placeholder={t('rcpt_ph_cid10', 'app')} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
                             )}
                           </div>
                           <div>
-                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Prescrição / Receita</label>
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_detail_prescription', 'app')}</label>
                             {prevMedPrescription ? (
                               <div className="flex">
                                 <span className="bg-slate-100 text-slate-500 text-xs px-2 py-2 rounded-l-lg border border-r-0 border-slate-200 whitespace-nowrap max-w-[50%] overflow-hidden text-ellipsis">{prevMedPrescription} -</span>
-                                <textarea value={medPrescription} onChange={e => setMedPrescription(e.target.value)} placeholder="Adicionar..." rows={3} className="flex-1 p-2 bg-white border border-slate-200 rounded-r-lg text-xs focus:outline-blue-500" />
+                                <textarea value={medPrescription} onChange={e => setMedPrescription(e.target.value)} placeholder={t('rcpt_ph_add', 'app')} rows={3} className="flex-1 p-2 bg-white border border-slate-200 rounded-r-lg text-xs focus:outline-blue-500" />
                               </div>
                             ) : (
-                              <textarea value={medPrescription} onChange={e => setMedPrescription(e.target.value)} placeholder="Medicamentos e orientações..." rows={3} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
+                              <textarea value={medPrescription} onChange={e => setMedPrescription(e.target.value)} placeholder={t('rcpt_ph_prescription', 'app')} rows={3} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
                             )}
                           </div>
                           <div>
-                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Observações Médicas</label>
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_detail_medical_notes', 'app')}</label>
                             {prevMedNotes ? (
                               <div className="flex">
                                 <span className="bg-slate-100 text-slate-500 text-xs px-2 py-2 rounded-l-lg border border-r-0 border-slate-200 whitespace-nowrap max-w-[50%] overflow-hidden text-ellipsis">{prevMedNotes} -</span>
-                                <textarea value={medNotes} onChange={e => setMedNotes(e.target.value)} placeholder="Adicionar..." rows={2} className="flex-1 p-2 bg-white border border-slate-200 rounded-r-lg text-xs focus:outline-blue-500" />
+                                <textarea value={medNotes} onChange={e => setMedNotes(e.target.value)} placeholder={t('rcpt_ph_add', 'app')} rows={2} className="flex-1 p-2 bg-white border border-slate-200 rounded-r-lg text-xs focus:outline-blue-500" />
                               </div>
                             ) : (
-                              <textarea value={medNotes} onChange={e => setMedNotes(e.target.value)} placeholder="Notas clínicas adicionais..." rows={2} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
+                              <textarea value={medNotes} onChange={e => setMedNotes(e.target.value)} placeholder={t('rcpt_ph_notes', 'app')} rows={2} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
                             )}
                           </div>
                         </div>
@@ -4762,7 +4763,7 @@ export default function ReceptionModule({
                   // Outros locais: visualização com lista de pacientes clicáveis
                   selectedLocation.currentPatients.map(pid => {
                     const pat = patients.find(p => p.id === pid);
-                    const patName = pat?.name || patientNameMap[pid] || 'Paciente';
+                    const patName = pat?.name || patientNameMap[pid] || t('rcpt_patient_fallback', 'app');
                     const patPhone = pat?.phone || '';
                     const triage = pat?.clinicalHistory?.find((h: any) => h.type?.includes('Triagem'));
                     const triageColor = triage?.triage_color;
@@ -4788,7 +4789,7 @@ export default function ReceptionModule({
                             <span className="text-xs text-slate-400">→</span>
                           </div>
                         </div>
-                        <p className="text-xs text-slate-400 mt-2 text-right">{selectedLocation.currentPatients.length > 1 ? `${selectedLocation.currentPatients.indexOf(pid) + 1}º na fila — ` : ''}Clique para ver detalhes</p>
+                        <p className="text-xs text-slate-400 mt-2 text-right">{selectedLocation.currentPatients.length > 1 ? `${selectedLocation.currentPatients.indexOf(pid) + 1}{t('rcpt_queue_position', 'app')}` : ''}{t('rcpt_locations_n_patients', 'app').split('{count}')[1] ? t('rcpt_dist_view_details', 'app') : ''}</p>
                       </div>
                     );
                   })
@@ -4798,7 +4799,7 @@ export default function ReceptionModule({
               {/* Footer */}
               <div className="p-4 border-t border-slate-100">
                 {(selectedLocation.capacity === 1 && selectedLocation.currentPatients.length === 1) || selectedDetailPatientId ? (
-                  // Consultório OU detalhe de paciente em local não-consultório: botões Redirecionar + Finalizar
+                  // Consultório OU detalhe de paciente em local não-consultório: botões {t('rcpt_detail_redirect', 'app')} + {t('rcpt_detail_finalize', 'app')}
                   (() => {
                     const pid = selectedLocation.capacity === 1 ? selectedLocation.currentPatients[0] : selectedDetailPatientId!;
                     return (
@@ -4819,7 +4820,7 @@ export default function ReceptionModule({
                                 cid10: prevMedCid10 ? (medCid10 ? `${prevMedCid10} - ${medCid10}` : prevMedCid10) : (medCid10 || 'Z00.0'),
                                 prescriptions: prevMedPrescription ? (medPrescription ? [`${prevMedPrescription} - ${medPrescription}`] : [prevMedPrescription]) : (medPrescription ? medPrescription.split('\n').filter(Boolean) : []),
                                 notes: prevMedNotes ? (medNotes ? `${prevMedNotes} - ${medNotes}` : prevMedNotes) : (medNotes || ''),
-                                doctor: 'Médico',
+                                doctor: t('rcpt_doctor', 'app'),
                                 location_name: selectedLocation?.name || null,
                                 triage_edits: triageEdits,
                                 vital_signs: hasTriageEdits ? {
@@ -4839,12 +4840,12 @@ export default function ReceptionModule({
                           }}
                           className="flex-1 py-2.5 text-sm font-bold rounded-lg transition cursor-pointer bg-blue-100 text-blue-700 hover:bg-blue-200 flex items-center justify-center gap-1"
                         >
-                          <ChevronRight className="w-4 h-4" /> Redirecionar
+                          <ChevronRight className="w-4 h-4" /> {t('rcpt_detail_redirect', 'app')}
                         </button>
                         <button
                           onClick={async () => {
-                            if (!medDiagnosis.trim()) { alert('Preencha o diagnóstico para finalizar.'); return; }
-                            if (!confirm('Tem certeza que deseja finalizar o atendimento? Será registrada uma consulta médica.')) return;
+                            if (!medDiagnosis.trim()) { alert(t('rcpt_alert_fill_diagnosis', 'app')); return; }
+                            if (!confirm(t('rcpt_confirm_finalize', 'app'))) return;
                             const pat = patientsRef.current.find(p => p.id === pid);
                             const triage = pat?.clinicalHistory?.find((h: any) => h.type?.includes('Triagem'));
                             const vitals = triage?.vital_signs;
@@ -4865,7 +4866,7 @@ export default function ReceptionModule({
                                   cid10: prevMedCid10 ? (medCid10 ? `${prevMedCid10} - ${medCid10}` : prevMedCid10) : (medCid10 || 'Z00.0'),
                                   prescriptions: prevMedPrescription ? (medPrescription ? [`${prevMedPrescription} - ${medPrescription}`] : [prevMedPrescription]) : (medPrescription ? medPrescription.split('\n').filter(Boolean) : []),
                                   notes: prevMedNotes ? (medNotes ? `${prevMedNotes} - ${medNotes}` : prevMedNotes) : (medNotes || ''),
-                                  doctor: 'Médico',
+                                  doctor: t('rcpt_doctor', 'app'),
                                   location_name: selectedLocation?.name || null,
                                   triage_edits: triageEdits,
                                   vital_signs: isEditingTriage ? {
@@ -4904,7 +4905,7 @@ export default function ReceptionModule({
                           }}
                           className="flex-1 py-2.5 text-sm font-bold rounded-lg transition cursor-pointer bg-green-600 text-white hover:bg-green-700 flex items-center justify-center gap-1"
                         >
-                          <CheckCircle2 className="w-4 h-4" /> Finalizar
+                          <CheckCircle2 className="w-4 h-4" /> {t('rcpt_detail_finalize', 'app')}
                         </button>
                       </div>
                     );

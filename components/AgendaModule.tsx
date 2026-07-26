@@ -155,17 +155,17 @@ export interface ClinicPatient {
 // ==============================================================
 // CONSTANTS
 // ==============================================================
-const STATUS_CONFIG: Record<string, { color: string; bg: string; border: string; label: string }> = {
-  'agendado':        { color: 'text-blue-700',     bg: 'bg-blue-100',     border: 'border-blue-300',     label: 'Agendado' },
-  'confirmado':      { color: 'text-emerald-700',  bg: 'bg-emerald-100',  border: 'border-emerald-300',  label: 'Confirmado' },
-  'pendente':        { color: 'text-amber-700',    bg: 'bg-amber-100',    border: 'border-amber-300',    label: 'Pendente' },
-  'em sala de espera': { color: 'text-purple-700', bg: 'bg-purple-100',   border: 'border-purple-300',   label: 'Em Sala de Espera' },
-  'em atendimento':  { color: 'text-orange-700',   bg: 'bg-orange-100',   border: 'border-orange-300',   label: 'Em Atendimento' },
-  'finalizado':      { color: 'text-slate-700',    bg: 'bg-slate-100',    border: 'border-slate-300',    label: 'Finalizado' },
-  'ausente':         { color: 'text-red-700',      bg: 'bg-red-100',      border: 'border-red-300',      label: 'Ausente' },
-  'cancelado':       { color: 'text-rose-700',     bg: 'bg-rose-100',     border: 'border-rose-300',     label: 'Cancelado' },
-  'remarcado':       { color: 'text-cyan-700',     bg: 'bg-cyan-100',     border: 'border-cyan-300',     label: 'Remarcado' },
-  'atendido':        { color: 'text-green-700',    bg: 'bg-green-100',    border: 'border-green-300',    label: 'Atendido' },
+const STATUS_CONFIG: Record<string, { color: string; bg: string; border: string; labelKey: string }> = {
+  'agendado':        { color: 'text-blue-700',     bg: 'bg-blue-100',     border: 'border-blue-300',     labelKey: 'agenda_status_scheduled' },
+  'confirmado':      { color: 'text-emerald-700',  bg: 'bg-emerald-100',  border: 'border-emerald-300',  labelKey: 'agenda_status_confirmed' },
+  'pendente':        { color: 'text-amber-700',    bg: 'bg-amber-100',    border: 'border-amber-300',    labelKey: 'agenda_status_pending' },
+  'em sala de espera': { color: 'text-purple-700', bg: 'bg-purple-100',   border: 'border-purple-300',   labelKey: 'agenda_status_in_waiting_room' },
+  'em atendimento':  { color: 'text-orange-700',   bg: 'bg-orange-100',   border: 'border-orange-300',   labelKey: 'agenda_status_in_attendance' },
+  'finalizado':      { color: 'text-slate-700',    bg: 'bg-slate-100',    border: 'border-slate-300',    labelKey: 'agenda_status_finished' },
+  'ausente':         { color: 'text-red-700',      bg: 'bg-red-100',      border: 'border-red-300',      labelKey: 'agenda_status_absent' },
+  'cancelado':       { color: 'text-rose-700',     bg: 'bg-rose-100',     border: 'border-rose-300',     labelKey: 'agenda_status_cancelled' },
+  'remarcado':       { color: 'text-cyan-700',     bg: 'bg-cyan-100',     border: 'border-cyan-300',     labelKey: 'agenda_status_rescheduled' },
+  'atendido':        { color: 'text-green-700',    bg: 'bg-green-100',    border: 'border-green-300',    labelKey: 'agenda_status_attended' },
 };
 
 const TIME_SLOTS = Array.from({ length: 48 }, (_, i) => {
@@ -230,49 +230,49 @@ const WHATSAPP_TEMPLATES = [
 ];
 
 const CALL_CENTER_REASONS = [
-  { value: 'agendamento', label: 'Agendamento' },
-  { value: 'cancelamento', label: 'Cancelamento' },
-  { value: 'remarcação', label: 'Remarcação' },
-  { value: 'dúvida', label: 'Dúvida' },
-  { value: 'reclamação', label: 'Reclamação' },
-  { value: 'financeiro', label: 'Financeiro' },
-  { value: 'outros', label: 'Outros' },
+  { value: 'agendamento', labelKey: 'agenda_reason_scheduling' },
+  { value: 'cancelamento', labelKey: 'agenda_reason_cancellation' },
+  { value: 'remarcação', labelKey: 'agenda_reason_reschedule' },
+  { value: 'dúvida', labelKey: 'agenda_reason_question' },
+  { value: 'reclamação', labelKey: 'agenda_reason_complaint' },
+  { value: 'financeiro', labelKey: 'agenda_reason_financial' },
+  { value: 'outros', labelKey: 'agenda_reason_others' },
 ];
 
 const APPOINTMENT_TYPES = [
-  { value: 'primeira_vez', label: 'Primeira Vez', color: 'bg-blue-100 text-blue-700', icon: '🩺' },
-  { value: 'retorno', label: 'Retorno/Controle', color: 'bg-emerald-100 text-emerald-700', icon: '🔄' },
-  { value: 'exame_diagnostico', label: 'Exame Diagnóstico', color: 'bg-purple-100 text-purple-700', icon: '🔬' },
-  { value: 'procedimento', label: 'Procedimento', color: 'bg-orange-100 text-orange-700', icon: '⚕️' },
-  { value: 'telemedicina', label: 'Telemedicina', color: 'bg-cyan-100 text-cyan-700', icon: '📹' },
+  { value: 'primeira_vez', labelKey: 'agenda_appt_type_first_visit', color: 'bg-blue-100 text-blue-700', icon: '🩺' },
+  { value: 'retorno', labelKey: 'agenda_appt_type_return', color: 'bg-emerald-100 text-emerald-700', icon: '🔄' },
+  { value: 'exame_diagnostico', labelKey: 'agenda_appt_type_diagnostic', color: 'bg-purple-100 text-purple-700', icon: '🔬' },
+  { value: 'procedimento', labelKey: 'agenda_appt_type_procedure', color: 'bg-orange-100 text-orange-700', icon: '⚕️' },
+  { value: 'telemedicina', labelKey: 'agenda_appt_type_telemedicine', color: 'bg-cyan-100 text-cyan-700', icon: '📹' },
 ];
 
 const INSURANCE_TYPES = [
-  { value: 'IPS', label: 'IPS', quotaPresencial: 80, quotaVirtual: 20 },
-  { value: 'Sanidade Militar', label: 'Sanidade Militar', quotaPresencial: 90, quotaVirtual: 10 },
-  { value: 'Sanidade Policial', label: 'Sanidade Policial', quotaPresencial: 85, quotaVirtual: 15 },
-  { value: 'Pré-paga', label: 'Pré-paga (EMP)', quotaPresencial: 70, quotaVirtual: 30 },
-  { value: 'Seguro Privado', label: 'Seguro Privado', quotaPresencial: 60, quotaVirtual: 40 },
-  { value: 'Particular', label: 'Particular', quotaPresencial: 50, quotaVirtual: 50 },
+  { value: 'IPS', labelKey: 'agenda_ins_type_ips', quotaPresencial: 80, quotaVirtual: 20 },
+  { value: 'Sanidade Militar', labelKey: 'agenda_ins_type_military', quotaPresencial: 90, quotaVirtual: 10 },
+  { value: 'Sanidade Policial', labelKey: 'agenda_ins_type_police', quotaPresencial: 85, quotaVirtual: 15 },
+  { value: 'Pré-paga', labelKey: 'agenda_ins_type_prepaid', quotaPresencial: 70, quotaVirtual: 30 },
+  { value: 'Seguro Privado', labelKey: 'agenda_ins_type_private', quotaPresencial: 60, quotaVirtual: 40 },
+  { value: 'Particular', labelKey: 'agenda_ins_type_particular', quotaPresencial: 50, quotaVirtual: 50 },
 ];
 
 const RESOURCES = [
-  { id: 'ecg', name: 'Eletrocardiógrafo' },
-  { id: 'usg', name: 'Ultrassom' },
-  { id: 'rx', name: 'Raio-X' },
-  { id: 'oximetro', name: 'Oxímetro' },
-  { id: 'nebulizador', name: 'Nebulizador' },
-  { id: 'bisturi', name: 'Bisturi Elétrico' },
-  { id: 'video_consulta', name: 'Câmera Telemedicina' },
+  { id: 'ecg', nameKey: 'agenda_res_ecg' },
+  { id: 'usg', nameKey: 'agenda_res_ultrasound' },
+  { id: 'rx', nameKey: 'agenda_res_xray' },
+  { id: 'oximetro', nameKey: 'agenda_res_oximeter' },
+  { id: 'nebulizador', nameKey: 'agenda_res_nebulizer' },
+  { id: 'bisturi', nameKey: 'agenda_res_bistoury' },
+  { id: 'video_consulta', nameKey: 'agenda_res_telemed_camera' },
 ];
 
 const MIN_GAP_OPTIONS = [
-  { value: 0, label: 'Sem intervalo' },
-  { value: 5, label: '5 minutos' },
-  { value: 10, label: '10 minutos' },
-  { value: 15, label: '15 minutos' },
-  { value: 30, label: '30 minutos' },
-  { value: 60, label: '1 hora' },
+  { value: 0, labelKey: 'agenda_gap_none' },
+  { value: 5, labelKey: 'agenda_gap_5min' },
+  { value: 10, labelKey: 'agenda_gap_10min' },
+  { value: 15, labelKey: 'agenda_gap_15min' },
+  { value: 30, labelKey: 'agenda_gap_30min' },
+  { value: 60, labelKey: 'agenda_gap_1h' },
 ];
 
 // ==============================================================
@@ -849,12 +849,12 @@ const AgendaModuleContent = ({
     if (!app) return;
 
     if (isBlocked(targetDate, targetTime, app.doctorName, app.branch)) {
-      alert('Este horário está bloqueado. Não é possível remarcar.');
+      alert(t('agenda_alert_blocked_reschedule', 'app'));
       setDraggedAppId(null);
       return;
     }
     if (hasTimeOverlap(targetDate, targetTime, app.doctorName, app.room || '', draggedAppId)) {
-      alert('Já existe uma consulta neste horário para este médico/sala.');
+      alert(t('agenda_alert_slot_conflict_reschedule', 'app'));
       setDraggedAppId(null);
       return;
     }
@@ -895,7 +895,7 @@ const AgendaModuleContent = ({
   };
 
   const handleDeleteBlockage = async (id: string) => {
-    if (!confirm('Tem certeza que deseja remover este bloqueio?')) return;
+    if (!confirm(t('agenda_confirm_remove_blockage', 'app'))) return;
     setBlockedSlots(prev => prev.filter(b => b.id !== id));
     if (supabase) await supabase.from('blocked_slots').delete().eq('id', id);
     addAuditLog('Remoção de Bloqueio', `ID: ${id}`);
@@ -969,7 +969,7 @@ const AgendaModuleContent = ({
 
   // Delete appointment
   const handleDeleteAppointment = async (appt: Appointment) => {
-    if (!confirm(`Tem certeza que deseja excluir o agendamento de ${appt.patientName} em ${appt.date} às ${normalizeTime(appt.time)}?\n\nIsso também excluirá a lista de espera e lembretes vinculados.`)) return;
+    if (!confirm(t('agenda_confirm_delete_appointment', 'app').replace('{patient}', appt.patientName).replace('{date}', appt.date).replace('{time}', normalizeTime(appt.time)))) return;
     // Find linked waitlist entries by appointment_id (preferred) or patient_name (fallback)
     const linkedWaitlist = waitlist.filter(w => w.appointment_id === appt.id || (w.patient_name === appt.patientName && (w.status === 'notificado' || w.status === 'alocado')));
     // Find linked reminders by appointment_id (preferred) or patient_name (fallback)
@@ -1093,7 +1093,7 @@ const AgendaModuleContent = ({
   };
 
   const handleDeleteReminder = async (reminderId: string) => {
-    if (!confirm('Excluir este lembrete?')) return;
+    if (!confirm(t('agenda_confirm_delete_reminder', 'app'))) return;
     setReminders(prev => prev.filter(r => r.id !== reminderId));
     addAuditLog('Excluiu Lembrete WhatsApp', reminderId);
     if (supabase) await supabase.from('whatsapp_reminders').delete().eq('id', reminderId);
@@ -1129,11 +1129,11 @@ const AgendaModuleContent = ({
   const handleNotifySubmit = async () => {
     if (!notifyEntry) return;
     if (!notifyConsultDate) {
-      alert('A Data da Consulta é obrigatória.');
+      alert(t('agenda_alert_required_consult_date', 'app'));
       return;
     }
     if (!notifyConsultTime) {
-      alert('O Horário da Consulta é obrigatório.');
+      alert(t('agenda_alert_required_consult_time', 'app'));
       return;
     }
     const tpl = WHATSAPP_TEMPLATES.find(t => t.id === notifyTemplate);
@@ -1157,11 +1157,11 @@ const AgendaModuleContent = ({
       const taken = isTimeSlotTaken(consultDate, consultTime, notifyEntry.doctor_name, appointments, waitlist, notifyEntry.id);
       const blocked = isBlocked(consultDate, consultTime, notifyEntry.doctor_name, notifyEntry.branch || undefined);
       if (taken) {
-        alert('Este horário já está ocupado para este profissional. Selecione outro horário.');
+        alert(t('agenda_alert_slot_taken', 'app'));
         return;
       }
       if (blocked) {
-        alert('Este horário está bloqueado. Selecione outro horário.');
+        alert(t('agenda_alert_slot_blocked', 'app'));
         return;
       }
     }
@@ -1384,7 +1384,7 @@ const AgendaModuleContent = ({
 
   // Handle Delete Waitlist Entry
   const handleDeleteWaitlist = async (entry: WaitlistEntry) => {
-    if (!confirm(`Tem certeza que deseja excluir ${entry.patient_name} da lista de espera?\n\nIsso também excluirá agendamentos e lembretes vinculados.`)) return;
+    if (!confirm(t('agenda_confirm_delete_waitlist_entry', 'app').replace('{patient}', entry.patient_name))) return;
     // Find linked appointments and reminders by appointment_id (preferred) or patient_name (fallback)
     const linkedAppointments = entry.appointment_id 
       ? appointments.filter(a => a.id === entry.appointment_id && (a.status === 'pendente' || a.status === 'agendado'))
@@ -1413,9 +1413,9 @@ const AgendaModuleContent = ({
 
   const handleCallSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!callForm.patient_id) { alert('Selecione um paciente.'); return; }
-    if (!callForm.type) { alert('Selecione o tipo da ligação.'); return; }
-    if (!callForm.reason) { alert('Selecione o motivo da ligação.'); return; }
+    if (!callForm.patient_id) { alert(t('agenda_alert_select_patient', 'app')); return; }
+    if (!callForm.type) { alert(t('agenda_alert_select_call_type', 'app')); return; }
+    if (!callForm.reason) { alert(t('agenda_alert_select_call_reason', 'app')); return; }
     const newCall: CallLog = {
       id: `call_${++callCounterRef.current}`,
       ...callForm,
@@ -1465,20 +1465,20 @@ const AgendaModuleContent = ({
 
   const handleNewAppointment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newApptForm.patient_id) { alert('Selecione o paciente.'); return; }
-    if (!newApptForm.branch) { alert('Selecione a sede.'); return; }
-    if (!newApptForm.room) { alert('Selecione a sala.'); return; }
-    if (!newApptForm.specialty) { alert('Selecione a especialidade.'); return; }
-    if (!newApptForm.doctor_name) { alert('Selecione o profissional.'); return; }
-    if (!newApptForm.date) { alert('Selecione a data.'); return; }
-    if (!newApptForm.time) { alert('Selecione o horário.'); return; }
-    if (!newApptForm.insurance_type) { alert('Selecione o convênio/tipo.'); return; }
+    if (!newApptForm.patient_id) { alert(t('agenda_alert_select_patient', 'app')); return; }
+    if (!newApptForm.branch) { alert(t('agenda_alert_select_branch', 'app')); return; }
+    if (!newApptForm.room) { alert(t('agenda_alert_select_room', 'app')); return; }
+    if (!newApptForm.specialty) { alert(t('agenda_alert_select_specialty', 'app')); return; }
+    if (!newApptForm.doctor_name) { alert(t('agenda_alert_select_professional', 'app')); return; }
+    if (!newApptForm.date) { alert(t('agenda_alert_select_date', 'app')); return; }
+    if (!newApptForm.time) { alert(t('agenda_alert_select_time', 'app')); return; }
+    if (!newApptForm.insurance_type) { alert(t('agenda_alert_select_insurance', 'app')); return; }
     if (isBlocked(newApptForm.date, newApptForm.time, newApptForm.doctor_name, newApptForm.branch)) {
-      alert('Este horário está bloqueado para este médico/sede. Escolha outro horário.');
+      alert(t('agenda_alert_slot_blocked_doctor_branch', 'app'));
       return;
     }
     if (hasTimeOverlap(newApptForm.date, newApptForm.time, newApptForm.doctor_name, newApptForm.room)) {
-      alert('Já existe uma consulta agendada neste horário para este médico/sala. Verifique a agenda.');
+      alert(t('agenda_alert_slot_conflict_new_appt', 'app'));
       return;
     }
     if (minGapMinutes > 0) {
@@ -1495,7 +1495,7 @@ const AgendaModuleContent = ({
         return false;
       });
       if (hasGapViolation) {
-        alert(`Intervalo mínimo de ${minGapMinutes} minutos entre consultas não respeitado.`);
+        alert(t('agenda_alert_min_gap_violation', 'app').replace('{minutes}', String(minGapMinutes)));
         return;
       }
     }
@@ -1733,7 +1733,7 @@ const AgendaModuleContent = ({
   };
 
   const handleDeleteClinicPatient = async (patient: ClinicPatient) => {
-    if (!confirm(`Tem certeza que deseja excluir o paciente ${patient.name}?`)) return;
+    if (!confirm(t('agenda_confirm_delete_clinic_patient', 'app').replace('{patient}', patient.name))) return;
     setClinicPatients(prev => prev.filter(p => p.id !== patient.id));
     addAuditLog('Excluiu Paciente Clinico', patient.name);
     if (supabase) {
@@ -1981,12 +1981,12 @@ const AgendaModuleContent = ({
           <div className="flex justify-between items-center">
             <h3 className="font-bold text-slate-800 flex items-center gap-2">
               <UserPlus className="w-5 h-5 text-teal-600" />
-              Cadastro de Pacientes ({clinicPatients.length})
+              {t('agenda_patient_registration', 'app')} ({clinicPatients.length})
             </h3>
             {canEdit && (
               <button onClick={() => { resetCpForm(); setShowNewPatientModal(true); }}
                 className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-lg transition flex items-center gap-2">
-                <Plus className="w-4 h-4" /> Novo Paciente
+                <Plus className="w-4 h-4" /> {t('agenda_new_patient', 'app')}
               </button>
             )}
           </div>
@@ -1995,8 +1995,8 @@ const AgendaModuleContent = ({
           {clinicPatients.length === 0 ? (
             <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
               <UserPlus className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-              <p className="font-semibold text-slate-600">Nenhum paciente cadastrado</p>
-              <p className="text-sm text-slate-400 mt-1">Cadastre o primeiro paciente clinico</p>
+              <p className="font-semibold text-slate-600">{t('agenda_no_patients', 'app')}</p>
+              <p className="text-sm text-slate-400 mt-1">{t('agenda_register_first_patient', 'app')}</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -2018,12 +2018,12 @@ const AgendaModuleContent = ({
                         let age = today.getFullYear() - birth.getFullYear();
                         const m = today.getMonth() - birth.getMonth();
                         if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
-                        return <p className="text-xs text-slate-500">Data Nasc.: {new Date(cp.birth_date).toLocaleDateString('pt-BR')} ({age} anos)</p>;
+                        return <p className="text-xs text-slate-500">{t('agenda_birth_date', 'app')} {new Date(cp.birth_date).toLocaleDateString('pt-BR')} ({age} {t('agenda_years', 'app')})</p>;
                       })()}
-                      {cp.gender && <p className="text-xs text-slate-500">Sexo/Gênero: {cp.gender}</p>}
-                      {cp.phone && <p className="text-xs text-slate-500">Celular: {cp.phone}</p>}
-                      {cp.preferred_language && <p className="text-xs text-slate-500">Idioma Pref.: {cp.preferred_language === 'es' ? 'Espanhol' : cp.preferred_language === 'es-AR' ? 'Espanhol (Argentina)' : cp.preferred_language === 'es-PY' ? 'Espanhol (Paraguay)' : cp.preferred_language === 'gn' ? 'Guarani' : cp.preferred_language === 'pt-BR' ? 'Português (Brasil)' : cp.preferred_language === 'pt-PT' ? 'Português (Portugal)' : cp.preferred_language === 'en' ? 'English' : cp.preferred_language === 'outros' ? 'Outros' : cp.preferred_language}</p>}
-                      {cp.allergies && <p className="text-xs text-slate-500 truncate" title={cp.allergies}>Alergias: {cp.allergies}</p>}
+                      {cp.gender && <p className="text-xs text-slate-500">{t('agenda_gender', 'app')} {cp.gender}</p>}
+                      {cp.phone && <p className="text-xs text-slate-500">{t('agenda_phone', 'app')} {cp.phone}</p>}
+                      {cp.preferred_language && <p className="text-xs text-slate-500">{t('agenda_preferred_language', 'app')} {cp.preferred_language === 'es' ? 'Espanhol' : cp.preferred_language === 'es-AR' ? 'Espanhol (Argentina)' : cp.preferred_language === 'es-PY' ? 'Espanhol (Paraguay)' : cp.preferred_language === 'gn' ? 'Guarani' : cp.preferred_language === 'pt-BR' ? 'Português (Brasil)' : cp.preferred_language === 'pt-PT' ? 'Português (Portugal)' : cp.preferred_language === 'en' ? 'English' : cp.preferred_language === 'outros' ? 'Outros' : cp.preferred_language}</p>}
+                      {cp.allergies && <p className="text-xs text-slate-500 truncate" title={cp.allergies}>{t('agenda_allergies', 'app')} {cp.allergies}</p>}
                     </div>
                   </div>
                   <div className="flex items-center gap-2 mt-3 pt-2 border-t border-slate-100">
@@ -2033,8 +2033,8 @@ const AgendaModuleContent = ({
                     <div className="flex-1" />
                     {canEdit && (
                       <>
-                        <button onClick={() => handleEditClinicPatient(cp)} className="text-blue-600 hover:text-blue-800 text-xs font-semibold">Editar</button>
-                        <button onClick={() => handleDeleteClinicPatient(cp)} className="text-rose-500 hover:text-rose-700 text-xs font-semibold">Excluir</button>
+                        <button onClick={() => handleEditClinicPatient(cp)} className="text-blue-600 hover:text-blue-800 text-xs font-semibold">{t('agenda_edit', 'app')}</button>
+                        <button onClick={() => handleDeleteClinicPatient(cp)} className="text-rose-500 hover:text-rose-700 text-xs font-semibold">{t('agenda_delete', 'app')}</button>
                       </>
                     )}
                   </div>
@@ -2048,16 +2048,16 @@ const AgendaModuleContent = ({
             <div className="flex justify-between items-center mb-4">
               <h3 className="font-bold text-slate-800 flex items-center gap-2">
                 <AlertTriangle className="w-5 h-5 text-amber-600" />
-                Bloqueios de Agenda ({blockedSlots.length})
+                {t('agenda_blocks_title', 'app')} ({blockedSlots.length})
               </h3>
               {canEdit && (
                 <button onClick={() => setShowBlockageModal(true)} className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-lg transition">
-                  + Novo Bloqueio
+                  {t('agenda_new_block', 'app')}
                 </button>
               )}
             </div>
             {blockedSlots.length === 0 ? (
-              <p className="text-center text-slate-400 py-6">Nenhum bloqueio cadastrado</p>
+              <p className="text-center text-slate-400 py-6">{t('agenda_no_blocks', 'app')}</p>
             ) : (
               <div className="space-y-2 max-h-64 overflow-y-auto">
                 {blockedSlots.map(b => (
@@ -2074,7 +2074,7 @@ const AgendaModuleContent = ({
                       </div>
                     </div>
                     {canEdit && (
-                      <button onClick={() => handleDeleteBlockage(b.id)} className="text-rose-500 hover:text-rose-700 text-xs font-semibold">Remover</button>
+                      <button onClick={() => handleDeleteBlockage(b.id)} className="text-rose-500 hover:text-rose-700 text-xs font-semibold">{t('agenda_remove', 'app')}</button>
                     )}
                   </div>
                 ))}
@@ -2089,16 +2089,16 @@ const AgendaModuleContent = ({
         <div className="p-6">
           <form onSubmit={handleClinicPatientSubmit} className="space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="font-bold text-lg">{editingClinicPatient ? 'Editar Paciente Clinico' : 'Check-In & Admissão'}</h3>
+              <h3 className="font-bold text-lg">{editingClinicPatient ? t('agenda_edit_clinic_patient', 'app') : t('agenda_checkin_admission', 'app')}</h3>
             </div>
 
             {/* Sub-tabs */}
             <div className="flex border-b border-slate-200">
               {([
-                { id: 'identification' as const, label: 'Identificação' },
-                { id: 'contact' as const, label: 'Contato/End.' },
-                { id: 'complementary' as const, label: 'Convênio/Comp.' },
-                ...(cpIsMinor ? [{ id: 'guardian' as const, label: 'Responsável' }] : []),
+                { id: 'identification' as const, label: t('agenda_identification', 'app') },
+                { id: 'contact' as const, label: t('agenda_contact', 'app') },
+                { id: 'complementary' as const, label: t('agenda_complementary', 'app') },
+                ...(cpIsMinor ? [{ id: 'guardian' as const, label: t('agenda_guardian', 'app') }] : []),
               ]).map(tab => (
                 <button key={tab.id} type="button" onClick={() => setClinicPatientFormTab(tab.id)}
                   className={`px-4 py-2 text-sm font-semibold border-b-2 transition ${
@@ -2111,15 +2111,15 @@ const AgendaModuleContent = ({
             {clinicPatientFormTab === 'identification' && (
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-600 mb-1">Nome Completo *</label>
+                  <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_full_name', 'app')}</label>
                   <input type="text" value={cpForm.name} onChange={e => setCpForm({ ...cpForm, name: e.target.value })}
                     placeholder="" className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-600 mb-1">Tipo Documento *</label>
+                    <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_document_type', 'app')}</label>
                     <select value={cpForm.document_type} onChange={e => setCpForm({ ...cpForm, document_type: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
-                      <option value="">Selecionar...</option>
+                      <option value="">{t('agenda_select', 'app')}</option>
                       <option value="CI">Cédula CI (Paraguay)</option>
                       <option value="Pasaporte">Pasaporte</option>
                       <option value="RG">RG (Brasil)</option>
@@ -2127,7 +2127,7 @@ const AgendaModuleContent = ({
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-600 mb-1">Número Doc *</label>
+                    <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_document_number', 'app')}</label>
                     <div className="flex gap-1">
                       <input type="text" value={cpForm.document_number} onChange={e => setCpForm({ ...cpForm, document_number: e.target.value })}
                         placeholder="" className="flex-1 p-2 bg-slate-50 border border-slate-200 rounded-lg" required />
@@ -2139,14 +2139,14 @@ const AgendaModuleContent = ({
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-600 mb-1">Data Nascimento *</label>
+                    <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_birth_date_field', 'app')}</label>
                     <input type="date" value={cpForm.birth_date} onChange={e => setCpForm({ ...cpForm, birth_date: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required />
-                    {cpForm.birth_date && <p className="text-xs text-slate-400 mt-1">{cpAge} anos{cpIsMinor ? ' (Menor - Aba Responsavel obrigatoria)' : ''}</p>}
+                    {cpForm.birth_date && <p className="text-xs text-slate-400 mt-1">{cpAge} {t('agenda_years', 'app')}{cpIsMinor ? ` (${t('agenda_minor_guardian_required', 'app')})` : ''}</p>}
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-600 mb-1">Sexo/Gênero *</label>
+                    <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_gender_field', 'app')}</label>
                     <select value={cpForm.gender} onChange={e => setCpForm({ ...cpForm, gender: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
-                      <option value="">Selecionar...</option>
+                      <option value="">{t('agenda_select', 'app')}</option>
                       <option value="Masculino">Masculino</option>
                       <option value="Feminino">Feminino</option>
                       <option value="Outro">Outro</option>
@@ -2155,13 +2155,13 @@ const AgendaModuleContent = ({
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-600 mb-1">Nacionalidade *</label>
+                    <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_nationality', 'app')}</label>
                     <input type="text" value={cpForm.nationality} onChange={e => setCpForm({ ...cpForm, nationality: e.target.value })} placeholder="" className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-600 mb-1">Civil *</label>
+                    <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_civil_status', 'app')}</label>
                     <select value={cpForm.civil_status} onChange={e => setCpForm({ ...cpForm, civil_status: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
-                      <option value="">Selecionar...</option>
+                      <option value="">{t('agenda_select', 'app')}</option>
                       <option value="Solteiro(a)">Solteiro(a)</option>
                       <option value="Casado(a)">Casado(a)</option>
                       <option value="Divorciado(a)">Divorciado(a)</option>
@@ -2172,7 +2172,7 @@ const AgendaModuleContent = ({
                 </div>
                 {/* Foto do Paciente */}
                 <div>
-                  <label className="block text-sm font-medium text-slate-600 mb-2">Foto do Paciente</label>
+                  <label className="block text-sm font-medium text-slate-600 mb-2">{t('agenda_patient_photo', 'app')}</label>
                   <div className="flex items-center gap-4">
                     <div className="w-20 h-20 rounded-full bg-slate-100 border-2 border-slate-200 flex items-center justify-center overflow-hidden">
                       {cpWebcamPlaceholder ? (
@@ -2191,16 +2191,16 @@ const AgendaModuleContent = ({
                               <span className="text-4xl font-bold text-white">{cpCameraCountdown}</span>
                             </div>
                           )}
-                          <button type="button" onClick={cpStopCamera} className="mt-1 text-xs text-red-500 hover:text-red-700 font-semibold">Cancelar</button>
+                          <button type="button" onClick={cpStopCamera} className="mt-1 text-xs text-red-500 hover:text-red-700 font-semibold">{t('agenda_cancel', 'app')}</button>
                         </div>
                       ) : (
                         <>
                           <button type="button" onClick={cpStartCamera}
                             className="w-full py-2 px-4 bg-teal-50 hover:bg-teal-100 text-teal-700 font-semibold rounded-lg flex items-center justify-center gap-2 border border-teal-200 transition">
-                            <Camera className="w-4 h-4" /> Capturar via Camara
+                            <Camera className="w-4 h-4" /> {t('agenda_capture_camera', 'app')}
                           </button>
                           <label className="w-full py-2 px-4 bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold rounded-lg flex items-center justify-center gap-2 border border-slate-200 cursor-pointer transition">
-                            <Upload className="w-4 h-4" /> Upload de Arquivo
+                            <Upload className="w-4 h-4" /> {t('agenda_upload_file', 'app')}
                             <input type="file" accept="image/*" onChange={cpHandleFileUpload} className="hidden" />
                           </label>
                         </>
@@ -2218,7 +2218,7 @@ const AgendaModuleContent = ({
                   <PhoneInput
                     value={cpForm.phone}
                     onChange={phone => setCpForm({ ...cpForm, phone })}
-                    label="Celular"
+                    label={t('agenda_phone', 'app')}
                     required
                     allowEmpty
                   />
@@ -2231,52 +2231,52 @@ const AgendaModuleContent = ({
                           : 'bg-slate-100 text-slate-500 border-slate-300'
                       }`}>
                       <Check className={`w-3.5 h-3.5 ${cpForm.whatsapp_verified ? 'text-emerald-700' : 'text-slate-400'}`} />
-                      {cpForm.whatsapp_verified ? 'Verificado & Integrado' : 'Validar WhatsApp'}
+                      {cpForm.whatsapp_verified ? t('agenda_whatsapp_verified', 'app') : t('agenda_whatsapp_validate', 'app')}
                     </button>
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">E-mail *</label>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">{t('agenda_email', 'app')}</label>
                   <input type="email" value={cpForm.email} onChange={e => setCpForm({ ...cpForm, email: e.target.value })}
                     placeholder="" className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm" required />
                 </div>
                 <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
                   <div className="flex items-center gap-1.5 text-slate-700 font-bold text-sm pb-1 border-b border-slate-200">
                     <MapPin className="w-4 h-4 text-teal-600" />
-                    <span>Endereco Completo</span>
+                    <span>{t('agenda_full_address', 'app')}</span>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-semibold text-slate-500 mb-1">Departamento *</label>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1">{t('agenda_department', 'app')}</label>
                       <input type="text" value={cpForm.address_department} onChange={e => setCpForm({ ...cpForm, address_department: e.target.value })}
                         placeholder="" className="w-full p-2 bg-white border border-slate-200 rounded-md text-sm" required />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-slate-500 mb-1">Distrito *</label>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1">{t('agenda_district', 'app')}</label>
                       <input type="text" value={cpForm.address_district} onChange={e => setCpForm({ ...cpForm, address_district: e.target.value })}
                         placeholder="" className="w-full p-2 bg-white border border-slate-200 rounded-md text-sm" required />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-semibold text-slate-500 mb-1">Cidade *</label>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1">{t('agenda_city', 'app')}</label>
                       <input type="text" value={cpForm.address_city} onChange={e => setCpForm({ ...cpForm, address_city: e.target.value })}
                         placeholder="" className="w-full p-2 bg-white border border-slate-200 rounded-md text-sm" required />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-slate-500 mb-1">Bairro *</label>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1">{t('agenda_neighborhood', 'app')}</label>
                       <input type="text" value={cpForm.address_neighborhood} onChange={e => setCpForm({ ...cpForm, address_neighborhood: e.target.value })}
                         placeholder="" className="w-full p-2 bg-white border border-slate-200 rounded-md text-sm" required />
                     </div>
                   </div>
                   <div className="grid grid-cols-3 gap-3">
                     <div className="col-span-2">
-                      <label className="block text-xs font-semibold text-slate-500 mb-1">Rua *</label>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1">{t('agenda_street', 'app')}</label>
                       <input type="text" value={cpForm.address_street} onChange={e => setCpForm({ ...cpForm, address_street: e.target.value })}
                         placeholder="" className="w-full p-2 bg-white border border-slate-200 rounded-md text-sm" required />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-slate-500 mb-1">Numero *</label>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1">{t('agenda_number', 'app')}</label>
                       <input type="text" value={cpForm.address_number} onChange={e => setCpForm({ ...cpForm, address_number: e.target.value })}
                         placeholder="" className="w-full p-2 bg-white border border-slate-200 rounded-md text-sm" required />
                     </div>
@@ -2290,9 +2290,9 @@ const AgendaModuleContent = ({
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-600 mb-1">Tipo Convenio *</label>
+                    <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_insurance_type', 'app')}</label>
                     <select value={cpForm.insurance_type} onChange={e => setCpForm({ ...cpForm, insurance_type: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
-                      <option value="">Selecionar...</option>
+                      <option value="">{t('agenda_select', 'app')}</option>
                       <option value="IPS">IPS</option>
                       <option value="Sanidade Militar">Sanidade Militar</option>
                       <option value="Sanidade Policial">Sanidade Policial</option>
@@ -2302,7 +2302,7 @@ const AgendaModuleContent = ({
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-600 mb-1">Numero do Convenio *</label>
+                    <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_insurance_number', 'app')}</label>
                     <input type="text" value={cpForm.insurance_number} onChange={e => setCpForm({ ...cpForm, insurance_number: e.target.value })}
                       disabled={cpForm.insurance_type === 'Particular'}
                       className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg disabled:opacity-50 disabled:bg-slate-100"
@@ -2310,9 +2310,9 @@ const AgendaModuleContent = ({
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-600 mb-1">Idioma Pref. *</label>
+                  <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_preferred_language_field', 'app')}</label>
                   <select value={cpForm.preferred_language} onChange={e => setCpForm({ ...cpForm, preferred_language: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
-                    <option value="">Selecionar...</option>
+                    <option value="">{t('agenda_select', 'app')}</option>
                     <option value="pt-BR">🇧🇷 Português (Brasil)</option>
                     <option value="pt-PT">🇵🇹 Português (Portugal)</option>
                     <option value="es-AR">🇦🇷 Español (Argentina)</option>
@@ -2323,12 +2323,12 @@ const AgendaModuleContent = ({
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-600 mb-1">Alergias / Antecedentes Clinicos *</label>
+                  <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_allergies_field', 'app')}</label>
                   <textarea value={cpForm.allergies} onChange={e => setCpForm({ ...cpForm, allergies: e.target.value })} rows={3}
                     placeholder="" className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-600 mb-1">Observacoes</label>
+                  <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_notes', 'app')}</label>
                   <textarea value={cpForm.notes} onChange={e => setCpForm({ ...cpForm, notes: e.target.value })} rows={2}
                     className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
                 </div>
@@ -2341,29 +2341,29 @@ const AgendaModuleContent = ({
                 {cpIsMinor && cpForm.birth_date && (
                   <div className="bg-amber-50 p-3 rounded-lg border border-amber-200">
                     <p className="text-xs font-bold text-amber-700 flex items-center gap-1">
-                      <AlertTriangle className="w-3 h-3" /> O paciente é menor de {cpAge} anos.
+                      <AlertTriangle className="w-3 h-3" /> {t('agenda_minor_patient', 'app').replace('{age}', String(cpAge))}
                       <br />
-                      O preenchimento do responsável legal/financeiro é <span className="font-black">obrigatório</span> para concluir o cadastro.
+                      {t('agenda_guardian_required', 'app')}
                     </p>
                   </div>
                 )}
                 {!cpIsMinor && (
                   <p className="text-xs text-slate-500 mb-2">
-                    Opcional para pacientes maiores de idade (útil em casos de acompanhantes de idosos ou incapazes).
+                    {t('agenda_guardian_optional', 'app')}
                   </p>
                 )}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Nome do Responsável{cpIsMinor ? ' *' : ''}</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">{t('agenda_guardian_name', 'app')}{cpIsMinor ? ' *' : ''}</label>
                   <input type="text" value={cpForm.responsible_name} onChange={e => setCpForm({ ...cpForm, responsible_name: e.target.value })}
                     placeholder="" className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg"
                     required={cpIsMinor} />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">Tipo Documento{cpIsMinor ? ' *' : ''}</label>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">{t('agenda_document_type', 'app')}{cpIsMinor ? ' *' : ''}</label>
                     <select value={cpForm.responsible_document_type} onChange={e => setCpForm({ ...cpForm, responsible_document_type: e.target.value })}
                       className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs" required={cpIsMinor}>
-                      <option value="">Selecionar...</option>
+                      <option value="">{t('agenda_select', 'app')}</option>
                       <option value="CI">Cédula CI (Paraguai)</option>
                       <option value="Passaporte">Passaporte</option>
                       <option value="RG">RG (Brasil)</option>
@@ -2385,13 +2385,13 @@ const AgendaModuleContent = ({
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Telefone do Responsável *</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">{t('agenda_guardian_phone', 'app')}</label>
                   <input type="tel" value={cpForm.responsible_phone} onChange={e => setCpForm({ ...cpForm, responsible_phone: e.target.value })}
                     placeholder="" className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg"
                     required />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Vínculo Familiar{cpIsMinor ? ' *' : ''}</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">{t('agenda_relationship', 'app')}{cpIsMinor ? ' *' : ''}</label>
                   <select value={cpForm.responsible_relationship} onChange={e => setCpForm({ ...cpForm, responsible_relationship: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs"
                     required={cpIsMinor}>
                     <option value="">Selecione o vínculo...</option>
@@ -2423,16 +2423,16 @@ const AgendaModuleContent = ({
                   {nextTab && (
                     <button type="button" onClick={() => setClinicPatientFormTab(nextTab)}
                       className="py-2 px-4 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-lg transition flex items-center gap-1">
-                      Próximo <ChevronRight className="w-4 h-4" />
+                      {t('agenda_next', 'app')} <ChevronRight className="w-4 h-4" />
                     </button>
                   )}
                   {isLastTab && (
                     <button type="submit" className="py-2 px-4 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-lg transition">
-                      {editingClinicPatient ? 'Salvar Alteracoes' : 'Registrar Paciente'}
+                      {editingClinicPatient ? t('agenda_save_changes', 'app') : t('agenda_register_patient', 'app')}
                     </button>
                   )}
                   <button type="button" onClick={() => { setShowNewPatientModal(false); resetCpForm(); }}
-                    className="py-2 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg transition">Cancelar</button>
+                    className="py-2 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg transition">{t('agenda_cancel', 'app')}</button>
                 </div>
               );
             })()}
@@ -2447,12 +2447,12 @@ const AgendaModuleContent = ({
           <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-3">
             <div className="flex items-center gap-2 mb-2">
               <Filter className="w-4 h-4 text-teal-600" />
-              <span className="text-sm font-semibold text-slate-700">Filtros da Agenda</span>
+              <span className="text-sm font-semibold text-slate-700">{t('agenda_filters', 'app')}</span>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               {/* Sede */}
               <div>
-                <label className="text-xs font-semibold text-slate-500 mb-1 block">Sede</label>
+                <label className="text-xs font-semibold text-slate-500 mb-1 block">{t('agenda_branch', 'app')}</label>
                 <select
                   value={calendarFilterBranch}
                   onChange={e => {
@@ -2463,7 +2463,7 @@ const AgendaModuleContent = ({
                   }}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500"
                 >
-                  <option value="">Todas as Sedes</option>
+                  <option value="">{t('agenda_all_branches', 'app')}</option>
                   {locations.filter(l => l.status === 'ativo').map(loc => (
                     <option key={loc.id} value={loc.id}>{loc.name}</option>
                   ))}
@@ -2471,7 +2471,7 @@ const AgendaModuleContent = ({
               </div>
               {/* Especialidade */}
               <div>
-                <label className="text-xs font-semibold text-slate-500 mb-1 block">Especialidade</label>
+                <label className="text-xs font-semibold text-slate-500 mb-1 block">{t('agenda_specialty', 'app')}</label>
                 <select
                   value={calendarFilterSpecialty}
                   onChange={e => {
@@ -2481,7 +2481,7 @@ const AgendaModuleContent = ({
                   }}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500"
                 >
-                  <option value="">Todas as Especialidades</option>
+                  <option value="">{t('agenda_all_specialties', 'app')}</option>
                   {calendarAvailableSpecialties.map(sp => (
                     <option key={sp} value={sp}>{sp}</option>
                   ))}
@@ -2489,7 +2489,7 @@ const AgendaModuleContent = ({
               </div>
               {/* Sala */}
               <div>
-                <label className="text-xs font-semibold text-slate-500 mb-1 block">Sala</label>
+                <label className="text-xs font-semibold text-slate-500 mb-1 block">{t('agenda_room', 'app')}</label>
                 <select
                   value={calendarFilterRoom}
                   onChange={e => {
@@ -2498,7 +2498,7 @@ const AgendaModuleContent = ({
                   }}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500"
                 >
-                  <option value="">Todas as Salas</option>
+                  <option value="">{t('agenda_all_rooms', 'app')}</option>
                   {calendarAvailableRooms.map(room => (
                     <option key={room.id} value={room.name}>{room.name}</option>
                   ))}
@@ -2506,13 +2506,13 @@ const AgendaModuleContent = ({
               </div>
               {/* Profissional */}
               <div>
-                <label className="text-xs font-semibold text-slate-500 mb-1 block">Profissional</label>
+                <label className="text-xs font-semibold text-slate-500 mb-1 block">{t('agenda_professional', 'app')}</label>
                 <select
                   value={calendarFilterDoctor}
                   onChange={e => setCalendarFilterDoctor(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500"
                 >
-                  <option value="">Todos os Profissionais</option>
+                  <option value="">{t('agenda_all_professionals', 'app')}</option>
                   {calendarAvailableDoctors.map(doc => (
                     <option key={doc.id} value={doc.name}>{doc.name}</option>
                   ))}
@@ -2529,7 +2529,7 @@ const AgendaModuleContent = ({
                 }}
                 className="text-xs font-semibold text-rose-500 hover:text-rose-700 flex items-center gap-1"
               >
-                <X className="w-3 h-3" /> Limpar Filtros
+                <X className="w-3 h-3" /> {t('agenda_clear_filters', 'app')}
               </button>
             )}
           </div>
@@ -2542,7 +2542,7 @@ const AgendaModuleContent = ({
                   className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition ${
                     calendarView === v ? 'bg-teal-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}>
-                  {v === 'day' ? 'Dia' : v === 'week' ? 'Semana' : 'Mês'}
+                  {v === 'day' ? t('agenda_day', 'app') : v === 'week' ? t('agenda_week', 'app') : t('agenda_month', 'app')}
                 </button>
               ))}
             </div>
@@ -2553,7 +2553,7 @@ const AgendaModuleContent = ({
                   className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition ${
                     calendarGroupBy === g ? 'bg-teal-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}>
-                  {g === 'doctor' ? 'Profissional' : g === 'room' ? 'Sala' : g === 'specialty' ? 'Especialidade' : 'Sede'}
+                  {g === 'doctor' ? t('agenda_professional', 'app') : g === 'room' ? t('agenda_room', 'app') : g === 'specialty' ? t('agenda_specialty', 'app') : t('agenda_branch', 'app')}
                 </button>
               ))}
             </div>
@@ -2573,18 +2573,18 @@ const AgendaModuleContent = ({
               }} className="p-1.5 hover:bg-slate-100 rounded-lg"><ChevronRight className="w-4 h-4" /></button>
               <button onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])}
                 className="px-3 py-1.5 text-xs font-semibold bg-teal-50 text-teal-700 rounded-lg hover:bg-teal-100">
-                Hoje
+                {t('agenda_today', 'app')}
               </button>
             </div>
           </div>
 
           {/* Status Legend */}
           <div className="flex flex-wrap gap-2 bg-white p-3 rounded-xl border border-slate-200">
-            <span className="text-xs font-semibold text-slate-500 mr-2">Legenda:</span>
+            <span className="text-xs font-semibold text-slate-500 mr-2">{t('agenda_legend', 'app')}</span>
             {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
               <span key={key} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${cfg.bg} ${cfg.color}`}>
                 <span className={`w-1.5 h-1.5 rounded-full ${cfg.bg.replace('100', '400')}`} />
-                {cfg.label}
+                {t(cfg.labelKey, 'app')}
               </span>
             ))}
           </div>
@@ -2595,8 +2595,8 @@ const AgendaModuleContent = ({
               {Object.keys(groupedAppointments).length === 0 ? (
                 <div className="p-12 text-center">
                   <CalendarDays className="w-12 h-12 mx-auto text-slate-300 mb-3" />
-                  <p className="font-semibold text-slate-600">Nenhum agendamento para esta data</p>
-                  <p className="text-sm text-slate-400 mt-1">Arraste um agendamento ou crie um novo</p>
+                  <p className="font-semibold text-slate-600">{t('agenda_no_appointments_date', 'app')}</p>
+                  <p className="text-sm text-slate-400 mt-1">{t('agenda_drag_or_create', 'app')}</p>
                 </div>
               ) : (
                 Object.entries(groupedAppointments).map(([group, apps]) => (
@@ -2625,19 +2625,19 @@ const AgendaModuleContent = ({
                                 )}
                                 <span className="text-sm font-bold text-slate-500">{normalizeTime(app.time)} {app.duration_minutes ? `(${app.duration_minutes}min)` : ''}</span>
                               </div>
-                              <span className={`px-1.5 py-0.5 text-xs font-bold rounded-full ${sc.bg} ${sc.color}`}>{sc.label}</span>
+                              <span className={`px-1.5 py-0.5 text-xs font-bold rounded-full ${sc.bg} ${sc.color}`}>{t(sc.labelKey, 'app')}</span>
                             </div>
                             <p className="text-base font-semibold text-slate-800 truncate">{app.patientName}</p>
                             <p className="text-sm text-slate-500 truncate">{app.doctorName} • {app.specialty}</p>
                             <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                               {apptType && (
                                 <span className={`px-1.5 py-0.5 text-[10px] font-bold rounded-full ${apptType.color}`}>
-                                  {apptType.icon} {apptType.label}
+                                  {apptType.icon} {t(apptType.labelKey, 'app')}
                                 </span>
                               )}
                               {app.modality && (
                                 <span className={`px-1.5 py-0.5 text-[10px] font-bold rounded-full ${app.modality === 'Virtual' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-600'}`}>
-                                  {app.modality === 'Virtual' ? '📹 Virtual' : '🏥 Presencial'}
+                                  {app.modality === 'Virtual' ? t('agenda_modality_virtual_emoji', 'app') : t('agenda_modality_presential_emoji', 'app')}
                                 </span>
                               )}
                               {app.room && <span className="text-[10px] text-slate-400">📍 {app.room}</span>}
@@ -2646,8 +2646,8 @@ const AgendaModuleContent = ({
                             </div>
                             {canEdit && (
                               <div className="flex items-center gap-3 mt-2 pt-2 border-t border-slate-200/50">
-                                <button onClick={() => handleEditAppointment(app)} className="text-sm font-semibold text-blue-600 hover:text-blue-800">Editar</button>
-                                <button onClick={() => handleDeleteAppointment(app)} className="text-sm font-semibold text-rose-500 hover:text-rose-700">Excluir</button>
+                                <button onClick={() => handleEditAppointment(app)} className="text-sm font-semibold text-blue-600 hover:text-blue-800">{t('agenda_edit', 'app')}</button>
+                                <button onClick={() => handleDeleteAppointment(app)} className="text-sm font-semibold text-rose-500 hover:text-rose-700">{t('agenda_delete', 'app')}</button>
                               </div>
                             )}
                           </div>
@@ -2673,11 +2673,11 @@ const AgendaModuleContent = ({
                   dayApps.forEach(app => {
                     let key = '';
                     if (calendarGroupBy === 'doctor') key = app.doctorName;
-                    else if (calendarGroupBy === 'room') key = app.room || 'Sem Sala';
+                    else if (calendarGroupBy === 'room') key = app.room || t('agenda_no_room', 'app');
                     else if (calendarGroupBy === 'specialty') key = app.specialty;
                     else {
                       const loc = locations.find(l => l.id === app.branch);
-                      key = loc?.name || app.branch || 'Sem Sede';
+                      key = loc?.name || app.branch || t('agenda_no_branch', 'app');
                     }
                     if (!dayGroups[key]) dayGroups[key] = [];
                     dayGroups[key].push(app);
@@ -2742,11 +2742,11 @@ const AgendaModuleContent = ({
                   dayApps.forEach(app => {
                     let key = '';
                     if (calendarGroupBy === 'doctor') key = app.doctorName;
-                    else if (calendarGroupBy === 'room') key = app.room || 'Sem Sala';
+                    else if (calendarGroupBy === 'room') key = app.room || t('agenda_no_room', 'app');
                     else if (calendarGroupBy === 'specialty') key = app.specialty;
                     else {
                       const loc = locations.find(l => l.id === app.branch);
-                      key = loc?.name || app.branch || 'Sem Sede';
+                      key = loc?.name || app.branch || t('agenda_no_branch', 'app');
                     }
                     if (!dayGroups[key]) dayGroups[key] = [];
                     dayGroups[key].push(app);
@@ -2806,16 +2806,16 @@ const AgendaModuleContent = ({
             <div className="flex justify-between items-center mb-4">
               <h3 className="font-bold text-slate-800 flex items-center gap-2">
                 <AlertTriangle className="w-5 h-5 text-amber-600" />
-                Bloqueios de Agenda ({blockedSlots.length})
+                {t('agenda_blocks_title', 'app')} ({blockedSlots.length})
               </h3>
               {canEdit && (
                 <button onClick={() => setShowBlockageModal(true)} className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-lg transition">
-                  + Novo Bloqueio
+                  {t('agenda_new_block', 'app')}
                 </button>
               )}
             </div>
             {blockedSlots.length === 0 ? (
-              <p className="text-center text-slate-400 py-6">Nenhum bloqueio cadastrado</p>
+              <p className="text-center text-slate-400 py-6">{t('agenda_no_blocks', 'app')}</p>
             ) : (
               <div className="space-y-2 max-h-64 overflow-y-auto">
                 {blockedSlots.map(b => (
@@ -2832,7 +2832,7 @@ const AgendaModuleContent = ({
                       </div>
                     </div>
                     {canEdit && (
-                      <button onClick={() => handleDeleteBlockage(b.id)} className="text-rose-500 hover:text-rose-700 text-xs font-semibold">Remover</button>
+                      <button onClick={() => handleDeleteBlockage(b.id)} className="text-rose-500 hover:text-rose-700 text-xs font-semibold">{t('agenda_remove', 'app')}</button>
                     )}
                   </div>
                 ))}
@@ -2867,10 +2867,10 @@ const AgendaModuleContent = ({
           <div className="flex justify-between items-center">
             <h3 className="font-bold text-slate-800 flex items-center gap-2">
               <Send className="w-5 h-5 text-green-600" />
-              Lembretes WhatsApp ({filteredReminders.length}{filteredReminders.length !== reminders.length ? ` de ${reminders.length}` : ''})
+              {t('agenda_whatsapp_reminders', 'app')} ({filteredReminders.length}{filteredReminders.length !== reminders.length ? ` de ${reminders.length}` : ''})
             </h3>
             <button onClick={() => setShowReminderModal(true)} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg transition flex items-center gap-2">
-              <Plus className="w-4 h-4" /> Novo Lembrete
+              <Plus className="w-4 h-4" /> {t('agenda_new_reminder', 'app')}
             </button>
           </div>
 
@@ -2882,7 +2882,7 @@ const AgendaModuleContent = ({
                   className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition ${
                     whatsappDateView === v ? 'bg-green-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}>
-                  {v === 'day' ? 'Dia' : v === 'week' ? 'Semana' : 'Mês'}
+                  {v === 'day' ? t('agenda_day', 'app') : v === 'week' ? t('agenda_week', 'app') : t('agenda_month', 'app')}
                 </button>
               ))}
             </div>
@@ -2902,7 +2902,7 @@ const AgendaModuleContent = ({
               }} className="p-1.5 hover:bg-slate-100 rounded-lg"><ChevronRight className="w-4 h-4" /></button>
               <button onClick={() => setWhatsappSelectedDate(new Date().toISOString().split('T')[0])}
                 className="px-3 py-1.5 text-xs font-semibold bg-green-50 text-green-700 rounded-lg hover:bg-green-100">
-                Hoje
+                {t('agenda_today', 'app')}
               </button>
             </div>
           </div>
@@ -2910,27 +2910,27 @@ const AgendaModuleContent = ({
           {reminders.length === 0 ? (
             <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
               <Send className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-              <p className="font-semibold text-slate-600">Nenhum lembrete agendado</p>
-              <p className="text-sm text-slate-400 mt-1">Crie lembretes automáticos para seus pacientes</p>
+              <p className="font-semibold text-slate-600">{t('agenda_no_reminders', 'app')}</p>
+              <p className="text-sm text-slate-400 mt-1">{t('agenda_create_reminders_hint', 'app')}</p>
             </div>
           ) : filteredReminders.length === 0 ? (
             <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
               <Send className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-              <p className="font-semibold text-slate-600">Nenhum lembrete no período selecionado</p>
-              <p className="text-sm text-slate-400 mt-1">Tente alterar o filtro de data</p>
+              <p className="font-semibold text-slate-600">{t('agenda_no_reminders_period', 'app')}</p>
+              <p className="text-sm text-slate-400 mt-1">{t('agenda_try_change_date_filter', 'app')}</p>
             </div>
           ) : (
             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
               <table className="w-full">
                 <thead className="bg-slate-50 border-b border-slate-200">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">Paciente</th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">Telefone</th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">Lembrete</th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">Data da Consulta</th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">Idioma</th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">Status</th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">Ações</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">{t('agenda_th_patient', 'app')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">{t('agenda_th_phone', 'app')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">{t('agenda_th_reminder', 'app')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">{t('agenda_th_consult_date', 'app')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">{t('agenda_th_language', 'app')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">{t('agenda_th_status', 'app')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">{t('agenda_th_actions', 'app')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -2962,7 +2962,7 @@ const AgendaModuleContent = ({
                       <td className="px-4 py-3">
                         <div className="flex gap-1">
                           {r.status === 'scheduled' && (
-                            <button onClick={() => simulateWhatsAppSend(r.id)} className="text-green-600 hover:text-green-800 text-xs font-semibold">Enviar</button>
+                            <button onClick={() => simulateWhatsAppSend(r.id)} className="text-green-600 hover:text-green-800 text-xs font-semibold">{t('agenda_send', 'app')}</button>
                           )}
                           {r.status === 'read' && (
                             <>
@@ -2970,7 +2970,7 @@ const AgendaModuleContent = ({
                               <button onClick={() => simulateWhatsAppResponse(r.id, 'cancelled')} className="text-rose-600 hover:text-rose-800 text-xs font-semibold">✗</button>
                             </>
                           )}
-                          <button onClick={() => handleDeleteReminder(r.id)} className="text-slate-400 hover:text-rose-600 text-xs font-semibold">Excluir</button>
+                          <button onClick={() => handleDeleteReminder(r.id)} className="text-slate-400 hover:text-rose-600 text-xs font-semibold">{t('agenda_delete', 'app')}</button>
                         </div>
                       </td>
                     </tr>
@@ -2989,10 +2989,10 @@ const AgendaModuleContent = ({
           <div className="flex justify-between items-center">
             <h3 className="font-bold text-slate-800 flex items-center gap-2">
               <ClipboardList className="w-5 h-5 text-indigo-600" />
-              Lista de Espera ({filteredWaitlist.length}{(waitlistFilterBranch || waitlistFilterSpecialty || waitlistFilterDoctor) ? ` de ${waitlist.length}` : ''})
+              {t('agenda_waitlist_title', 'app')} ({filteredWaitlist.length}{(waitlistFilterBranch || waitlistFilterSpecialty || waitlistFilterDoctor) ? ` de ${waitlist.length}` : ''})
             </h3>
             <button onClick={() => setShowWaitlistModal(true)} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition flex items-center gap-2">
-              <Plus className="w-4 h-4" /> Adicionar Paciente
+              <Plus className="w-4 h-4" /> {t('agenda_add_patient', 'app')}
             </button>
           </div>
 
@@ -3004,7 +3004,7 @@ const AgendaModuleContent = ({
                   className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition ${
                     waitlistDateView === v ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}>
-                  {v === 'day' ? 'Dia' : v === 'week' ? 'Semana' : 'Mês'}
+                  {v === 'day' ? t('agenda_day', 'app') : v === 'week' ? t('agenda_week', 'app') : t('agenda_month', 'app')}
                 </button>
               ))}
             </div>
@@ -3024,7 +3024,7 @@ const AgendaModuleContent = ({
               }} className="p-1.5 hover:bg-slate-100 rounded-lg"><ChevronRight className="w-4 h-4" /></button>
               <button onClick={() => setWaitlistSelectedDate(new Date().toISOString().split('T')[0])}
                 className="px-3 py-1.5 text-xs font-semibold bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100">
-                Hoje
+                {t('agenda_today', 'app')}
               </button>
             </div>
           </div>
@@ -3033,12 +3033,12 @@ const AgendaModuleContent = ({
           <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-3">
             <div className="flex items-center gap-2 mb-2">
               <Filter className="w-4 h-4 text-indigo-600" />
-              <span className="text-sm font-semibold text-slate-700">Filtros da Lista de Espera</span>
+              <span className="text-sm font-semibold text-slate-700">{t('agenda_waitlist_filters', 'app')}</span>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {/* Sede */}
               <div>
-                <label className="text-xs font-semibold text-slate-500 mb-1 block">Sede</label>
+                <label className="text-xs font-semibold text-slate-500 mb-1 block">{t('agenda_branch', 'app')}</label>
                 <select
                   value={waitlistFilterBranch}
                   onChange={e => {
@@ -3048,7 +3048,7 @@ const AgendaModuleContent = ({
                   }}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
-                  <option value="">Todas as Sedes</option>
+                  <option value="">{t('agenda_all_branches', 'app')}</option>
                   {locations.filter(l => l.status === 'ativo').map(loc => (
                     <option key={loc.id} value={loc.id}>{loc.name}</option>
                   ))}
@@ -3056,7 +3056,7 @@ const AgendaModuleContent = ({
               </div>
               {/* Especialidade */}
               <div>
-                <label className="text-xs font-semibold text-slate-500 mb-1 block">Especialidade</label>
+                <label className="text-xs font-semibold text-slate-500 mb-1 block">{t('agenda_specialty', 'app')}</label>
                 <select
                   value={waitlistFilterSpecialty}
                   onChange={e => {
@@ -3065,7 +3065,7 @@ const AgendaModuleContent = ({
                   }}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
-                  <option value="">Todas as Especialidades</option>
+                  <option value="">{t('agenda_all_specialties', 'app')}</option>
                   {waitlistFilterSpecialties.map(sp => (
                     <option key={sp} value={sp}>{sp}</option>
                   ))}
@@ -3073,13 +3073,13 @@ const AgendaModuleContent = ({
               </div>
               {/* Profissional */}
               <div>
-                <label className="text-xs font-semibold text-slate-500 mb-1 block">Profissional</label>
+                <label className="text-xs font-semibold text-slate-500 mb-1 block">{t('agenda_professional', 'app')}</label>
                 <select
                   value={waitlistFilterDoctor}
                   onChange={e => setWaitlistFilterDoctor(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
-                  <option value="">Todos os Profissionais</option>
+                  <option value="">{t('agenda_all_professionals', 'app')}</option>
                   {waitlistFilterDoctors.map(doc => (
                     <option key={doc} value={doc}>{doc}</option>
                   ))}
@@ -3095,7 +3095,7 @@ const AgendaModuleContent = ({
                 }}
                 className="text-xs font-semibold text-rose-500 hover:text-rose-700 flex items-center gap-1"
               >
-                <X className="w-3 h-3" /> Limpar Filtros
+                <X className="w-3 h-3" /> {t('agenda_clear_filters', 'app')}
               </button>
             )}
           </div>
@@ -3103,26 +3103,26 @@ const AgendaModuleContent = ({
           {waitlist.length === 0 ? (
             <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
               <ClipboardList className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-              <p className="font-semibold text-slate-600">Lista de espera vazia</p>
+              <p className="font-semibold text-slate-600">{t('agenda_waitlist_empty', 'app')}</p>
             </div>
           ) : filteredWaitlist.length === 0 ? (
             <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
               <ClipboardList className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-              <p className="font-semibold text-slate-600">Nenhum resultado encontrado com os filtros selecionados</p>
+              <p className="font-semibold text-slate-600">{t('agenda_no_filter_results', 'app')}</p>
             </div>
           ) : (
             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
               <table className="w-full">
                 <thead className="bg-slate-50 border-b border-slate-200">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">Paciente</th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">Telefone</th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">Especialidade</th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">Profissional</th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">Prioridade</th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">Status</th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">Preferência</th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">Ações</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">{t('agenda_th_patient', 'app')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">{t('agenda_th_phone', 'app')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">{t('agenda_th_specialty', 'app')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">{t('agenda_th_professional', 'app')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">{t('agenda_th_priority', 'app')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">{t('agenda_th_status', 'app')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">{t('agenda_th_preference', 'app')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">{t('agenda_th_actions', 'app')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -3131,7 +3131,7 @@ const AgendaModuleContent = ({
                       <td className="px-4 py-3 font-medium text-sm">{w.patient_name}</td>
                       <td className="px-4 py-3 text-sm text-slate-600">{w.phone}</td>
                       <td className="px-4 py-3 text-sm text-slate-600">{w.specialty}</td>
-                      <td className="px-4 py-3 text-sm text-slate-600">{w.doctor_name || 'Todos os Profissionais'}</td>
+                      <td className="px-4 py-3 text-sm text-slate-600">{w.doctor_name || t('agenda_all_professionals', 'app')}</td>
                       <td className="px-4 py-3">
                         <span className={`px-2 py-0.5 text-xs font-bold rounded ${
                           w.priority_criteria === 'urgency' ? 'bg-red-100 text-red-700' :
@@ -3139,9 +3139,9 @@ const AgendaModuleContent = ({
                           w.priority_criteria === 'seniority' ? 'bg-purple-100 text-purple-700' :
                           'bg-amber-100 text-amber-700'
                         }`}>
-                          {w.priority_criteria === 'arrival' ? 'Chegada' :
-                           w.priority_criteria === 'urgency' ? 'Urgência' :
-                           w.priority_criteria === 'coverage' ? 'Cobertura' : 'Antiguidade'}
+                           {w.priority_criteria === 'arrival' ? t('agenda_priority_arrival', 'app') :
+                           w.priority_criteria === 'urgency' ? t('agenda_priority_urgency', 'app') :
+                           w.priority_criteria === 'coverage' ? t('agenda_priority_coverage', 'app') : t('agenda_priority_seniority', 'app')}
                           {' '}({filteredWaitlist.filter(x => x.priority_criteria === w.priority_criteria).length})
                         </span>
                       </td>
@@ -3166,7 +3166,7 @@ const AgendaModuleContent = ({
                                   <p className="text-slate-600"><span className="font-semibold">Dias:</span> {w.preferred_days.join(', ')}</p>
                                 )}
                                 {w.preferred_hours?.length > 0 && (
-                                  <p className="text-slate-600"><span className="font-semibold">Horários:</span> {w.preferred_hours.join(', ')}</p>
+                                  <p className="text-slate-600"><span className="font-semibold">{t('agenda_hours_label', 'app')}</span> {w.preferred_hours.join(', ')}</p>
                                 )}
                               </>
                             )}
@@ -3182,12 +3182,12 @@ const AgendaModuleContent = ({
                               <button onClick={() => {
                                 setNotifyEntry(w);
                                 setShowNotifyModal(true);
-                              }} className="text-blue-600 hover:text-blue-800 text-xs font-semibold">Notificar</button>
+                              }} className="text-blue-600 hover:text-blue-800 text-xs font-semibold">{t('agenda_notify', 'app')}</button>
                               <button onClick={() => {
                                 setAllocateEntry(w);
                                 setAllocateDoctor(w.doctor_name || '');
                                 setShowAllocateModal(true);
-                              }} className="text-green-600 hover:text-green-800 text-xs font-semibold">Alocar</button>
+                              }} className="text-green-600 hover:text-green-800 text-xs font-semibold">{t('agenda_allocate', 'app')}</button>
                             </>
                           )}
                           <button onClick={() => {
@@ -3207,8 +3207,8 @@ const AgendaModuleContent = ({
                               allocated_time: w.allocated_time || '',
                             });
                             setShowEditWaitlistModal(true);
-                          }} className="text-amber-600 hover:text-amber-800 text-xs font-semibold">Editar</button>
-                          <button onClick={() => handleDeleteWaitlist(w)} className="text-rose-600 hover:text-rose-800 text-xs font-semibold">Excluir</button>
+                          }} className="text-amber-600 hover:text-amber-800 text-xs font-semibold">{t('agenda_edit', 'app')}</button>
+                          <button onClick={() => handleDeleteWaitlist(w)} className="text-rose-600 hover:text-rose-800 text-xs font-semibold">{t('agenda_delete', 'app')}</button>
                         </div>
                       </td>
                     </tr>
@@ -3248,7 +3248,7 @@ const AgendaModuleContent = ({
               <div className="flex items-center gap-3">
                 <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" />
                 <div>
-                  <p className="font-bold text-green-800">Chamada Ativa</p>
+                  <p className="font-bold text-green-800">{t('agenda_active_call', 'app')}</p>
                   <p className="text-sm text-green-600">{activeCall.patient_name} • {activeCall.patient_phone}</p>
                 </div>
               </div>
@@ -3257,7 +3257,7 @@ const AgendaModuleContent = ({
                   {Math.floor(callTimer / 60)}:{String(callTimer % 60).padStart(2, '0')}
                 </span>
                 <button onClick={endCall} className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg flex items-center gap-2">
-                  <PhoneOff className="w-4 h-4" /> Encerrar
+                  <PhoneOff className="w-4 h-4" /> {t('agenda_end_call', 'app')}
                 </button>
               </div>
             </div>
@@ -3268,7 +3268,7 @@ const AgendaModuleContent = ({
             <div className="flex bg-slate-100 rounded-lg p-0.5">
               {(['day', 'week', 'month'] as const).map(v => (
                 <button key={v} onClick={() => setCallDateView(v)} className={`px-3 py-1.5 text-xs font-semibold rounded-md transition ${callDateView === v ? 'bg-rose-600 text-white shadow' : 'text-slate-600 hover:text-slate-800'}`}>
-                  {v === 'day' ? 'Dia' : v === 'week' ? 'Semana' : 'Mês'}
+                  {v === 'day' ? t('agenda_day', 'app') : v === 'week' ? t('agenda_week', 'app') : t('agenda_month', 'app')}
                 </button>
               ))}
             </div>
@@ -3277,13 +3277,13 @@ const AgendaModuleContent = ({
               <input type="date" value={callSelectedDate} onChange={e => setCallSelectedDate(e.target.value)} className="text-xs text-slate-600 border-0 bg-transparent w-28 text-center" />
               <button onClick={() => { const d = new Date(callSelectedDate); d.setDate(d.getDate() + (callDateView === 'day' ? 1 : callDateView === 'week' ? 7 : 30)); setCallSelectedDate(d.toISOString().split('T')[0]); }} className="text-slate-400 hover:text-slate-600">{'>'}</button>
             </div>
-            <button onClick={() => setCallSelectedDate(new Date().toISOString().split('T')[0])} className="px-3 py-1.5 text-xs font-semibold bg-rose-100 text-rose-700 rounded-lg hover:bg-rose-200 transition">Hoje</button>
+            <button onClick={() => setCallSelectedDate(new Date().toISOString().split('T')[0])} className="px-3 py-1.5 text-xs font-semibold bg-rose-100 text-rose-700 rounded-lg hover:bg-rose-200 transition">{t('agenda_today', 'app')}</button>
           </div>
 
           <div className="flex justify-between items-center">
             <h3 className="font-bold text-slate-800 flex items-center gap-2">
               <PhoneCall className="w-5 h-5 text-rose-600" />
-              Histórico de Ligações ({filteredCallLogs.length}{filteredCallLogs.length !== callLogs.length ? ` de ${callLogs.length}` : ''})
+              {t('agenda_call_history', 'app')} ({filteredCallLogs.length}{filteredCallLogs.length !== callLogs.length ? ` de ${callLogs.length}` : ''})
             </h3>
             <button onClick={() => setShowCallModal(true)} className="px-4 py-2 bg-rose-600 hover:bg-red-700 text-white font-bold rounded-lg transition flex items-center gap-2">
               <Plus className="w-4 h-4" /> {t('agenda_register_call', 'app')}
@@ -3293,20 +3293,20 @@ const AgendaModuleContent = ({
           {filteredCallLogs.length === 0 ? (
             <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
               <PhoneCall className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-              <p className="font-semibold text-slate-600">Nenhuma ligação no período selecionado</p>
+              <p className="font-semibold text-slate-600">{t('agenda_no_calls_period', 'app')}</p>
             </div>
           ) : (
             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
               <table className="w-full">
                 <thead className="bg-slate-50 border-b border-slate-200">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">Operador</th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">Paciente</th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">Tipo</th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">Motivo</th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">Duração</th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">Data/Hora</th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">Ações</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">{t('agenda_th_operator', 'app')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">{t('agenda_th_patient', 'app')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">{t('agenda_th_type', 'app')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">{t('agenda_th_reason', 'app')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">{t('agenda_th_duration', 'app')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">{t('agenda_th_datetime', 'app')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">{t('agenda_th_actions', 'app')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -3316,7 +3316,7 @@ const AgendaModuleContent = ({
                       <td className="px-4 py-3 text-sm text-slate-600">{c.patient_name}</td>
                       <td className="px-4 py-3">
                         <span className={`px-2 py-0.5 text-xs font-bold rounded ${c.type === 'inbound' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
-                          {c.type === 'inbound' ? 'Recebida' : 'Efetuada'}
+                          {c.type === 'inbound' ? t('agenda_type_inbound', 'app') : t('agenda_type_outbound', 'app')}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-sm text-slate-600">{c.reason}</td>
@@ -3326,8 +3326,8 @@ const AgendaModuleContent = ({
                       <td className="px-4 py-3 text-sm text-slate-500">{new Date(c.created_at).toLocaleString('pt-BR')}</td>
                       <td className="px-4 py-3">
                         <div className="flex gap-2">
-                          <button onClick={() => startCall(c.patient_name, c.patient_phone)} className="px-3 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded-lg hover:bg-green-200 transition">Ligar</button>
-                          <button onClick={() => startCall(c.patient_name, c.patient_phone, 'inbound')} className="px-3 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded-lg hover:bg-blue-200 transition">Receber</button>
+                          <button onClick={() => startCall(c.patient_name, c.patient_phone)} className="px-3 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded-lg hover:bg-green-200 transition">{t('agenda_call', 'app')}</button>
+                          <button onClick={() => startCall(c.patient_name, c.patient_phone, 'inbound')} className="px-3 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded-lg hover:bg-blue-200 transition">{t('agenda_receive', 'app')}</button>
                         </div>
                       </td>
                     </tr>
@@ -3346,13 +3346,13 @@ const AgendaModuleContent = ({
         <div className="p-6">
         <form onSubmit={handleNewAppointment} className="space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="font-bold text-lg">Novo Agendamento</h3>
+              <h3 className="font-bold text-lg">{t('agenda_new_appointment_title', 'app')}</h3>
             </div>
 
 
             {/* Paciente (Busca em clinic_patients) */}
             <div className="relative">
-              <label className="block text-sm font-medium text-slate-600 mb-1">Paciente *</label>
+              <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_th_patient', 'app')} *</label>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <input
@@ -3366,7 +3366,7 @@ const AgendaModuleContent = ({
                     }
                   }}
                   onFocus={() => { setShowPatientDropdown(true); setPatientSearchQuery(''); }}
-                  placeholder="Buscar por nome, documento ou telefone..."
+                  placeholder={t('agenda_search_patient', 'app')}
                   className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg"
                   required={!newApptForm.patient_id}
                 />
@@ -3411,9 +3411,9 @@ const AgendaModuleContent = ({
                     return cp.name.toLowerCase().includes(q) || (cp.document_number && cp.document_number.includes(q)) || (cp.phone && cp.phone.includes(q));
                   }).length === 0 && (
                     <div className="px-4 py-6 text-center">
-                      <p className="text-sm text-slate-500">Nenhum paciente encontrado</p>
+                      <p className="text-sm text-slate-500">{t('agenda_no_patient_found', 'app')}</p>
                       <button type="button" onClick={() => { setShowPatientDropdown(false); resetCpForm(); setShowNewPatientModal(true); }}
-                        className="mt-2 text-sm font-semibold text-teal-600 hover:text-teal-800">+ Cadastrar novo paciente</button>
+                        className="mt-2 text-sm font-semibold text-teal-600 hover:text-teal-800">{t('agenda_register_new_patient', 'app')}</button>
             </div>
           )}
                 </div>
@@ -3426,29 +3426,29 @@ const AgendaModuleContent = ({
             {/* Modalidade + Sede + Sala */}
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">Modalidade *</label>
+                <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_modality', 'app')}</label>
                 <div className="flex gap-2">
                   <button type="button" onClick={() => setNewApptForm({ ...newApptForm, modality: 'Presencial' })}
                     className={`flex-1 py-2 rounded-lg border-2 text-sm font-bold transition ${
                       newApptForm.modality === 'Presencial' ? 'bg-teal-100 border-teal-400 text-teal-700' : 'bg-white border-slate-200 text-slate-500'
-                    }`}>Presencial</button>
+                    }`}>{t('agenda_presential', 'app')}</button>
                   <button type="button" onClick={() => setNewApptForm({ ...newApptForm, modality: 'Virtual' })}
                     className={`flex-1 py-2 rounded-lg border-2 text-sm font-bold transition ${
                       newApptForm.modality === 'Virtual' ? 'bg-purple-100 border-purple-400 text-purple-700' : 'bg-white border-slate-200 text-slate-500'
-                    }`}>Virtual</button>
+                    }`}>{t('agenda_virtual', 'app')}</button>
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">Sede *</label>
+                <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_branch', 'app')} *</label>
                 <select value={newApptForm.branch} onChange={e => setNewApptForm({ ...newApptForm, branch: e.target.value, room: '', doctor_name: '', specialty: '' })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
-                  <option value="">Selecionar...</option>
+                  <option value="">{t('agenda_select', 'app')}</option>
                   {locations.map(loc => <option key={loc.id} value={loc.id}>{loc.name}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">Sala *</label>
+                <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_room', 'app')} *</label>
                 <select value={newApptForm.room} onChange={e => setNewApptForm({ ...newApptForm, room: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required disabled={!newApptForm.branch}>
-                  <option value="">{newApptForm.branch ? 'Selecionar...' : 'Selecione a sede'}</option>
+                  <option value="">{newApptForm.branch ? t('agenda_select', 'app') : 'Selecione a sede'}</option>
                   {availableRooms.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
                 </select>
               </div>
@@ -3457,16 +3457,16 @@ const AgendaModuleContent = ({
             {/* Especialidade + Profissional */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">Especialidade *</label>
+                <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_specialty', 'app')} *</label>
                 <select value={newApptForm.specialty} onChange={e => setNewApptForm({ ...newApptForm, specialty: e.target.value, doctor_name: '' })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required disabled={!newApptForm.branch}>
-                  <option value="">{newApptForm.branch ? 'Selecionar Especialidade' : 'Selecione a sede'}</option>
+                  <option value="">{newApptForm.branch ? t('agenda_select_specialty', 'app') : t('agenda_select_branch_first', 'app')}</option>
                   {availableSpecialties.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">Profissional *</label>
+                <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_professional', 'app')} *</label>
                 <select value={newApptForm.doctor_name} onChange={e => setNewApptForm({ ...newApptForm, doctor_name: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required disabled={!newApptForm.specialty}>
-                  <option value="">{newApptForm.specialty ? 'Selecionar Profissional' : 'Selecione a especialidade'}</option>
+                  <option value="">{newApptForm.specialty ? t('agenda_select_professional', 'app') : t('agenda_select_specialty_first', 'app')}</option>
                   {availableProfessionals.map(p => <option key={p.id} value={p.name}>{p.name} - {p.specialty}</option>)}
                 </select>
               </div>
@@ -3474,17 +3474,17 @@ const AgendaModuleContent = ({
 
             {/* Tipo de Consulta */}
             <div>
-              <label className="block text-sm font-medium text-slate-600 mb-1">Tipo de Consulta *</label>
+              <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_appointment_type', 'app')}</label>
               <div className="grid grid-cols-5 gap-1.5">
-                {APPOINTMENT_TYPES.map(t => (
-                  <button key={t.value} type="button" onClick={() => setNewApptForm({ ...newApptForm, type: t.value })}
+                {APPOINTMENT_TYPES.map(at => (
+                  <button key={at.value} type="button" onClick={() => setNewApptForm({ ...newApptForm, type: at.value })}
                     className={`p-2 rounded-lg border-2 text-center transition text-xs font-semibold ${
-                      newApptForm.type === t.value
-                        ? `${t.color} border-current`
+                      newApptForm.type === at.value
+                        ? `${at.color} border-current`
                         : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300'
                     }`}>
-                    <span className="text-base block">{t.icon}</span>
-                    <span className="mt-0.5 block">{t.label}</span>
+                    <span className="text-base block">{at.icon}</span>
+                    <span className="mt-0.5 block">{t(at.labelKey, 'app')}</span>
                   </button>
                 ))}
               </div>
@@ -3493,26 +3493,26 @@ const AgendaModuleContent = ({
             {/* Data + Horário + Duração */}
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">Data *</label>
+                <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_date', 'app')}</label>
                 <input type="date" value={newApptForm.date} onChange={e => setNewApptForm({ ...newApptForm, date: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">Horário *</label>
+                <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_time', 'app')}</label>
                 <select value={newApptForm.time} onChange={e => setNewApptForm({ ...newApptForm, time: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required disabled={!newApptForm.date}>
-                  <option value="">Selecionar...</option>
-                  {TIME_SLOTS.map(t => {
-                    const blocked = isBlocked(newApptForm.date, t, newApptForm.doctor_name, newApptForm.branch);
-                    const occupied = hasTimeOverlap(newApptForm.date, t, newApptForm.doctor_name, newApptForm.room);
+                  <option value="">{t('agenda_select', 'app')}</option>
+                  {TIME_SLOTS.map(slot => {
+                    const blocked = isBlocked(newApptForm.date, slot, newApptForm.doctor_name, newApptForm.branch);
+                    const occupied = hasTimeOverlap(newApptForm.date, slot, newApptForm.doctor_name, newApptForm.room);
                     return (
-                      <option key={t} value={t} disabled={blocked || occupied} className={blocked || occupied ? 'text-red-400' : ''}>
-                        {t} {blocked ? '🔒 Bloqueado' : occupied ? '⛔ Ocupado' : '✓'}
+                      <option key={slot} value={slot} disabled={blocked || occupied} className={blocked || occupied ? 'text-red-400' : ''}>
+                        {slot} {blocked ? t('agenda_time_blocked_label', 'app') : occupied ? t('agenda_time_occupied_label', 'app') : '✓'}
                       </option>
                     );
                   })}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">Duração</label>
+                <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_duration', 'app')}</label>
                 <select value={newApptForm.duration_minutes} onChange={e => setNewApptForm({ ...newApptForm, duration_minutes: Number(e.target.value) })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
                   <option value={15}>15 min</option>
                   <option value={20}>20 min</option>
@@ -3527,13 +3527,13 @@ const AgendaModuleContent = ({
 
             {/* Convênio/Tipo */}
             <div>
-              <label className="block text-sm font-medium text-slate-600 mb-1">Convênio/Tipo *</label>
+              <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_insurance', 'app')}</label>
               <select value={newApptForm.insurance_type} onChange={e => {
                 const it = INSURANCE_TYPES.find(i => i.value === e.target.value);
-                setNewApptForm({ ...newApptForm, insurance_type: e.target.value || undefined, insurance: it?.label || '' });
+                setNewApptForm({ ...newApptForm, insurance_type: e.target.value || undefined, insurance: it ? t(it.labelKey, 'app') : '' });
               }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
-                <option value="">Selecionar...</option>
-                {INSURANCE_TYPES.map(i => <option key={i.value} value={i.value}>{i.label}</option>)}
+                <option value="">{t('agenda_select', 'app')}</option>
+                {INSURANCE_TYPES.map(i => <option key={i.value} value={i.value}>{t(i.labelKey, 'app')}</option>)}
               </select>
             </div>
 
@@ -3583,17 +3583,17 @@ const AgendaModuleContent = ({
                   'text-green-700'
                 }`}>
                   {isBlocked(newApptForm.date, newApptForm.time, newApptForm.doctor_name, newApptForm.branch)
-                    ? '🔒 Horário bloqueado'
+                    ? `🔒 ${t('agenda_blocked_slot', 'app')}`
                     : hasTimeOverlap(newApptForm.date, newApptForm.time, newApptForm.doctor_name, newApptForm.room)
-                    ? '⛔ Conflito de horário'
-                    : '✓ Horário disponível'}
+                    ? `⛔ ${t('agenda_conflict', 'app')}`
+                    : `✓ ${t('agenda_available', 'app')}`}
                 </p>
               </div>
             )}
 
             <div className="flex justify-end gap-2 pt-2">
-              <button type="submit" className="py-2 px-4 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-lg transition">Criar Agendamento</button>
-              <button type="button" onClick={() => { setShowNewApptModal(false); resetNewApptForm(); }} className="py-2 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg transition">Cancelar</button>
+              <button type="submit" className="py-2 px-4 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-lg transition">{t('agenda_create_appointment', 'app')}</button>
+              <button type="button" onClick={() => { setShowNewApptModal(false); resetNewApptForm(); }} className="py-2 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg transition">{t('agenda_cancel', 'app')}</button>
             </div>
           </form>
         </div>
@@ -3603,26 +3603,26 @@ const AgendaModuleContent = ({
       <InlineModal open={showEditApptModal} onClose={() => { setShowEditApptModal(false); setEditingAppt(null); }} className="max-w-2xl">
         <div className="p-6">
           <form onSubmit={handleUpdateAppointment} className="space-y-4">
-            <h3 className="font-bold text-lg">Editar Agendamento</h3>
+            <h3 className="font-bold text-lg">{t('agenda_edit_appointment', 'app')}</h3>
 
             {/* Status */}
             <div>
-              <label className="block text-sm font-medium text-slate-600 mb-1">Status *</label>
+              <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_th_status', 'app')} *</label>
               <select value={editApptForm.status} onChange={e => setEditApptForm({ ...editApptForm, status: e.target.value as Appointment['status'] })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
                 {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
-                  <option key={key} value={key}>{cfg.label}</option>
+                  <option key={key} value={key}>{t(cfg.labelKey, 'app')}</option>
                 ))}
               </select>
             </div>
 
             {/* Paciente */}
             <div>
-              <label className="block text-sm font-medium text-slate-600 mb-1">Paciente *</label>
+              <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_th_patient', 'app')} *</label>
               <select value={editApptForm.patient_id} onChange={e => {
                 const p = patients.find(p => p.id === e.target.value);
                 setEditApptForm({ ...editApptForm, patient_id: e.target.value, patient_name: p?.name || '' });
               }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
-                <option value="">Selecionar paciente...</option>
+                <option value="">{t('agenda_select', 'app')}</option>
                 {patients.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
             </div>
@@ -3630,16 +3630,16 @@ const AgendaModuleContent = ({
             {/* Sede + Sala */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">Sede *</label>
+                <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_branch', 'app')} *</label>
                 <select value={editApptForm.branch} onChange={e => setEditApptForm({ ...editApptForm, branch: e.target.value, room: '' })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
-                  <option value="">Selecionar sede...</option>
+                  <option value="">{t('agenda_select', 'app')}</option>
                   {locations.map(loc => <option key={loc.id} value={loc.id}>{loc.name}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">Sala *</label>
+                <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_room', 'app')} *</label>
                 <select value={editApptForm.room} onChange={e => setEditApptForm({ ...editApptForm, room: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required disabled={!editApptForm.branch}>
-                  <option value="">{editApptForm.branch ? 'Selecionar sala...' : 'Selecionar sede primeiro...'}</option>
+                  <option value="">{editApptForm.branch ? t('agenda_select_room', 'app') : t('agenda_select_branch_first', 'app')}</option>
                   {locations.filter(l => l.id === editApptForm.branch).length > 0 &&
                     clinicalRooms.filter(r => r.location_id === editApptForm.branch).map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
                 </select>
@@ -3651,14 +3651,14 @@ const AgendaModuleContent = ({
               <div>
                 <label className="block text-sm font-medium text-slate-600 mb-1">Especialidade *</label>
                 <select value={editApptForm.specialty} onChange={e => setEditApptForm({ ...editApptForm, specialty: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
-                  <option value="">Selecionar...</option>
+                  <option value="">{t('agenda_select', 'app')}</option>
                   {availableSpecialties.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">Profissional *</label>
+                <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_professional', 'app')} *</label>
                 <select value={editApptForm.doctor_name} onChange={e => setEditApptForm({ ...editApptForm, doctor_name: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
-                  <option value="">Selecionar...</option>
+                  <option value="">{t('agenda_select', 'app')}</option>
                   {availableProfessionals.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
                 </select>
               </div>
@@ -3671,21 +3671,21 @@ const AgendaModuleContent = ({
                 <input type="date" value={editApptForm.date} onChange={e => setEditApptForm({ ...editApptForm, date: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">Horário *</label>
+                <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_time', 'app')} *</label>
                 <select value={editApptForm.time} onChange={e => setEditApptForm({ ...editApptForm, time: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required disabled={!editApptForm.date}>
-                  <option value="">Selecionar...</option>
-                  {TIME_SLOTS.map(t => {
-                    const occupied = hasTimeOverlap(editApptForm.date, t, editApptForm.doctor_name, editApptForm.room, editingAppt?.id);
+                  <option value="">{t('agenda_select', 'app')}</option>
+                  {TIME_SLOTS.map(slot => {
+                    const occupied = hasTimeOverlap(editApptForm.date, slot, editApptForm.doctor_name, editApptForm.room, editingAppt?.id);
                     return (
-                      <option key={t} value={t} disabled={occupied} className={occupied ? 'text-red-400' : ''}>
-                        {t} {occupied ? '⛔ Ocupado' : '✓'}
+                      <option key={slot} value={slot} disabled={occupied} className={occupied ? 'text-red-400' : ''}>
+                        {slot} {occupied ? t('agenda_time_occupied_label', 'app') : '✓'}
                       </option>
                     );
                   })}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">Duração</label>
+                <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_duration', 'app')}</label>
                 <select value={editApptForm.duration_minutes} onChange={e => setEditApptForm({ ...editApptForm, duration_minutes: Number(e.target.value) })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
                   <option value={15}>15 min</option>
                   <option value={20}>20 min</option>
@@ -3699,8 +3699,8 @@ const AgendaModuleContent = ({
             </div>
 
             <div className="flex justify-end gap-2 pt-2">
-              <button type="submit" className="py-2 px-4 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-lg transition">Salvar Alterações</button>
-              <button type="button" onClick={() => { setShowEditApptModal(false); setEditingAppt(null); }} className="py-2 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg transition">Cancelar</button>
+              <button type="submit" className="py-2 px-4 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-lg transition">{t('agenda_save_changes', 'app')}</button>
+              <button type="button" onClick={() => { setShowEditApptModal(false); setEditingAppt(null); }} className="py-2 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg transition">{t('agenda_cancel', 'app')}</button>
             </div>
           </form>
         </div>
@@ -3715,14 +3715,14 @@ const AgendaModuleContent = ({
               <div>
                 <label className="block text-sm font-medium text-slate-600 mb-1">Sede *</label>
                 <select value={blockForm.branch} onChange={e => setBlockForm({ ...blockForm, branch: e.target.value, doctor_name: '' })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
-                  <option value="">Selecionar sede...</option>
+                  <option value="">{t('agenda_select_branch', 'app')}</option>
                   {locations.map(loc => <option key={loc.id} value={loc.id}>{loc.name}</option>)}
                 </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-600 mb-1">Profissionais *</label>
                 <select value={blockForm.doctor_name} onChange={e => setBlockForm({ ...blockForm, doctor_name: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required disabled={!blockForm.branch}>
-                  <option value="">{blockForm.branch ? 'Todos os Profissionais' : 'Selecionar sede primeiro...'}</option>
+                  <option value="">{blockForm.branch ? t('agenda_all_professionals', 'app') : t('agenda_select_branch_first', 'app')}</option>
                   {blockProfessionals.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
                 </select>
               </div>
@@ -3748,17 +3748,17 @@ const AgendaModuleContent = ({
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-600 mb-1">Motivo *</label>
+              <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_reason_required', 'app') || 'Motivo *'}</label>
               <select value={blockForm.reason} onChange={e => setBlockForm({ ...blockForm, reason: e.target.value as BlockedSlot['reason'] })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
-                <option value="feriado">Feriado</option>
-                <option value="férias">Férias</option>
-                <option value="capacitação">Capacitação</option>
-                <option value="emergência">Emergência</option>
+                <option value="feriado">{t('agenda_block_type_holiday', 'app')}</option>
+                <option value="férias">{t('agenda_block_type_vacation', 'app')}</option>
+                <option value="capacitação">{t('agenda_block_type_training', 'app')}</option>
+                <option value="emergência">{t('agenda_block_type_emergency', 'app')}</option>
               </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-600 mb-1">Descrição</label>
-              <input type="text" value={blockForm.description} onChange={e => setBlockForm({ ...blockForm, description: e.target.value })} placeholder="Ex: Capacitação da Equipe..." className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required />
+              <input type="text" value={blockForm.description} onChange={e => setBlockForm({ ...blockForm, description: e.target.value })} placeholder={t('agenda_block_description_placeholder', 'app')} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required />
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <button type="submit" className="py-2 px-4 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg transition">Registrar</button>
@@ -3779,7 +3779,7 @@ const AgendaModuleContent = ({
                 const p = clinicPatients.find(p => p.id === e.target.value);
                 setReminderForm({ ...reminderForm, patient_id: e.target.value, patient_name: p?.name || '', patient_phone: p?.phone || '', appointment_id: '', language: detectLanguage(p?.nationality) });
               }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
-                <option value="">Selecionar paciente...</option>
+                <option value="">{t('agenda_select_patient', 'app')}</option>
                 {clinicPatients.map(p => <option key={p.id} value={p.id}>{p.name} ({p.phone})</option>)}
               </select>
             </div>
@@ -3789,7 +3789,7 @@ const AgendaModuleContent = ({
                 const appt = reminderAppointments.find(a => a.id === e.target.value);
                 setReminderForm({ ...reminderForm, appointment_id: e.target.value, template_id: appt ? suggestTemplate(appt.date, appt.time) : reminderForm.template_id });
               }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required disabled={!reminderForm.patient_id}>
-                <option value="">{!reminderForm.patient_id ? 'Selecione um paciente primeiro...' : 'Selecionar agendamento...'}</option>
+                <option value="">{!reminderForm.patient_id ? t('agenda_select_patient_first', 'app') : t('agenda_select_appointment', 'app')}</option>
                 {reminderAppointments.map(a => (
                    <option key={a.id} value={a.id}>{a.date} {normalizeTime(a.time)} - {a.doctorName}</option>
                 ))}
@@ -3799,7 +3799,7 @@ const AgendaModuleContent = ({
               <div>
                 <label className="block text-sm font-medium text-slate-600 mb-1">Idioma</label>
                 <select value={reminderForm.language} onChange={e => setReminderForm({ ...reminderForm, language: e.target.value as typeof reminderForm.language })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
-                  <option value="">Selecionar...</option>
+                  <option value="">{t('agenda_select', 'app')}</option>
                   <option value="pt-BR">Português (Brasil)</option>
                   <option value="pt-PT">Português (Portugal)</option>
                   <option value="es-AR">Español (Argentina)</option>
@@ -3812,7 +3812,7 @@ const AgendaModuleContent = ({
               <div>
                 <label className="block text-sm font-medium text-slate-600 mb-1">Modelo</label>
                 <select value={reminderForm.template_id} onChange={e => setReminderForm({ ...reminderForm, template_id: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
-                  <option value="">Selecionar...</option>
+                  <option value="">{t('agenda_select', 'app')}</option>
                   {WHATSAPP_TEMPLATES.map(tpl => (
                     <option key={tpl.id} value={tpl.id}>{tpl.name} ({tpl.hoursBefore}h antes)</option>
                   ))}
@@ -3837,7 +3837,7 @@ const AgendaModuleContent = ({
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <button type="submit" className="py-2 px-4 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg transition">Agendar</button>
-              <button type="button" onClick={() => { setShowReminderModal(false); setReminderForm({ patient_id: '', patient_name: '', patient_phone: '', appointment_id: '', language: '', template_id: '' }); }} className="py-2 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg transition">Cancelar</button>
+              <button type="button" onClick={() => { setShowReminderModal(false); setReminderForm({ patient_id: '', patient_name: '', patient_phone: '', appointment_id: '', language: '', template_id: '' }); }} className="py-2 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg transition">{t('agenda_cancel', 'app')}</button>
             </div>
           </form>
         </div>
@@ -3854,7 +3854,7 @@ const AgendaModuleContent = ({
                 const p = clinicPatients.find(p => p.id === e.target.value);
                 setWaitlistForm({ ...waitlistForm, patient_id: e.target.value, patient_name: p?.name || '', phone: p?.phone || '' });
               }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
-                <option value="">Selecionar paciente...</option>
+                <option value="">{t('agenda_select_patient', 'app')}</option>
                 {clinicPatients.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
             </div>
@@ -3863,7 +3863,7 @@ const AgendaModuleContent = ({
               <select value={waitlistForm.branch} onChange={e => {
                 setWaitlistForm({ ...waitlistForm, branch: e.target.value, specialty: '', doctor_name: '' });
               }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
-                <option value="">Selecionar sede...</option>
+                <option value="">{t('agenda_select_branch', 'app')}</option>
                 {locations.filter(l => l.status === 'ativo').map(loc => (
                   <option key={loc.id} value={loc.id}>{loc.name}</option>
                 ))}
@@ -3874,14 +3874,14 @@ const AgendaModuleContent = ({
               <select value={waitlistForm.specialty} onChange={e => {
                 setWaitlistForm({ ...waitlistForm, specialty: e.target.value, doctor_name: '' });
               }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
-                <option value="">Selecionar especialidade...</option>
+                <option value="">{t('agenda_select_specialty', 'app')}</option>
                 {waitlistAvailableSpecialties.map(sp => (
                   <option key={sp} value={sp}>{sp}</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-600 mb-1">Profissional</label>
+              <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_professional', 'app')}</label>
               <select value={waitlistForm.doctor_name} onChange={e => setWaitlistForm({ ...waitlistForm, doctor_name: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
                 <option value="">Todos os Profissionais</option>
                 {waitlistAvailableDoctors.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
@@ -3913,7 +3913,7 @@ const AgendaModuleContent = ({
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-600 mb-1">Horários Preferidos</label>
+              <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_preferred_hours', 'app')}</label>
               <div className="flex flex-wrap gap-2">
                 {['Manhã (07:00-12:00)', 'Tarde (12:00-18:00)', 'Noite (18:00-22:00)'].map(hour => (
                   <label key={hour} className="flex items-center gap-1 text-sm">
@@ -3930,7 +3930,7 @@ const AgendaModuleContent = ({
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <button type="submit" className="py-2 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition">Adicionar</button>
-              <button type="button" onClick={() => { setShowWaitlistModal(false); setWaitlistForm({ patient_id: '', patient_name: '', phone: '', branch: '', specialty: '', doctor_name: '', priority_criteria: 'arrival', preferred_days: [], preferred_hours: [] }); }} className="py-2 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg transition">Cancelar</button>
+              <button type="button" onClick={() => { setShowWaitlistModal(false); setWaitlistForm({ patient_id: '', patient_name: '', phone: '', branch: '', specialty: '', doctor_name: '', priority_criteria: 'arrival', preferred_days: [], preferred_hours: [] }); }} className="py-2 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg transition">{t('agenda_cancel', 'app')}</button>
             </div>
           </form>
         </div>
@@ -3949,7 +3949,7 @@ const AgendaModuleContent = ({
               <div>
                 <label className="block text-sm font-medium text-slate-600 mb-1">Idioma</label>
                 <select value={notifyLanguage} onChange={e => setNotifyLanguage(e.target.value as typeof notifyLanguage)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
-                  <option value="">Selecionar...</option>
+                  <option value="">{t('agenda_select', 'app')}</option>
                   <option value="pt-BR">Português (Brasil)</option>
                   <option value="pt-PT">Português (Portugal)</option>
                   <option value="es-AR">Español (Argentina)</option>
@@ -3962,7 +3962,7 @@ const AgendaModuleContent = ({
               <div>
                 <label className="block text-sm font-medium text-slate-600 mb-1">Template</label>
                 <select value={notifyTemplate} onChange={e => setNotifyTemplate(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
-                  <option value="">Selecionar...</option>
+                  <option value="">{t('agenda_select', 'app')}</option>
                   {WHATSAPP_TEMPLATES.map(t => (
                     <option key={t.id} value={t.id}>{t.name} ({t.hoursBefore}h antes)</option>
                   ))}
@@ -3974,37 +3974,37 @@ const AgendaModuleContent = ({
                   <input type="date" value={notifyConsultDate} onChange={e => setNotifyConsultDate(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-600 mb-1">Horário da Consulta <span className="text-red-500">*</span></label>
+                  <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_th_consult_date', 'app')} <span className="text-red-500">*</span></label>
                   <select value={notifyConsultTime} onChange={e => setNotifyConsultTime(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
-                    <option value="">Selecionar...</option>
-                    {TIME_SLOTS.map(t => {
-                      const taken = isTimeSlotTaken(notifyConsultDate, t, notifyEntry.doctor_name || '', appointments, waitlist, notifyEntry.id);
-                      const blocked = isBlocked(notifyConsultDate, t, (notifyEntry.doctor_name || ''), notifyEntry.branch || undefined);
+                    <option value="">{t('agenda_select', 'app')}</option>
+                    {TIME_SLOTS.map(slot => {
+                      const taken = isTimeSlotTaken(notifyConsultDate, slot, notifyEntry.doctor_name || '', appointments, waitlist, notifyEntry.id);
+                      const blocked = isBlocked(notifyConsultDate, slot, (notifyEntry.doctor_name || ''), notifyEntry.branch || undefined);
                       const disabled = taken || blocked;
-                      return <option key={t} value={t} disabled={disabled}>{t} {taken ? '(ocupado)' : blocked ? '(bloqueado)' : ''}</option>;
+                      return <option key={slot} value={slot} disabled={disabled}>{slot} {taken ? `(${t('agenda_time_occupied_label', 'app').replace('⛔ ', '')})` : blocked ? `(${t('agenda_time_blocked_label', 'app').replace('🔒 ', '')})` : ''}</option>;
                     })}
                   </select>
                 </div>
               </div>
               {notifyConsultDate && notifyEntry.doctor_name && (
                 <div className="bg-slate-50 p-3 rounded-lg">
-                  <p className="text-xs font-semibold text-slate-600 mb-2">Horários indisponíveis nesta data:</p>
+                  <p className="text-xs font-semibold text-slate-600 mb-2">{t('agenda_unavailable_times', 'app') || 'Horários indisponíveis nesta data:'}</p>
                   <div className="flex flex-wrap gap-1">
-                    {TIME_SLOTS.filter(t => {
+                    {TIME_SLOTS.filter(slot => {
                       const docName = notifyEntry.doctor_name || '';
-                      const taken = isTimeSlotTaken(notifyConsultDate, t, docName, appointments, waitlist, notifyEntry.id);
-                      const blocked = isBlocked(notifyConsultDate, t, docName, notifyEntry.branch || undefined);
+                      const taken = isTimeSlotTaken(notifyConsultDate, slot, docName, appointments, waitlist, notifyEntry.id);
+                      const blocked = isBlocked(notifyConsultDate, slot, docName, notifyEntry.branch || undefined);
                       return taken || blocked;
-                    }).map(t => (
-                      <span key={t} className="px-2 py-0.5 bg-red-100 text-red-700 text-xs font-semibold rounded">{t}</span>
+                    }).map(slot => (
+                      <span key={slot} className="px-2 py-0.5 bg-red-100 text-red-700 text-xs font-semibold rounded">{slot}</span>
                     ))}
-                    {TIME_SLOTS.filter(t => {
+                    {TIME_SLOTS.filter(slot => {
                       const docName = notifyEntry.doctor_name || '';
-                      const taken = isTimeSlotTaken(notifyConsultDate, t, docName, appointments, waitlist, notifyEntry.id);
-                      const blocked = isBlocked(notifyConsultDate, t, docName, notifyEntry.branch || undefined);
+                      const taken = isTimeSlotTaken(notifyConsultDate, slot, docName, appointments, waitlist, notifyEntry.id);
+                      const blocked = isBlocked(notifyConsultDate, slot, docName, notifyEntry.branch || undefined);
                       return taken || blocked;
                     }).length === 0 && (
-                      <span className="text-xs text-green-600">Todos os horários disponíveis</span>
+                      <span className="text-xs text-green-600">{t('agenda_all_times_available', 'app') || 'Todos os horários disponíveis'}</span>
                     )}
                   </div>
                 </div>
@@ -4025,7 +4025,7 @@ const AgendaModuleContent = ({
               </div>
               <div className="flex justify-end gap-2 pt-2">
                 <button onClick={handleNotifySubmit} className="py-2 px-4 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg transition">Enviar Notificação</button>
-                <button type="button" onClick={() => setShowNotifyModal(false)} className="py-2 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg transition">Cancelar</button>
+                <button type="button" onClick={() => setShowNotifyModal(false)} className="py-2 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg transition">{t('agenda_cancel', 'app')}</button>
               </div>
             </div>
           )}
@@ -4049,20 +4049,20 @@ const AgendaModuleContent = ({
                   <input type="date" value={allocateDate} onChange={e => setAllocateDate(e.target.value)} min={new Date().toISOString().split('T')[0]} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-600 mb-1">Horário</label>
+                  <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_time', 'app')}</label>
                   <select value={allocateTime} onChange={e => setAllocateTime(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
-                    <option value="">Selecionar...</option>
-                    {TIME_SLOTS.map(t => {
-                      const taken = isTimeSlotTaken(allocateDate, t, allocateDoctor, appointments, waitlist);
-                      return <option key={t} value={t} disabled={taken}>{t} {taken ? '(ocupado)' : ''}</option>;
+                    <option value="">{t('agenda_select', 'app')}</option>
+                    {TIME_SLOTS.map(slot => {
+                      const taken = isTimeSlotTaken(allocateDate, slot, allocateDoctor, appointments, waitlist);
+                      return <option key={slot} value={slot} disabled={taken}>{slot} {taken ? `(${t('agenda_time_occupied_label', 'app').replace('⛔ ', '')})` : ''}</option>;
                     })}
                   </select>
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">Profissional</label>
+                <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_professional', 'app')}</label>
                 <select value={allocateDoctor} onChange={e => setAllocateDoctor(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
-                  <option value="">Selecionar...</option>
+                  <option value="">{t('agenda_select', 'app')}</option>
                   {professionals.filter(p => {
                     if (p.status !== 'ativo') return false;
                     if (allocateEntry.branch && p.locationId && p.locationId !== allocateEntry.branch) return false;
@@ -4075,20 +4075,20 @@ const AgendaModuleContent = ({
               </div>
               {allocateDate && allocateDoctor && (
                 <div className="bg-slate-50 p-3 rounded-lg">
-                  <p className="text-xs font-semibold text-slate-600 mb-2">Horários ocupados nesta data:</p>
+                  <p className="text-xs font-semibold text-slate-600 mb-2">{t('agenda_occupied_times', 'app') || 'Horários ocupados nesta data:'}</p>
                   <div className="flex flex-wrap gap-1">
                     {appointments.filter(a => a.date === allocateDate && a.doctorName === allocateDoctor && a.status !== 'cancelado').map(a => (
                        <span key={a.id} className="px-2 py-0.5 bg-red-100 text-red-700 text-xs font-semibold rounded">{normalizeTime(a.time)}</span>
                     ))}
                     {appointments.filter(a => a.date === allocateDate && a.doctorName === allocateDoctor && a.status !== 'cancelado').length === 0 && (
-                      <span className="text-xs text-green-600">Nenhum horário ocupado</span>
+                      <span className="text-xs text-green-600">{t('agenda_no_occupied_times', 'app') || 'Nenhum horário ocupado'}</span>
                     )}
                   </div>
                 </div>
               )}
               <div className="flex justify-end gap-2 pt-2">
-                <button onClick={handleAllocateSubmit} disabled={!allocateDate || !allocateTime || !allocateDoctor} className="py-2 px-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white font-bold rounded-lg transition">Alocar e Agendar</button>
-                <button type="button" onClick={() => setShowAllocateModal(false)} className="py-2 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg transition">Cancelar</button>
+                <button onClick={handleAllocateSubmit} disabled={!allocateDate || !allocateTime || !allocateDoctor} className="py-2 px-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white font-bold rounded-lg transition">{t('agenda_allocate_and_schedule', 'app')}</button>
+                <button type="button" onClick={() => setShowAllocateModal(false)} className="py-2 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg transition">{t('agenda_cancel', 'app')}</button>
               </div>
             </div>
           )}
@@ -4107,7 +4107,7 @@ const AgendaModuleContent = ({
                   const p = patients.find(p => p.id === e.target.value);
                   setEditWaitlistForm({ ...editWaitlistForm, patient_id: e.target.value, patient_name: p?.name || '', phone: p?.phone || '' });
                 }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
-                  <option value="">Selecionar paciente...</option>
+                  <option value="">{t('agenda_select_patient', 'app')}</option>
                   {patients.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
               </div>
@@ -4116,7 +4116,7 @@ const AgendaModuleContent = ({
                 <select value={editWaitlistForm.branch} onChange={e => {
                   setEditWaitlistForm({ ...editWaitlistForm, branch: e.target.value, specialty: '', doctor_name: '' });
                 }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
-                  <option value="">Selecionar sede...</option>
+                  <option value="">{t('agenda_select_branch', 'app')}</option>
                   {locations.filter(l => l.status === 'ativo').map(loc => (
                     <option key={loc.id} value={loc.id}>{loc.name}</option>
                   ))}
@@ -4127,14 +4127,14 @@ const AgendaModuleContent = ({
                 <select value={editWaitlistForm.specialty} onChange={e => {
                   setEditWaitlistForm({ ...editWaitlistForm, specialty: e.target.value, doctor_name: '' });
                 }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
-                  <option value="">Selecionar especialidade...</option>
+                  <option value="">{t('agenda_select_specialty', 'app')}</option>
                   {waitlistAvailableSpecialties.map(sp => (
                     <option key={sp} value={sp}>{sp}</option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">Profissional</label>
+                <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_professional', 'app')}</label>
                 <select value={editWaitlistForm.doctor_name} onChange={e => setEditWaitlistForm({ ...editWaitlistForm, doctor_name: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
                   <option value="">Todos os Profissionais</option>
                   {waitlistAvailableDoctors.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
@@ -4175,7 +4175,7 @@ const AgendaModuleContent = ({
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">Horários Preferidos</label>
+                <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_preferred_hours', 'app')}</label>
                 <div className="flex flex-wrap gap-2">
                   {['Manhã (07:00-12:00)', 'Tarde (12:00-18:00)', 'Noite (18:00-22:00)'].map(hour => (
                     <label key={hour} className="flex items-center gap-1 text-sm">
@@ -4191,8 +4191,8 @@ const AgendaModuleContent = ({
                 </div>
               </div>
               <div className="flex justify-end gap-2 pt-2">
-                <button onClick={handleEditWaitlistSubmit} className="py-2 px-4 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg transition">Salvar Alterações</button>
-                <button type="button" onClick={() => setShowEditWaitlistModal(false)} className="py-2 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg transition">Cancelar</button>
+                <button onClick={handleEditWaitlistSubmit} className="py-2 px-4 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg transition">{t('agenda_save_changes', 'app')}</button>
+                <button type="button" onClick={() => setShowEditWaitlistModal(false)} className="py-2 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg transition">{t('agenda_cancel', 'app')}</button>
               </div>
             </div>
           )}
@@ -4210,7 +4210,7 @@ const AgendaModuleContent = ({
                 const p = clinicPatients.find(p => p.id === e.target.value);
                 setCallForm({ ...callForm, patient_id: e.target.value, patient_name: p?.name || '', patient_phone: p?.phone || '' });
               }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
-                <option value="">Selecionar paciente...</option>
+                <option value="">{t('agenda_select_patient', 'app')}</option>
                 {clinicPatients.map(p => <option key={p.id} value={p.id}>{p.name} ({p.phone})</option>)}
               </select>
             </div>
@@ -4218,7 +4218,7 @@ const AgendaModuleContent = ({
               <div>
                 <label className="block text-sm font-medium text-slate-600 mb-1">Tipo</label>
                 <select value={callForm.type} onChange={e => setCallForm({ ...callForm, type: e.target.value as CallLog['type'] })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
-                  <option value="">Selecionar...</option>
+                  <option value="">{t('agenda_select', 'app')}</option>
                   <option value="inbound">Recebida</option>
                   <option value="outbound">Efetuada</option>
                 </select>
@@ -4226,8 +4226,8 @@ const AgendaModuleContent = ({
               <div>
                 <label className="block text-sm font-medium text-slate-600 mb-1">Motivo</label>
                 <select value={callForm.reason} onChange={e => setCallForm({ ...callForm, reason: e.target.value as CallLog['reason'] })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
-                  <option value="">Selecionar...</option>
-                  {CALL_CENTER_REASONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                  <option value="">{t('agenda_select', 'app')}</option>
+                  {CALL_CENTER_REASONS.map(r => <option key={r.value} value={r.value}>{t(r.labelKey, 'app')}</option>)}
                 </select>
               </div>
             </div>
@@ -4237,7 +4237,7 @@ const AgendaModuleContent = ({
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <button type="submit" className="py-2 px-4 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-lg transition">Registrar</button>
-              <button type="button" onClick={() => { setShowCallModal(false); setCallForm({ operator_name: activeOperator, patient_id: '', patient_name: '', patient_phone: '', type: '', reason: '', notes: '', duration_seconds: 0 }); }} className="py-2 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg transition">Cancelar</button>
+              <button type="button" onClick={() => { setShowCallModal(false); setCallForm({ operator_name: activeOperator, patient_id: '', patient_name: '', patient_phone: '', type: '', reason: '', notes: '', duration_seconds: 0 }); }} className="py-2 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg transition">{t('agenda_cancel', 'app')}</button>
             </div>
           </form>
         </div>
