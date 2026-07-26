@@ -44,7 +44,7 @@ export default function ReceptionModule({
   activeOperator = 'Operador',
   userPermissions = [],
 }: ReceptionModuleProps) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   // Tab control inside Admission Form
   const [activeFormTab, setActiveFormTab] = useState<'identification' | 'contact_address' | 'complementary' | 'guardian'>('identification');
 
@@ -1453,14 +1453,14 @@ export default function ReceptionModule({
 
   // --- Hospital Distribution Handlers ---
   const locationTypeLabel: Record<HospitalLocation['type'], string> = {
-    consultorio: 'Consultório',
-    enfermaria: 'Enfermaria',
-    uti: 'UTI',
-    raio_x: 'Sala de Raio-X',
-    laboratorio: 'Laboratório',
-    cirurgia: 'Sala de Cirurgia',
-    sala_espera: 'Sala de Espera',
-    outro: 'Outro',
+    consultorio: t('rcpt_loc_type_consultorio', 'app'),
+    enfermaria: t('rcpt_loc_type_enfermaria', 'app'),
+    uti: t('rcpt_loc_type_uti', 'app'),
+    raio_x: t('rcpt_loc_type_raio_x', 'app'),
+    laboratorio: t('rcpt_loc_type_laboratorio', 'app'),
+    cirurgia: t('rcpt_loc_type_cirurgia', 'app'),
+    sala_espera: t('rcpt_loc_type_sala_espera', 'app'),
+    outro: t('rcpt_loc_type_outro', 'app'),
   };
   const locationTypeIcon: Record<HospitalLocation['type'], string> = {
     consultorio: '📍',
@@ -1543,7 +1543,7 @@ export default function ReceptionModule({
         patientName: patient.name,
         fromLocation: 'Triagem',
         toLocation: targetLoc.name,
-        message: `Paciente ${patient.name} encaminhado para ${targetLoc.name}`,
+        message: `${t('rcpt_notif_patient', 'app')} ${patient.name} ${t('rcpt_notif_forwarded_to', 'app')} ${targetLoc.name}`,
         read: false,
         createdAt: new Date().toISOString(),
       };
@@ -1683,7 +1683,7 @@ export default function ReceptionModule({
       patientName: redirectPatient.name,
       fromLocation: fromLoc?.name || 'Origem',
       toLocation: targetLoc.name,
-      message: `Paciente ${redirectPatient.name} redirecionado para ${targetLoc.name}`,
+      message: `${t('rcpt_notif_patient', 'app')} ${redirectPatient.name} ${t('rcpt_notif_redirected_to', 'app')} ${targetLoc.name}`,
       read: false,
       createdAt: new Date().toISOString(),
     };
@@ -1990,9 +1990,9 @@ export default function ReceptionModule({
                         >
                           <option value="">{t('rcpt_select', 'app')}</option>
                           <option value="CI">{t('rcpt_doc_ci', 'app')}</option>
-                          <option value="Passaporte">Passaporte</option>
+                          <option value="Passaporte">{t('rcpt_doc_passport', 'app')}</option>
                           <option value="RG">{t('rcpt_doc_rg', 'app')}</option>
-                          <option value="Outro">DNI / Outro</option>
+                          <option value="Outro">{t('rcpt_doc_other', 'app')}</option>
                         </select>
                       </div>
                       <div>
@@ -2094,7 +2094,7 @@ export default function ReceptionModule({
                       <div className="flex items-center gap-4">
                         <div className="w-20 h-20 bg-slate-100 rounded-full border-2 border-slate-200 overflow-hidden flex items-center justify-center relative">
                           {webcamPlaceholder ? (
-                            <img src={webcamPlaceholder} className="w-full h-full object-cover" alt="Patient Capture" />
+                            <img src={webcamPlaceholder} className="w-full h-full object-cover" alt={t('rcpt_alt_patient_capture', 'app')} />
                           ) : (
                             <User className="w-8 h-8 text-slate-300" />
                           )}
@@ -2359,11 +2359,11 @@ export default function ReceptionModule({
                           >
                             <option value="">{t('rcpt_select', 'app')}</option>
                             <option value="Particular">{t('rcpt_insurance_particular', 'app')}</option>
-                            <option value="IPS">IPS (Segurado)</option>
+                            <option value="IPS">{t('rcpt_insurance_ips', 'app')}</option>
                             <option value="Sanidade Militar">{t('rcpt_insurance_military', 'app')}</option>
                             <option value="Sanidade Policial">{t('rcpt_insurance_police', 'app')}</option>
-                            <option value="Pré-paga">Pré-paga / Privado</option>
-                            <option value="Seguro Privado">Seguro Internacional</option>
+                            <option value="Pré-paga">{t('rcpt_insurance_prepaid', 'app')}</option>
+                            <option value="Seguro Privado">{t('rcpt_insurance_international', 'app')}</option>
                           </select>
                         </div>
                         <div>
@@ -2420,7 +2420,7 @@ export default function ReceptionModule({
                       <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 flex items-start gap-2.5 mb-2 font-semibold">
                         <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5 animate-bounce" />
                         <div>
-                          O paciente é menor de idade ({age} anos).
+                          {t('rcpt_label_minor_warning', 'app').replace('{age}', String(age))}
                           <br />
                           {t('rcpt_form_minor_text', 'app').split('obrigatório')[0]} <span className="font-black">obrigatório</span> {t('rcpt_form_minor_text', 'app').split('obrigatório para')[1] || ''}
                         </div>
@@ -2454,9 +2454,9 @@ export default function ReceptionModule({
                         >
                           <option value="">{t('rcpt_select', 'app')}</option>
                           <option value="CI">{t('rcpt_doc_ci', 'app')}</option>
-                          <option value="Passaporte">Passaporte</option>
+                          <option value="Passaporte">{t('rcpt_doc_passport', 'app')}</option>
                           <option value="RG">{t('rcpt_doc_rg', 'app')}</option>
-                          <option value="Outro">DNI / Outro</option>
+                          <option value="Outro">{t('rcpt_doc_other', 'app')}</option>
                         </select>
                       </div>
                       <div>
@@ -2611,7 +2611,7 @@ export default function ReceptionModule({
                   <option value="todos">{t('rcpt_all_priorities', 'app')}</option>
                   <option value="normal">{t('rcpt_priority_normal', 'app')}</option>
                   <option value="preferencial">{t('rcpt_priority_preferential', 'app')}</option>
-                  <option value="emergência">Emergência</option>
+                  <option value="emergência">{t('rcpt_priority_emergency', 'app')}</option>
                 </select>
               </div>
             </div>
@@ -2637,25 +2637,25 @@ export default function ReceptionModule({
                         )}
                         {p.priority === 'preferencial' && (
                           <span className="self-start px-3 py-1 bg-amber-50 text-amber-700 text-[11px] font-black uppercase rounded-lg border border-amber-200 flex items-center gap-1.5 shadow-sm">
-                            <span className="text-amber-500">⭐</span> PREFERENCIAL
+                            <span className="text-amber-500">⭐</span> {t('rcpt_priority_preferential', 'app')}
                           </span>
                         )}
                         {p.priority === 'normal' && (
                           <span className="self-start px-3 py-1 bg-slate-100 text-slate-600 text-[11px] font-bold uppercase rounded-lg border border-slate-200">
-                            Normal
+                            {t('rcpt_priority_normal', 'app')}
                           </span>
                         )}
                         {pIsMinor && (
                           <span className="self-start px-3 py-1 bg-indigo-50 text-indigo-700 text-[11px] font-bold uppercase rounded-lg border border-indigo-200">
-                            Menor
+                            {t('rcpt_list_minor_badge', 'app')}
                           </span>
                         )}
                         
                         <div className="text-[12px] text-slate-700 space-y-0.5 leading-relaxed">
                           <p><span className="text-slate-500 font-medium">{t('rcpt_list_full_name', 'app')}</span> <span className="font-bold text-slate-800">{p.name}</span></p>
-                          <p><span className="text-slate-500 font-medium">{t('rcpt_list_birth_date', 'app')}</span> <span className="font-semibold">{p.birthdate ? new Date(p.birthdate).toLocaleDateString('pt-BR') : '—'} {pAge ? `(${pAge} anos)` : ''}</span></p>
-                          <p><span className="text-slate-500 font-medium">{t('rcpt_list_gender', 'app')}</span> <span className="font-semibold">{p.gender || '—'}</span></p>
-                          <p><span className="text-slate-500 font-medium">{t('rcpt_merge_phone_label', 'app')}</span> <span className="font-semibold">{p.phone}</span> {p.whatsapp_verified && <span className="text-green-600 font-bold text-[10px]">WA</span>}</p>
+                          <p><span className="text-slate-500 font-medium">{t('rcpt_list_birth_date', 'app')}</span> <span className="font-semibold">{p.birthdate ? new Date(p.birthdate).toLocaleDateString(locale) : '—'} {pAge ? `(${pAge} ${t('rcpt_list_years', 'app')})` : ''}</span></p>
+                          <p><span className="text-slate-500 font-medium">{t('rcpt_list_gender', 'app')}</span> <span className="font-semibold">{p.gender === 'Masculino' ? t('rcpt_gender_male', 'app') : p.gender === 'Feminino' ? t('rcpt_gender_female', 'app') : p.gender === 'Outro' ? t('rcpt_gender_other', 'app') : p.gender || '—'}</span></p>
+                          <p><span className="text-slate-500 font-medium">{t('rcpt_merge_phone_label', 'app')}</span> <span className="font-semibold">{p.phone}</span> {p.whatsapp_verified && <span className="text-green-600 font-bold text-[10px]">{t('rcpt_whatsapp_badge', 'app')}</span>}</p>
                           {p.blood_type && p.blood_type !== 'Não Informado' && (
                             <p><span className="text-slate-500 font-medium">{t('rcpt_list_blood_type', 'app')}</span> <span className="font-bold text-rose-600">{p.blood_type}</span></p>
                           )}
@@ -2666,7 +2666,7 @@ export default function ReceptionModule({
                             <p><span className="text-slate-500 font-medium">{t('rcpt_list_allergies', 'app')}</span> <span className="font-semibold">{p.allergies}</span></p>
                           )}
                           {p.health_insurance_type && (
-                            <p><span className="text-slate-500 font-medium">{t('rcpt_list_insurance', 'app')}</span> <span className="font-semibold">{p.health_insurance_type === 'Particular' ? 'Particular' : p.health_insurance_type === 'IPS' ? 'IPS (Segurado)' : p.health_insurance_type === 'Sanidade Militar' ? 'Sanidade Militar' : p.health_insurance_type === 'Sanidade Policial' ? 'Sanidade Policial' : p.health_insurance_type === 'Pré-paga' ? 'Pré-paga / Privado' : p.health_insurance_type === 'Seguro Privado' ? 'Seguro Internacional' : p.health_insurance_type}</span></p>
+                            <p><span className="text-slate-500 font-medium">{t('rcpt_list_insurance', 'app')}</span> <span className="font-semibold">{p.health_insurance_type === 'Particular' ? t('rcpt_insurance_particular', 'app') : p.health_insurance_type === 'IPS' ? t('rcpt_insurance_ips', 'app') : p.health_insurance_type === 'Sanidade Militar' ? t('rcpt_insurance_military', 'app') : p.health_insurance_type === 'Sanidade Policial' ? t('rcpt_insurance_police', 'app') : p.health_insurance_type === 'Pré-paga' ? t('rcpt_insurance_prepaid', 'app') : p.health_insurance_type === 'Seguro Privado' ? t('rcpt_insurance_international', 'app') : p.health_insurance_type}</span></p>
                           )}
                           {pIsMinor && p.guardian_name && (
                             <p><span className="text-slate-500 font-medium">{t('rcpt_list_guardian', 'app')}</span> <span className="font-semibold">{p.guardian_name} ({p.guardian_relationship})</span></p>
@@ -2703,7 +2703,7 @@ export default function ReceptionModule({
                               className="bg-teal-600 hover:bg-teal-700 text-white text-[11px] px-3 py-1.5 rounded-lg font-bold shadow-sm transition cursor-pointer flex items-center gap-1"
                             >
                               <HeartPulse className="w-3.5 h-3.5 text-white animate-pulse" />
-                              {t('rcpt_list_perform_triage', 'app')}
+                              {t('rcpt_liberated', 'app')}
                             </button>
                           </div>
                         )}
@@ -2726,11 +2726,11 @@ export default function ReceptionModule({
                         {p.status === 'atendimento' && (
                           <div className="flex items-center gap-2 mt-1 flex-wrap">
                             <span className="text-[11px] font-bold px-2.5 py-1 bg-green-50 text-green-700 border border-green-200 rounded-full flex items-center gap-1">
-                              <CheckCircle2 className="w-3" /> Atendimento Concluído
+                              <CheckCircle2 className="w-3" /> {t('rcpt_attendance_completed', 'app')}
                             </span>
                             {p.clinicalHistory?.find((h: any) => h.type?.includes('Triagem'))?.triaged_at && (
                               <span className="text-[11px] font-bold text-teal-600">
-                                Triagem: {new Date(p.clinicalHistory?.find((h: any) => h.type?.includes('Triagem'))?.triaged_at || '').toLocaleString('pt-BR')}
+                                {t('rcpt_triage_label', 'app')} {new Date(p.clinicalHistory?.find((h: any) => h.type?.includes('Triagem'))?.triaged_at || '').toLocaleString(locale)}
                               </span>
                             )}
                           </div>
@@ -2739,11 +2739,11 @@ export default function ReceptionModule({
                         {p.status === 'atendido' && (
                           <div className="flex items-center gap-2 mt-1 flex-wrap">
                             <span className="text-[11px] font-bold px-2.5 py-1 bg-green-50 text-green-700 border border-green-200 rounded-full flex items-center gap-1">
-                              <CheckCircle2 className="w-3" /> Atendimento Concluído
+                              <CheckCircle2 className="w-3" /> {t('rcpt_attendance_completed', 'app')}
                             </span>
                             {p.clinicalHistory?.find((h: any) => h.type?.includes('Triagem'))?.triaged_at && (
                               <span className="text-[11px] font-bold text-teal-600">
-                                Triagem: {new Date(p.clinicalHistory?.find((h: any) => h.type?.includes('Triagem'))?.triaged_at || '').toLocaleString('pt-BR')}
+                                {t('rcpt_triage_label', 'app')} {new Date(p.clinicalHistory?.find((h: any) => h.type?.includes('Triagem'))?.triaged_at || '').toLocaleString(locale)}
                               </span>
                             )}
                           </div>
@@ -2768,7 +2768,7 @@ export default function ReceptionModule({
                       <div className="flex flex-col items-center gap-2 shrink-0">
                         <div className="w-20 h-20 rounded-xl border-2 border-slate-200 bg-white overflow-hidden flex items-center justify-center shadow-md">
                           {p.photo_url ? (
-                            <img src={p.photo_url} className="w-full h-full object-cover" alt="Profile" />
+                            <img src={p.photo_url} className="w-full h-full object-cover" alt={t('rcpt_alt_profile', 'app')} />
                           ) : (
                             <User className="w-10 h-10 text-slate-300" />
                           )}
@@ -2861,31 +2861,31 @@ export default function ReceptionModule({
                             p.priority === 'preferencial' ? 'bg-amber-100 text-amber-700' :
                             'bg-blue-100 text-blue-700'
                           }`}>
-                            {p.priority === 'emergência' ? 'Emergência' : p.priority === 'preferencial' ? 'Preferencial' : 'Normal'}
+                            {p.priority === 'emergência' ? t('rcpt_priority_emergency', 'app') : p.priority === 'preferencial' ? t('rcpt_priority_preferential', 'app') : t('rcpt_priority_normal', 'app')}
                           </span>
                         </div>
                         {p.birthdate && (
                           <p className="text-[11px] text-slate-500">
-                            {new Date(p.birthdate).toLocaleDateString('pt-BR')} {age !== null && `| ${age} anos`}
+                            {new Date(p.birthdate).toLocaleDateString(locale)} {age !== null && `| ${age} ${t('rcpt_list_years', 'app')}`}
                           </p>
                         )}
                         {p.document_number && (
                           <p className="text-[11px] text-slate-500">
-                            {p.document_type || 'CI'}: {p.document_number}
+                            {p.document_type || t('rcpt_doc_ci', 'app')}: {p.document_number}
                           </p>
                         )}
                         <p className="text-[11px] text-slate-500 flex items-center gap-1">
                           {p.phone}
-                          {p.whatsapp_verified && <span className="text-green-500 font-bold">WA</span>}
+                          {p.whatsapp_verified && <span className="text-green-500 font-bold">{t('rcpt_whatsapp_badge', 'app')}</span>}
                         </p>
                         {p.blood_type && p.blood_type !== 'Não Informado' && (
                           <p className="text-[11px] text-slate-500">
-                            Tipo: <span className="font-semibold">{p.blood_type}</span>
+                            {t('rcpt_list_blood_type', 'app')}: <span className="font-semibold">{p.blood_type}</span>
                           </p>
                         )}
                         {triagedAt && (
                           <p className="text-[10px] text-teal-600 font-semibold mt-1">
-                            Triagem: {new Date(triagedAt).toLocaleString('pt-BR')}
+                            {t('rcpt_triage_label', 'app')} {new Date(triagedAt).toLocaleString(locale)}
                           </p>
                         )}
                       </div>
@@ -2894,7 +2894,7 @@ export default function ReceptionModule({
                       onClick={() => { setDistributePatient(p); setShowDistributeModal(true); }}
                       className="w-full bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold py-1.5 rounded-lg transition cursor-pointer flex items-center justify-center gap-1"
                     >
-                      <ChevronRight className="w-3 h-3" /> Direcionar
+                      <ChevronRight className="w-3 h-3" /> {t('rcpt_distribute', 'app')}
                     </button>
                   </div>
                   );
@@ -3012,7 +3012,7 @@ export default function ReceptionModule({
                     <h4 className="text-sm font-bold text-slate-800 mb-1">{loc.name}</h4>
                     <p className="text-[10px] text-slate-500 mb-2">{locationTypeLabel[loc.type]}</p>
                     <p className="text-xs text-slate-600 mb-3">
-                      Fila: <span className="font-bold">{loc.currentPatients.length}</span> / {loc.capacity}
+                      {t('rcpt_loc_queue', 'app')}: <span className="font-bold">{loc.currentPatients.length}</span> / {loc.capacity}
                     </p>
 
                     {/* Capacidade 1: indicador de paciente */}
@@ -3090,7 +3090,7 @@ export default function ReceptionModule({
                   </div>
                   <h4 className="text-sm font-bold text-slate-800">{loc.name}</h4>
                   <p className="text-[10px] text-slate-500">{locationTypeLabel[loc.type]}</p>
-                  <p className="text-xs text-slate-600 mt-1">Capacidade: {loc.capacity}</p>
+                  <p className="text-xs text-slate-600 mt-1">{t('rcpt_location_capacity_label', 'app')} {loc.capacity}</p>
                 </div>
               ))}
             </div>
@@ -3135,7 +3135,7 @@ export default function ReceptionModule({
                 }`}>
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-sm font-bold text-slate-800">{n.patientName}</span>
-                    <span className="text-[10px] text-slate-400">{new Date(n.createdAt).toLocaleString('pt-BR')}</span>
+                    <span className="text-[10px] text-slate-400">{new Date(n.createdAt).toLocaleString(locale)}</span>
                   </div>
                   <p className="text-xs text-slate-600">
                     <span className="font-semibold">{n.fromLocation}</span> → <span className="font-semibold">{n.toLocation}</span>
@@ -3564,7 +3564,7 @@ export default function ReceptionModule({
                           {triageWeight && triageHeight
                             ? (() => {
                                 const bmi = parseFloat(triageWeight) / Math.pow(parseFloat(triageHeight) / 100, 2);
-                                const label = bmi < 18.5 ? t('rcpt_triage_bmi_underweight', 'app') : bmi < 25 ? 'Normal' : bmi < 30 ? 'Sobrepeso' : 'Obeso';
+                                const label = bmi < 18.5 ? t('rcpt_triage_bmi_underweight', 'app') : bmi < 25 ? t('rcpt_triage_bmi_normal', 'app') : bmi < 30 ? t('rcpt_triage_bmi_overweight', 'app') : t('rcpt_triage_bmi_obese', 'app');
                                 return `${bmi.toFixed(1)} — ${label}`;
                               })()
                             : t('rcpt_triage_bmi_info', 'app')
@@ -3600,7 +3600,7 @@ export default function ReceptionModule({
                             if (vitalsLimits.pa.yellow(systolic) || (!isNaN(diastolic) && diastolic >= 90 && diastolic <= 119)) {
                               return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block" /> {t('rcpt_triage_bp_elevated', 'app')}</p>;
                             }
-                            return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> Normal</p>;
+                            return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> {t('rcpt_triage_status_normal', 'app')}</p>;
                           }
                           return null;
                         })()}
@@ -3624,12 +3624,12 @@ export default function ReceptionModule({
                           const temp = parseFloat(triageTemp);
                           if (!isNaN(temp)) {
                             if (vitalsLimits.temp.orange(temp)) {
-                              return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-500 inline-block" /> Laranja — {temp >= 41.0 ? '≥ 41.0°C' : temp <= 35.0 ? '≤ 35.0°C' : '≥ 38.5°C (< 3 meses)'}</p>;
+                              return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-500 inline-block" /> {t('rcpt_triage_temp_orange', 'app')}</p>;
                             }
                             if (vitalsLimits.temp.yellow(temp)) {
-                              return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block" /> Amarelo — 38.5-40.9°C</p>;
+                              return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block" /> {t('rcpt_triage_temp_yellow', 'app')}</p>;
                             }
-                            return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> Normal</p>;
+                            return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> {t('rcpt_triage_status_normal', 'app')}</p>;
                           }
                           return null;
                         })()}
@@ -3679,7 +3679,7 @@ export default function ReceptionModule({
                             if (vitalsLimits.fc.yellow(hr)) {
                               return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block" /> {t('rcpt_triage_hr_elevated', 'app')}</p>;
                             }
-                            return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> Normal</p>;
+                            return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> {t('rcpt_triage_status_normal', 'app')}</p>;
                           }
                           return null;
                         })()}
@@ -3706,7 +3706,7 @@ export default function ReceptionModule({
                             if (vitalsLimits.fr.yellow(rr)) {
                               return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block" /> {t('rcpt_triage_rr_slightly', 'app')}</p>;
                             }
-                            return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> Normal</p>;
+                            return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> {t('rcpt_triage_status_normal', 'app')}</p>;
                           }
                           return null;
                         })()}
@@ -3808,7 +3808,7 @@ export default function ReceptionModule({
                       <div className="flex flex-col items-center gap-2">
                         <div className="w-32 h-32 rounded-lg border border-slate-200 bg-white overflow-hidden flex items-center justify-center shadow-xs">
                           {triagePatient.photo_url ? (
-                            <img src={triagePatient.photo_url} className="w-full h-full object-cover" alt="Foto do Paciente" />
+                            <img src={triagePatient.photo_url} className="w-full h-full object-cover" alt={t('rcpt_alt_patient_photo', 'app')} />
                           ) : (
                             <User className="w-16 h-16 text-slate-300" />
                           )}
@@ -4073,8 +4073,8 @@ export default function ReceptionModule({
                     <div>
                       <h3 className="font-bold text-slate-800 text-lg">{timelinePatient.name}</h3>
                       <p className="text-xs text-slate-500">
-                        {timelinePatient.document_type || 'CI'}: {timelinePatient.document_number || '—'}
-                        {timelinePatient.blood_type && timelinePatient.blood_type !== 'Não Informado' && ` | Tipo: ${timelinePatient.blood_type}`}
+                        {timelinePatient.document_type || t('rcpt_doc_ci', 'app')}: {timelinePatient.document_number || '—'}
+                        {timelinePatient.blood_type && timelinePatient.blood_type !== 'Não Informado' && ` | ${t('rcpt_list_blood_type', 'app')}: ${timelinePatient.blood_type}`}
                       </p>
                     </div>
                   </div>
@@ -4098,15 +4098,15 @@ export default function ReceptionModule({
                         doc.setTextColor(13, 148, 136); doc.setFontSize(12); doc.setFont('helvetica', 'bold');
                         doc.text(t('rcpt_pdf_triage', 'app'), 15, y); y += 6;
                         doc.setTextColor(100, 116, 139); doc.setFontSize(9); doc.setFont('helvetica', 'normal');
-                        if (triageEntry.triaged_at) { doc.text(`${t('rcpt_pdf_date', 'app')}: ${new Date(triageEntry.triaged_at).toLocaleString('pt-BR')}`, 15, y); y += 5; }
+                        if (triageEntry.triaged_at) { doc.text(`${t('rcpt_pdf_date', 'app')}: ${new Date(triageEntry.triaged_at).toLocaleString(locale)}`, 15, y); y += 5; }
                         if (triageEntry.vital_signs) {
                           const vs = triageEntry.vital_signs;
                           let vitals = '';
-                          if (vs.bp) vitals += `PA: ${vs.bp}  `;
-                          if (vs.temp) vitals += `Temp: ${vs.temp}C  `;
-                          if (vs.spo2) vitals += `SpO2: ${vs.spo2}%  `;
-                          if (vs.hr) vitals += `FC: ${vs.hr} BPM  `;
-                          if (vs.rr) vitals += `FR: ${vs.rr} IRPM`;
+                          if (vs.bp) vitals += `${t('rcpt_triage_bp_label', 'app')}: ${vs.bp}  `;
+                          if (vs.temp) vitals += `${t('rcpt_triage_temp_label', 'app')}: ${vs.temp}C  `;
+                          if (vs.spo2) vitals += `${t('rcpt_triage_spo2_label', 'app')}: ${vs.spo2}%  `;
+                          if (vs.hr) vitals += `${t('rcpt_triage_hr_label', 'app')}: ${vs.hr} BPM  `;
+                          if (vs.rr) vitals += `${t('rcpt_triage_rr_label', 'app')}: ${vs.rr} IRPM`;
                           doc.text(vitals, 15, y); y += 5;
                         }
                         y += 4;
@@ -4125,8 +4125,8 @@ export default function ReceptionModule({
                         doc.setTextColor(13, 148, 136); doc.setFontSize(11); doc.setFont('helvetica', 'bold');
                         doc.text(a.locationName, 19, y + 2); y += 8;
                         doc.setTextColor(100, 116, 139); doc.setFontSize(8); doc.setFont('helvetica', 'normal');
-                        doc.text(`${t('rcpt_pdf_entry', 'app')}: ${new Date(a.assignedAt).toLocaleString('pt-BR')}`, 19, y); y += 4;
-                        doc.text(`${t('rcpt_pdf_exit', 'app')}: ${a.completedAt ? new Date(a.completedAt).toLocaleString('pt-BR') : new Date(a.assignedAt).toLocaleString('pt-BR')}`, 19, y); y += 5;
+                        doc.text(`${t('rcpt_pdf_entry', 'app')}: ${new Date(a.assignedAt).toLocaleString(locale)}`, 19, y); y += 4;
+                        doc.text(`${t('rcpt_pdf_exit', 'app')}: ${a.completedAt ? new Date(a.completedAt).toLocaleString(locale) : new Date(a.assignedAt).toLocaleString(locale)}`, 19, y); y += 5;
                         if (med) {
                           doc.setFontSize(8); doc.setTextColor(51, 65, 85);
                           if (med.diagnosis) { doc.setFont('helvetica', 'bold'); doc.text(t('rcpt_pdf_diagnosis', 'app') + ': ', 19, y); doc.setFont('helvetica', 'normal'); doc.text(med.diagnosis, 52, y); y += 4; }
@@ -4182,11 +4182,11 @@ export default function ReceptionModule({
                                 </p>
                                 {triageEntry.vital_signs && (
                                   <div className="mt-1 text-[10px] text-slate-500 space-y-0.5">
-                                    {triageEntry.vital_signs.bp && <p>PA: {triageEntry.vital_signs.bp}</p>}
-                                    {triageEntry.vital_signs.spo2 && <p>SpO2: {triageEntry.vital_signs.spo2}</p>}
-                                    {triageEntry.vital_signs.temp && <p>Temp: {triageEntry.vital_signs.temp}</p>}
-                                    {triageEntry.vital_signs.hr && <p>FC: {triageEntry.vital_signs.hr}</p>}
-                                    {triageEntry.vital_signs.rr && <p>FR: {triageEntry.vital_signs.rr}</p>}
+                                    {triageEntry.vital_signs.bp && <p>{t('rcpt_triage_bp_label', 'app')}: {triageEntry.vital_signs.bp}</p>}
+                                    {triageEntry.vital_signs.spo2 && <p>{t('rcpt_triage_spo2_label', 'app')}: {triageEntry.vital_signs.spo2}</p>}
+                                    {triageEntry.vital_signs.temp && <p>{t('rcpt_triage_temp_label', 'app')}: {triageEntry.vital_signs.temp}</p>}
+                                    {triageEntry.vital_signs.hr && <p>{t('rcpt_triage_hr_label', 'app')}: {triageEntry.vital_signs.hr}</p>}
+                                    {triageEntry.vital_signs.rr && <p>{t('rcpt_triage_rr_label', 'app')}: {triageEntry.vital_signs.rr}</p>}
                                   </div>
                                 )}
                               </>
@@ -4215,11 +4215,11 @@ export default function ReceptionModule({
                         <div className="pb-4 flex-1">
                           <p className="text-xs font-bold text-slate-800">🏥 {assignment.locationName}</p>
                           <p className="text-[10px] text-slate-400">
-                            Entrada: {new Date(assignment.assignedAt).toLocaleString('pt-BR')}
+                            {t('rcpt_timeline_entry', 'app')} {new Date(assignment.assignedAt).toLocaleString(locale)}
                           </p>
                           {assignment.completedAt ? (
                             <p className="text-[10px] text-slate-400">
-                              Saída: {new Date(assignment.completedAt).toLocaleString('pt-BR')}
+                              {t('rcpt_timeline_exit', 'app')} {new Date(assignment.completedAt).toLocaleString(locale)}
                             </p>
                           ) : (
                             <p className="text-[10px] text-amber-500 font-semibold">{t('rcpt_timeline_ongoing', 'app')}</p>
@@ -4233,11 +4233,11 @@ export default function ReceptionModule({
                                   )}
                                   {med.triage_edits.vital_signs && (
                                     <div className="ml-2 space-y-0.5">
-                                      {med.triage_edits.vital_signs.bp && <p className="text-amber-600">PA: {med.triage_edits.vital_signs.bp}</p>}
-                                      {med.triage_edits.vital_signs.temp && <p className="text-amber-600">Temp: {med.triage_edits.vital_signs.temp}°C</p>}
-                                      {med.triage_edits.vital_signs.spo2 && <p className="text-amber-600">SpO2: {med.triage_edits.vital_signs.spo2}%</p>}
-                                      {med.triage_edits.vital_signs.hr && <p className="text-amber-600">FC: {med.triage_edits.vital_signs.hr} BPM</p>}
-                                      {med.triage_edits.vital_signs.rr && <p className="text-amber-600">FR: {med.triage_edits.vital_signs.rr} IRPM</p>}
+                                      {med.triage_edits.vital_signs.bp && <p className="text-amber-600">{t('rcpt_triage_bp_label', 'app')}: {med.triage_edits.vital_signs.bp}</p>}
+                                      {med.triage_edits.vital_signs.temp && <p className="text-amber-600">{t('rcpt_triage_temp_label', 'app')}: {med.triage_edits.vital_signs.temp}°C</p>}
+                                      {med.triage_edits.vital_signs.spo2 && <p className="text-amber-600">{t('rcpt_triage_spo2_label', 'app')}: {med.triage_edits.vital_signs.spo2}%</p>}
+                                      {med.triage_edits.vital_signs.hr && <p className="text-amber-600">{t('rcpt_triage_hr_label', 'app')}: {med.triage_edits.vital_signs.hr} BPM</p>}
+                                      {med.triage_edits.vital_signs.rr && <p className="text-amber-600">{t('rcpt_triage_rr_label', 'app')}: {med.triage_edits.vital_signs.rr} IRPM</p>}
                                     </div>
                                   )}
                                 </div>
@@ -4321,7 +4321,7 @@ export default function ReceptionModule({
               {/* Footer */}
               <div className="p-4 border-t border-slate-100">
                 <button onClick={() => { setShowTimelineModal(false); setTimelinePatient(null); setTimelineAssignments([]); }} className="w-full py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs rounded-lg transition cursor-pointer">
-                  Fechar
+                  {t('rcpt_timeline_close', 'app')}
                 </button>
               </div>
             </motion.div>
@@ -4449,7 +4449,7 @@ export default function ReceptionModule({
                      selectedLocation.currentPatients.length > 0 ? t('rcpt_loc_attending', 'app') : t('rcpt_loc_free', 'app')}
                   </span>
                   <span className="text-xs text-slate-500">
-                    Fila: <span className="font-bold text-slate-700">{selectedLocation.currentPatients.length}</span> / {selectedLocation.capacity}
+                    {t('rcpt_loc_queue', 'app')}: <span className="font-bold text-slate-700">{selectedLocation.currentPatients.length}</span> / {selectedLocation.capacity}
                   </span>
                 </div>
               </div>
@@ -4479,7 +4479,7 @@ export default function ReceptionModule({
                             </div>
                             <div>
                               <p className="text-sm font-bold text-slate-800">{pat.name}</p>
-                              <p className="text-xs text-slate-500">{pat.birthdate ? `${new Date().getFullYear() - new Date(pat.birthdate).getFullYear()} anos` : ''} | {pat.document_type || 'CI'}: {pat.document_number || 'N/A'} | {t('rcpt_list_blood_type', 'app')} <span className="font-bold text-rose-600">{pat.blood_type || '-'}</span></p>
+                              <p className="text-xs text-slate-500">{pat.birthdate ? `${new Date().getFullYear() - new Date(pat.birthdate).getFullYear()} ${t('rcpt_list_years', 'app')}` : ''} | {pat.document_type || t('rcpt_doc_ci', 'app')}: {pat.document_number || t('rcpt_not_applicable', 'app')} | {t('rcpt_list_blood_type', 'app')} <span className="font-bold text-rose-600">{pat.blood_type || '-'}</span></p>
                             </div>
                           </div>
                         </div>
@@ -4493,7 +4493,7 @@ export default function ReceptionModule({
                                 {triage.triage_color && (
                                   <span className="text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1.5" style={{ backgroundColor: triage.triage_color === 'red' ? '#fee2e2' : triage.triage_color === 'orange' ? '#ffedd5' : triage.triage_color === 'yellow' ? '#fef3c7' : triage.triage_color === 'green' ? '#dcfce7' : '#dbeafe', color: triage.triage_color === 'red' ? '#991b1b' : triage.triage_color === 'orange' ? '#9a3412' : triage.triage_color === 'yellow' ? '#92400e' : triage.triage_color === 'green' ? '#166534' : '#1e40af' }}>
                                     <span className={`w-2.5 h-2.5 rounded-full ${colorDot[triage.triage_color] || ''}`} />
-                                    {triage.triage_color === 'red' ? 'Vermelho' : triage.triage_color === 'orange' ? 'Laranja' : triage.triage_color === 'yellow' ? 'Amarelo' : triage.triage_color === 'green' ? 'Verde' : 'Azul'}
+                                    {triage.triage_color === 'red' ? t('rcpt_triage_color_red', 'app') : triage.triage_color === 'orange' ? t('rcpt_triage_color_orange', 'app') : triage.triage_color === 'yellow' ? t('rcpt_triage_color_yellow', 'app') : triage.triage_color === 'green' ? t('rcpt_triage_color_green', 'app') : t('rcpt_triage_color_blue', 'app')}
                                   </span>
                                 )}
                                 {!isEditingTriage ? (
@@ -4521,15 +4521,15 @@ export default function ReceptionModule({
                             {isEditingTriage ? (
                               <div className="space-y-2">
                                 <div>
-                                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Motivo</label>
+                                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_motivo', 'app')}</label>
                                   <input type="text" value={editTriageReason} onChange={e => setEditTriageReason(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
                                 </div>
                                 <div className="grid grid-cols-2 gap-2">
-                                  <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">PA</label><input type="text" value={editTriageBP} onChange={e => { const raw = e.target.value.replace(/[^0-9/]/g, ''); if ((raw.match(/\//g) || []).length > 1) return; setEditTriageBP(raw); }} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
-                                  <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Temp °C</label><input type="text" value={editTriageTemp} onChange={e => { const raw = e.target.value.replace(/[^0-9.]/g, ''); if ((raw.match(/\./g) || []).length > 1) return; setEditTriageTemp(raw); }} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
-                                  <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">SpO2 %</label><input type="text" value={editTriageSpo2} onChange={e => setEditTriageSpo2(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
-                                  <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">FC BPM</label><input type="text" value={editTriageHR} onChange={e => setEditTriageHR(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
-                                  <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">FR IRPM</label><input type="text" value={editTriageRR} onChange={e => setEditTriageRR(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
+                                  <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_triage_bp_label', 'app')}</label><input type="text" value={editTriageBP} onChange={e => { const raw = e.target.value.replace(/[^0-9/]/g, ''); if ((raw.match(/\//g) || []).length > 1) return; setEditTriageBP(raw); }} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
+                                  <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_triage_temp_label', 'app')}</label><input type="text" value={editTriageTemp} onChange={e => { const raw = e.target.value.replace(/[^0-9.]/g, ''); if ((raw.match(/\./g) || []).length > 1) return; setEditTriageTemp(raw); }} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
+                                  <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_triage_spo2_label', 'app')}</label><input type="text" value={editTriageSpo2} onChange={e => setEditTriageSpo2(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
+                                  <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_triage_hr_label', 'app')}</label><input type="text" value={editTriageHR} onChange={e => setEditTriageHR(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
+                                  <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_triage_rr_label', 'app')}</label><input type="text" value={editTriageRR} onChange={e => setEditTriageRR(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
                                 </div>
                               </div>
                             ) : (
@@ -4537,11 +4537,11 @@ export default function ReceptionModule({
                                 <p className="text-xs text-slate-600"><span className="font-bold">{t('rcpt_detail_reason_label', 'app')}</span> {hasTriageEdits ? editTriageReason : triage.diagnosis}</p>
                                 {(hasTriageEdits || vitals) && (
                                   <div className="grid grid-cols-2 gap-2 text-[11px]">
-                                    {(hasTriageEdits ? editTriageBP : vitals?.bp) && <p className="text-slate-600">PA: <span className="font-bold">{hasTriageEdits ? editTriageBP : vitals?.bp}</span></p>}
-                                    {(hasTriageEdits ? editTriageTemp : vitals?.temp) && <p className="text-slate-600">Temp: <span className="font-bold">{hasTriageEdits ? editTriageTemp : vitals?.temp}°C</span></p>}
-                                    {(hasTriageEdits ? editTriageSpo2 : vitals?.spo2) && <p className="text-slate-600">SpO2: <span className="font-bold">{hasTriageEdits ? editTriageSpo2 : vitals?.spo2}%</span></p>}
-                                    {(hasTriageEdits ? editTriageHR : vitals?.hr) && <p className="text-slate-600">FC: <span className="font-bold">{hasTriageEdits ? editTriageHR : vitals?.hr} BPM</span></p>}
-                                    {(hasTriageEdits ? editTriageRR : vitals?.rr) && <p className="text-slate-600">FR: <span className="font-bold">{hasTriageEdits ? editTriageRR : vitals?.rr} IRPM</span></p>}
+                                    {(hasTriageEdits ? editTriageBP : vitals?.bp) && <p className="text-slate-600">{t('rcpt_triage_bp_label', 'app')}: <span className="font-bold">{hasTriageEdits ? editTriageBP : vitals?.bp}</span></p>}
+                                    {(hasTriageEdits ? editTriageTemp : vitals?.temp) && <p className="text-slate-600">{t('rcpt_triage_temp_label', 'app')}: <span className="font-bold">{hasTriageEdits ? editTriageTemp : vitals?.temp}°C</span></p>}
+                                    {(hasTriageEdits ? editTriageSpo2 : vitals?.spo2) && <p className="text-slate-600">{t('rcpt_triage_spo2_label', 'app')}: <span className="font-bold">{hasTriageEdits ? editTriageSpo2 : vitals?.spo2}%</span></p>}
+                                    {(hasTriageEdits ? editTriageHR : vitals?.hr) && <p className="text-slate-600">{t('rcpt_triage_hr_label', 'app')}: <span className="font-bold">{hasTriageEdits ? editTriageHR : vitals?.hr} BPM</span></p>}
+                                    {(hasTriageEdits ? editTriageRR : vitals?.rr) && <p className="text-slate-600">{t('rcpt_triage_rr_label', 'app')}: <span className="font-bold">{hasTriageEdits ? editTriageRR : vitals?.rr} IRPM</span></p>}
                                   </div>
                                 )}
                                 {triage.preliminary_procedures && triage.preliminary_procedures.length > 0 && (
@@ -4631,7 +4631,7 @@ export default function ReceptionModule({
                             </div>
                             <div>
                               <p className="text-sm font-bold text-slate-800">{pat.name}</p>
-                              <p className="text-xs text-slate-500">{pat.birthdate ? `${new Date().getFullYear() - new Date(pat.birthdate).getFullYear()} anos` : ''} | {pat.document_type || 'CI'}: {pat.document_number || 'N/A'} | {t('rcpt_list_blood_type', 'app')} <span className="font-bold text-rose-600">{pat.blood_type || '-'}</span></p>
+                              <p className="text-xs text-slate-500">{pat.birthdate ? `${new Date().getFullYear() - new Date(pat.birthdate).getFullYear()} ${t('rcpt_list_years', 'app')}` : ''} | {pat.document_type || t('rcpt_doc_ci', 'app')}: {pat.document_number || t('rcpt_not_applicable', 'app')} | {t('rcpt_list_blood_type', 'app')} <span className="font-bold text-rose-600">{pat.blood_type || '-'}</span></p>
                             </div>
                           </div>
                         </div>
@@ -4645,7 +4645,7 @@ export default function ReceptionModule({
                                 {triage.triage_color && (
                                   <span className="text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1.5" style={{ backgroundColor: triage.triage_color === 'red' ? '#fee2e2' : triage.triage_color === 'orange' ? '#ffedd5' : triage.triage_color === 'yellow' ? '#fef3c7' : triage.triage_color === 'green' ? '#dcfce7' : '#dbeafe', color: triage.triage_color === 'red' ? '#991b1b' : triage.triage_color === 'orange' ? '#9a3412' : triage.triage_color === 'yellow' ? '#92400e' : triage.triage_color === 'green' ? '#166534' : '#1e40af' }}>
                                     <span className={`w-2.5 h-2.5 rounded-full ${colorDot[triage.triage_color] || ''}`} />
-                                    {triage.triage_color === 'red' ? 'Vermelho' : triage.triage_color === 'orange' ? 'Laranja' : triage.triage_color === 'yellow' ? 'Amarelo' : triage.triage_color === 'green' ? 'Verde' : 'Azul'}
+                                    {triage.triage_color === 'red' ? t('rcpt_triage_color_red', 'app') : triage.triage_color === 'orange' ? t('rcpt_triage_color_orange', 'app') : triage.triage_color === 'yellow' ? t('rcpt_triage_color_yellow', 'app') : triage.triage_color === 'green' ? t('rcpt_triage_color_green', 'app') : t('rcpt_triage_color_blue', 'app')}
                                   </span>
                                 )}
                                 {!isEditingTriage ? (
@@ -4673,15 +4673,15 @@ export default function ReceptionModule({
                             {isEditingTriage ? (
                               <div className="space-y-2">
                                 <div>
-                                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Motivo</label>
+                                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_motivo', 'app')}</label>
                                   <input type="text" value={editTriageReason} onChange={e => setEditTriageReason(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
                                 </div>
                                 <div className="grid grid-cols-2 gap-2">
-                                  <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">PA</label><input type="text" value={editTriageBP} onChange={e => { const raw = e.target.value.replace(/[^0-9/]/g, ''); if ((raw.match(/\//g) || []).length > 1) return; setEditTriageBP(raw); }} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
-                                  <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Temp °C</label><input type="text" value={editTriageTemp} onChange={e => { const raw = e.target.value.replace(/[^0-9.]/g, ''); if ((raw.match(/\./g) || []).length > 1) return; setEditTriageTemp(raw); }} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
-                                  <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">SpO2 %</label><input type="text" value={editTriageSpo2} onChange={e => setEditTriageSpo2(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
-                                  <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">FC BPM</label><input type="text" value={editTriageHR} onChange={e => setEditTriageHR(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
-                                  <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">FR IRPM</label><input type="text" value={editTriageRR} onChange={e => setEditTriageRR(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
+                                  <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_triage_bp_label', 'app')}</label><input type="text" value={editTriageBP} onChange={e => { const raw = e.target.value.replace(/[^0-9/]/g, ''); if ((raw.match(/\//g) || []).length > 1) return; setEditTriageBP(raw); }} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
+                                  <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_triage_temp_label', 'app')}</label><input type="text" value={editTriageTemp} onChange={e => { const raw = e.target.value.replace(/[^0-9.]/g, ''); if ((raw.match(/\./g) || []).length > 1) return; setEditTriageTemp(raw); }} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
+                                  <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_triage_spo2_label', 'app')}</label><input type="text" value={editTriageSpo2} onChange={e => setEditTriageSpo2(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
+                                  <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_triage_hr_label', 'app')}</label><input type="text" value={editTriageHR} onChange={e => setEditTriageHR(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
+                                  <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_triage_rr_label', 'app')}</label><input type="text" value={editTriageRR} onChange={e => setEditTriageRR(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
                                 </div>
                               </div>
                             ) : (
@@ -4689,11 +4689,11 @@ export default function ReceptionModule({
                                 <p className="text-xs text-slate-600"><span className="font-bold">{t('rcpt_detail_reason_label', 'app')}</span> {hasTriageEdits ? editTriageReason : triage.diagnosis}</p>
                                 {(hasTriageEdits || vitals) && (
                                   <div className="grid grid-cols-2 gap-2 text-[11px]">
-                                    {(hasTriageEdits ? editTriageBP : vitals?.bp) && <p className="text-slate-600">PA: <span className="font-bold">{hasTriageEdits ? editTriageBP : vitals?.bp}</span></p>}
-                                    {(hasTriageEdits ? editTriageTemp : vitals?.temp) && <p className="text-slate-600">Temp: <span className="font-bold">{hasTriageEdits ? editTriageTemp : vitals?.temp}°C</span></p>}
-                                    {(hasTriageEdits ? editTriageSpo2 : vitals?.spo2) && <p className="text-slate-600">SpO2: <span className="font-bold">{hasTriageEdits ? editTriageSpo2 : vitals?.spo2}%</span></p>}
-                                    {(hasTriageEdits ? editTriageHR : vitals?.hr) && <p className="text-slate-600">FC: <span className="font-bold">{hasTriageEdits ? editTriageHR : vitals?.hr} BPM</span></p>}
-                                    {(hasTriageEdits ? editTriageRR : vitals?.rr) && <p className="text-slate-600">FR: <span className="font-bold">{hasTriageEdits ? editTriageRR : vitals?.rr} IRPM</span></p>}
+                                    {(hasTriageEdits ? editTriageBP : vitals?.bp) && <p className="text-slate-600">{t('rcpt_triage_bp_label', 'app')}: <span className="font-bold">{hasTriageEdits ? editTriageBP : vitals?.bp}</span></p>}
+                                    {(hasTriageEdits ? editTriageTemp : vitals?.temp) && <p className="text-slate-600">{t('rcpt_triage_temp_label', 'app')}: <span className="font-bold">{hasTriageEdits ? editTriageTemp : vitals?.temp}°C</span></p>}
+                                    {(hasTriageEdits ? editTriageSpo2 : vitals?.spo2) && <p className="text-slate-600">{t('rcpt_triage_spo2_label', 'app')}: <span className="font-bold">{hasTriageEdits ? editTriageSpo2 : vitals?.spo2}%</span></p>}
+                                    {(hasTriageEdits ? editTriageHR : vitals?.hr) && <p className="text-slate-600">{t('rcpt_triage_hr_label', 'app')}: <span className="font-bold">{hasTriageEdits ? editTriageHR : vitals?.hr} BPM</span></p>}
+                                    {(hasTriageEdits ? editTriageRR : vitals?.rr) && <p className="text-slate-600">{t('rcpt_triage_rr_label', 'app')}: <span className="font-bold">{hasTriageEdits ? editTriageRR : vitals?.rr} IRPM</span></p>}
                                   </div>
                                 )}
                                 {triage.preliminary_procedures && triage.preliminary_procedures.length > 0 && (
