@@ -636,13 +636,12 @@ export default function ReceptionModule({
               ...loc,
               currentPatients: assignments.filter((a: any) => a.location_id === loc.id).map((a: any) => a.patient_id),
             })));
-            // Set pla counter from last ID
-            let maxPla = 0;
-            assignments.forEach((a: any) => {
-              const num = parseInt(String(a.id).replace('pla_', ''));
-              if (!isNaN(num) && num > maxPla) maxPla = num;
-            });
-            plaCounterRef.current = maxPla;
+          }
+          // Set pla counter from LAST ID (regardless of active state) to avoid PK collisions
+          const { data: allPla } = await supabase.from('patient_location_assignments').select('id').order('id', { ascending: false }).limit(1);
+          if (allPla && allPla.length > 0) {
+            const num = parseInt(String(allPla[0].id).replace('pla_', ''));
+            if (!isNaN(num)) plaCounterRef.current = num;
           }
         }
         const { data: notifications, error: notifError } = await supabase.from('internal_notifications').select('*').order('created_at', { ascending: false }).limit(50);
@@ -664,26 +663,16 @@ export default function ReceptionModule({
           });
           notifCounterRef.current = maxNotif;
         }
-        // Initialize his counters from clinical_history table
-        const { data: allHistory } = await supabase.from('clinical_history').select('id').order('id', { ascending: false }).limit(50);
-        if (allHistory && allHistory.length > 0) {
-          let maxTriageNum = 0;
-          let maxMedNum = 0;
-          for (const row of allHistory) {
-            const raw = String(row.id);
-            const triageMatch = raw.match(/his_triage_(\d+)/);
-            const medMatch = raw.match(/his_med_(\d+)/);
-            if (triageMatch) {
-              const num = parseInt(triageMatch[1], 10);
-              if (!isNaN(num) && num > maxTriageNum) maxTriageNum = num;
-            }
-            if (medMatch) {
-              const num = parseInt(medMatch[1], 10);
-              if (!isNaN(num) && num > maxMedNum) maxMedNum = num;
-            }
-          }
-          hisCounterRef.current = maxTriageNum;
-          hisMedCounterRef.current = maxMedNum;
+        // Initialize his counters from clinical_history table (use last IDs to avoid PK collisions regardless of count)
+        const { data: lastTriage } = await supabase.from('clinical_history').select('id').like('id', 'his_triage_%').order('id', { ascending: false }).limit(1);
+        const { data: lastMed } = await supabase.from('clinical_history').select('id').like('id', 'his_med_%').order('id', { ascending: false }).limit(1);
+        if (lastTriage && lastTriage.length > 0) {
+          const m = String(lastTriage[0].id).match(/his_triage_(\d+)/);
+          if (m) hisCounterRef.current = parseInt(m[1], 10);
+        }
+        if (lastMed && lastMed.length > 0) {
+          const m = String(lastMed[0].id).match(/his_med_(\d+)/);
+          if (m) hisMedCounterRef.current = parseInt(m[1], 10);
         }
         // Load attended patients from completed assignments
         const { data: completedAssignments, error: completedError } = await supabase
@@ -1556,6 +1545,7 @@ export default function ReceptionModule({
             patient_id: distributePatient.id,
             location_id: distributeTargetLocation,
             active: true,
+            assigned_at: new Date().toISOString(),
           });
           await supabase.from('internal_notifications').insert({
             id: newNotif.id,
@@ -1597,21 +1587,20 @@ export default function ReceptionModule({
       }
       return prev;
     });
-    handleUpdatePatientStatus(nextPatient.id, 'atendimento');
+    await handleUpdatePatientStatus(nextPatient.id, 'atendimento');
     addAuditLog(t('rcpt_audit_patient_called', 'app').replace('{location}', loc.name), nextPatient.name);
     setPatientNameMap(prev => ({ ...prev, [nextPatient.id]: nextPatient.name }));
     if (supabase) {
-      try {
-        await supabase.from('patient_location_assignments').insert({
-          id: `pla_${++plaCounterRef.current}`,
-          patient_id: nextPatient.id,
-          location_id: locId,
-          active: true,
-        });
-        await supabase.from('hospital_locations').update({ status: 'ocupado' }).eq('id', locId);
-      } catch (err) {
-        console.error('[SUPABASE] INSERT call next patient FAILED:', err);
-      }
+      const { error: assignErr } = await supabase.from('patient_location_assignments').insert({
+        id: `pla_${++plaCounterRef.current}`,
+        patient_id: nextPatient.id,
+        location_id: locId,
+        active: true,
+        assigned_at: new Date().toISOString(),
+      });
+      if (assignErr) console.error('[SUPABASE] INSERT call next patient FAILED:', assignErr.message);
+      const { error: locErr } = await supabase.from('hospital_locations').update({ status: 'ocupado' }).eq('id', locId);
+      if (locErr) console.error('[SUPABASE] UPDATE hospital_location FAILED:', locErr.message);
     }
   };
 
@@ -1701,6 +1690,7 @@ export default function ReceptionModule({
           patient_id: redirectPatient.id,
           location_id: redirectTargetLocation,
           active: true,
+          assigned_at: new Date().toISOString(),
         });
         await supabase.from('hospital_locations').update({ status: 'ocupado' }).eq('id', redirectTargetLocation);
         await supabase.from('internal_notifications').insert({

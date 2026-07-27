@@ -5,7 +5,7 @@ import { Patient, AsoExam, Cid10Code, DrugCatalogItem, Prescription, ExamRequest
 import { supabase } from '@/lib/supabaseClient';
 import { useI18n } from '@/lib/i18n/I18nContext';
 import {
-  ClipboardList, Microscope, HeartPulse, ShieldAlert, Sparkles,
+  ClipboardList, Microscope, HeartPulse, ShieldAlert,
   Send, Plus, FileDown, Check, Eye, Trash2, Sliders, AlertCircle,
   Search, Filter, Pill, Stethoscope, FileText, Paperclip,
   Shield, Clock, User, Activity, AlertTriangle, QrCode, Hash,
@@ -186,10 +186,6 @@ const ClinicalModuleContent = ({
   const [breakGlassActive, setBreakGlassActive] = useState(false);
   const [breakGlassJustification, setBreakGlassJustification] = useState('');
   const [accessLogs, setAccessLogs] = useState<AccessControl[]>([]);
-
-  // AI Co-Pilot
-  const [aiLoading, setAiLoading] = useState(false);
-  const [aiResponse, setAiResponse] = useState('');
 
   // Diagnostic/Laboratory states (submodule 4)
   const [imageContrast, setImageContrast] = useState(100);
@@ -593,28 +589,6 @@ const ClinicalModuleContent = ({
     });
   }, [selectedPatient, prescriptions, examRequests, procedureList, anamnese, soapNote, timelineSearch, timelineFilterType, timelineFilterDoctor]);
 
-  // ─── AI CO-PILOT ───
-  const handleQueryAiCoPilot = async () => {
-    if (!selectedPatient) return;
-    setAiLoading(true);
-    setAiResponse('');
-    const patientRecordString = `Nome: ${selectedPatient.name}\nIdade: ${new Date().getFullYear() - new Date(selectedPatient.birthdate).getFullYear()} anos\nPrioridade: ${selectedPatient.priority}\nHistórico: ${selectedPatient.clinicalHistory.map(h => `- ${h.date}: ${h.type} (${h.diagnosis} - ${h.cid10}). Notas: ${h.notes}. Prescrições: ${h.prescriptions.join(', ')}`).join('\n')}`;
-    const promptText = `Você é o "Dr. IA" Co-piloto clínico do IAMED.\nAnalise o prontuário e forneça:\n1. Resumo clínico curto.\n2. 3 fatores de risco.\n3. Sugestão de exames/terapia.\nProntuário:\n${patientRecordString}`;
-    try {
-      const response = await fetch('/api/gemini', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: promptText, systemInstruction: 'Assistente clínico de IA para IAMED.' })
-      });
-      const data = await response.json();
-      setAiResponse(data.text || 'Erro no processamento.');
-    } catch {
-      setAiResponse('Não foi possível conectar com o servidor de IA.');
-    } finally {
-      setAiLoading(false);
-    }
-  };
-
   // ─── ASO & CAT HANDLERS ───
   const handleCreateAso = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -687,22 +661,6 @@ const ClinicalModuleContent = ({
                       <p className="text-rose-700 font-bold">⚠️ {t('hce_allergies', 'app')}: {selectedPatient.allergies}</p>
                     )}
                   </div>
-                  <button onClick={handleQueryAiCoPilot} className="w-full py-2 px-3 bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs rounded-lg flex items-center justify-center gap-2 transition">
-                    <Sparkles className="w-3.5 h-3.5 text-yellow-300 animate-pulse" />
-                    {t('ai_copilot', 'app')}
-                  </button>
-                  {(aiLoading || aiResponse) && (
-                    <div className="p-3 bg-slate-900 text-slate-100 rounded-xl text-xs font-mono space-y-2">
-                      <div className="flex items-center gap-1.5 text-teal-300 font-semibold text-xs border-b border-slate-800 pb-1">
-                        <Sparkles className="w-4 h-4 animate-spin text-yellow-400" /> CO-PILOTO IA
-                      </div>
-                      {aiLoading ? (
-                        <div className="py-3 text-center text-slate-400 animate-pulse">{t('hce_processing', 'app')}</div>
-                      ) : (
-                        <div className="whitespace-pre-wrap leading-relaxed text-slate-300 max-h-[200px] overflow-y-auto">{aiResponse}</div>
-                      )}
-                    </div>
-                  )}
                 </div>
               )}
             </div>
