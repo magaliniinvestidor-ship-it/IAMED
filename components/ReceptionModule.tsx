@@ -51,7 +51,7 @@ export default function ReceptionModule({
     let max = 0;
     if (data) {
       for (const row of data) {
-        const m = String((row as Record<string, unknown>)[idColumn]).match(new RegExp(`${idPattern}(\\d+)`));
+        const m = String((row as unknown as Record<string, unknown>)[idColumn]).match(new RegExp(`${idPattern}(\\d+)`));
         if (m) {
           const num = parseInt(m[1], 10);
           if (!isNaN(num) && num > max) max = num;
