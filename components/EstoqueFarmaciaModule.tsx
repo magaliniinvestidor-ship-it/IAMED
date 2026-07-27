@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { PharmacyItem, LotControl, StockMovement, InventoryCount, AdverseEvent, QualityDeviation, BatchRecall, StockMovementType, DrugCategory, AdverseEventSeverity, AdverseEventOutcome } from '@/lib/mockData';
 import { supabase } from '@/lib/supabaseClient';
 import { useI18n } from '@/lib/i18n/I18nContext';
+import I18nDatePicker from '@/components/I18nDatePicker';
 import {
   Pill, Plus, AlertTriangle, X, Check, Search, Package,
   ClipboardList, TrendingUpDown, BarChart3, QrCode,
@@ -1478,11 +1479,11 @@ export default function EstoqueFarmaciaModule({
                 </div>
                 <div>
                   <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_entry_expiry', 'app')} *</label>
-                  <input data-testid="entry-expiry" type="date" value={entryExpiry} onChange={e => setEntryExpiry(e.target.value)} required className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
+                  <I18nDatePicker value={entryExpiry} onChange={setEntryExpiry} required className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
                 </div>
                 <div>
                   <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_entry_mfg', 'app')}</label>
-                  <input data-testid="entry-mfg" type="date" value={EntryMfg} onChange={e => setEntryMfg(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
+                  <I18nDatePicker value={EntryMfg} onChange={setEntryMfg} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
                 </div>
                 <div>
                   <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_entry_dte', 'app')}</label>
@@ -1619,7 +1620,7 @@ export default function EstoqueFarmaciaModule({
                 </div>
                 <div>
                   <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_pv_ae_start_date', 'app')}</label>
-                  <input data-testid="ae-start-date" type="date" value={aeStart} onChange={e => setAeStart(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
+                  <I18nDatePicker value={aeStart} onChange={setAeStart} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
                 </div>
                 <div>
                   <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_pv_ae_notifier', 'app')}</label>

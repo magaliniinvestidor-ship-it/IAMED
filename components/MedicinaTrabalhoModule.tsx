@@ -12,6 +12,7 @@ import {
 } from '@/lib/mockData';
 import { supabase } from '@/lib/supabaseClient';
 import { useI18n } from '@/lib/i18n/I18nContext';
+import I18nDatePicker from '@/components/I18nDatePicker';
 import {
   Building2, Users, Stethoscope, FileCheck, AlertTriangle,
   FileBarChart, Plus, Search, Trash2, Eye, ShieldAlert,
@@ -589,7 +590,7 @@ export default function MedicinaTrabalhoModule({
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className={labelCls}>Data Nascimento</label>
-                    <input type="date" value={trabForm.dataNascimento} onChange={e => setTrabForm(p => ({ ...p, dataNascimento: e.target.value }))} className={inputCls} />
+                    <I18nDatePicker value={trabForm.dataNascimento || ''} onChange={v => setTrabForm(p => ({ ...p, dataNascimento: v }))} className={inputCls} />
                   </div>
                   <div>
                     <label className={labelCls}>Gênero</label>
@@ -606,7 +607,7 @@ export default function MedicinaTrabalhoModule({
                   </div>
                   <div>
                     <label className={labelCls}>Data Admissão</label>
-                    <input type="date" value={trabForm.dataAdmissao || ''} onChange={e => setTrabForm(p => ({ ...p, dataAdmissao: e.target.value }))} className={inputCls} />
+                    <I18nDatePicker value={trabForm.dataAdmissao || ''} onChange={v => setTrabForm(p => ({ ...p, dataAdmissao: v }))} className={inputCls} />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2">

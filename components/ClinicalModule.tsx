@@ -14,6 +14,7 @@ import {
   Lock as LockIcon
 } from 'lucide-react';
 import { PermissionGate, WithPermissions } from '@/components/ui/PermissionGate';
+import I18nDatePicker from '@/components/I18nDatePicker';
 
 interface ClinicalModuleProps {
   patients: Patient[];
@@ -683,7 +684,7 @@ const ClinicalModuleContent = ({
                     <p className="text-teal-700">🩺 <b className="uppercase">{selectedPatient.status}</b></p>
                     <p className="text-teal-700">✉️ {selectedPatient.email}</p>
                     {selectedPatient.allergies && (
-                      <p className="text-rose-700 font-bold">⚠️ Alergias: {selectedPatient.allergies}</p>
+                      <p className="text-rose-700 font-bold">⚠️ {t('hce_allergies', 'app')}: {selectedPatient.allergies}</p>
                     )}
                   </div>
                   <button onClick={handleQueryAiCoPilot} className="w-full py-2 px-3 bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs rounded-lg flex items-center justify-center gap-2 transition">
@@ -696,7 +697,7 @@ const ClinicalModuleContent = ({
                         <Sparkles className="w-4 h-4 animate-spin text-yellow-400" /> CO-PILOTO IA
                       </div>
                       {aiLoading ? (
-                        <div className="py-3 text-center text-slate-400 animate-pulse">Processando...</div>
+                        <div className="py-3 text-center text-slate-400 animate-pulse">{t('hce_processing', 'app')}</div>
                       ) : (
                         <div className="whitespace-pre-wrap leading-relaxed text-slate-300 max-h-[200px] overflow-y-auto">{aiResponse}</div>
                       )}
@@ -901,7 +902,7 @@ const ClinicalModuleContent = ({
                     <h5 className="text-xs font-bold text-slate-600 uppercase">{t('hce_surgical_history', 'app')}</h5>
                     <div className="grid grid-cols-4 gap-2">
                       <input type="text" placeholder="Procedimento" value={newSurgery.procedure} onChange={e => setNewSurgery(p => ({ ...p, procedure: e.target.value }))} className={inputCls} />
-                      <input type="date" value={newSurgery.date} onChange={e => setNewSurgery(p => ({ ...p, date: e.target.value }))} className={inputCls} />
+                      <I18nDatePicker value={newSurgery.date} onChange={v => setNewSurgery(p => ({ ...p, date: v }))} className={inputCls} />
                       <input type="text" placeholder={t('hce_hospital', 'app')} value={newSurgery.hospital} onChange={e => setNewSurgery(p => ({ ...p, hospital: e.target.value }))} className={inputCls} />
                       <button type="button" onClick={() => {
                         if (newSurgery.procedure.trim()) {
@@ -968,7 +969,7 @@ const ClinicalModuleContent = ({
                         <input type="text" value={physicalExam.vitalSigns.respiratoryRate || ''} onChange={e => setPhysicalExam(p => ({ ...p, vitalSigns: { ...p.vitalSigns, respiratoryRate: e.target.value } }))} className={inputCls} placeholder="irpm" />
                       </div>
                       <div>
-                        <label className={labelCls}>IMC</label>
+                        <label className={labelCls}>{t('hce_bmi', 'app')}</label>
                         <input type="text" value={physicalExam.vitalSigns.imc || ''} onChange={e => setPhysicalExam(p => ({ ...p, vitalSigns: { ...p.vitalSigns, imc: e.target.value } }))} className={inputCls} placeholder="kg/m²" />
                       </div>
                     </div>
@@ -1619,7 +1620,7 @@ const ClinicalModuleContent = ({
                         <textarea value={breakGlassJustification} onChange={e => setBreakGlassJustification(e.target.value)} rows={2} className={textareaCls}
                           placeholder={t('hce_break_glass_justification', 'app')} />
                         <button onClick={handleBreakGlass} className="bg-rose-600 hover:bg-rose-700 text-white text-xs px-4 py-2 rounded-lg font-bold">
-                          Confirmar Acesso de Emergência
+                          {t('hce_confirm_emergency_access', 'app')}
                         </button>
                       </div>
                     )}
@@ -1635,9 +1636,9 @@ const ClinicalModuleContent = ({
                         <div key={sf.id} className="flex items-center justify-between text-xs p-2 bg-white border border-amber-100 rounded-lg">
                           <span className="font-bold text-slate-700">{sf.fieldLabel}</span>
                           <div className="flex items-center gap-2">
-                            <span className="text-[10px] text-slate-500">Categoria: {sf.category}</span>
+                            <span className="text-[10px] text-slate-500">{t('hce_category', 'app')}: {sf.category}</span>
                             <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${sf.requiresElevatedPermission ? 'bg-rose-100 text-rose-700' : 'bg-green-100 text-green-700'}`}>
-                              {sf.requiresElevatedPermission ? 'Permissão Reforçada' : 'Acesso Normal'}
+                              {sf.requiresElevatedPermission ? t('hce_elevated_permission', 'app') : t('hce_access_normal', 'app')}
                             </span>
                           </div>
                         </div>
@@ -1651,7 +1652,7 @@ const ClinicalModuleContent = ({
                       <Eye className="w-4 h-4 text-teal-600" /> {t('hce_access_log', 'app')}
                     </h5>
                     {accessLogs.length === 0 ? (
-                      <p className="text-xs text-slate-400">Nenhum registro de acesso de emergência.</p>
+                      <p className="text-xs text-slate-400">{t('hce_no_emergency_access', 'app')}</p>
                     ) : (
                       accessLogs.map(log => (
                         <div key={log.id} className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs space-y-1">
@@ -1659,8 +1660,8 @@ const ClinicalModuleContent = ({
                             <span className="font-bold text-rose-800">⚠️ {log.accessType.toUpperCase()}</span>
                             <span className="text-[10px] text-slate-500">{log.accessedAt.split('T')[0]}</span>
                           </div>
-                          <p className="text-rose-600">Justificativa: {log.justification}</p>
-                          <p className="text-slate-500">Acessado por: {log.accessedBy}</p>
+                          <p className="text-rose-600">{t('hce_justification', 'app')}: {log.justification}</p>
+                          <p className="text-slate-500">{t('hce_accessed_by', 'app')}: {log.accessedBy}</p>
                         </div>
                       ))
                     )}
@@ -1708,7 +1709,7 @@ const ClinicalModuleContent = ({
                 <div>
                   <label className={labelCls}>Status</label>
                   <div className="p-2.5 bg-orange-50 border border-orange-200 text-orange-800 rounded-lg font-bold text-center text-xs">
-                    Aguardando Laudo
+                    {t('hce_awaiting_report', 'app')}
                   </div>
                 </div>
               </div>
@@ -1771,17 +1772,17 @@ const ClinicalModuleContent = ({
             <div className="border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
                 <HeartPulse className="w-5 h-5 text-teal-600" />
-                <h3 className="font-semibold text-slate-800 text-base">Registrar ASO (PCMSO)</h3>
+                <h3 className="font-semibold text-slate-800 text-base">{t('hce_register_aso', 'app')}</h3>
               </div>
             </div>
             <form onSubmit={handleCreateAso} className="space-y-4 text-xs">
               <div>
-                <label className={labelCls}>Colaborador *</label>
-                <input type="text" value={asoPatient} onChange={e => setAsoPatient(e.target.value)} placeholder="Nome Completo" className={inputCls} required />
+                <label className={labelCls}>{t('hce_employee', 'app')} *</label>
+                <input type="text" value={asoPatient} onChange={e => setAsoPatient(e.target.value)} placeholder={t('hce_full_name', 'app')} className={inputCls} required />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={labelCls}>Tipo de ASO</label>
+                  <label className={labelCls}>{t('hce_aso_type', 'app')}</label>
                   <select value={asoType} onChange={e => setAsoType(e.target.value as any)} className={inputCls}>
                     <option value="Admissional">Admissional</option>
                     <option value="Periódico">Periódico</option>
@@ -1789,7 +1790,7 @@ const ClinicalModuleContent = ({
                   </select>
                 </div>
                 <div>
-                  <label className={labelCls}>Parecer</label>
+                  <label className={labelCls}>{t('hce_opinion', 'app')}</label>
                   <select value={asoStatus} onChange={e => setAsoStatus(e.target.value as any)} className={inputCls}>
                     <option value="apto">APTO</option>
                     <option value="inapto">INAPTO</option>
@@ -1797,30 +1798,30 @@ const ClinicalModuleContent = ({
                 </div>
               </div>
               <div>
-                <label className={labelCls}>Riscos Ocupacionais</label>
-                <input type="text" value={asoRisks} onChange={e => setAsoRisks(e.target.value)} placeholder="Separar por vírgula" className={inputCls} />
+                <label className={labelCls}>{t('hce_occupational_risks', 'app')}</label>
+                <input type="text" value={asoRisks} onChange={e => setAsoRisks(e.target.value)} placeholder={t('hce_separate_comma', 'app')} className={inputCls} />
               </div>
               <button type="submit" className="w-full py-3 px-4 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-lg text-xs">
-                Gerar ASO Eletrônico
+                {t('hce_generate_aso', 'app')}
               </button>
             </form>
           </div>
           <div className={sectionCls + ' lg:col-span-2'}>
-            <h4 className="font-bold text-slate-800 text-sm">Histórico de ASOs</h4>
+            <h4 className="font-bold text-slate-800 text-sm">{t('hce_aso_history', 'app')}</h4>
             <div className="space-y-2 max-h-[360px] overflow-y-auto">
               {asos.map(aso => (
                 <div key={aso.id} className="p-3 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center justify-between text-xs group">
                   <div className="space-y-1 flex-1">
                     <p className="font-black text-slate-800 text-sm">{aso.patientName}</p>
-                    <p className="text-slate-500">Exame: <b className="text-slate-700">{aso.type}</b> | {aso.doctor}</p>
+                    <p className="text-slate-500">{t('hce_exam', 'app')}: <b className="text-slate-700">{aso.type}</b> | {aso.doctor}</p>
                     <div className="flex gap-1.5 flex-wrap">{aso.risks.map((r, i) => <span key={i} className="bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded text-[10px] font-semibold">{r}</span>)}</div>
                   </div>
                   <div className="text-right space-y-1 shrink-0 ml-3">
                     <div className="flex items-center justify-end gap-2">
                       <span className={`px-2.5 py-1 rounded-full font-bold uppercase text-[10px] ${aso.status === 'apto' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}`}>
-                        {aso.status === 'apto' ? '✅ Apto' : '❌ Inapto'}
+                        {aso.status === 'apto' ? `✅ ${t('hce_apt', 'app')}` : `❌ ${t('hce_unfit', 'app')}`}
                       </span>
-                      <button onClick={() => setEditingAso(aso)} className="opacity-0 group-hover:opacity-100 p-1.5 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 cursor-pointer transition text-slate-500 hover:text-teal-600" title="Editar ASO">
+                      <button onClick={() => setEditingAso(aso)} className="opacity-0 group-hover:opacity-100 p-1.5 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 cursor-pointer transition text-slate-500 hover:text-teal-600" title={t('hce_edit_aso', 'app')}>
                         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
                       </button>
                     </div>
@@ -1850,7 +1851,7 @@ const ClinicalModuleContent = ({
               </div>
               <div>
                 <label className={labelCls}>Data do Ocorrido</label>
-                <input type="date" value={catDate} onChange={e => setCatDate(e.target.value)} className={inputCls} />
+                <I18nDatePicker value={catDate} onChange={setCatDate} className={inputCls} />
               </div>
               <div>
                 <label className={labelCls}>Natureza da Lesão</label>

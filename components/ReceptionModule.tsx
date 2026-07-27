@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { useI18n } from '@/lib/i18n/I18nContext';
 import { isValidPhoneNumber, parsePhoneNumber } from 'libphonenumber-js';
 import PhoneInput from '@/components/PhoneInput';
+import I18nDatePicker from '@/components/I18nDatePicker';
 import { 
   Plus, Contact, CalendarDays, Check, Search, 
   Clock, AlertTriangle, UserPlus, Filter, Camera, 
@@ -2017,11 +2018,10 @@ export default function ReceptionModule({
 
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">{t('rcpt_birth_date', 'app')}</label>
-                        <input 
-                          type="date" 
+                         <label className="block text-xs font-semibold text-slate-600 mb-1">{t('rcpt_birth_date', 'app')}</label>
+                        <I18nDatePicker 
                           value={newBirthdate} 
-                          onChange={e => setNewBirthdate(e.target.value)}
+                          onChange={setNewBirthdate}
                           className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans text-xs"
                           required
                         />
@@ -2703,7 +2703,7 @@ export default function ReceptionModule({
                               className="bg-teal-600 hover:bg-teal-700 text-white text-[11px] px-3 py-1.5 rounded-lg font-bold shadow-sm transition cursor-pointer flex items-center gap-1"
                             >
                               <HeartPulse className="w-3.5 h-3.5 text-white animate-pulse" />
-                              {t('rcpt_liberated', 'app')}
+                              {t('rcpt_list_perform_triage', 'app')}
                             </button>
                           </div>
                         )}
@@ -2718,7 +2718,7 @@ export default function ReceptionModule({
                               data-testid="liberar"
                               className="bg-slate-700 hover:bg-slate-800 text-white text-[11px] px-3 py-1.5 rounded-lg font-semibold shadow-xs transition cursor-pointer"
                             >
-                              Liberado
+                              {t('rcpt_list_released', 'app')}
                             </button>
                           </div>
                         )}
@@ -2921,7 +2921,7 @@ export default function ReceptionModule({
                     <p className="text-xs text-slate-500 mb-1">{item.patient.phone}</p>
                     {triagedAt && (
                       <p className="text-[10px] text-amber-600 font-semibold mb-1">
-                        Triagem: {new Date(triagedAt).toLocaleString('pt-BR')}
+                        {t('rcpt_triage_label', 'app')} {new Date(triagedAt).toLocaleString(locale)}
                       </p>
                     )}
                     <p className="text-xs text-slate-600">
@@ -2965,11 +2965,11 @@ export default function ReceptionModule({
                     </p>
                     {triagedAt && (
                       <p className="text-[10px] text-green-600 font-semibold mt-1">
-                        Triagem: {new Date(triagedAt).toLocaleString('pt-BR')}
+                        {t('rcpt_triage_label', 'app')} {new Date(triagedAt).toLocaleString(locale)}
                       </p>
                     )}
                     <p className="text-[10px] text-slate-400 mt-1">
-                      {new Date(item.completedAt).toLocaleString('pt-BR')}
+                      {new Date(item.completedAt).toLocaleString(locale)}
                     </p>
                   </div>
                   );
@@ -3140,7 +3140,7 @@ export default function ReceptionModule({
                   <p className="text-xs text-slate-600">
                     <span className="font-semibold">{n.fromLocation}</span> → <span className="font-semibold">{n.toLocation}</span>
                   </p>
-                  <p className="text-xs text-slate-500 mt-1">{n.message}</p>
+                  <p className="text-xs text-slate-500 mt-1">{t('rcpt_notif_patient', 'app')} {n.patientName} {t('rcpt_notif_redirected_to', 'app')} {n.toLocation}</p>
                 </div>
               ))}
             </div>
@@ -3991,7 +3991,7 @@ export default function ReceptionModule({
                 <button onClick={handleDistributePatient} disabled={!distributeTargetLocation} className={`py-2 px-4 font-bold text-xs rounded-lg transition ${
                   distributeTargetLocation ? 'bg-teal-600 hover:bg-teal-700 text-white' : 'bg-slate-300 text-slate-500 cursor-not-allowed'
                 }`}>
-                  Direcionar
+                  {t('app_direct', 'app')}
                 </button>
                 <button onClick={() => { setShowDistributeModal(false); setDistributePatient(null); setDistributeTargetLocation(''); }} className="py-2 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs rounded-lg transition">
                   {t('rcpt_cancel', 'app')}
@@ -4140,7 +4140,7 @@ export default function ReceptionModule({
                       const completedTimePdf = lastAssignmentPdf?.completedAt || lastAssignmentPdf?.assignedAt || new Date().toISOString();
                       y += 4; checkPage(10);
                       doc.setTextColor(148, 163, 184); doc.setFontSize(9); doc.setFont('helvetica', 'normal');
-                      doc.text(`${t('rcpt_pdf_visit_completed', 'app')} - ${new Date(completedTimePdf).toLocaleString('pt-BR')}`, 105, y, { align: 'center' });
+                      doc.text(`${t('rcpt_pdf_visit_completed', 'app')} - ${new Date(completedTimePdf).toLocaleString(locale)}`, 105, y, { align: 'center' });
                       doc.save(`${t('rcpt_pdf_filename_prefix', 'app')}_${pat.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`);
                     }} className="text-slate-400 hover:text-teal-600 cursor-pointer" title={t('rcpt_pdf_export_title', 'app')}>
                       <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -4177,7 +4177,7 @@ export default function ReceptionModule({
                               <>
                                 <p className="text-[10px] text-slate-400">
                                   {triageEntry.triaged_at 
-                                    ? new Date(triageEntry.triaged_at).toLocaleString('pt-BR')
+                                    ? new Date(triageEntry.triaged_at).toLocaleString(locale)
                                     : '—'}
                                 </p>
                                 {triageEntry.vital_signs && (
@@ -4305,7 +4305,7 @@ export default function ReceptionModule({
                           {(() => {
                             const lastAssignment = timelineAssignments[timelineAssignments.length - 1];
                             const completedTime = lastAssignment?.completedAt || lastAssignment?.assignedAt;
-                            return completedTime ? new Date(completedTime).toLocaleString('pt-BR') : '—';
+                            return completedTime ? new Date(completedTime).toLocaleString(locale) : '—';
                           })()}
                         </p>
                       </div>
@@ -4402,7 +4402,7 @@ export default function ReceptionModule({
                 }} disabled={!newLocationForm.name.trim()} className={`py-2 px-4 font-bold text-xs rounded-lg transition ${
                   newLocationForm.name.trim() ? 'bg-teal-600 hover:bg-teal-700 text-white' : 'bg-slate-300 text-slate-500 cursor-not-allowed'
                 }`}>
-                  {editingLocation ? 'Salvar' : 'Cadastrar'}
+                  {editingLocation ? t('app_save', 'app') : t('app_register', 'app')}
                 </button>
                 <button onClick={() => { setShowNewLocationModal(false); setEditingLocation(null); setNewLocationForm({ name: '', type: 'consultorio', capacity: 1 }); }} className="py-2 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs rounded-lg transition">
                   {t('rcpt_cancel', 'app')}

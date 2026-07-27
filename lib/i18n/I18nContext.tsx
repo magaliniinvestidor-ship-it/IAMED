@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import ptBR from './locales/pt-BR.json';
 import ptPT from './locales/pt-PT.json';
 import esAR from './locales/es-AR.json';
@@ -28,7 +28,6 @@ interface I18nContextType {
 const I18nContext = createContext<I18nContextType | undefined>(undefined);
 
 const detectInitialLocale = (): LocaleType => {
-  if (typeof window === 'undefined') return 'pt-BR';
   const savedLocale = localStorage.getItem('iamed_locale') as LocaleType;
   if (savedLocale && locales[savedLocale]) {
     return savedLocale;
@@ -44,7 +43,14 @@ const detectInitialLocale = (): LocaleType => {
 };
 
 export const I18nProvider = ({ children }: { children: ReactNode }) => {
-  const [locale, setLocaleState] = useState<LocaleType>(detectInitialLocale);
+  const [locale, setLocaleState] = useState<LocaleType>('pt-BR');
+
+  useEffect(() => {
+    const detected = detectInitialLocale();
+    if (detected !== 'pt-BR') {
+      setLocaleState(detected);
+    }
+  }, []);
 
   const setLocale = (newLocale: LocaleType) => {
     setLocaleState(newLocale);

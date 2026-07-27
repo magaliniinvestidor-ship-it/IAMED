@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { Briefcase, Plus, Edit2, Trash2, CheckCircle2, XCircle } from 'lucide-react';
 import { SupabaseClient } from '@supabase/supabase-js';
+import { useI18n } from '@/lib/i18n/I18nContext';
 
 interface ProfessionalRole {
   id: string;
@@ -20,6 +21,7 @@ interface RolesTabProps {
 }
 
 export default function RolesTab({ professionalRoles, setProfessionalRoles, supabase, addAuditLog }: RolesTabProps) {
+  const { t } = useI18n();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -150,11 +152,11 @@ export default function RolesTab({ professionalRoles, setProfessionalRoles, supa
 
           <div className="flex gap-2 pt-2">
             <button type="submit" className="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-lg text-xs transition">
-              {editingId ? 'Salvar' : 'Cadastrar'}
+              {editingId ? t('app_save', 'app') : t('app_register', 'app')}
             </button>
             {editingId && (
               <button type="button" onClick={resetForm} className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs transition">
-                Cancelar
+                {t('app_cancel', 'app')}
               </button>
             )}
           </div>

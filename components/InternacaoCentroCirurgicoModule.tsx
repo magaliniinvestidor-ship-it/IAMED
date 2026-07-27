@@ -32,6 +32,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import I18nDatePicker from '@/components/I18nDatePicker';
 import {
   Dialog,
   DialogContent,
@@ -127,7 +128,7 @@ export default function InternacaoCentroCirurgicoModule({
   patients,
   setPatients,
 }: InternacaoCentroCirurgicoModuleProps) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [tab, setTab] = useState<TabType>('dashboard');
   const [search, setSearch] = useState('');
   const [sectorFilter, setSectorFilter] = useState<string>('todos');
@@ -302,7 +303,7 @@ export default function InternacaoCentroCirurgicoModule({
       patientId: admitForm.patientId || `pat_${Date.now()}`,
       patientName: admitForm.patientName,
       admissionDate: todayStr(),
-      admissionTime: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      admissionTime: new Date().toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }),
       reason: admitForm.reason,
       initialDiagnosis: admitForm.initialDiagnosis,
       initialCid10: admitForm.initialCid10,
@@ -381,7 +382,7 @@ export default function InternacaoCentroCirurgicoModule({
       hospitalizationId: hosp.id,
       patientId: hosp.patientId,
       date: todayStr(),
-      time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      time: new Date().toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }),
       doctor: evolForm.assessment ? 'Médico' : '',
       subjective: evolForm.subjective,
       objective: evolForm.objective,
@@ -1079,10 +1080,10 @@ export default function InternacaoCentroCirurgicoModule({
                 </div>
                 <div className="space-y-1">
                   <Label className="text-[10px] font-bold">Data</Label>
-                  <Input type="date" value={surgForm.scheduledDate} onChange={e => setSurgForm(p => ({ ...p, scheduledDate: e.target.value }))} className="text-xs h-9" />
+                  <I18nDatePicker value={surgForm.scheduledDate} onChange={v => setSurgForm(p => ({ ...p, scheduledDate: v }))} className="text-xs h-9" />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-[10px] font-bold">Horário</Label>
+                  <Label className="text-[10px] font-bold">{t('app_time', 'app')}</Label>
                   <Input type="time" value={surgForm.scheduledTime} onChange={e => setSurgForm(p => ({ ...p, scheduledTime: e.target.value }))} className="text-xs h-9" />
                 </div>
                 <div className="space-y-1 col-span-2">
@@ -1098,7 +1099,7 @@ export default function InternacaoCentroCirurgicoModule({
                   <Input value={surgForm.instrumentator} onChange={e => setSurgForm(p => ({ ...p, instrumentator: e.target.value }))} className="text-xs h-9" />
                 </div>
                 <div className="space-y-1 col-span-2">
-                  <Label className="text-[10px] font-bold">Observações</Label>
+                <Label className="text-[10px] font-bold">{t('hce_observations', 'app')}</Label>
                   <textarea value={surgForm.notes} onChange={e => setSurgForm(p => ({ ...p, notes: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs" rows={2} />
                 </div>
               </div>
@@ -1241,8 +1242,8 @@ export default function InternacaoCentroCirurgicoModule({
                 </>
               )}
               <div className="flex justify-end gap-2 pt-2">
-                <Button variant="outline" size="sm" onClick={() => setShowModal(false)} className="text-xs">Cancelar</Button>
-                <Button size="sm" onClick={() => dischargePatient(selectedItem)} className="bg-green-600 hover:bg-green-700 text-xs font-bold">Confirmar Alta</Button>
+                <Button variant="outline" size="sm" onClick={() => setShowModal(false)} className="text-xs">{t('hce_cancel', 'app')}</Button>
+                <Button size="sm" onClick={() => dischargePatient(selectedItem)} className="bg-green-600 hover:bg-green-700 text-xs font-bold">{t('hce_confirm_discharge', 'app')}</Button>
               </div>
             </div>
           )}
@@ -1250,9 +1251,9 @@ export default function InternacaoCentroCirurgicoModule({
           {/* Evolution Form */}
           {modalContent === 'evolutionForm' && selectedItem && (
             <div className="space-y-3 text-xs">
-              <p className="font-semibold text-slate-700">Paciente: {selectedItem.patientName}</p>
+              <p className="font-semibold text-slate-700">{t('hce_patient', 'app')}: {selectedItem.patientName}</p>
               <div className="grid grid-cols-4 gap-2">
-                {[{ key: 'bp', label: 'PA' }, { key: 'hr', label: 'FC' }, { key: 'rr', label: 'FR' }, { key: 'temp', label: 'Temp' }, { key: 'spo2', label: 'SpO2' }].map(f => (
+                {[{ key: 'bp', label: t('hce_bp_short', 'app') }, { key: 'hr', label: t('hce_hr_short', 'app') }, { key: 'rr', label: t('hce_rr_short', 'app') }, { key: 'temp', label: t('hce_temp_short', 'app') }, { key: 'spo2', label: 'SpO2' }].map(f => (
                   <div key={f.key} className="space-y-1">
                     <Label className="text-[9px] font-bold">{f.label}</Label>
                     <Input value={(evolForm as any)[f.key]} onChange={e => setEvolForm(p => ({ ...p, [f.key]: e.target.value }))}
@@ -1261,24 +1262,24 @@ export default function InternacaoCentroCirurgicoModule({
                 ))}
               </div>
               <div className="space-y-1">
-                <Label className="text-[10px] font-bold">Subjetivo (S)</Label>
+                <Label className="text-[10px] font-bold">{t('hce_subjective', 'app')}</Label>
                 <textarea value={evolForm.subjective} onChange={e => setEvolForm(p => ({ ...p, subjective: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs" rows={2} />
               </div>
               <div className="space-y-1">
-                <Label className="text-[10px] font-bold">Objetivo (O)</Label>
+                <Label className="text-[10px] font-bold">{t('hce_objective', 'app')}</Label>
                 <textarea value={evolForm.objective} onChange={e => setEvolForm(p => ({ ...p, objective: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs" rows={2} />
               </div>
               <div className="space-y-1">
-                <Label className="text-[10px] font-bold">Avaliação (A)</Label>
+                <Label className="text-[10px] font-bold">{t('hce_assessment', 'app')}</Label>
                 <textarea value={evolForm.assessment} onChange={e => setEvolForm(p => ({ ...p, assessment: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs" rows={2} />
               </div>
               <div className="space-y-1">
-                <Label className="text-[10px] font-bold">Plano (P)</Label>
+                <Label className="text-[10px] font-bold">{t('hce_plan', 'app')}</Label>
                 <textarea value={evolForm.plan} onChange={e => setEvolForm(p => ({ ...p, plan: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs" rows={2} />
               </div>
               <div className="flex justify-end gap-2 pt-2">
-                <Button variant="outline" size="sm" onClick={() => setShowModal(false)} className="text-xs">Cancelar</Button>
-                <Button size="sm" onClick={() => addEvolution(selectedItem)} className="bg-sky-600 hover:bg-sky-700 text-xs font-bold">Registrar Evolução</Button>
+                <Button variant="outline" size="sm" onClick={() => setShowModal(false)} className="text-xs">{t('hce_cancel', 'app')}</Button>
+                <Button size="sm" onClick={() => addEvolution(selectedItem)} className="bg-sky-600 hover:bg-sky-700 text-xs font-bold">{t('hce_register_evolution', 'app')}</Button>
               </div>
             </div>
           )}
@@ -1286,17 +1287,17 @@ export default function InternacaoCentroCirurgicoModule({
           {/* Checklist Form */}
           {modalContent === 'checklistForm' && selectedItem && (
             <div className="space-y-3 text-xs">
-              <p className="font-semibold text-slate-700">Paciente: {selectedItem.patientName}</p>
+              <p className="font-semibold text-slate-700">{t('hce_patient', 'app')}: {selectedItem.patientName}</p>
               <p className="text-slate-500">{selectedItem.procedureType} | {selectedItem.scheduledDate}</p>
-              <p className="text-[10px] text-slate-400 font-semibold">Protocolo de Cirurgia Segura OMS</p>
+              <p className="text-[10px] text-slate-400 font-semibold">{t('hce_who_surgical_safety', 'app')}</p>
               <div className="space-y-2">
                 {[
-                  { key: 'patientIdentityVerified', label: 'Identidade do paciente verificada' },
-                  { key: 'lateralityVerified', label: 'Lateralidade/Procedimento confirmado' },
-                  { key: 'fastingVerified', label: 'Jejum confirmado' },
-                  { key: 'preOpExamsVerified', label: 'Exames pré-operatórios verificados' },
-                  { key: 'informedConsentSigned', label: 'Consentimento informado assinado' },
-                  { key: 'antibioticProphylaxis', label: 'Antibioticoprofilaxia administrada' },
+                  { key: 'patientIdentityVerified', label: t('hce_checklist_identity', 'app') },
+                  { key: 'lateralityVerified', label: t('hce_checklist_laterality', 'app') },
+                  { key: 'fastingVerified', label: t('hce_checklist_fasting', 'app') },
+                  { key: 'preOpExamsVerified', label: t('hce_checklist_preop_exams', 'app') },
+                  { key: 'informedConsentSigned', label: t('hce_checklist_consent', 'app') },
+                  { key: 'antibioticProphylaxis', label: t('hce_checklist_antibiotic', 'app') },
                 ].map(item => (
                   <label key={item.key} className="flex items-center gap-2 p-2 bg-slate-50 rounded-lg cursor-pointer">
                     <input type="checkbox" checked={(checkForm as any)[item.key]} onChange={e => setCheckForm(p => ({ ...p, [item.key]: e.target.checked }))}
@@ -1323,7 +1324,7 @@ export default function InternacaoCentroCirurgicoModule({
               <div className="grid grid-cols-3 gap-3">
                 <div className="space-y-1">
                   <Label className="text-[10px] font-bold">Data</Label>
-                  <Input type="date" value={nursForm.date} onChange={e => setNursForm(p => ({ ...p, date: e.target.value }))} className="text-xs h-9" />
+                  <I18nDatePicker value={nursForm.date} onChange={v => setNursForm(p => ({ ...p, date: v }))} className="text-xs h-9" />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-[10px] font-bold">Turno</Label>
@@ -1498,7 +1499,7 @@ export default function InternacaoCentroCirurgicoModule({
                   <p className="text-[9px] font-bold text-green-600 uppercase flex items-center gap-1">
                     <CheckCircle className="w-3 h-3" /> Checklist Completo
                   </p>
-                  <p className="text-slate-600">Por: {selectedItem.checklist.checklistCompletedBy} em {new Date(selectedItem.checklist.checklistCompletedAt).toLocaleString('pt-BR')}</p>
+                  <p className="text-slate-600">Por: {selectedItem.checklist.checklistCompletedBy} em {new Date(selectedItem.checklist.checklistCompletedAt).toLocaleString(locale)}</p>
                 </div>
               )}
               {!selectedItem.checklist && selectedItem.status !== 'cancelada' && selectedItem.status !== 'suspensa' && (
@@ -1557,17 +1558,17 @@ export default function InternacaoCentroCirurgicoModule({
               {/* Evolutions */}
               <div>
                 <p className="font-bold text-slate-700 mb-2 flex items-center gap-1">
-                  <Stethoscope className="w-3.5 h-3.5 text-sky-600" /> Evoluções Médicas ({selectedItem.medicalEvolutions.length})
+                  <Stethoscope className="w-3.5 h-3.5 text-sky-600" /> {t('hce_medical_evolutions', 'app')} ({selectedItem.medicalEvolutions.length})
                 </p>
                 {selectedItem.medicalEvolutions.length === 0 ? (
-                  <p className="text-slate-400">Nenhuma evolução registrada.</p>
+                  <p className="text-slate-400">{t('hce_no_evolutions', 'app')}</p>
                 ) : (
                   <div className="space-y-2">
                     {selectedItem.medicalEvolutions.map((ev: MedicalEvolution) => (
                       <div key={ev.id} className="bg-sky-50 border border-sky-100 rounded-lg p-3">
                         <div className="flex justify-between text-[9px] font-bold text-sky-700">
                           <span>{ev.date} {ev.time} - {ev.doctor}</span>
-                          {ev.vitalSigns?.bp && <span>PA {ev.vitalSigns.bp} | FC {ev.vitalSigns.hr} | SpO2 {ev.vitalSigns.spo2}%</span>}
+                          {ev.vitalSigns?.bp && <span>{t('hce_bp_short', 'app')} {ev.vitalSigns.bp} | {t('hce_hr_short', 'app')} {ev.vitalSigns.hr} | SpO2 {ev.vitalSigns.spo2}%</span>}
                         </div>
                         {ev.subjective && <p className="mt-1"><b>S:</b> {ev.subjective}</p>}
                         {ev.objective && <p><b>O:</b> {ev.objective}</p>}
@@ -1579,7 +1580,7 @@ export default function InternacaoCentroCirurgicoModule({
                 )}
                 {selectedItem.status === 'ativa' && (
                   <Button size="sm" variant="outline" className="text-xs mt-2" onClick={() => openModal('evolutionForm', selectedItem)}>
-                    <Plus className="w-3.5 h-3.5 mr-1" /> Nova Evolução
+                    <Plus className="w-3.5 h-3.5 mr-1" /> {t('hce_new_evolution', 'app')}
                   </Button>
                 )}
               </div>

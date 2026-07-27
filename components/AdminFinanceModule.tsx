@@ -11,6 +11,7 @@ import { FinancialPosting, StockItem, AuditLog, Dte, DteItem, Patient, Professio
 } from '@/lib/mockData';
 import { supabase } from '@/lib/supabaseClient';
 import { useI18n } from '@/lib/i18n/I18nContext';
+import I18nDatePicker from '@/components/I18nDatePicker';
 import RolesTab from './RolesTab';
 import {
   Receipt, TrendingUp, Pill, Settings, Plus, Check,
@@ -1410,10 +1411,10 @@ const resetProfForm = () => {
                       }}
                       className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg cursor-pointer transition"
                     >
-                      {editingInsuranceId ? 'Salvar Alterações' : 'Cadastrar Convênio'}
+                      {editingInsuranceId ? t('app_save_changes', 'app') : t('app_register_insurance', 'app')}
                     </button>
                     <button onClick={() => { setShowInsuranceForm(false); setEditingInsuranceId(null); }} className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-lg cursor-pointer transition">
-                      Cancelar
+                      {t('app_cancel', 'app')}
                     </button>
                   </div>
                 </div>
@@ -3929,10 +3930,9 @@ const resetProfForm = () => {
 
                     <div>
                       <label className="block text-xs font-semibold text-slate-600 mb-1">{t('professional_admission', 'app')} *</label>
-                      <input
-                        type="date"
+                      <I18nDatePicker
                         value={profAdmission}
-                        onChange={e => setProfAdmission(e.target.value)}
+                        onChange={setProfAdmission}
                         className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
                         required
                       />
@@ -4199,8 +4199,8 @@ const resetProfForm = () => {
                     </select>
                   </div>
                   <div className="flex gap-2 pt-2">
-                    <button type="submit" className="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-lg text-xs transition">{editingLocId ? 'Salvar' : 'Cadastrar'}</button>
-                    {editingLocId && <button type="button" onClick={resetLocForm} className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs transition">Cancelar</button>}
+                    <button type="submit" className="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-lg text-xs transition">{editingLocId ? t('app_save', 'app') : t('app_register', 'app')}</button>
+                    {editingLocId && <button type="button" onClick={resetLocForm} className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs transition">{t('app_cancel', 'app')}</button>}
                   </div>
                 </form>
               </div>
@@ -4315,8 +4315,8 @@ const resetProfForm = () => {
                     <input type="text" value={roomEquipment.join(', ')} onChange={e => setRoomEquipment(e.target.value.split(',').map(s => s.trim()).filter(Boolean))} placeholder="Ex: Ecógrafo, Microscópio" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
                   </div>
                   <div className="flex gap-2 pt-2">
-                    <button type="submit" className="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-lg text-xs transition">{editingRoomId ? 'Salvar' : 'Cadastrar'}</button>
-                    {editingRoomId && <button type="button" onClick={resetRoomForm} className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs transition">Cancelar</button>}
+                    <button type="submit" className="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-lg text-xs transition">{editingRoomId ? t('app_save', 'app') : t('app_register', 'app')}</button>
+                    {editingRoomId && <button type="button" onClick={resetRoomForm} className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs transition">{t('app_cancel', 'app')}</button>}
                   </div>
                 </form>
               </div>

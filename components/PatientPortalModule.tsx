@@ -9,6 +9,7 @@ import {
 } from '@/lib/mockData';
 import { supabase } from '@/lib/supabaseClient';
 import { useI18n } from '@/lib/i18n/I18nContext';
+import I18nDatePicker from '@/components/I18nDatePicker';
 import {
   Smartphone, CalendarDays, ClipboardList, FileText, Receipt,
   CreditCard, Video, Bell, User, ChevronRight, ChevronLeft,
@@ -464,7 +465,7 @@ export default function PatientPortalModule({
                     </div>
                     <div>
                       <label className="text-[10px] font-bold text-slate-500 uppercase">{t('date_of_birth', 'terms')}</label>
-                      <input type="date" value={regForm.birthdate} onChange={e => setRegForm(p => ({ ...p, birthdate: e.target.value }))} required
+                      <I18nDatePicker value={regForm.birthdate} onChange={v => setRegForm(p => ({ ...p, birthdate: v }))} required
                         className="w-full p-2.5 border border-slate-200 rounded-lg text-xs mt-1 focus:ring-2 focus:ring-indigo-500 outline-none" />
                     </div>
                     <div className="col-span-2">
@@ -592,10 +593,10 @@ export default function PatientPortalModule({
             <div>
               <p className="font-bold text-sm">{nextAppointment.specialty}</p>
               <p className="text-indigo-100 text-xs">{nextAppointment.doctorName}</p>
-               <p className="text-white font-black text-lg mt-1">{nextAppointment.date} às {normalizeTime(nextAppointment.time)}</p>
+               <p className="text-white font-black text-lg mt-1">{nextAppointment.date} {t('portal_at', 'app')} {normalizeTime(nextAppointment.time)}</p>
               {nextAppointment.modality === 'Virtual' && (
                 <span className="inline-flex items-center gap-1 text-[9px] bg-indigo-400/30 text-indigo-100 px-2 py-0.5 rounded-full mt-1">
-                  <Video className="w-2.5 h-2.5" /> Telemedicina
+                  <Video className="w-2.5 h-2.5" /> {t('portal_telemedicine_label', 'app')}
                 </span>
               )}
             </div>
@@ -762,13 +763,13 @@ export default function PatientPortalModule({
               )}
               {rescheduleId === app.id && (
                 <div className="mt-3 pt-3 border-t border-slate-100 flex items-center gap-2">
-                  <input type="date" value={rescheduleDate}
-                    onChange={e => setRescheduleDate(e.target.value)}
+                  <I18nDatePicker value={rescheduleDate}
+                    onChange={setRescheduleDate}
                     className="flex-1 p-1.5 border border-slate-200 rounded-lg text-[10px]" />
                   <select value={rescheduleTime}
                     onChange={e => setRescheduleTime(e.target.value)}
                     className="flex-1 p-1.5 border border-slate-200 rounded-lg text-[10px]">
-                    <option value="">Horário</option>
+                    <option value="">{t('portal_time', 'app')}</option>
                     {TIME_SLOTS.map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
                   <button onClick={() => { handleRescheduleAppointment(app.id, rescheduleDate, rescheduleTime); setRescheduleId(null); }}
@@ -1097,7 +1098,7 @@ export default function PatientPortalModule({
         <>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-1 space-y-3">
-              <h3 className="text-xs font-bold text-slate-700">Teleconsultas Agendadas</h3>
+              <h3 className="text-xs font-bold text-slate-700">{t('portal_teleconsultas_scheduled', 'app')}</h3>
               {telemedicineRequests.filter(r => r.patientId === loggedPatientId).length === 0 ? (
                 <div className="text-center py-8 text-slate-400 bg-white rounded-xl border border-slate-200">
                   <Video className="w-8 h-8 mx-auto mb-2 opacity-50" />
@@ -1111,7 +1112,7 @@ export default function PatientPortalModule({
                       <span className="font-bold text-xs text-slate-800">{req.doctorName}</span>
                     </div>
                     <p className="text-[10px] text-slate-500">{req.specialty}</p>
-                     <p className="text-[10px] text-slate-400">{req.scheduledDate} às {normalizeTime(req.scheduledTime)}</p>
+                     <p className="text-[10px] text-slate-400">{req.scheduledDate} {t('portal_at', 'app')} {normalizeTime(req.scheduledTime)}</p>
                     <div className="flex items-center gap-2 mt-2">
                       <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${req.status === 'confirmado' ? 'bg-green-50 text-green-700' : req.status === 'solicitado' ? 'bg-amber-50 text-amber-700' : 'bg-slate-50 text-slate-600'}`}>
                         {req.status}
@@ -1134,11 +1135,11 @@ export default function PatientPortalModule({
                   <div className="flex items-center justify-between p-3 bg-slate-800/50">
                     <div className="flex items-center gap-2">
                       <span className="w-2 h-2 bg-rose-500 rounded-full animate-ping" />
-                      <span className="text-[10px] font-bold text-teal-400">TELEMEDICINA — CONSULTA ATIVA</span>
+                      <span className="text-[10px] font-bold text-teal-400">{t('portal_telemedicine_active', 'app')}</span>
                     </div>
                     <button onClick={handleToggleTeleconsultation}
                       className="flex items-center gap-1 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[10px] font-bold cursor-pointer">
-                      <X className="w-3 h-3" /> Encerrar
+                      <X className="w-3 h-3" /> {t('portal_telemedicine_end_call', 'app')}
                     </button>
                   </div>
                   <div className="relative bg-slate-950 min-h-[320px] flex items-center justify-center">
@@ -1146,26 +1147,26 @@ export default function PatientPortalModule({
                     {!stream && (
                       <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-500">
                         <Video className="w-12 h-12 mb-2 opacity-50" />
-                        <p className="text-xs font-medium">Sala Virtual Ativa</p>
-                        <p className="text-[10px] text-slate-600">Comunicação segura ponto-a-ponto</p>
+                        <p className="text-xs font-medium">{t('portal_virtual_room_active', 'app')}</p>
+                        <p className="text-[10px] text-slate-600">{t('portal_secure_communication', 'app')}</p>
                       </div>
                     )}
                     <div className="absolute bottom-3 right-3 w-20 h-28 bg-slate-900 border-2 border-white rounded-lg overflow-hidden shadow-md">
-                      <img src="https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&q=80&w=200" alt="Médico" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                      <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-1 py-0.5 text-[8px] text-white text-center">Médico(a)</div>
+                        <img src="https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&q=80&w=200" alt={t('portal_doctor_alt', 'app')} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                        <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-1 py-0.5 text-[8px] text-white text-center">{t('portal_doctor_label', 'app')}</div>
                     </div>
                   </div>
                 </div>
               ) : (
                 <div className="bg-white border border-slate-200 rounded-xl p-8 flex flex-col items-center justify-center text-center min-h-[320px]">
                   <Video className="w-14 h-14 text-slate-300 mb-3" />
-                  <h4 className="font-bold text-sm text-slate-700">Sala de Telemedicina</h4>
+                  <h4 className="font-bold text-sm text-slate-700">{t('portal_telemedicine_room_title', 'app')}</h4>
                   <p className="text-xs text-slate-500 max-w-sm mt-1">
-                    Suas videochamadas são criptografadas de ponta a ponta. Clique em &ldquo;Entrar na Sala&rdquo; para iniciar.
+                    {t('portal_telemedicine_encrypted_description', 'app')}
                   </p>
                   <button onClick={handleToggleTeleconsultation}
                     className="mt-4 flex items-center gap-2 px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl cursor-pointer">
-                    <Video className="w-4 h-4" /> Simular Chamada
+                    <Video className="w-4 h-4" /> {t('portal_telemedicine_simulate_call', 'app')}
                   </button>
                 </div>
               )}
@@ -1196,15 +1197,15 @@ export default function PatientPortalModule({
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-[10px] font-bold text-slate-500 uppercase">{t('portal_select_date', 'app')}</label>
-                <input type="date" value={telForm.date} onChange={e => setTelForm(p => ({ ...p, date: e.target.value }))}
+                <I18nDatePicker value={telForm.date} onChange={v => setTelForm(p => ({ ...p, date: v }))}
                   className="w-full p-2.5 border border-slate-200 rounded-lg text-xs mt-1 focus:ring-2 focus:ring-purple-500 outline-none" />
               </div>
               <div>
                 <label className="text-[10px] font-bold text-slate-500 uppercase">{t('portal_select_time', 'app')}</label>
                 <select value={telForm.time} onChange={e => setTelForm(p => ({ ...p, time: e.target.value }))}
                   className="w-full p-2.5 border border-slate-200 rounded-lg text-xs mt-1 focus:ring-2 focus:ring-purple-500 outline-none">
-                  <option value="">Horário</option>
-                  {TIME_SLOTS.map(t => <option key={t} value={t}>{t}</option>)}
+                  <option value="">{t('portal_time', 'app')}</option>
+                  {TIME_SLOTS.map(ts => <option key={ts} value={ts}>{ts}</option>)}
                 </select>
               </div>
             </div>
@@ -1437,8 +1438,8 @@ export default function PatientPortalModule({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-[10px] font-bold text-slate-500 uppercase">{t('portal_select_date', 'app')}</label>
-                  <input type="date" value={bookingForm.date}
-                    onChange={e => setBookingForm(p => ({ ...p, date: e.target.value }))}
+                  <I18nDatePicker value={bookingForm.date}
+                    onChange={v => setBookingForm(p => ({ ...p, date: v }))}
                     className="w-full p-2.5 border border-slate-200 rounded-lg text-xs mt-1 focus:ring-2 focus:ring-indigo-500 outline-none" />
                 </div>
                 <div>

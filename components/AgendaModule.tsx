@@ -19,6 +19,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { PermissionGate, WithPermissions, useUserPermissions } from '@/components/ui/PermissionGate';
 import { Button } from '@/components/ui/button';
 import PhoneInput from '@/components/PhoneInput';
+import I18nDatePicker from '@/components/I18nDatePicker';
 import { Badge } from '@/components/ui/badge';
 
 // ==============================================================
@@ -224,9 +225,9 @@ const PARAGUAY_HOLIDAYS = [
 ];
 
 const WHATSAPP_TEMPLATES = [
-  { id: 'tpl_1', name: 'Lembrete 48h', hoursBefore: 48, messageEs: 'Hola {nombre}. Le recordamos su consulta con {profesional} el {fecha} a las {hora} en {sede}. Responda: 1=Confirmar, 2=Cancelar, 3=Remarcar', messageGn: 'Hola {nombre}. Rembiapoite upeicha rendaite con {profesional} {fecha} {hora} en {sede}. Jawepy: 1=Jepive, 2=Ñanomboya, 3=Tembiapo ipahague', messagePt: 'Olá {nombre}. Lembramos sua consulta com {profesional} em {fecha} às {hora} em {sede}. Responda: 1=Confirmar, 2=Cancelar, 3=Remarcar', messageEn: 'Hello {nombre}. We remind you of your appointment with {profesional} on {fecha} at {hora} at {sede}. Reply: 1=Confirm, 2=Cancel, 3=Reschedule' },
-  { id: 'tpl_2', name: 'Lembrete 24h', hoursBefore: 24, messageEs: 'Hola {nombre}. Mañana tiene consulta con {profesional} a las {hora} en {sede}. Por favor confirme su asistencia.', messageGn: 'Hola {nombre}. Arange upeicha rendaite con {profesional} {hora} en {sede}. Ikatu peẽ jepive.', messagePt: 'Olá {nombre}. Amanhã você tem consulta com {profesional} às {hora} em {sede}. Por favor confirme.', messageEn: 'Hello {nombre}. You have an appointment with {profesional} tomorrow at {hora} at {sede}. Please confirm.' },
-  { id: 'tpl_3', name: 'Lembrete 2h', hoursBefore: 2, messageEs: 'Hola {nombre}. Su consulta con {profesional} es en 2 horas en {sede}. Lo esperamos.', messageGn: 'Hola {nombre}. Upicha rendaite con {profesional} ha e\'ho 2 horas en {sede}. Jaha jave.', messagePt: 'Olá {nombre}. Sua consulta com {profesional} é em 2 horas em {sede}. Aguardamos você.', messageEn: 'Hello {nombre}. Your appointment with {profesional} is in 2 hours at {sede}. We look forward to seeing you.' },
+  { id: 'tpl_1', nameKey: 'agenda_reminder_48h', hoursBefore: 48, messageEs: 'Hola {nombre}. Le recordamos su consulta con {profesional} el {fecha} a las {hora} en {sede}. Responda: 1=Confirmar, 2=Cancelar, 3=Remarcar', messageGn: 'Hola {nombre}. Rembiapoite upeicha rendaite con {profesional} {fecha} {hora} en {sede}. Jawepy: 1=Jepive, 2=Ñanomboya, 3=Tembiapo ipahague', messagePt: 'Olá {nombre}. Lembramos sua consulta com {profesional} em {fecha} às {hora} em {sede}. Responda: 1=Confirmar, 2=Cancelar, 3=Remarcar', messageEn: 'Hello {nombre}. We remind you of your appointment with {profesional} on {fecha} at {hora} at {sede}. Reply: 1=Confirm, 2=Cancel, 3=Reschedule' },
+  { id: 'tpl_2', nameKey: 'agenda_reminder_24h', hoursBefore: 24, messageEs: 'Hola {nombre}. Mañana tiene consulta con {profesional} a las {hora} en {sede}. Por favor confirme su asistencia.', messageGn: 'Hola {nombre}. Arange upeicha rendaite con {profesional} {hora} en {sede}. Ikatu peẽ jepive.', messagePt: 'Olá {nombre}. Amanhã você tem consulta com {profesional} às {hora} em {sede}. Por favor confirme.', messageEn: 'Hello {nombre}. You have an appointment with {profesional} tomorrow at {hora} at {sede}. Please confirm.' },
+  { id: 'tpl_3', nameKey: 'agenda_reminder_2h', hoursBefore: 2, messageEs: 'Hola {nombre}. Su consulta con {profesional} es en 2 horas en {sede}. Lo esperamos.', messageGn: 'Hola {nombre}. Upicha rendaite con {profesional} ha e\'ho 2 horas en {sede}. Jaha jave.', messagePt: 'Olá {nombre}. Sua consulta com {profesional} é em 2 horas em {sede}. Aguardamos você.', messageEn: 'Hello {nombre}. Your appointment with {profesional} is in 2 hours at {sede}. We look forward to seeing you.' },
 ];
 
 const CALL_CENTER_REASONS = [
@@ -2140,7 +2141,7 @@ const AgendaModuleContent = ({
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_birth_date_field', 'app')}</label>
-                    <input type="date" value={cpForm.birth_date} onChange={e => setCpForm({ ...cpForm, birth_date: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required />
+                    <I18nDatePicker value={cpForm.birth_date} onChange={v => setCpForm({ ...cpForm, birth_date: v })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required />
                     {cpForm.birth_date && <p className="text-xs text-slate-400 mt-1">{cpAge} {t('agenda_years', 'app')}{cpIsMinor ? ` (${t('agenda_minor_guardian_required', 'app')})` : ''}</p>}
                   </div>
                   <div>
@@ -2319,7 +2320,7 @@ const AgendaModuleContent = ({
                     <option value="es-PY">🇵🇾 Español (Paraguay)</option>
                     <option value="es">🇪🇸 Español (Geral)</option>
                     <option value="en">🇺🇸 English (US/UK)</option>
-                    <option value="outros">Outros</option>
+                    <option value="outros">{t('agenda_others', 'app')}</option>
                   </select>
                 </div>
                 <div>
@@ -2564,7 +2565,7 @@ const AgendaModuleContent = ({
                 d.setDate(d.getDate() - (calendarView === 'day' ? 1 : calendarView === 'week' ? 7 : 30));
                 setSelectedDate(d.toISOString().split('T')[0]);
               }} className="p-1.5 hover:bg-slate-100 rounded-lg"><ChevronLeft className="w-4 h-4" /></button>
-              <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)}
+              <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} lang={locale}
                 className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold" />
               <button onClick={() => {
                 const d = new Date(selectedDate);
@@ -2893,7 +2894,7 @@ const AgendaModuleContent = ({
                 d.setDate(d.getDate() - (whatsappDateView === 'day' ? 1 : whatsappDateView === 'week' ? 7 : 30));
                 setWhatsappSelectedDate(d.toISOString().split('T')[0]);
               }} className="p-1.5 hover:bg-slate-100 rounded-lg"><ChevronLeft className="w-4 h-4" /></button>
-              <input type="date" value={whatsappSelectedDate} onChange={e => setWhatsappSelectedDate(e.target.value)}
+              <input type="date" value={whatsappSelectedDate} onChange={e => setWhatsappSelectedDate(e.target.value)} lang={locale}
                 className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold" />
               <button onClick={() => {
                 const d = new Date(whatsappSelectedDate + 'T12:00:00');
@@ -3015,7 +3016,7 @@ const AgendaModuleContent = ({
                 d.setDate(d.getDate() - (waitlistDateView === 'day' ? 1 : waitlistDateView === 'week' ? 7 : 30));
                 setWaitlistSelectedDate(d.toISOString().split('T')[0]);
               }} className="p-1.5 hover:bg-slate-100 rounded-lg"><ChevronLeft className="w-4 h-4" /></button>
-              <input type="date" value={waitlistSelectedDate} onChange={e => setWaitlistSelectedDate(e.target.value)}
+              <input type="date" value={waitlistSelectedDate} onChange={e => setWaitlistSelectedDate(e.target.value)} lang={locale}
                 className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold" />
               <button onClick={() => {
                 const d = new Date(waitlistSelectedDate + 'T12:00:00');
@@ -3274,7 +3275,7 @@ const AgendaModuleContent = ({
             </div>
             <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-2 py-1">
               <button onClick={() => { const d = new Date(callSelectedDate); d.setDate(d.getDate() - (callDateView === 'day' ? 1 : callDateView === 'week' ? 7 : 30)); setCallSelectedDate(d.toISOString().split('T')[0]); }} className="text-slate-400 hover:text-slate-600">{'<'}</button>
-              <input type="date" value={callSelectedDate} onChange={e => setCallSelectedDate(e.target.value)} className="text-xs text-slate-600 border-0 bg-transparent w-28 text-center" />
+              <input type="date" value={callSelectedDate} onChange={e => setCallSelectedDate(e.target.value)} lang={locale} className="text-xs text-slate-600 border-0 bg-transparent w-28 text-center" />
               <button onClick={() => { const d = new Date(callSelectedDate); d.setDate(d.getDate() + (callDateView === 'day' ? 1 : callDateView === 'week' ? 7 : 30)); setCallSelectedDate(d.toISOString().split('T')[0]); }} className="text-slate-400 hover:text-slate-600">{'>'}</button>
             </div>
             <button onClick={() => setCallSelectedDate(new Date().toISOString().split('T')[0])} className="px-3 py-1.5 text-xs font-semibold bg-rose-100 text-rose-700 rounded-lg hover:bg-rose-200 transition">{t('agenda_today', 'app')}</button>
@@ -3494,7 +3495,7 @@ const AgendaModuleContent = ({
             <div className="grid grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_date', 'app')}</label>
-                <input type="date" value={newApptForm.date} onChange={e => setNewApptForm({ ...newApptForm, date: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required />
+                <I18nDatePicker value={newApptForm.date} onChange={v => setNewApptForm({ ...newApptForm, date: v })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required />
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_time', 'app')}</label>
@@ -3668,7 +3669,7 @@ const AgendaModuleContent = ({
             <div className="grid grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_date', 'app')}</label>
-                <input type="date" value={editApptForm.date} onChange={e => setEditApptForm({ ...editApptForm, date: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required />
+                <I18nDatePicker value={editApptForm.date} onChange={v => setEditApptForm({ ...editApptForm, date: v })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required />
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_time', 'app')} *</label>
@@ -3730,11 +3731,11 @@ const AgendaModuleContent = ({
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_start_date', 'app')}</label>
-                <input type="date" value={blockForm.start_date} onChange={e => setBlockForm({ ...blockForm, start_date: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required />
+                <I18nDatePicker value={blockForm.start_date} onChange={v => setBlockForm({ ...blockForm, start_date: v })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required />
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_end_date', 'app')}</label>
-                <input type="date" value={blockForm.end_date} onChange={e => setBlockForm({ ...blockForm, end_date: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required />
+                <I18nDatePicker value={blockForm.end_date} onChange={v => setBlockForm({ ...blockForm, end_date: v })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -3814,7 +3815,7 @@ const AgendaModuleContent = ({
                 <select value={reminderForm.template_id} onChange={e => setReminderForm({ ...reminderForm, template_id: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
                   <option value="">{t('agenda_select', 'app')}</option>
                   {WHATSAPP_TEMPLATES.map(tpl => (
-                    <option key={tpl.id} value={tpl.id}>{tpl.name} ({tpl.hoursBefore}{t('agenda_hours_before', 'app')})</option>
+                    <option key={tpl.id} value={tpl.id}>{t(tpl.nameKey, 'app')} ({tpl.hoursBefore}{t('agenda_hours_before', 'app')})</option>
                   ))}
                 </select>
               </div>
@@ -3963,15 +3964,15 @@ const AgendaModuleContent = ({
                 <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_template', 'app')}</label>
                 <select value={notifyTemplate} onChange={e => setNotifyTemplate(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
                   <option value="">{t('agenda_select', 'app')}</option>
-                  {WHATSAPP_TEMPLATES.map(t => (
-                    <option key={t.id} value={t.id}>{t.name} ({t.hoursBefore}{t('agenda_hours_before', 'app')})</option>
+                  {WHATSAPP_TEMPLATES.map(tmpl => (
+                    <option key={tmpl.id} value={tmpl.id}>{t(tmpl.nameKey, 'app')} ({tmpl.hoursBefore}{t('agenda_hours_before', 'app')})</option>
                   ))}
                 </select>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_consult_date_label', 'app')} <span className="text-red-500">*</span></label>
-                  <input type="date" value={notifyConsultDate} onChange={e => setNotifyConsultDate(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
+                  <I18nDatePicker value={notifyConsultDate} onChange={setNotifyConsultDate} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_th_consult_date', 'app')} <span className="text-red-500">*</span></label>
@@ -4046,7 +4047,7 @@ const AgendaModuleContent = ({
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_date', 'app')}</label>
-                  <input type="date" value={allocateDate} onChange={e => setAllocateDate(e.target.value)} min={new Date().toISOString().split('T')[0]} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required />
+                  <I18nDatePicker value={allocateDate} onChange={setAllocateDate} minDate={new Date().toISOString().split('T')[0]} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_time', 'app')}</label>
