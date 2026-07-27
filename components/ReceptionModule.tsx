@@ -46,6 +46,20 @@ export default function ReceptionModule({
   userPermissions = [],
 }: ReceptionModuleProps) {
   const { t, locale } = useI18n();
+  const getMaxNumericId = async (table: string, idPattern: string, idColumn: string = 'id'): Promise<number> => {
+    const { data } = await supabase.from(table).select(idColumn).like(idColumn, `${idPattern}%`);
+    let max = 0;
+    if (data) {
+      for (const row of data) {
+        const m = String(row[idColumn]).match(new RegExp(`${idPattern}(\\d+)`));
+        if (m) {
+          const num = parseInt(m[1], 10);
+          if (!isNaN(num) && num > max) max = num;
+        }
+      }
+    }
+    return max;
+  };
   // Tab control inside Admission Form
   const [activeFormTab, setActiveFormTab] = useState<'identification' | 'contact_address' | 'complementary' | 'guardian'>('identification');
 
@@ -637,12 +651,7 @@ export default function ReceptionModule({
               currentPatients: assignments.filter((a: any) => a.location_id === loc.id).map((a: any) => a.patient_id),
             })));
           }
-          // Set pla counter from LAST ID (regardless of active state) to avoid PK collisions
-          const { data: allPla } = await supabase.from('patient_location_assignments').select('id').order('id', { ascending: false }).limit(1);
-          if (allPla && allPla.length > 0) {
-            const num = parseInt(String(allPla[0].id).replace('pla_', ''));
-            if (!isNaN(num)) plaCounterRef.current = num;
-          }
+          plaCounterRef.current = await getMaxNumericId('patient_location_assignments', 'pla_');
         }
         const { data: notifications, error: notifError } = await supabase.from('internal_notifications').select('*').order('created_at', { ascending: false }).limit(50);
         if (!notifError && notifications) {
@@ -655,30 +664,15 @@ export default function ReceptionModule({
             read: n.read,
             createdAt: n.created_at,
           })));
-          // Set notif counter from last ID
-          let maxNotif = 0;
-          notifications.forEach((n: any) => {
-            const num = parseInt(String(n.id).replace('notif_', ''));
-            if (!isNaN(num) && num > maxNotif) maxNotif = num;
-          });
-          notifCounterRef.current = maxNotif;
+          notifCounterRef.current = await getMaxNumericId('internal_notifications', 'notif_');
         }
-        // Initialize his counters from clinical_history table (use last IDs to avoid PK collisions regardless of count)
-        const { data: lastTriage } = await supabase.from('clinical_history').select('id').like('id', 'his_triage_%').order('id', { ascending: false }).limit(1);
-        const { data: lastMed } = await supabase.from('clinical_history').select('id').like('id', 'his_med_%').order('id', { ascending: false }).limit(1);
-        if (lastTriage && lastTriage.length > 0) {
-          const m = String(lastTriage[0].id).match(/his_triage_(\d+)/);
-          if (m) hisCounterRef.current = parseInt(m[1], 10);
-        }
-        if (lastMed && lastMed.length > 0) {
-          const m = String(lastMed[0].id).match(/his_med_(\d+)/);
-          if (m) hisMedCounterRef.current = parseInt(m[1], 10);
-        }
-        // Load attended patients from completed assignments
+        hisCounterRef.current = await getMaxNumericId('clinical_history', 'his_triage_');
+        hisMedCounterRef.current = await getMaxNumericId('clinical_history', 'his_med_');
         const { data: completedAssignments, error: completedError } = await supabase
           .from('patient_location_assignments')
-          .select('*, patients!inner(name, phone), hospital_locations!inner(name)')
+          .select('*, patients!inner(name, phone, status), hospital_locations!inner(name)')
           .eq('active', false)
+          .eq('patients.status', 'atendido')
           .order('assigned_at', { ascending: false })
           .limit(50);
         const attendedMap = new Map<string, any>();
@@ -1645,17 +1639,25 @@ export default function ReceptionModule({
       alert(t('rcpt_alert_capacity_full', 'app'));
       return;
     }
-    // Save med data for current location before redirecting
     if (pendingMedDataRef.current && supabase) {
-      try {
-        const { pid, medData } = pendingMedDataRef.current;
-        const medEntry = { id: `his_med_${++hisMedCounterRef.current}`, date: new Date().toISOString().split('T')[0], created_at: new Date().toISOString(), type: 'Consulta Médica', ...medData };
-        const { error } = await supabase.from('clinical_history').insert({ ...medEntry, patient_id: pid });
-        if (!error) {
-          setPatients(prev => prev.map(p => p.id === pid ? { ...p, clinicalHistory: [{ ...medEntry, patient_id: pid } as any, ...(p.clinicalHistory || [])] } : p));
+      const { pid, medData } = pendingMedDataRef.current;
+      const hasAnyField =
+        (medData.diagnosis && String(medData.diagnosis).trim() !== '') ||
+        (medData.cid10 && String(medData.cid10).trim() !== '' && medData.cid10 !== 'Z00.0') ||
+        (medData.prescriptions && (Array.isArray(medData.prescriptions) ? medData.prescriptions.length > 0 : String(medData.prescriptions).trim() !== '')) ||
+        (medData.notes && String(medData.notes).trim() !== '');
+if (hasAnyField) {
+        try {
+const medEntry = { id: `his_med_${++hisMedCounterRef.current}`, date: new Date().toISOString().split('T')[0], created_at: new Date().toISOString(), type: 'Consulta Médica', ...medData };
+          const { error } = await supabase.from('clinical_history').insert({ ...medEntry, patient_id: pid });
+          if (!error) {
+            setPatients(prev => prev.map(p => p.id === pid ? { ...p, clinicalHistory: [{ ...medEntry, patient_id: pid } as any, ...(p.clinicalHistory || [])] } : p));
+          } else {
+            console.error('[SUPABASE] SAVE med before redirect FAILED:', error.message);
+          }
+        } catch (err) {
+          console.error('[SUPABASE] SAVE med before redirect FAILED:', err);
         }
-      } catch (err) {
-        console.error('[SUPABASE] SAVE med before redirect FAILED:', err);
       }
       pendingMedDataRef.current = null;
     }
@@ -4875,7 +4877,7 @@ export default function ReceptionModule({
                                   attached_files: triage?.attached_files || [],
                                   triaged_at: triage?.triaged_at || null,
                                 };
-                                const medEntry = { id: `his_med_${++hisMedCounterRef.current}`, date: new Date().toISOString().split('T')[0], created_at: new Date().toISOString(), type: 'Consulta Médica', ...medData };
+const medEntry = { id: `his_med_${++hisMedCounterRef.current}`, date: new Date().toISOString().split('T')[0], created_at: new Date().toISOString(), type: 'Consulta Médica', ...medData };
                                 const { error } = await supabase.from('clinical_history').insert({ ...medEntry, patient_id: pid });
                                 if (error) {
                                   console.error('[SUPABASE] INSERT medical consultation FAILED:', error.message);
