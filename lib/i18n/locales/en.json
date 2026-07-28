@@ -1656,6 +1656,8 @@
     "hce_timeline_procedimento": "Procedure",
     "hce_timeline_alta": "Discharge",
     "hce_timeline_emergencia": "Emergency",
+    "hce_timeline_triage": "📍 Triage",
+    "hce_timeline_no_history": "No history available",
     "hce_break_glass": "Break Glass (Emergency)",
     "hce_break_glass_justification": "Emergency Access Justification",
     "hce_sensitive_field": "Sensitive Field",

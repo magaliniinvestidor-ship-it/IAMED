@@ -1143,6 +1143,8 @@
     "hce_timeline_procedimento": "Procedimento",
     "hce_timeline_alta": "Alta",
     "hce_timeline_emergencia": "Emergência",
+    "hce_timeline_triage": "📍 Triagem",
+    "hce_timeline_no_history": "Nenhum histórico disponível",
     "hce_break_glass": "Quebra de Vidro (Emergência)",
     "hce_break_glass_justification": "Justificativa do Acesso de Emergência",
     "hce_sensitive_field": "Campo Sensível",
