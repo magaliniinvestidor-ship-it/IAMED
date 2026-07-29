@@ -123,7 +123,7 @@ const ClinicalModuleContent = ({
     occupation: '', maritalStatus: '', notes: '',
   });
   const [newAllergy, setNewAllergy] = useState<AllergyEntry>({ allergen: '', type: '', severity: '' as any, reaction: '' });
-  const [newMedication, setNewMedication] = useState<MedicationEntry>({ name: '', dosage: '', frequency: '', route: 'oral', since: '' });
+  const [newMedication, setNewMedication] = useState<MedicationEntry>({ name: '', dosage: '', frequency: '', route: '', since: '' });
   const [newFamily, setNewFamily] = useState<FamilyHistoryEntry>({ relation: '', condition: '', age: undefined, deceased: false });
   const [newSurgery, setNewSurgery] = useState<SurgicalEntry>({ procedure: '', date: '', hospital: '', complications: '' });
 
@@ -1314,14 +1314,11 @@ const ClinicalModuleContent = ({
     return dateStr;
   };
 
-  const statusMap: Record<string, string> = {
-    agendado: 'Agendado', aguardando: 'Aguardando', triado: 'Triado',
-    atendimento: 'Atendimento', atendido: 'Atendido', internado: 'Internado',
-    scheduled: 'Agendado', waiting: 'Aguardando', triaged: 'Triado',
-    'in progress': 'Atendimento', active: 'Atendimento', attended: 'Atendido',
-    hospitalized: 'Internado', admitted: 'Internado',
+  const translateStatus = (s: string) => {
+    const key = `hce_status_${s.toLowerCase().replace(/\s+/g, '_')}`;
+    const translated = t(key, 'app');
+    return translated !== key ? translated : s;
   };
-  const translateStatus = (s: string) => statusMap[s.toLowerCase()] || s;
 
   return (
     <div className="space-y-6">
@@ -1510,31 +1507,49 @@ const ClinicalModuleContent = ({
                       <label className={labelCls}>{t('hce_smoking', 'app')}</label>
                       <select value={anamnese.smoking} onChange={e => setAnamnese(p => ({ ...p, smoking: e.target.value }))} className={inputCls}>
                         <option value="">{t('agenda_select', 'app')}</option>
-                        <option value="sim">Sim</option>
-                        <option value="não">Não</option>
-                        <option value="ex-fumante">Ex-fumante</option>
-                        <option value="nunca-fumou">Nunca fumou</option>
+                        <option value="sim">{t('hce_smoking_yes', 'app')}</option>
+                        <option value="não">{t('hce_smoking_no', 'app')}</option>
+                        <option value="ex-fumante">{t('hce_smoking_ex', 'app')}</option>
+                        <option value="nunca-fumou">{t('hce_smoking_never', 'app')}</option>
                       </select>
                     </div>
                     <div>
                       <label className={labelCls}>{t('hce_alcohol', 'app')}</label>
                       <select value={anamnese.alcohol} onChange={e => setAnamnese(p => ({ ...p, alcohol: e.target.value }))} className={inputCls}>
                         <option value="">{t('agenda_select', 'app')}</option>
-                        <option value="não">Não</option>
-                        <option value="ocasional">Ocasional</option>
-                        <option value="frequente">Frequente</option>
-                        <option value="ex-etilista">Ex-etilista</option>
+                        <option value="não">{t('hce_alcohol_no', 'app')}</option>
+                        <option value="ocasional">{t('hce_alcohol_occasional', 'app')}</option>
+                        <option value="frequente">{t('hce_alcohol_frequent', 'app')}</option>
+                        <option value="ex-etilista">{t('hce_alcohol_ex', 'app')}</option>
                       </select>
                     </div>
                     <div>
                       <label className={labelCls}>{t('hce_physical_activity', 'app')}</label>
                       <select value={anamnese.physicalActivity} onChange={e => setAnamnese(p => ({ ...p, physicalActivity: e.target.value }))} className={inputCls}>
                         <option value="">{t('agenda_select', 'app')}</option>
-                        <option value="não">Não</option>
-                        <option value="leve">Leve</option>
-                        <option value="moderada">Moderada</option>
-                        <option value="intensa">Intensa</option>
+                        <option value="não">{t('hce_activity_none', 'app')}</option>
+                        <option value="leve">{t('hce_activity_light', 'app')}</option>
+                        <option value="moderada">{t('hce_activity_moderate', 'app')}</option>
+                        <option value="intensa">{t('hce_activity_intense', 'app')}</option>
                       </select>
+                    </div>
+                  </div>
+
+                  {/* Personal Pathological History */}
+                  <div>
+                    <label className={labelCls}>{t('hce_personal_pathological', 'app')}</label>
+                    <textarea value={anamnese.personalPathological.join(', ')} onChange={e => setAnamnese(p => ({ ...p, personalPathological: e.target.value.split(',').map(s => s.trim()).filter(Boolean) }))} rows={2} className={textareaCls} placeholder={t('hce_personal_pathological_placeholder', 'app')} />
+                  </div>
+
+                  {/* Diet / Sleep */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className={labelCls}>{t('hce_diet', 'app')}</label>
+                      <input type="text" value={anamnese.diet} onChange={e => setAnamnese(p => ({ ...p, diet: e.target.value }))} className={inputCls} placeholder={t('hce_diet_placeholder', 'app')} />
+                    </div>
+                    <div>
+                      <label className={labelCls}>{t('hce_sleep', 'app')}</label>
+                      <input type="text" value={anamnese.sleep} onChange={e => setAnamnese(p => ({ ...p, sleep: e.target.value }))} className={inputCls} placeholder={t('hce_sleep_placeholder', 'app')} />
                     </div>
                   </div>
 
@@ -1542,17 +1557,17 @@ const ClinicalModuleContent = ({
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className={labelCls}>{t('hce_profession', 'app')}</label>
-                      <input type="text" value={anamnese.occupation} onChange={e => setAnamnese(p => ({ ...p, occupation: e.target.value }))} className={inputCls} placeholder={t('hce_profession_placeholder', 'app') || 'Ex: Engenheiro'} />
+                      <input type="text" value={anamnese.occupation} onChange={e => setAnamnese(p => ({ ...p, occupation: e.target.value }))} className={inputCls} placeholder={t('hce_profession_placeholder', 'app')} />
                     </div>
                     <div>
                       <label className={labelCls}>{t('hce_marital_status', 'app')}</label>
                       <select value={anamnese.maritalStatus} disabled className={`${inputCls} bg-slate-100 text-slate-500 cursor-not-allowed appearance-none`}>
-                        <option value="">Selecione...</option>
-                        <option value="Solteiro(a)">Solteiro(a)</option>
-                        <option value="Casado(a)">Casado(a)</option>
-                        <option value="Divorciado(a)">Divorciado(a)</option>
-                        <option value="Viúvo(a)">Viúvo(a)</option>
-                        <option value="União Estável">União Estável</option>
+                        <option value="">{t('agenda_select', 'app')}</option>
+                        <option value="Solteiro(a)">{t('hce_marital_single', 'app')}</option>
+                        <option value="Casado(a)">{t('hce_marital_married', 'app')}</option>
+                        <option value="Divorciado(a)">{t('hce_marital_divorced', 'app')}</option>
+                        <option value="Viúvo(a)">{t('hce_marital_widowed', 'app')}</option>
+                        <option value="União Estável">{t('hce_marital_stable', 'app')}</option>
                       </select>
                     </div>
                   </div>
@@ -1567,9 +1582,9 @@ const ClinicalModuleContent = ({
                       <input type="text" placeholder={t('hce_allergy_type', 'app')} value={newAllergy.type} onChange={e => setNewAllergy(p => ({ ...p, type: e.target.value }))} className={inputCls} />
                       <select value={newAllergy.severity} onChange={e => setNewAllergy(p => ({ ...p, severity: e.target.value as any }))} className={inputCls}>
                         <option value="">{t('agenda_select', 'app')}</option>
-                        <option value="leve">Leve</option>
-                        <option value="moderada">Moderada</option>
-                        <option value="grave">Grave</option>
+                        <option value="leve">{t('hce_severity_mild', 'app')}</option>
+                        <option value="moderada">{t('hce_severity_moderate', 'app')}</option>
+                        <option value="grave">{t('hce_severity_severe', 'app')}</option>
                       </select>
                       <div className="flex gap-1">
                         <input type="text" placeholder={t('hce_reaction', 'app')} value={newAllergy.reaction} onChange={e => setNewAllergy(p => ({ ...p, reaction: e.target.value }))} className={inputCls} />
@@ -1606,11 +1621,12 @@ const ClinicalModuleContent = ({
                     <h5 className="text-xs font-bold text-slate-600 uppercase flex items-center gap-1">
                       <Pill className="w-3.5 h-3.5 text-blue-500" /> {t('hce_current_medications', 'app')}
                     </h5>
-                    <div className="grid grid-cols-5 gap-2">
-                      <input type="text" placeholder={t('hce_medication', 'app') || 'Medicamento'} value={newMedication.name} onChange={e => setNewMedication(p => ({ ...p, name: e.target.value }))} className={inputCls} />
-                      <input type="text" placeholder={t('hce_dosage', 'app') || 'Dosagem'} value={newMedication.dosage} onChange={e => setNewMedication(p => ({ ...p, dosage: e.target.value }))} className={inputCls} />
-                      <input type="text" placeholder={t('hce_frequency', 'app') || 'Frequência'} value={newMedication.frequency} onChange={e => setNewMedication(p => ({ ...p, frequency: e.target.value }))} className={inputCls} />
-                      <input type="text" placeholder={t('hce_since', 'app') || 'Desde'} value={newMedication.since} onChange={e => setNewMedication(p => ({ ...p, since: e.target.value }))} className={inputCls} />
+                    <div className="grid grid-cols-6 gap-2">
+                      <input type="text" placeholder={t('hce_medication', 'app')} value={newMedication.name} onChange={e => setNewMedication(p => ({ ...p, name: e.target.value }))} className={inputCls} />
+                      <input type="text" placeholder={t('hce_dosage', 'app')} value={newMedication.dosage} onChange={e => setNewMedication(p => ({ ...p, dosage: e.target.value }))} className={inputCls} />
+                      <input type="text" placeholder={t('hce_frequency', 'app')} value={newMedication.frequency} onChange={e => setNewMedication(p => ({ ...p, frequency: e.target.value }))} className={inputCls} />
+                      <input type="text" placeholder={t('hce_route', 'app')} value={newMedication.route} onChange={e => setNewMedication(p => ({ ...p, route: e.target.value }))} className={inputCls} />
+                      <input type="text" placeholder={t('hce_since', 'app')} value={newMedication.since} onChange={e => setNewMedication(p => ({ ...p, since: e.target.value }))} className={inputCls} />
                       <button type="button" onClick={() => {
                         const missing = [];
                         if (!newMedication.name.trim()) missing.push('Medicamento');
@@ -1620,15 +1636,15 @@ const ClinicalModuleContent = ({
                           return;
                         }
                         setAnamnese(p => ({ ...p, currentMedications: [...p.currentMedications, newMedication] }));
-                        setNewMedication({ name: '', dosage: '', frequency: '', route: 'oral', since: '' });
-                      }} className="bg-slate-800 hover:bg-slate-900 text-white text-xs px-3 rounded-lg font-bold flex items-center justify-center gap-1"><Plus className="w-3 h-3" /> Adicionar</button>
+                        setNewMedication({ name: '', dosage: '', frequency: '', route: '', since: '' });
+                      }} className="bg-slate-800 hover:bg-slate-900 text-white text-xs px-3 rounded-lg font-bold flex items-center justify-center gap-1"><Plus className="w-3 h-3" /> {t('hce_add', 'app')}</button>
                     </div>
                     {anamnese.currentMedications.length > 0 && (
                       <div className="space-y-1">
                         {anamnese.currentMedications.map((m, i) => (
                           <div key={i} className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg px-3 py-1.5 text-xs">
                             <span className="font-bold text-blue-800">{m.name}</span>
-                            <span className="text-blue-600">{m.dosage} - {m.frequency}</span>
+                            <span className="text-blue-600">{m.dosage} - {m.frequency}{m.route ? ` (${m.route})` : ''}{m.since ? ` (${t('hce_since', 'app')}: ${m.since})` : ''}</span>
                             <button onClick={() => setAnamnese(p => ({ ...p, currentMedications: p.currentMedications.filter((_, j) => j !== i) }))} className="text-blue-500 hover:text-blue-700"><Trash2 className="w-3 h-3" /></button>
                           </div>
                         ))}
@@ -1653,7 +1669,7 @@ const ClinicalModuleContent = ({
                         }
                         setAnamnese(p => ({ ...p, familyHistory: [...p.familyHistory, newFamily] }));
                         setNewFamily({ relation: '', condition: '', age: undefined, deceased: false });
-                      }} className="bg-slate-800 hover:bg-slate-900 text-white text-xs px-3 rounded-lg font-bold flex items-center justify-center gap-1"><Plus className="w-3 h-3" /> Adicionar</button>
+                      }} className="bg-slate-800 hover:bg-slate-900 text-white text-xs px-3 rounded-lg font-bold flex items-center justify-center gap-1"><Plus className="w-3 h-3" /> {t('hce_add', 'app')}</button>
                     </div>
                     {anamnese.familyHistory.length > 0 && (
                       <div className="space-y-1">
@@ -1672,7 +1688,7 @@ const ClinicalModuleContent = ({
                   <div className="border border-slate-100 rounded-xl p-3 space-y-2">
                     <h5 className="text-xs font-bold text-slate-600 uppercase">{t('hce_surgical_history', 'app')}</h5>
                     <div className="grid grid-cols-4 gap-2">
-                      <input type="text" placeholder={t('hce_procedure', 'app') || 'Procedimento'} value={newSurgery.procedure} onChange={e => setNewSurgery(p => ({ ...p, procedure: e.target.value }))} className={inputCls} />
+                      <input type="text" placeholder={t('hce_procedure', 'app')} value={newSurgery.procedure} onChange={e => setNewSurgery(p => ({ ...p, procedure: e.target.value }))} className={inputCls} />
                       <I18nDatePicker value={newSurgery.date} onChange={v => setNewSurgery(p => ({ ...p, date: v }))} className={inputCls} />
                       <input type="text" placeholder={t('hce_hospital', 'app')} value={newSurgery.hospital} onChange={e => setNewSurgery(p => ({ ...p, hospital: e.target.value }))} className={inputCls} />
                       <button type="button" onClick={() => {
@@ -1682,7 +1698,7 @@ const ClinicalModuleContent = ({
                         }
                         setAnamnese(p => ({ ...p, surgicalHistory: [...p.surgicalHistory, newSurgery] }));
                         setNewSurgery({ procedure: '', date: '', hospital: '', complications: '' });
-                      }} className="bg-slate-800 hover:bg-slate-900 text-white text-xs px-3 rounded-lg font-bold flex items-center justify-center gap-1"><Plus className="w-3 h-3" /> Adicionar</button>
+                      }} className="bg-slate-800 hover:bg-slate-900 text-white text-xs px-3 rounded-lg font-bold flex items-center justify-center gap-1"><Plus className="w-3 h-3" /> {t('hce_add', 'app')}</button>
                     </div>
                     {anamnese.surgicalHistory.length > 0 && (
                       <div className="space-y-1">
@@ -1697,20 +1713,78 @@ const ClinicalModuleContent = ({
                     )}
                   </div>
 
+                  {/* Gynecological */}
+                  <div className="border border-slate-100 rounded-xl p-3 space-y-2">
+                    <h5 className="text-xs font-bold text-slate-600 uppercase">{t('hce_gynecological', 'app')}</h5>
+                    <div className="grid grid-cols-4 gap-2">
+                      <div>
+                        <label className={labelCls}>{t('hce_gynecological_menarche', 'app')}</label>
+                        <input type="text" value={anamnese.gynecological?.menarche || ''} onChange={e => setAnamnese(p => ({ ...p, gynecological: { menarche: e.target.value, gestations: p.gynecological?.gestations || 0, deliveries: p.gynecological?.deliveries || 0, abortions: p.gynecological?.abortions || 0, cesareans: p.gynecological?.cesareans || 0, lastMenstruation: p.gynecological?.lastMenstruation || '', contraceptiveMethod: p.gynecological?.contraceptiveMethod || '' } }))} className={inputCls} />
+                      </div>
+                      <div>
+                        <label className={labelCls}>{t('hce_gynecological_gestations', 'app')}</label>
+                        <input type="number" value={anamnese.gynecological?.gestations ?? ''} onChange={e => setAnamnese(p => ({ ...p, gynecological: { ...p.gynecological!, gestations: parseInt(e.target.value) || 0 } }))} className={inputCls} />
+                      </div>
+                      <div>
+                        <label className={labelCls}>{t('hce_gynecological_deliveries', 'app')}</label>
+                        <input type="number" value={anamnese.gynecological?.deliveries ?? ''} onChange={e => setAnamnese(p => ({ ...p, gynecological: { ...p.gynecological!, deliveries: parseInt(e.target.value) || 0 } }))} className={inputCls} />
+                      </div>
+                      <div>
+                        <label className={labelCls}>{t('hce_gynecological_abortions', 'app')}</label>
+                        <input type="number" value={anamnese.gynecological?.abortions ?? ''} onChange={e => setAnamnese(p => ({ ...p, gynecological: { ...p.gynecological!, abortions: parseInt(e.target.value) || 0 } }))} className={inputCls} />
+                      </div>
+                      <div>
+                        <label className={labelCls}>{t('hce_gynecological_cesareans', 'app')}</label>
+                        <input type="number" value={anamnese.gynecological?.cesareans ?? ''} onChange={e => setAnamnese(p => ({ ...p, gynecological: { ...p.gynecological!, cesareans: parseInt(e.target.value) || 0 } }))} className={inputCls} />
+                      </div>
+                      <div>
+                        <label className={labelCls}>{t('hce_gynecological_last_menstruation', 'app')}</label>
+                        <input type="text" value={anamnese.gynecological?.lastMenstruation || ''} onChange={e => setAnamnese(p => ({ ...p, gynecological: { ...p.gynecological!, lastMenstruation: e.target.value } }))} className={inputCls} />
+                      </div>
+                      <div className="col-span-2">
+                        <label className={labelCls}>{t('hce_gynecological_contraceptive', 'app')}</label>
+                        <input type="text" value={anamnese.gynecological?.contraceptiveMethod || ''} onChange={e => setAnamnese(p => ({ ...p, gynecological: { ...p.gynecological!, contraceptiveMethod: e.target.value } }))} className={inputCls} />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Obstetric */}
+                  <div className="border border-slate-100 rounded-xl p-3 space-y-2">
+                    <h5 className="text-xs font-bold text-slate-600 uppercase">{t('hce_obstetric', 'app')}</h5>
+                    <div className="grid grid-cols-4 gap-2">
+                      <div>
+                        <label className={labelCls}>{t('hce_obstetric_gestation_number', 'app')}</label>
+                        <input type="number" value={anamnese.obstetric?.gestationNumber ?? ''} onChange={e => setAnamnese(p => ({ ...p, obstetric: { gestationNumber: parseInt(e.target.value) || 0, expectedDueDate: p.obstetric?.expectedDueDate || '', prenatalStart: p.obstetric?.prenatalStart || '', riskClassification: p.obstetric?.riskClassification || '' } }))} className={inputCls} />
+                      </div>
+                      <div>
+                        <label className={labelCls}>{t('hce_obstetric_due_date', 'app')}</label>
+                        <input type="text" value={anamnese.obstetric?.expectedDueDate || ''} onChange={e => setAnamnese(p => ({ ...p, obstetric: { ...p.obstetric!, expectedDueDate: e.target.value } }))} className={inputCls} />
+                      </div>
+                      <div>
+                        <label className={labelCls}>{t('hce_obstetric_prenatal_start', 'app')}</label>
+                        <input type="text" value={anamnese.obstetric?.prenatalStart || ''} onChange={e => setAnamnese(p => ({ ...p, obstetric: { ...p.obstetric!, prenatalStart: e.target.value } }))} className={inputCls} />
+                      </div>
+                      <div>
+                        <label className={labelCls}>{t('hce_obstetric_risk_classification', 'app')}</label>
+                        <input type="text" value={anamnese.obstetric?.riskClassification || ''} onChange={e => setAnamnese(p => ({ ...p, obstetric: { ...p.obstetric!, riskClassification: e.target.value } }))} className={inputCls} />
+                      </div>
+                    </div>
+                  </div>
+
                   {/* Notes */}
                   <div>
-                    <label className={labelCls}>{t('hce_notes', 'app') || 'Observações'}</label>
-                    <textarea value={anamnese.notes} onChange={e => setAnamnese(p => ({ ...p, notes: e.target.value }))} rows={3} className={textareaCls} placeholder={t('hce_notes_placeholder', 'app') || 'Observações adicionais da anamnese...'} />
+                    <label className={labelCls}>{t('hce_notes', 'app')}</label>
+                    <textarea value={anamnese.notes} onChange={e => setAnamnese(p => ({ ...p, notes: e.target.value }))} rows={3} className={textareaCls} placeholder={t('hce_notes_placeholder', 'app')} />
                   </div>
 
                   <div className="flex justify-end gap-2">
                     {anamnese.id && (
                       <button onClick={handleDeleteAnamnese} className="py-2.5 px-4 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-lg text-xs transition">
-                        {t('hce_delete', 'app') || 'Excluir'}
+                        {t('hce_delete', 'app')}
                       </button>
                     )}
                     <button onClick={handleSaveAnamnese} className="py-2.5 px-6 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-lg text-xs transition">
-                      {t('hce_save_anamnese', 'app') || 'Salvar Anamnese'}
+                      {t('hce_save_anamnese', 'app')}
                     </button>
                   </div>
                   </>)}
