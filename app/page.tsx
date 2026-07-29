@@ -1509,6 +1509,7 @@ function HomeContent() {
                       asos={asos}
                       setAsos={setAsos}
                       userPermissions={profile?.permissions}
+                      activeOperator={activeOperator}
                     />
                   </PermissionGate>
                 )}

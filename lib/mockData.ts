@@ -49,6 +49,7 @@ export interface Anamnese {
   createdBy: string;
   createdAt: string;
   updatedAt: string;
+  updatedBy?: string;
   personalPathological: string[];
   smoking: string;
   alcohol: string;
@@ -118,9 +119,9 @@ export interface ObstetricHistory {
 export interface PhysicalExam {
   id: string;
   patientId: string;
-  clinicalHistoryId?: string;
   createdBy: string;
   createdAt: string;
+  updatedBy?: string;
   vitalSigns: VitalSigns;
   examHeadNeck: string;
   examCardiovascular: string;
@@ -156,9 +157,9 @@ export interface VitalSigns {
 export interface SoapNote {
   id: string;
   patientId: string;
-  clinicalHistoryId?: string;
   createdBy: string;
   createdAt: string;
+  updatedBy?: string;
   subjective: string;
   objective: string;
   assessment: string;
@@ -172,9 +173,9 @@ export interface SoapNote {
 export interface Diagnosis {
   id: string;
   patientId: string;
-  clinicalHistoryId?: string;
   createdBy: string;
   createdAt: string;
+  updatedBy?: string;
   cid10Code: string;
   cid10Description: string;
   snomedCode?: string;
@@ -228,9 +229,9 @@ export interface DrugInteraction {
 export interface Prescription {
   id: string;
   patientId: string;
-  clinicalHistoryId?: string;
   createdBy: string;
   createdAt: string;
+  updatedBy?: string;
   prescriptionType: 'comum' | 'controlado' | 'arquivado';
   drugName: string;
   activeIngredient: string;
@@ -256,9 +257,9 @@ export interface Prescription {
 export interface ExamRequest {
   id: string;
   patientId: string;
-  clinicalHistoryId?: string;
   createdBy: string;
   createdAt: string;
+  updatedBy?: string;
   examType: 'laboratorio' | 'imagem' | 'anatomia_patologica' | 'outro';
   examName: string;
   clinicalIndication: string;
@@ -279,9 +280,9 @@ export interface ExamRequest {
 export interface Procedure {
   id: string;
   patientId: string;
-  clinicalHistoryId?: string;
   createdBy: string;
   createdAt: string;
+  updatedBy?: string;
   procedureCode: string;
   procedureName: string;
   procedureCategory: string;
@@ -301,10 +302,10 @@ export interface Procedure {
 export interface ClinicalAttachment {
   id: string;
   patientId: string;
-  clinicalHistoryId?: string;
   examRequestId?: string;
   createdBy: string;
   createdAt: string;
+  updatedBy?: string;
   fileName: string;
   filePath: string;
   fileSizeBytes: number;

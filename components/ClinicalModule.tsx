@@ -24,6 +24,7 @@ interface ClinicalModuleProps {
   asos: AsoExam[];
   setAsos: React.Dispatch<React.SetStateAction<AsoExam[]>>;
   userPermissions?: string[];
+  activeOperator?: string;
 }
 
 // HCE Tab type
@@ -102,6 +103,7 @@ const ClinicalModuleContent = ({
   addAuditLog,
   asos,
   setAsos,
+  activeOperator = 'Operador',
 }: ClinicalModuleProps) => {
   const { t } = useI18n();
 
@@ -227,6 +229,9 @@ const ClinicalModuleContent = ({
     anam: 0, pexam: 0, soap: 0, diag: 0, presc: 0, exam: 0, proc: 0, att: 0, sig: 0, aso: 0,
   });
 
+  const patientsRef = React.useRef(patients);
+  patientsRef.current = patients;
+
   const nextId = useCallback((prefix: string) => {
     const key = prefix as keyof typeof idCounters.current;
     if (key in idCounters.current) {
@@ -295,7 +300,7 @@ const ClinicalModuleContent = ({
   const loadPatientData = useCallback(async (patientId: string) => {
     if (!supabase || !patientId) return;
 
-    const patient = patients.find(p => p.id === patientId);
+    const patient = patientsRef.current.find(p => p.id === patientId);
     const patientCivilStatus = patient?.civil_status || '';
 
     try {
@@ -315,6 +320,7 @@ const ClinicalModuleContent = ({
           createdBy: anamneseData.created_by,
           createdAt: anamneseData.created_at,
           updatedAt: anamneseData.updated_at,
+          updatedBy: anamneseData.updated_by || '',
           personalPathological: anamneseData.personal_pathological || [],
           smoking: anamneseData.smoking || '',
           alcohol: anamneseData.alcohol || '',
@@ -349,9 +355,9 @@ const ClinicalModuleContent = ({
         setPhysicalExam({
           id: examData.id,
           patientId: examData.patient_id,
-          clinicalHistoryId: examData.clinical_history_id,
           createdBy: examData.created_by,
           createdAt: examData.created_at,
+          updatedBy: examData.updated_by || '',
           vitalSigns: examData.vital_signs || {},
           examHeadNeck: examData.exam_head_neck || '',
           examCardiovascular: examData.exam_cardiovascular || '',
@@ -370,7 +376,19 @@ const ClinicalModuleContent = ({
           notes: examData.notes || '',
         });
       } else {
-        setPhysicalExam(makePhysicalExam(patientId));
+        const triageEntry = patient?.clinicalHistory?.find((h: any) => h.type?.includes('Triagem'));
+        const ts = triageEntry?.vital_signs;
+        const triageVitalSigns = ts ? {
+          weight: ts.weight || '',
+          height: ts.height || '',
+          bloodPressure: ts.bp || '',
+          temperature: ts.temp || '',
+          spo2: ts.spo2 || '',
+          heartRate: ts.hr || '',
+          respiratoryRate: ts.rr || '',
+          imc: ts.imc || '',
+        } : {};
+        setPhysicalExam({ ...makePhysicalExam(patientId), vitalSigns: triageVitalSigns });
       }
 
       // Load SOAP note
@@ -386,9 +404,9 @@ const ClinicalModuleContent = ({
         setSoapNote({
           id: soapData.id,
           patientId: soapData.patient_id,
-          clinicalHistoryId: soapData.clinical_history_id,
           createdBy: soapData.created_by,
           createdAt: soapData.created_at,
+          updatedBy: soapData.updated_by || '',
           subjective: soapData.subjective || '',
           objective: soapData.objective || '',
           assessment: soapData.assessment || '',
@@ -410,9 +428,9 @@ const ClinicalModuleContent = ({
         setDiagnoses(diagData.map(d => ({
           id: d.id,
           patientId: d.patient_id,
-          clinicalHistoryId: d.clinical_history_id,
           createdBy: d.created_by,
           createdAt: d.created_at,
+          updatedBy: d.updated_by || '',
           cid10Code: d.cid10_code,
           cid10Description: d.cid10_description,
           snomedCode: d.snomed_code,
@@ -434,9 +452,9 @@ const ClinicalModuleContent = ({
         setPrescriptions(prescData.map(p => ({
           id: p.id,
           patientId: p.patient_id,
-          clinicalHistoryId: p.clinical_history_id,
           createdBy: p.created_by,
           createdAt: p.created_at,
+          updatedBy: p.updated_by || '',
           prescriptionType: p.prescription_type,
           drugName: p.drug_name,
           activeIngredient: p.active_ingredient || '',
@@ -468,9 +486,9 @@ const ClinicalModuleContent = ({
         setExamRequests(examReqData.map(e => ({
           id: e.id,
           patientId: e.patient_id,
-          clinicalHistoryId: e.clinical_history_id,
           createdBy: e.created_by,
           createdAt: e.created_at,
+          updatedBy: e.updated_by || '',
           examType: e.exam_type,
           examName: e.exam_name,
           clinicalIndication: e.clinical_indication || '',
@@ -497,9 +515,9 @@ const ClinicalModuleContent = ({
         setProcedureList(procData.map(p => ({
           id: p.id,
           patientId: p.patient_id,
-          clinicalHistoryId: p.clinical_history_id,
           createdBy: p.created_by,
           createdAt: p.created_at,
+          updatedBy: p.updated_by || '',
           procedureCode: p.procedure_code,
           procedureName: p.procedure_name,
           procedureCategory: p.procedure_category || '',
@@ -525,10 +543,10 @@ const ClinicalModuleContent = ({
         setAttachments(attachData.map(a => ({
           id: a.id,
           patientId: a.patient_id,
-          clinicalHistoryId: a.clinical_history_id,
           examRequestId: a.exam_request_id,
           createdBy: a.created_by,
           createdAt: a.created_at,
+          updatedBy: a.updated_by || '',
           fileName: a.file_name,
           filePath: a.file_path,
           fileSizeBytes: a.file_size_bytes || 0,
@@ -599,7 +617,7 @@ const ClinicalModuleContent = ({
     } catch (error) {
       console.error('Erro ao carregar dados do paciente:', error);
     }
-  }, [makeAnamnese, makePhysicalExam, makeSoapNote, patients]);
+  }, [makeAnamnese, makePhysicalExam, makeSoapNote]);
 
   const loadTimelineData = useCallback(async (patientId: string) => {
     if (!supabase || !patientId) return;
@@ -770,7 +788,7 @@ const ClinicalModuleContent = ({
     const sig: ElectronicSignature = {
       id: nextId('sig'),
       signerId: 'current_user',
-      signerName: 'Dr. Atual',
+      signerName: activeOperator,
       signerCouncil: 'CRM',
       signerCouncilNumber: 'CRM-PY 000000',
       createdAt: new Date().toISOString(),
@@ -819,7 +837,7 @@ const ClinicalModuleContent = ({
       ...anamnese,
       id: anamnese.id || nextId('anam'),
       patientId: selectedPatient?.id || '',
-      createdBy: anamnese.createdBy || 'Dr. Atual',
+      createdBy: anamnese.createdBy || activeOperator,
       createdAt: anamnese.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -839,6 +857,7 @@ const ClinicalModuleContent = ({
         id: entry.id,
         patient_id: entry.patientId,
         created_by: entry.createdBy,
+        updated_by: isEdit ? activeOperator : null,
         updated_at: entry.updatedAt,
         personal_pathological: entry.personalPathological,
         smoking: entry.smoking,
@@ -879,7 +898,7 @@ const ClinicalModuleContent = ({
       ...soapNote,
       id: soapNote.id || nextId('soap'),
       patientId: selectedPatient?.id || '',
-      createdBy: soapNote.createdBy || 'Dr. Atual',
+      createdBy: soapNote.createdBy || activeOperator,
       createdAt: soapNote.createdAt || new Date().toISOString(),
     };
     setSoapNote(entry);
@@ -897,8 +916,8 @@ const ClinicalModuleContent = ({
       const dbRow = {
         id: entry.id,
         patient_id: entry.patientId,
-        clinical_history_id: entry.clinicalHistoryId || null,
         created_by: entry.createdBy,
+        updated_by: isEdit ? activeOperator : null,
         subjective: entry.subjective,
         objective: entry.objective,
         assessment: entry.assessment,
@@ -927,7 +946,7 @@ const ClinicalModuleContent = ({
     const presc: Prescription = {
       id: nextId('presc'),
       patientId: selectedPatient?.id || '',
-      createdBy: 'Dr. Atual',
+      createdBy: activeOperator,
       createdAt: new Date().toISOString(),
       prescriptionType: prescriptionForm.prescriptionType,
       drugName: selectedDrug.name,
@@ -952,6 +971,7 @@ const ClinicalModuleContent = ({
     if (supabase) {
       await supabase.from('prescriptions').insert({
         id: presc.id, patient_id: presc.patientId, created_by: presc.createdBy,
+        updated_by: null,
         prescription_type: presc.prescriptionType, drug_name: presc.drugName,
         active_ingredient: presc.activeIngredient, dosage: presc.dosage,
         frequency: presc.frequency, route: presc.route, duration: presc.duration,
@@ -987,7 +1007,7 @@ const ClinicalModuleContent = ({
     const req: ExamRequest = {
       id: nextId('exam'),
       patientId: selectedPatient?.id || '',
-      createdBy: 'Dr. Atual',
+      createdBy: activeOperator,
       createdAt: new Date().toISOString(),
       ...examRequestForm,
       status: 'solicitado',
@@ -1001,6 +1021,7 @@ const ClinicalModuleContent = ({
     if (supabase) {
       await supabase.from('exam_requests').insert({
         id: req.id, patient_id: req.patientId, created_by: req.createdBy,
+        updated_by: null,
         exam_type: req.examType, exam_name: req.examName,
         clinical_indication: req.clinicalIndication, urgency: req.urgency,
         status: req.status,
@@ -1022,7 +1043,7 @@ const ClinicalModuleContent = ({
     const proc: Procedure = {
       id: nextId('proc'),
       patientId: selectedPatient?.id || '',
-      createdBy: 'Dr. Atual',
+      createdBy: activeOperator,
       createdAt: new Date().toISOString(),
       ...procedureForm,
       procedureCode: procedureForm.procedureCode,
@@ -1034,6 +1055,7 @@ const ClinicalModuleContent = ({
     if (supabase) {
       await supabase.from('procedures').insert({
         id: proc.id, patient_id: proc.patientId, created_by: proc.createdBy,
+        updated_by: null,
         procedure_code: proc.procedureCode, procedure_name: proc.procedureName,
         procedure_category: proc.procedureCategory, quantity: proc.quantity,
         notes: proc.notes, complications: proc.complications, status: proc.status,
@@ -1062,6 +1084,7 @@ const ClinicalModuleContent = ({
         notes: diag.notes,
         snomed_code: diag.snomedCode || null,
         snomed_description: diag.snomedDescription || null,
+        updated_by: activeOperator,
       }).eq('id', diag.id);
     }
   };
@@ -1079,6 +1102,7 @@ const ClinicalModuleContent = ({
         quantity: presc.quantity,
         unit: presc.unit,
         notes: presc.notes,
+        updated_by: activeOperator,
       }).eq('id', presc.id);
     }
   };
@@ -1092,6 +1116,7 @@ const ClinicalModuleContent = ({
         status: exam.status,
         result_notes: exam.resultNotes,
         result_date: exam.resultDate || null,
+        updated_by: activeOperator,
       }).eq('id', exam.id);
     }
   };
@@ -1105,6 +1130,7 @@ const ClinicalModuleContent = ({
         status: proc.status,
         complications: proc.complications,
         performed_at: proc.performedAt || null,
+        updated_by: activeOperator,
       }).eq('id', proc.id);
     }
   };
@@ -1114,7 +1140,8 @@ const ClinicalModuleContent = ({
     const att = {
       id: nextId('att'),
       patient_id: selectedPatient?.id || '',
-      created_by: 'Operador Atual',
+      created_by: activeOperator,
+      updated_by: null,
       file_name: file.name,
       file_path: `attachments/${selectedPatient?.id}/${file.name}`,
       file_size_bytes: file.size,
@@ -1798,6 +1825,13 @@ const ClinicalModuleContent = ({
                     <Stethoscope className="w-4 h-4 text-teal-600" /> {t('hce_physical_exam_title', 'app')}
                   </h3>
 
+                  {!selectedPatId ? (
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <AlertTriangle className="w-10 h-10 text-amber-400 mb-3" />
+                      <p className="text-sm font-semibold text-slate-600">{t('agenda_alert_select_patient', 'app') || 'Selecione um paciente.'}</p>
+                    </div>
+                  ) : (<>
+
                   {/* Vital Signs */}
                   <div className="border border-slate-100 rounded-xl p-3 space-y-2">
                     <h5 className="text-xs font-bold text-slate-600 uppercase flex items-center gap-1">
@@ -1806,35 +1840,95 @@ const ClinicalModuleContent = ({
                     <div className="grid grid-cols-4 gap-2">
                       <div>
                         <label className={labelCls}>{t('hce_weight', 'app')}</label>
-                        <input type="text" value={physicalExam.vitalSigns.weight || ''} onChange={e => setPhysicalExam(p => ({ ...p, vitalSigns: { ...p.vitalSigns, weight: e.target.value } }))} className={inputCls} placeholder="kg" />
+                        <input type="text" value={physicalExam.vitalSigns.weight || ''} className={`${inputCls} bg-slate-50 cursor-not-allowed`} placeholder="kg" readOnly />
                       </div>
                       <div>
                         <label className={labelCls}>{t('hce_height', 'app')}</label>
-                        <input type="text" value={physicalExam.vitalSigns.height || ''} onChange={e => setPhysicalExam(p => ({ ...p, vitalSigns: { ...p.vitalSigns, height: e.target.value } }))} className={inputCls} placeholder="cm" />
+                        <input type="text" value={physicalExam.vitalSigns.height || ''} className={`${inputCls} bg-slate-50 cursor-not-allowed`} placeholder="cm" readOnly />
                       </div>
                       <div>
                         <label className={labelCls}>{t('hce_blood_pressure', 'app')}</label>
-                        <input type="text" value={physicalExam.vitalSigns.bloodPressure || ''} onChange={e => setPhysicalExam(p => ({ ...p, vitalSigns: { ...p.vitalSigns, bloodPressure: e.target.value } }))} className={inputCls} placeholder="120/80" />
+                        <input type="text" value={physicalExam.vitalSigns.bloodPressure || ''} className={`${inputCls} bg-slate-50 cursor-not-allowed`} placeholder="120/80" readOnly />
+                        {physicalExam.vitalSigns.bloodPressure && (() => {
+                          const parts = physicalExam.vitalSigns.bloodPressure.split('/');
+                          const sys = parseInt(parts[0]);
+                          const dia = parseInt(parts[1]);
+                          if (!isNaN(sys)) {
+                            if (sys <= 70 || (!isNaN(dia) && dia > 120)) return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> {t('rcpt_triage_bp_critical_low', 'app')}</p>;
+                            if ((sys >= 71 && sys <= 89) || sys > 200) return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-500 inline-block" /> {t('rcpt_triage_bp_abnormal', 'app')}</p>;
+                            if ((sys >= 140 && sys <= 199) || (!isNaN(dia) && dia >= 90 && dia <= 119)) return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block" /> {t('rcpt_triage_bp_elevated', 'app')}</p>;
+                            return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> {t('rcpt_triage_status_normal', 'app')}</p>;
+                          }
+                          return null;
+                        })()}
                       </div>
                       <div>
                         <label className={labelCls}>{t('hce_temperature', 'app')}</label>
-                        <input type="text" value={physicalExam.vitalSigns.temperature || ''} onChange={e => setPhysicalExam(p => ({ ...p, vitalSigns: { ...p.vitalSigns, temperature: e.target.value } }))} className={inputCls} placeholder="36.5" />
+                        <input type="text" value={physicalExam.vitalSigns.temperature || ''} className={`${inputCls} bg-slate-50 cursor-not-allowed`} placeholder="36.5" readOnly />
+                        {physicalExam.vitalSigns.temperature && (() => {
+                          const temp = parseFloat(physicalExam.vitalSigns.temperature);
+                          if (!isNaN(temp)) {
+                            if (temp >= 41.0 || temp <= 35.0) return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-500 inline-block" /> {t('rcpt_triage_temp_orange', 'app')}</p>;
+                            if (temp >= 38.5 && temp <= 40.9) return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block" /> {t('rcpt_triage_temp_yellow', 'app')}</p>;
+                            return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> {t('rcpt_triage_status_normal', 'app')}</p>;
+                          }
+                          return null;
+                        })()}
                       </div>
                       <div>
                         <label className={labelCls}>{t('hce_spo2', 'app')}</label>
-                        <input type="text" value={physicalExam.vitalSigns.spo2 || ''} onChange={e => setPhysicalExam(p => ({ ...p, vitalSigns: { ...p.vitalSigns, spo2: e.target.value } }))} className={inputCls} placeholder="98" />
+                        <input type="text" value={physicalExam.vitalSigns.spo2 || ''} className={`${inputCls} bg-slate-50 cursor-not-allowed`} placeholder="98" readOnly />
+                        {physicalExam.vitalSigns.spo2 && (() => {
+                          const spo2 = Number(physicalExam.vitalSigns.spo2);
+                          if (!isNaN(spo2)) {
+                            if (spo2 < 85) return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> {t('rcpt_triage_spo2_critical', 'app')}</p>;
+                            if (spo2 >= 85 && spo2 <= 94) return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-500 inline-block" /> {t('rcpt_triage_spo2_low', 'app')}</p>;
+                            return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> {t('rcpt_triage_spo2_normal', 'app')}</p>;
+                          }
+                          return null;
+                        })()}
                       </div>
                       <div>
                         <label className={labelCls}>{t('hce_heart_rate', 'app')}</label>
-                        <input type="text" value={physicalExam.vitalSigns.heartRate || ''} onChange={e => setPhysicalExam(p => ({ ...p, vitalSigns: { ...p.vitalSigns, heartRate: e.target.value } }))} className={inputCls} placeholder="bpm" />
+                        <input type="text" value={physicalExam.vitalSigns.heartRate || ''} className={`${inputCls} bg-slate-50 cursor-not-allowed`} placeholder="bpm" readOnly />
+                        {physicalExam.vitalSigns.heartRate && (() => {
+                          const hr = parseInt(physicalExam.vitalSigns.heartRate);
+                          if (!isNaN(hr)) {
+                            if (hr > 150 || hr < 30) return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> {t('rcpt_triage_hr_critical', 'app')}</p>;
+                            if ((hr >= 131 && hr <= 150) || (hr >= 30 && hr <= 39)) return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-500 inline-block" /> {t('rcpt_triage_hr_abnormal', 'app')}</p>;
+                            if (hr >= 100 && hr <= 130) return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block" /> {t('rcpt_triage_hr_elevated', 'app')}</p>;
+                            return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> {t('rcpt_triage_status_normal', 'app')}</p>;
+                          }
+                          return null;
+                        })()}
                       </div>
                       <div>
                         <label className={labelCls}>{t('hce_respiratory_rate', 'app')}</label>
-                        <input type="text" value={physicalExam.vitalSigns.respiratoryRate || ''} onChange={e => setPhysicalExam(p => ({ ...p, vitalSigns: { ...p.vitalSigns, respiratoryRate: e.target.value } }))} className={inputCls} placeholder="irpm" />
+                        <input type="text" value={physicalExam.vitalSigns.respiratoryRate || ''} className={`${inputCls} bg-slate-50 cursor-not-allowed`} placeholder="irpm" readOnly />
+                        {physicalExam.vitalSigns.respiratoryRate && (() => {
+                          const rr = parseInt(physicalExam.vitalSigns.respiratoryRate);
+                          if (!isNaN(rr)) {
+                            if (rr < 8) return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> {t('rcpt_triage_rr_critical', 'app')}</p>;
+                            if (rr > 30) return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-500 inline-block" /> {t('rcpt_triage_rr_elevated', 'app')}</p>;
+                            if (rr >= 21 && rr <= 30) return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block" /> {t('rcpt_triage_rr_slightly', 'app')}</p>;
+                            return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> {t('rcpt_triage_status_normal', 'app')}</p>;
+                          }
+                          return null;
+                        })()}
                       </div>
                       <div>
                         <label className={labelCls}>{t('hce_bmi', 'app')}</label>
-                        <input type="text" value={physicalExam.vitalSigns.imc || ''} onChange={e => setPhysicalExam(p => ({ ...p, vitalSigns: { ...p.vitalSigns, imc: e.target.value } }))} className={inputCls} placeholder="kg/m²" />
+                        <input type="text" value={physicalExam.vitalSigns.imc || ''} className={`${inputCls} bg-slate-50 cursor-not-allowed`} placeholder="kg/m²" readOnly />
+                        {physicalExam.vitalSigns.imc && (() => {
+                          const imc = parseFloat(physicalExam.vitalSigns.imc);
+                          if (!isNaN(imc)) {
+                            if (imc < 18.5) return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block" /> {imc.toFixed(1)} — {t('rcpt_triage_bmi_underweight', 'app')}</p>;
+                            if (imc >= 18.5 && imc < 25) return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> {imc.toFixed(1)} — {t('rcpt_triage_status_normal', 'app')}</p>;
+                            if (imc >= 25 && imc < 30) return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block" /> {imc.toFixed(1)} — {t('rcpt_triage_bmi_overweight', 'app')}</p>;
+                            return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> {imc.toFixed(1)} — {t('rcpt_triage_bmi_obese', 'app')}</p>;
+                          }
+                          return null;
+                        })()}
                       </div>
                     </div>
                   </div>
@@ -1842,7 +1936,7 @@ const ClinicalModuleContent = ({
                   {/* General Aspect */}
                   <div>
                     <label className={labelCls}>{t('hce_general_aspect', 'app')}</label>
-                    <input type="text" value={physicalExam.generalAspect} onChange={e => setPhysicalExam(p => ({ ...p, generalAspect: e.target.value }))} className={inputCls} placeholder="Ex: Bom estado geral, consciente, orientado" />
+                    <input type="text" value={physicalExam.generalAspect} onChange={e => setPhysicalExam(p => ({ ...p, generalAspect: e.target.value }))} className={inputCls} placeholder={t('hce_general_aspect_placeholder', 'app')} />
                   </div>
 
                   {/* Body Systems */}
@@ -1859,6 +1953,7 @@ const ClinicalModuleContent = ({
                       { key: 'examEyes', label: t('hce_eyes', 'app') },
                       { key: 'examEars', label: t('hce_ears', 'app') },
                       { key: 'examMouth', label: t('hce_mouth', 'app') },
+                      { key: 'examRectal', label: t('hce_rectal', 'app') },
                       { key: 'examPsychiatric', label: t('hce_psychiatric', 'app') },
                     ].map(field => (
                       <div key={field.key}>
@@ -1868,10 +1963,21 @@ const ClinicalModuleContent = ({
                           onChange={e => setPhysicalExam(p => ({ ...p, [field.key]: e.target.value }))}
                           rows={2}
                           className={textareaCls}
-                          placeholder={`Descreva o exame de ${field.label.toLowerCase()}...`}
+                          placeholder={`${t('hce_exam_placeholder', 'app')} ${field.label.toLowerCase()}...`}
                         />
                       </div>
                     ))}
+                  </div>
+
+                  <div>
+                    <label className={labelCls}>{t('hce_notes', 'app')}</label>
+                    <textarea
+                      value={physicalExam.notes || ''}
+                      onChange={e => setPhysicalExam(p => ({ ...p, notes: e.target.value }))}
+                      rows={3}
+                      className={textareaCls}
+                      placeholder={t('hce_notes_placeholder', 'app')}
+                    />
                   </div>
 
                   <div className="flex justify-end gap-2">
@@ -1884,7 +1990,7 @@ const ClinicalModuleContent = ({
                         addAuditLog('Excluiu Exame Físico', selectedPatient?.name || '');
                       }}
                         className="py-2.5 px-4 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-lg text-xs transition">
-                        Excluir
+                        {t('hce_delete', 'app')}
                       </button>
                     )}
                     <button onClick={async () => {
@@ -1893,7 +1999,7 @@ const ClinicalModuleContent = ({
                         ...physicalExam,
                         id: physicalExam.id || nextId('pexam'),
                         patientId: selectedPatient?.id || '',
-                        createdBy: physicalExam.createdBy || 'Dr. Atual',
+                        createdBy: physicalExam.createdBy || activeOperator,
                         createdAt: physicalExam.createdAt || new Date().toISOString(),
                       };
                       setPhysicalExam(entry);
@@ -1910,6 +2016,7 @@ const ClinicalModuleContent = ({
                       if (supabase) {
                         const dbRow = {
                           id: entry.id, patient_id: entry.patientId, created_by: entry.createdBy,
+                          updated_by: isEdit ? activeOperator : null,
                           vital_signs: entry.vitalSigns,
                           exam_head_neck: entry.examHeadNeck, exam_cardiovascular: entry.examCardiovascular,
                           exam_respiratory: entry.examRespiratory, exam_abdomen: entry.examAbdomen,
@@ -1927,9 +2034,11 @@ const ClinicalModuleContent = ({
                       }
                     }}
                       className="py-2.5 px-6 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-lg text-xs transition">
-                      Salvar Exame Físico
+                      {t('hce_save_physical_exam', 'app')}
                     </button>
                   </div>
+
+                  </>)}
                 </div>
               )}
 
@@ -1939,6 +2048,14 @@ const ClinicalModuleContent = ({
                   <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
                     <ClipboardList className="w-4 h-4 text-teal-600" /> {t('hce_soap_title', 'app')}
                   </h3>
+
+                  {!selectedPatId ? (
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <AlertTriangle className="w-10 h-10 text-amber-400 mb-3" />
+                      <p className="text-sm font-semibold text-slate-600">{t('agenda_alert_select_patient', 'app') || 'Selecione um paciente.'}</p>
+                    </div>
+                  ) : (<>
+
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className={`${labelCls} text-blue-700`}>{t('hce_subjective', 'app')}</label>
@@ -1971,6 +2088,8 @@ const ClinicalModuleContent = ({
                       Salvar Evolução SOAP
                     </button>
                   </div>
+
+                  </>)}
                 </div>
               )}
 
@@ -1980,6 +2099,14 @@ const ClinicalModuleContent = ({
                   <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
                     <Tag className="w-4 h-4 text-teal-600" /> Diagnósticos CID-10 / CIE-10
                   </h3>
+
+                  {!selectedPatId ? (
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <AlertTriangle className="w-10 h-10 text-amber-400 mb-3" />
+                      <p className="text-sm font-semibold text-slate-600">{t('agenda_alert_select_patient', 'app') || 'Selecione um paciente.'}</p>
+                    </div>
+                  ) : (<>
+
                   {/* CID-10 Search */}
                   <div className="relative">
                     <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
@@ -2024,12 +2151,13 @@ const ClinicalModuleContent = ({
                     <button onClick={async () => {
                       if (newDiagnosis.cid10Code) {
                         const diagId = nextId('diag');
-                        const newDiag = { ...newDiagnosis, id: diagId, patientId: selectedPatient?.id || '', createdBy: 'Dr. Atual', createdAt: new Date().toISOString(), status: newDiagnosis.status || 'ativo', notes: newDiagnosis.notes || '' } as Diagnosis;
+                        const newDiag = { ...newDiagnosis, id: diagId, patientId: selectedPatient?.id || '', createdBy: activeOperator, createdAt: new Date().toISOString(), status: newDiagnosis.status || 'ativo', notes: newDiagnosis.notes || '' } as Diagnosis;
                         setDiagnoses(prev => [...prev, newDiag]);
                         setNewDiagnosis({ cid10Code: '', cid10Description: '', diagnosisType: 'principal', status: 'ativo', notes: '' });
                         if (supabase) {
                           await supabase.from('diagnoses').insert({
-                            id: diagId, patient_id: selectedPatient?.id || '', created_by: 'Dr. Atual',
+                            id: diagId, patient_id: selectedPatient?.id || '', created_by: activeOperator,
+                            updated_by: null,
                             cid10_code: newDiag.cid10Code, cid10_description: newDiag.cid10Description,
                             snomed_code: newDiag.snomedCode || null, snomed_description: newDiag.snomedDescription || null,
                             diagnosis_type: newDiag.diagnosisType, status: newDiag.status, notes: newDiag.notes,
@@ -2109,6 +2237,8 @@ const ClinicalModuleContent = ({
                       )
                     ))}
                   </div>
+
+                  </>)}
                 </div>
               )}
 
@@ -2118,6 +2248,13 @@ const ClinicalModuleContent = ({
                   <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
                     <Pill className="w-4 h-4 text-teal-600" /> Receituário Eletrônico
                   </h3>
+
+                  {!selectedPatId ? (
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <AlertTriangle className="w-10 h-10 text-amber-400 mb-3" />
+                      <p className="text-sm font-semibold text-slate-600">{t('agenda_alert_select_patient', 'app') || 'Selecione um paciente.'}</p>
+                    </div>
+                  ) : (<>
 
                   {/* Drug Search */}
                   <div className="relative">
@@ -2325,6 +2462,8 @@ const ClinicalModuleContent = ({
                       )
                     ))}
                   </div>
+
+                  </>)}
                 </div>
               )}
 
@@ -2334,6 +2473,14 @@ const ClinicalModuleContent = ({
                   <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
                     <Scan className="w-4 h-4 text-teal-600" /> {t('hce_exam_request_title', 'app')}
                   </h3>
+
+                  {!selectedPatId ? (
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <AlertTriangle className="w-10 h-10 text-amber-400 mb-3" />
+                      <p className="text-sm font-semibold text-slate-600">{t('agenda_alert_select_patient', 'app') || 'Selecione um paciente.'}</p>
+                    </div>
+                  ) : (<>
+
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className={labelCls}>{t('hce_exam_type', 'app')}</label>
@@ -2414,6 +2561,8 @@ const ClinicalModuleContent = ({
                       )
                     ))}
                   </div>
+
+                  </>)}
                 </div>
               )}
 
@@ -2423,6 +2572,14 @@ const ClinicalModuleContent = ({
                   <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
                     <Activity className="w-4 h-4 text-teal-600" /> {t('hce_procedure_title', 'app')}
                   </h3>
+
+                  {!selectedPatId ? (
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <AlertTriangle className="w-10 h-10 text-amber-400 mb-3" />
+                      <p className="text-sm font-semibold text-slate-600">{t('agenda_alert_select_patient', 'app') || 'Selecione um paciente.'}</p>
+                    </div>
+                  ) : (<>
+
                   <div className="grid grid-cols-3 gap-2">
                     <div>
                       <label className={labelCls}>{t('hce_procedure_code', 'app')}</label>
@@ -2508,6 +2665,8 @@ const ClinicalModuleContent = ({
                       )
                     ))}
                   </div>
+
+                  </>)}
                 </div>
               )}
 
@@ -2517,6 +2676,14 @@ const ClinicalModuleContent = ({
                   <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
                     <Paperclip className="w-4 h-4 text-teal-600" /> {t('hce_attachment_title', 'app')}
                   </h3>
+
+                  {!selectedPatId ? (
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <AlertTriangle className="w-10 h-10 text-amber-400 mb-3" />
+                      <p className="text-sm font-semibold text-slate-600">{t('agenda_alert_select_patient', 'app') || 'Selecione um paciente.'}</p>
+                    </div>
+                  ) : (<>
+
                   <div className="p-6 border-2 border-dashed border-slate-300 rounded-xl text-center hover:border-teal-400 transition cursor-pointer">
                     <Paperclip className="w-8 h-8 mx-auto text-slate-400 mb-2" />
                     <p className="text-xs text-slate-500 font-medium">Arraste arquivos aqui ou clique para selecionar</p>
@@ -2542,6 +2709,8 @@ const ClinicalModuleContent = ({
                       </div>
                     ))}
                   </div>
+
+                  </>)}
                 </div>
               )}
 
@@ -2551,6 +2720,14 @@ const ClinicalModuleContent = ({
                   <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
                     <FileSignature className="w-4 h-4 text-teal-600" /> {t('hce_signature_title', 'app')}
                   </h3>
+
+                  {!selectedPatId ? (
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <AlertTriangle className="w-10 h-10 text-amber-400 mb-3" />
+                      <p className="text-sm font-semibold text-slate-600">{t('agenda_alert_select_patient', 'app') || 'Selecione um paciente.'}</p>
+                    </div>
+                  ) : (<>
+
                   <div className="p-4 bg-teal-50 border border-teal-200 rounded-xl text-xs text-teal-700">
                     <p className="font-bold">{t('hce_signature_info', 'app')}</p>
                     <p className="mt-1">Compatível com dispositivos criptográficos (token USB) e assinatura em nuvem (HSM).</p>
@@ -2580,6 +2757,8 @@ const ClinicalModuleContent = ({
                       ))
                     )}
                   </div>
+
+                  </>)}
                 </div>
               )}
 
@@ -2589,6 +2768,13 @@ const ClinicalModuleContent = ({
                   <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
                     <Clock className="w-4 h-4 text-teal-600" /> {t('hce_timeline_title', 'app')}
                   </h3>
+
+                  {!selectedPatId ? (
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <AlertTriangle className="w-10 h-10 text-amber-400 mb-3" />
+                      <p className="text-sm font-semibold text-slate-600">{t('agenda_alert_select_patient', 'app') || 'Selecione um paciente.'}</p>
+                    </div>
+                  ) : (<>
 
                   {/* Filters */}
                   <div className="flex gap-2">
@@ -2762,6 +2948,8 @@ const ClinicalModuleContent = ({
                       )}
                     </div>
                   )}
+
+                  </>)}
                 </div>
               )}
 
@@ -2771,6 +2959,13 @@ const ClinicalModuleContent = ({
                   <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
                     <Shield className="w-4 h-4 text-teal-600" /> {t('hce_tab_security', 'app')}
                   </h3>
+
+                  {!selectedPatId ? (
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <AlertTriangle className="w-10 h-10 text-amber-400 mb-3" />
+                      <p className="text-sm font-semibold text-slate-600">{t('agenda_alert_select_patient', 'app') || 'Selecione um paciente.'}</p>
+                    </div>
+                  ) : (<> 
 
                   {/* Break the Glass */}
                   <div className={`p-4 rounded-xl border ${breakGlassActive ? 'bg-rose-50 border-rose-300' : 'bg-slate-50 border-slate-200'}`}>
@@ -2835,6 +3030,8 @@ const ClinicalModuleContent = ({
                       ))
                     )}
                   </div>
+
+                  </>)}
                 </div>
               )}
             </div>
