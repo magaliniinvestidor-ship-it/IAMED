@@ -478,6 +478,7 @@ function HomeContent() {
             if (!clinicalHistoryMap[h.patient_id]) clinicalHistoryMap[h.patient_id] = [];
             clinicalHistoryMap[h.patient_id].push({
               id: h.id,
+              consultation_id: h.consultation_id || undefined,
               date: h.date,
               type: h.type,
               diagnosis: h.diagnosis || '',
@@ -485,6 +486,8 @@ function HomeContent() {
               prescriptions: h.prescriptions || [],
               notes: h.notes,
               doctor: h.doctor,
+              location_name: h.location_name || undefined,
+              triage_edits: h.triage_edits || undefined,
               vital_signs: h.vital_signs || undefined,
               triage_priority: h.triage_priority || undefined,
               triage_color: h.triage_color || undefined,

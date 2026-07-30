@@ -1,5 +1,6 @@
 export interface ClinicalHistoryEntry {
   id: string;
+  consultation_id?: string;
   date: string;
   type: string;
   diagnosis: string;

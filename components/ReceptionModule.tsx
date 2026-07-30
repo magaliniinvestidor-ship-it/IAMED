@@ -66,6 +66,10 @@ export default function ReceptionModule({
   // Search & List states
   const [patientSearch, setPatientSearch] = useState('');
   const [filterPriority, setFilterPriority] = useState<string>('todos');
+
+  // Admission form search (lookup existing patient)
+  const [admissionSearch, setAdmissionSearch] = useState('');
+  const [admissionSearchFocused, setAdmissionSearchFocused] = useState(false);
   
   // --- Form States ---
   // Mandatory fields
@@ -121,6 +125,7 @@ export default function ReceptionModule({
   const hisMedCounterRef = useRef(0);
   const patientsRef = useRef(patients);
   const pendingMedDataRef = useRef<any>(null);
+  const activeConsultationIdRef = useRef<string | null>(null);
 
   // Keep patientsRef in sync with latest patients prop
   useEffect(() => { patientsRef.current = patients; });
@@ -197,6 +202,23 @@ export default function ReceptionModule({
       p => p.document_number === documentNumber && p.birthdate === newBirthdate && p.id !== selectedPatientId
     ) || null;
   }, [documentNumber, newBirthdate, patients, selectedPatientId]);
+
+  // Admission search: find existing patients by document or name
+  const admissionSearchResults = useMemo(() => {
+    const q = admissionSearch.trim().toLowerCase();
+    if (q.length < 2) return [];
+    return patients.filter(p => {
+      const doc = (p.document_number || '').toLowerCase();
+      const name = (p.name || '').toLowerCase();
+      return doc.includes(q) || name.includes(q);
+    }).slice(0, 8);
+  }, [admissionSearch, patients]);
+
+  const handleAdmissionSearchSelect = (patient: Patient) => {
+    handleEditPatient(patient);
+    setAdmissionSearch('');
+    setAdmissionSearchFocused(false);
+  };
 
   // Appointments schedule forms state
   const [selectedDoctor, setSelectedDoctor] = useState('Dra. Amanda Silva');
@@ -568,12 +590,16 @@ export default function ReceptionModule({
       });
       const mostRecentMed = sortedMeds.length > 0 ? sortedMeds[0] : null;
 
-      if (mostRecentMed) {
-        const rx = mostRecentMed.prescriptions?.join?.('\n') || (Array.isArray(mostRecentMed.prescriptions) ? mostRecentMed.prescriptions.join('\n') : '');
-        setPrevMedDiagnosis(mostRecentMed.diagnosis || '');
-        setPrevMedCid10(mostRecentMed.cid10 || '');
-        setPrevMedPrescription(rx);
-        setPrevMedNotes(mostRecentMed.notes || '');
+      if (allMeds.length > 0) {
+        const prevMeds = allMeds.slice(0, allMeds.length);
+        const allDiag = prevMeds.map((m: any) => String(m.diagnosis || '').trim()).filter(Boolean);
+        const allCid = prevMeds.map((m: any) => String(m.cid10 || '').trim()).filter(Boolean).filter((v: string) => v !== 'Z00.0');
+        const allRx = prevMeds.flatMap((m: any) => Array.isArray(m.prescriptions) ? m.prescriptions : (m.prescriptions ? String(m.prescriptions).split('\n').filter(Boolean) : []));
+        const allNotes = prevMeds.map((m: any) => String(m.notes || '').trim()).filter(Boolean);
+        setPrevMedDiagnosis(allDiag.join('\n'));
+        setPrevMedCid10(allCid.join('\n'));
+        setPrevMedPrescription(allRx.join('\n'));
+        setPrevMedNotes(allNotes.join('\n'));
       } else {
         setPrevMedDiagnosis('');
         setPrevMedCid10('');
@@ -581,23 +607,53 @@ export default function ReceptionModule({
         setPrevMedNotes('');
       }
 
-      // Always open with empty fields for new data
-      setMedDiagnosis('');
-      setMedCid10('');
-      setMedPrescription('');
-      setMedNotes('');
+      // Always open with empty fields for new data (unless pending data exists from a redirect)
+      if (pendingMedDataRef.current && pendingMedDataRef.current.pid === activePatientId) {
+        const pending = pendingMedDataRef.current.medData;
+        setMedDiagnosis(pending.diagnosis || '');
+        setMedCid10(pending.cid10 === 'Z00.0' ? '' : (pending.cid10 || ''));
+        setMedPrescription(Array.isArray(pending.prescriptions) ? pending.prescriptions.join('\n') : (pending.prescriptions || ''));
+        setMedNotes(pending.notes || '');
+      } else {
+        setMedDiagnosis('');
+        setMedCid10('');
+        setMedPrescription('');
+        setMedNotes('');
+      }
 
-      // Load triage edits
-      if (mostRecentMed?.triage_edits) {
-        const te = mostRecentMed.triage_edits;
+      // Load triage edits: find the most recent med entry with triage_edits OR vital_signs (from any location)
+      const medsWithEdits = allMeds.filter((h: any) => h.triage_edits || h.vital_signs);
+      const sortedMedsWithEdits = [...medsWithEdits].sort((a: any, b: any) => {
+        const dateA = new Date(a.created_at || a.date || 0).getTime();
+        const dateB = new Date(b.created_at || b.date || 0).getTime();
+        return dateB - dateA;
+      });
+      const medWithEdits = sortedMedsWithEdits.length > 0 ? sortedMedsWithEdits[0] : null;
+
+      if (medWithEdits?.triage_edits) {
+        const te = medWithEdits.triage_edits;
         setEditTriageReason(te.diagnosis || '');
         setEditTriageBP(te.vital_signs?.bp || '');
         setEditTriageTemp(te.vital_signs?.temp || '');
         setEditTriageSpo2(te.vital_signs?.spo2 || '');
         setEditTriageHR(te.vital_signs?.hr || '');
         setEditTriageRR(te.vital_signs?.rr || '');
+      } else if (medWithEdits?.vital_signs) {
+        const vs = medWithEdits.vital_signs;
+        setEditTriageReason(medWithEdits.diagnosis || '');
+        setEditTriageBP(vs.bp || '');
+        setEditTriageTemp(vs.temp || '');
+        setEditTriageSpo2(vs.spo2 || '');
+        setEditTriageHR(vs.hr || '');
+        setEditTriageRR(vs.rr || '');
       } else {
-        const triage = history.find((h: any) => h.type?.includes('Triagem'));
+        const triages = history.filter((h: any) => h.type?.includes('Triagem'));
+        const sortedTriages = [...triages].sort((a: any, b: any) => {
+          const dateA = new Date(a.triaged_at || a.created_at || a.date || 0).getTime();
+          const dateB = new Date(b.triaged_at || b.created_at || b.date || 0).getTime();
+          return dateB - dateA;
+        });
+        const triage = sortedTriages[0];
         setEditTriageReason(triage?.diagnosis || '');
         setEditTriageBP(triage?.vital_signs?.bp || '');
         setEditTriageTemp(triage?.vital_signs?.temp || '');
@@ -606,7 +662,8 @@ export default function ReceptionModule({
         setEditTriageRR(triage?.vital_signs?.rr || '');
       }
       setIsEditingTriage(false);
-      setHasTriageEdits(!!mostRecentMed?.triage_edits);
+      const hasAnyTriageEdits = allMeds.some((h: any) => h.triage_edits || h.vital_signs);
+      setHasTriageEdits(hasAnyTriageEdits);
     };
 
     loadData();
@@ -888,12 +945,14 @@ export default function ReceptionModule({
       guardian_relationship: isMinor ? guardianRelationship : undefined,
       guardian_phone: isMinor ? guardianPhone : undefined,
       photo_url: finalPhotoUrl,
-      preferred_language: preferredLanguage
+      preferred_language: preferredLanguage,
+      admitted_at: new Date().toISOString(),
+      ...(isEditing ? {} : { created_at: new Date().toISOString() } as any),
     };
 
     // Optimistic UI update
     if (isEditing) {
-      setPatients(prev => prev.map(p => p.id === patientId ? { ...p, ...newPatient } : p));
+      setPatients(prev => prev.map(p => p.id === patientId ? { ...p, ...newPatient, clinicalHistory: p.clinicalHistory || [] } : p));
       addAuditLog(t('rcpt_audit_edited_patient', 'app'), newPatient.name);
     } else {
       setPatients(prev => [newPatient, ...prev]);
@@ -935,7 +994,9 @@ export default function ReceptionModule({
       guardian_document: newPatient.guardian_document,
       guardian_relationship: newPatient.guardian_relationship,
       photo_url: newPatient.photo_url,
-      preferred_language: newPatient.preferred_language
+      preferred_language: newPatient.preferred_language,
+      admitted_at: new Date().toISOString(),
+      ...(isEditing ? {} : { created_at: new Date().toISOString() })
     };
 
     if (isEditing) {
@@ -1645,15 +1706,36 @@ export default function ReceptionModule({
         (medData.diagnosis && String(medData.diagnosis).trim() !== '') ||
         (medData.cid10 && String(medData.cid10).trim() !== '' && medData.cid10 !== 'Z00.0') ||
         (medData.prescriptions && (Array.isArray(medData.prescriptions) ? medData.prescriptions.length > 0 : String(medData.prescriptions).trim() !== '')) ||
-        (medData.notes && String(medData.notes).trim() !== '');
+        (medData.notes && String(medData.notes).trim() !== '') ||
+        !!medData.triage_edits;
 if (hasAnyField) {
         try {
-const medEntry = { id: `his_med_${++hisMedCounterRef.current}`, date: new Date().toISOString().split('T')[0], created_at: new Date().toISOString(), type: 'Consulta Médica', ...medData };
-          const { error } = await supabase.from('clinical_history').insert({ ...medEntry, patient_id: pid });
+          const medEntry = {
+            id: `his_med_${++hisMedCounterRef.current}`,
+            consultation_id: activeConsultationIdRef.current,
+            date: new Date().toISOString().split('T')[0],
+            created_at: new Date().toISOString(),
+            type: 'Consulta Médica',
+            patient_id: pid,
+            diagnosis: medData.diagnosis || '',
+            cid10: medData.cid10 || 'Z00.0',
+            prescriptions: medData.prescriptions || [],
+            notes: medData.notes || '',
+            doctor: medData.doctor || null,
+            location_name: medData.location_name || null,
+            triage_edits: medData.triage_edits || null,
+            vital_signs: medData.vital_signs || null,
+            triage_priority: medData.triage_priority || null,
+            triage_color: medData.triage_color || null,
+            preliminary_procedures: medData.preliminary_procedures || [],
+            attached_files: medData.attached_files || [],
+            triaged_at: medData.triaged_at || null,
+          };
+          const { error } = await supabase.from('clinical_history').insert(medEntry);
           if (!error) {
-            setPatients(prev => prev.map(p => p.id === pid ? { ...p, clinicalHistory: [{ ...medEntry, patient_id: pid } as any, ...(p.clinicalHistory || [])] } : p));
+            setPatients(prev => prev.map(p => p.id === pid ? { ...p, clinicalHistory: [medEntry as any, ...(p.clinicalHistory || [])] } : p));
           } else {
-            console.error('[SUPABASE] SAVE med before redirect FAILED:', error.message);
+            console.error('[SUPABASE] INSERT med before redirect FAILED:', error.message);
           }
         } catch (err) {
           console.error('[SUPABASE] SAVE med before redirect FAILED:', err);
@@ -1791,6 +1873,10 @@ const medEntry = { id: `his_med_${++hisMedCounterRef.current}`, date: new Date()
                           docNum.includes(searchVal);
     const matchesPriority = filterPriority === 'todos' || p.priority === filterPriority;
     return matchesSearch && matchesPriority;
+  }).sort((a, b) => {
+    const dateA = (a as any).admitted_at ? new Date((a as any).admitted_at).getTime() : ((a as any).created_at ? new Date((a as any).created_at).getTime() : 0);
+    const dateB = (b as any).admitted_at ? new Date((b as any).admitted_at).getTime() : ((b as any).created_at ? new Date((b as any).created_at).getTime() : 0);
+    return dateB - dateA;
   });
 
   const activeWaitingList = patients.filter(p => p.status === 'aguardando');
@@ -1870,6 +1956,83 @@ const medEntry = { id: `his_med_${++hisMedCounterRef.current}`, date: new Date()
                   <h3 className="font-bold text-slate-800 text-base">{t('checkin_admission', 'app')}</h3>
                 </div>
               </div>
+
+              {/* Patient Lookup Search */}
+              {selectedPatientId ? (
+                <div className="flex items-center justify-between p-3 bg-teal-50 border border-teal-200 rounded-lg mb-4">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <CheckCircle2 className="w-4 h-4 text-teal-600 shrink-0" />
+                    <span className="text-xs text-teal-700 truncate">
+                      {t('rcpt_admission_editing', 'app')} <strong>{newName}</strong>
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { resetForm(); setAdmissionSearch(''); }}
+                    className="text-xs font-semibold text-teal-700 bg-white border border-teal-300 rounded px-2.5 py-1 hover:bg-teal-100 cursor-pointer transition shrink-0 ml-2"
+                  >
+                    {t('rcpt_admission_change_patient', 'app')}
+                  </button>
+                </div>
+              ) : (
+                <div className="relative mb-4">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <Search className="w-4 h-4 text-teal-600" />
+                    <span className="text-xs font-semibold text-slate-600">{t('rcpt_admission_search_label', 'app')}</span>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={admissionSearch}
+                      onChange={e => setAdmissionSearch(e.target.value)}
+                      onFocus={() => setAdmissionSearchFocused(true)}
+                      onBlur={() => setTimeout(() => setAdmissionSearchFocused(false), 200)}
+                      placeholder={t('rcpt_admission_search_placeholder', 'app')}
+                      className="w-full pl-4 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-teal-500 font-sans"
+                      data-testid="admission-search"
+                    />
+                    {admissionSearch && (
+                      <button
+                        type="button"
+                        onClick={() => { setAdmissionSearch(''); }}
+                        className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                  {admissionSearchFocused && admissionSearchResults.length > 0 && (
+                    <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-[240px] overflow-y-auto">
+                      {admissionSearchResults.map(p => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onMouseDown={() => handleAdmissionSearchSelect(p)}
+                          className="w-full text-left px-4 py-3 hover:bg-teal-50 border-b border-slate-100 last:border-0 transition cursor-pointer"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center shrink-0">
+                              <User className="w-4 h-4 text-teal-600" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-slate-800 truncate">{p.name}</p>
+                              <p className="text-[11px] text-slate-500">
+                                {p.document_type} {p.document_number} · {p.birthdate}
+                              </p>
+                            </div>
+                            <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {admissionSearchFocused && admissionSearch.length >= 2 && admissionSearchResults.length === 0 && (
+                    <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg p-4 text-center">
+                      <p className="text-xs text-slate-400">{t('rcpt_admission_search_no_results', 'app')}</p>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Sub-Tabs of Form */}
               <div className="flex bg-slate-100 p-1 rounded-lg text-xs font-semibold mb-4 gap-1 overflow-x-auto">
@@ -3836,8 +3999,19 @@ const medEntry = { id: `his_med_${++hisMedCounterRef.current}`, date: new Date()
                       ? (parseFloat(triageWeight) / Math.pow(parseFloat(triageHeight) / 100, 2)).toFixed(1)
                       : undefined;
 
+                    // Generate sequential consultation_id for this patient
+                    const existingConsultationIds = new Set(
+                      (triagePatient.clinicalHistory || [])
+                        .filter((h: any) => h.consultation_id)
+                        .map((h: any) => h.consultation_id)
+                    );
+                    const nextConsultationNum = existingConsultationIds.size + 1;
+                    const newConsultationId = `cons_${triagePatient.id}_${nextConsultationNum}`;
+                    activeConsultationIdRef.current = newConsultationId;
+
                     const triageEntry = {
                       id: `his_triage_${++hisCounterRef.current}`,
+                      consultation_id: newConsultationId,
                       date: new Date().toISOString().split('T')[0],
                       type: t('rcpt_triage_type', 'app'),
                       diagnosis: triageReason,
@@ -3891,6 +4065,7 @@ const medEntry = { id: `his_med_${++hisMedCounterRef.current}`, date: new Date()
                       try {
                         const triageData = {
                           patient_id: triagePatient.id,
+                          consultation_id: newConsultationId,
                           date: triageEntry.date,
                           type: triageEntry.type,
                           diagnosis: triageEntry.diagnosis,
@@ -3906,19 +4081,7 @@ const medEntry = { id: `his_med_${++hisMedCounterRef.current}`, date: new Date()
                           triaged_at: triageEntry.triaged_at || null,
                         };
 
-                        const { data: existingTriage } = await supabase
-                          .from('clinical_history')
-                          .select('id')
-                          .eq('patient_id', triagePatient.id)
-                          .eq('type', t('rcpt_triage_type', 'app'))
-                          .order('date', { ascending: false })
-                          .limit(1);
-
-                        if (existingTriage && existingTriage.length > 0) {
-                          await supabase.from('clinical_history').update(triageData).eq('id', existingTriage[0].id);
-                        } else {
-                          await supabase.from('clinical_history').insert({ id: triageEntry.id, ...triageData });
-                        }
+                        await supabase.from('clinical_history').insert({ id: triageEntry.id, ...triageData });
 
                         await supabase.from('patients').update({
                           status: 'triado',
@@ -4075,7 +4238,6 @@ const medEntry = { id: `his_med_${++hisMedCounterRef.current}`, date: new Date()
                       const { jsPDF } = await import('jspdf');
                       const doc = new jsPDF({ unit: 'mm', format: 'a4' });
                       const pat = timelinePatient;
-                      const triageEntry = pat.clinicalHistory?.find((h: any) => h.type?.includes('Triagem'));
                       let y = 20;
                       const checkPage = (inc: number) => { if (y + inc > 270) { doc.addPage(); y = 20; } };
                       doc.setFontSize(18);
@@ -4086,53 +4248,87 @@ const medEntry = { id: `his_med_${++hisMedCounterRef.current}`, date: new Date()
                       doc.setTextColor(100, 116, 139);
                       doc.text(`${pat.document_type || 'CI'}: ${pat.document_number || '-'}${pat.blood_type ? ` | ${t('rcpt_pdf_type', 'app')}: ${pat.blood_type}` : ''}`, 15, y); y += 10;
                       doc.setDrawColor(13, 148, 136); doc.setLineWidth(0.5); doc.line(15, y, 195, y); y += 8;
-                      if (triageEntry) {
-                        doc.setTextColor(13, 148, 136); doc.setFontSize(12); doc.setFont('helvetica', 'bold');
-                        doc.text(t('rcpt_pdf_triage', 'app'), 15, y); y += 6;
-                        doc.setTextColor(100, 116, 139); doc.setFontSize(9); doc.setFont('helvetica', 'normal');
-                        if (triageEntry.triaged_at) { doc.text(`${t('rcpt_pdf_date', 'app')}: ${new Date(triageEntry.triaged_at).toLocaleString(locale)}`, 15, y); y += 5; }
-                        if (triageEntry.vital_signs) {
-                          const vs = triageEntry.vital_signs;
-                          let vitals = '';
-                          if (vs.bp) vitals += `${t('rcpt_triage_bp_label', 'app')}: ${vs.bp}  `;
-                          if (vs.temp) vitals += `${t('rcpt_triage_temp_label', 'app')}: ${vs.temp}C  `;
-                          if (vs.spo2) vitals += `${t('rcpt_triage_spo2_label', 'app')}: ${vs.spo2}%  `;
-                          if (vs.hr) vitals += `${t('rcpt_triage_hr_label', 'app')}: ${vs.hr} BPM  `;
-                          if (vs.rr) vitals += `${t('rcpt_triage_rr_label', 'app')}: ${vs.rr} IRPM`;
-                          doc.text(vitals, 15, y); y += 5;
-                        }
-                        y += 4;
-                      }
-                      const usedMedIdsPdf = new Set<string>();
-                      const allMedsPdf = (pat.clinicalHistory || [])
-                        .filter((h: any) => h.type === 'Consulta Médica')
-                        .sort((a: any, b: any) => new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime());
-                      timelineAssignments.forEach(a => {
-                        const locationMeds = allMedsPdf.filter((h: any) => h.location_name === a.locationName && !usedMedIdsPdf.has(h.id));
-                        const med = locationMeds[0] || null;
-                        if (med) usedMedIdsPdf.add(med.id);
-                        checkPage(30);
-                        doc.setDrawColor(226, 232, 240); doc.setFillColor(248, 250, 252);
-                        doc.roundedRect(15, y - 4, 180, med ? 38 : 14, 2, 2, 'FD');
-                        doc.setTextColor(13, 148, 136); doc.setFontSize(11); doc.setFont('helvetica', 'bold');
-                        doc.text(a.locationName, 19, y + 2); y += 8;
-                        doc.setTextColor(100, 116, 139); doc.setFontSize(8); doc.setFont('helvetica', 'normal');
-                        doc.text(`${t('rcpt_pdf_entry', 'app')}: ${new Date(a.assignedAt).toLocaleString(locale)}`, 19, y); y += 4;
-                        doc.text(`${t('rcpt_pdf_exit', 'app')}: ${a.completedAt ? new Date(a.completedAt).toLocaleString(locale) : new Date(a.assignedAt).toLocaleString(locale)}`, 19, y); y += 5;
-                        if (med) {
-                          doc.setFontSize(8); doc.setTextColor(51, 65, 85);
+
+                      // Group history by consultation_id
+                      const history = pat.clinicalHistory || [];
+                      const grouped: Record<string, any[]> = {};
+                      history.forEach((entry: any) => {
+                        const key = entry.consultation_id || '__legacy__';
+                        if (!grouped[key]) grouped[key] = [];
+                        grouped[key].push(entry);
+                      });
+                      const sortedKeys = Object.keys(grouped).sort((a, b) => {
+                        if (a === '__legacy__') return -1;
+                        if (b === '__legacy__') return 1;
+                        const dateA = new Date(grouped[a][0].triaged_at || grouped[a][0].created_at || 0).getTime();
+                        const dateB = new Date(grouped[b][0].triaged_at || grouped[b][0].created_at || 0).getTime();
+                        return dateA - dateB;
+                      });
+
+                      let consultationNumber = 0;
+                      sortedKeys.forEach(key => {
+                        const entries = grouped[key];
+                        const isLegacy = key === '__legacy__';
+                        if (!isLegacy) consultationNumber++;
+
+                        const triageEntries = entries.filter((e: any) => e.type?.includes('Triagem'));
+                        const medEntries = entries.filter((e: any) => e.type === 'Consulta Médica');
+                        triageEntries.sort((a: any, b: any) => new Date(a.triaged_at || 0).getTime() - new Date(b.triaged_at || 0).getTime());
+                        medEntries.sort((a: any, b: any) => new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime());
+
+                        checkPage(20);
+                        doc.setFillColor(248, 250, 252);
+                        doc.setDrawColor(203, 213, 225);
+                        doc.roundedRect(15, y - 3, 180, 10, 2, 2, 'FD');
+                        doc.setTextColor(51, 65, 85); doc.setFontSize(10); doc.setFont('helvetica', 'bold');
+                        const dateLabel = entries[0].triaged_at ? new Date(entries[0].triaged_at).toLocaleDateString(locale) : entries[0].date || '—';
+                        doc.text(isLegacy ? t('rcpt_timeline_legacy_records', 'app') : `${t('rcpt_timeline_consultation', 'app')} #${consultationNumber} — ${dateLabel}`, 19, y + 3);
+                        y += 14;
+
+                        // Triage entries
+                        triageEntries.forEach((triageEntry: any) => {
+                          doc.setTextColor(13, 148, 136); doc.setFontSize(10); doc.setFont('helvetica', 'bold');
+                          doc.text(t('rcpt_pdf_triage', 'app'), 15, y); y += 5;
+                          doc.setTextColor(100, 116, 139); doc.setFontSize(8); doc.setFont('helvetica', 'normal');
+                          if (triageEntry.triaged_at) { doc.text(`${t('rcpt_pdf_date', 'app')}: ${new Date(triageEntry.triaged_at).toLocaleString(locale)}`, 19, y); y += 4; }
+                          if (triageEntry.vital_signs) {
+                            const vs = triageEntry.vital_signs;
+                            let vitals = '';
+                            if (vs.bp) vitals += `${t('rcpt_triage_bp_label', 'app')}: ${vs.bp}  `;
+                            if (vs.temp) vitals += `${t('rcpt_triage_temp_label', 'app')}: ${vs.temp}C  `;
+                            if (vs.spo2) vitals += `${t('rcpt_triage_spo2_label', 'app')}: ${vs.spo2}%  `;
+                            if (vs.hr) vitals += `${t('rcpt_triage_hr_label', 'app')}: ${vs.hr} BPM  `;
+                            if (vs.rr) vitals += `${t('rcpt_triage_rr_label', 'app')}: ${vs.rr} IRPM`;
+                            doc.text(vitals, 19, y); y += 4;
+                          }
+                          y += 2;
+                        });
+
+                        // Medical entries
+                        medEntries.forEach((med: any) => {
+                          checkPage(30);
+                          doc.setDrawColor(226, 232, 240); doc.setFillColor(248, 250, 252);
+                          doc.roundedRect(15, y - 4, 180, 38, 2, 2, 'FD');
+                          doc.setTextColor(13, 148, 136); doc.setFontSize(10); doc.setFont('helvetica', 'bold');
+                          doc.text(med.location_name || t('rcpt_timeline_medical_consultation', 'app'), 19, y + 2); y += 7;
+                          doc.setTextColor(100, 116, 139); doc.setFontSize(8); doc.setFont('helvetica', 'normal');
+                          if (med.created_at) { doc.text(`${t('rcpt_pdf_date', 'app')}: ${new Date(med.created_at).toLocaleString(locale)}`, 19, y); y += 4; }
                           if (med.diagnosis) { doc.setFont('helvetica', 'bold'); doc.text(t('rcpt_pdf_diagnosis', 'app') + ': ', 19, y); doc.setFont('helvetica', 'normal'); doc.text(med.diagnosis, 52, y); y += 4; }
                           if (med.cid10 && med.cid10 !== 'Z00.0') { doc.setFont('helvetica', 'bold'); doc.text(t('rcpt_timeline_cid10', 'app') + ': ', 19, y); doc.setFont('helvetica', 'normal'); doc.text(med.cid10, 40, y); y += 4; }
                           if (med.prescriptions && med.prescriptions.length > 0) { doc.setFont('helvetica', 'bold'); doc.text(t('rcpt_pdf_prescription', 'app') + ': ', 19, y); doc.setFont('helvetica', 'normal'); doc.text(med.prescriptions.join(', '), 52, y); y += 4; }
                           if (med.notes) { doc.setFont('helvetica', 'bold'); doc.text(t('rcpt_pdf_observations', 'app') + ': ', 19, y); doc.setFont('helvetica', 'normal'); doc.text(med.notes, 54, y); y += 4; }
-                        }
-                        y += 4;
+                          y += 4;
+                        });
+
+                        // Conclusion for this consultation
+                        const lastEntry = entries[entries.length - 1];
+                        const completedTime = lastEntry.created_at || lastEntry.triaged_at;
+                        y += 2; checkPage(8);
+                        doc.setTextColor(148, 163, 184); doc.setFontSize(8); doc.setFont('helvetica', 'normal');
+                        doc.text(`${t('rcpt_pdf_visit_completed', 'app')} - ${completedTime ? new Date(completedTime).toLocaleString(locale) : '—'}`, 105, y, { align: 'center' });
+                        y += 8;
                       });
-                      const lastAssignmentPdf = timelineAssignments[timelineAssignments.length - 1];
-                      const completedTimePdf = lastAssignmentPdf?.completedAt || lastAssignmentPdf?.assignedAt || new Date().toISOString();
-                      y += 4; checkPage(10);
-                      doc.setTextColor(148, 163, 184); doc.setFontSize(9); doc.setFont('helvetica', 'normal');
-                      doc.text(`${t('rcpt_pdf_visit_completed', 'app')} - ${new Date(completedTimePdf).toLocaleString(locale)}`, 105, y, { align: 'center' });
+
                       doc.save(`${t('rcpt_pdf_filename_prefix', 'app')}_${pat.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`);
                     }} className="text-slate-400 hover:text-teal-600 cursor-pointer" title={t('rcpt_pdf_export_title', 'app')}>
                       <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -4154,158 +4350,176 @@ const medEntry = { id: `his_med_${++hisMedCounterRef.current}`, date: new Date()
                   <p className="text-sm text-slate-400 text-center py-8">{t('rcpt_timeline_loading', 'app')}</p>
                 ) : (
                   <div className="space-y-0">
-                    {/* Triage Event */}
-                    {timelinePatient.clinicalHistory?.find((h: any) => h.type?.includes('Triagem')) && (
-                      <div className="flex gap-3">
-                        <div className="flex flex-col items-center">
-                          <div className="w-3 h-3 rounded-full bg-green-500 flex-shrink-0"></div>
-                          <div className="w-0.5 flex-1 bg-slate-200"></div>
-                        </div>
-                        <div className="pb-4 flex-1">
-                          <p className="text-xs font-bold text-slate-800">{t('rcpt_timeline_triage', 'app')}</p>
-                          {(() => {
-                            const triageEntry = timelinePatient.clinicalHistory?.find((h: any) => h.type?.includes('Triagem'));
-                            return triageEntry ? (
-                              <>
-                                <p className="text-[10px] text-slate-400">
-                                  {triageEntry.triaged_at 
-                                    ? new Date(triageEntry.triaged_at).toLocaleString(locale)
-                                    : '—'}
-                                </p>
-                                {triageEntry.vital_signs && (
-                                  <div className="mt-1 text-[10px] text-slate-500 space-y-0.5">
-                                    {triageEntry.vital_signs.bp && <p>{t('rcpt_triage_bp_label', 'app')}: {triageEntry.vital_signs.bp}</p>}
-                                    {triageEntry.vital_signs.spo2 && <p>{t('rcpt_triage_spo2_label', 'app')}: {triageEntry.vital_signs.spo2}</p>}
-                                    {triageEntry.vital_signs.temp && <p>{t('rcpt_triage_temp_label', 'app')}: {triageEntry.vital_signs.temp}</p>}
-                                    {triageEntry.vital_signs.hr && <p>{t('rcpt_triage_hr_label', 'app')}: {triageEntry.vital_signs.hr}</p>}
-                                    {triageEntry.vital_signs.rr && <p>{t('rcpt_triage_rr_label', 'app')}: {triageEntry.vital_signs.rr}</p>}
-                                  </div>
-                                )}
-                              </>
-                            ) : <p className="text-[10px] text-slate-400">—</p>;
-                          })()}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Location Assignments with Medical Data */}
                     {(() => {
-                      const usedMedIds = new Set<string>();
-                      const allMeds = (timelinePatient.clinicalHistory || [])
-                        .filter((h: any) => h.type === 'Consulta Médica')
-                        .sort((a: any, b: any) => new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime());
-                      return timelineAssignments.map((assignment, idx) => {
-                        const locationMeds = allMeds.filter((h: any) => h.location_name === assignment.locationName && !usedMedIds.has(h.id));
-                        const med = locationMeds[0] || null;
-                        if (med) usedMedIds.add(med.id);
+                      const history = timelinePatient.clinicalHistory || [];
+
+                      // Group entries by consultation_id
+                      const consultationGroups: { key: string; entries: any[] }[] = [];
+                      const grouped: Record<string, any[]> = {};
+
+                      history.forEach((entry: any) => {
+                        const key = entry.consultation_id || '__legacy__';
+                        if (!grouped[key]) grouped[key] = [];
+                        grouped[key].push(entry);
+                      });
+
+                      // Sort groups by date of first entry
+                      const sortedKeys = Object.keys(grouped).sort((a, b) => {
+                        if (a === '__legacy__') return -1;
+                        if (b === '__legacy__') return 1;
+                        const dateA = new Date(grouped[a][0].triaged_at || grouped[a][0].created_at || 0).getTime();
+                        const dateB = new Date(grouped[b][0].triaged_at || grouped[b][0].created_at || 0).getTime();
+                        return dateA - dateB;
+                      });
+
+                      sortedKeys.forEach(key => {
+                        consultationGroups.push({ key, entries: grouped[key] });
+                      });
+
+                      if (consultationGroups.length === 0) {
+                        return <p className="text-sm text-slate-400 text-center py-8">{t('rcpt_timeline_no_history', 'app')}</p>;
+                      }
+
+                      let consultationNumber = 0;
+
+                      return consultationGroups.map((group) => {
+                        const entries = group.entries;
+                        const isLegacy = group.key === '__legacy__';
+                        if (!isLegacy) consultationNumber++;
+
+                        // Separate triage and medical entries
+                        const triageEntries = entries.filter((e: any) => e.type?.includes('Triagem'));
+                        const medEntries = entries.filter((e: any) => e.type === 'Consulta Médica');
+
+                        // Sort triage by triaged_at, meds by created_at
+                        triageEntries.sort((a: any, b: any) => {
+                          const dA = new Date(a.triaged_at || a.created_at || 0).getTime();
+                          const dB = new Date(b.triaged_at || b.created_at || 0).getTime();
+                          return dA - dB;
+                        });
+                        medEntries.sort((a: any, b: any) => {
+                          const dA = new Date(a.created_at || 0).getTime();
+                          const dB = new Date(b.created_at || 0).getTime();
+                          return dA - dB;
+                        });
+
+                        // Get date label from first entry
+                        const firstEntry = entries[0];
+                        const dateLabel = firstEntry.triaged_at
+                          ? new Date(firstEntry.triaged_at).toLocaleDateString(locale, { day: '2-digit', month: '2-digit', year: 'numeric' })
+                          : firstEntry.date || '—';
+
                         return (
-                      <div key={idx} className="flex gap-3">
-                        <div className="flex flex-col items-center">
-                          <div className="w-3 h-3 rounded-full bg-blue-500 flex-shrink-0"></div>
-                          <div className="w-0.5 flex-1 bg-slate-200"></div>
-                        </div>
-                        <div className="pb-4 flex-1">
-                          <p className="text-xs font-bold text-slate-800">🏥 {assignment.locationName}</p>
-                          <p className="text-[10px] text-slate-400">
-                            {t('rcpt_timeline_entry', 'app')} {new Date(assignment.assignedAt).toLocaleString(locale)}
-                          </p>
-                          {assignment.completedAt ? (
-                            <p className="text-[10px] text-slate-400">
-                              {t('rcpt_timeline_exit', 'app')} {new Date(assignment.completedAt).toLocaleString(locale)}
-                            </p>
-                          ) : (
-                            <p className="text-[10px] text-amber-500 font-semibold">{t('rcpt_timeline_ongoing', 'app')}</p>
-                          )}
-                          {med && (
-                            <div className="mt-1.5 text-[10px] text-slate-500 space-y-0.5 border-l-2 border-blue-200 pl-2">
-                              {med.triage_edits && (
-                                <div className="mb-1">
-                                  {med.triage_edits.diagnosis && (
-                                    <p>• <span className="font-semibold text-amber-600">{t('rcpt_timeline_triage_edited', 'app')}</span> {med.triage_edits.diagnosis}</p>
-                                  )}
-                                  {med.triage_edits.vital_signs && (
-                                    <div className="ml-2 space-y-0.5">
-                                      {med.triage_edits.vital_signs.bp && <p className="text-amber-600">{t('rcpt_triage_bp_label', 'app')}: {med.triage_edits.vital_signs.bp}</p>}
-                                      {med.triage_edits.vital_signs.temp && <p className="text-amber-600">{t('rcpt_triage_temp_label', 'app')}: {med.triage_edits.vital_signs.temp}°C</p>}
-                                      {med.triage_edits.vital_signs.spo2 && <p className="text-amber-600">{t('rcpt_triage_spo2_label', 'app')}: {med.triage_edits.vital_signs.spo2}%</p>}
-                                      {med.triage_edits.vital_signs.hr && <p className="text-amber-600">{t('rcpt_triage_hr_label', 'app')}: {med.triage_edits.vital_signs.hr} BPM</p>}
-                                      {med.triage_edits.vital_signs.rr && <p className="text-amber-600">{t('rcpt_triage_rr_label', 'app')}: {med.triage_edits.vital_signs.rr} IRPM</p>}
+                          <div key={group.key} className="mb-6">
+                            {/* Consultation Header */}
+                            {!isLegacy && (
+                              <div className="bg-slate-50 rounded-lg p-3 mb-4 border border-slate-200">
+                                <p className="text-xs font-bold text-slate-700">
+                                  📋 {t('rcpt_timeline_consultation', 'app')} #{consultationNumber} — {dateLabel}
+                                </p>
+                              </div>
+                            )}
+                            {isLegacy && (
+                              <div className="bg-slate-50 rounded-lg p-3 mb-4 border border-slate-200">
+                                <p className="text-xs font-bold text-slate-500">
+                                  📋 {t('rcpt_timeline_legacy_records', 'app')}
+                                </p>
+                              </div>
+                            )}
+
+                            {/* Triage Events */}
+                            {triageEntries.map((triageEntry: any, tIdx: number) => (
+                              <div key={`triage-${group.key}-${tIdx}`} className="flex gap-3">
+                                <div className="flex flex-col items-center">
+                                  <div className="w-3 h-3 rounded-full bg-green-500 flex-shrink-0"></div>
+                                  <div className="w-0.5 flex-1 bg-slate-200"></div>
+                                </div>
+                                <div className="pb-4 flex-1">
+                                  <p className="text-xs font-bold text-slate-800">{t('rcpt_timeline_triage', 'app')}</p>
+                                  <p className="text-[10px] text-slate-400">
+                                    {triageEntry.triaged_at
+                                      ? new Date(triageEntry.triaged_at).toLocaleString(locale)
+                                      : '—'}
+                                  </p>
+                                  {triageEntry.vital_signs && (
+                                    <div className="mt-1 text-[10px] text-slate-500 space-y-0.5">
+                                      {triageEntry.vital_signs.bp && <p>{t('rcpt_triage_bp_label', 'app')}: {triageEntry.vital_signs.bp}</p>}
+                                      {triageEntry.vital_signs.spo2 && <p>{t('rcpt_triage_spo2_label', 'app')}: {triageEntry.vital_signs.spo2}</p>}
+                                      {triageEntry.vital_signs.temp && <p>{t('rcpt_triage_temp_label', 'app')}: {triageEntry.vital_signs.temp}</p>}
+                                      {triageEntry.vital_signs.hr && <p>{t('rcpt_triage_hr_label', 'app')}: {triageEntry.vital_signs.hr}</p>}
+                                      {triageEntry.vital_signs.rr && <p>{t('rcpt_triage_rr_label', 'app')}: {triageEntry.vital_signs.rr}</p>}
                                     </div>
                                   )}
                                 </div>
-                              )}
-                              {med.diagnosis && (
-                                <p>• <span className="font-semibold">{t('rcpt_timeline_diagnosis', 'app')}</span> {med.diagnosis}</p>
-                              )}
-                              {med.cid10 && med.cid10 !== 'Z00.0' && (
-                                <p>• <span className="font-semibold">{t('rcpt_timeline_cid10', 'app')}</span> {med.cid10}</p>
-                              )}
-                              {med.prescriptions && med.prescriptions.length > 0 && med.prescriptions[0] !== t('rcpt_triage_no_procedure', 'app') && (
-                                <p>• <span className="font-semibold">{t('rcpt_timeline_prescription', 'app')}</span> {med.prescriptions.join(', ')}</p>
-                              )}
-                              {med.notes && med.notes !== t('rcpt_triage_default_note', 'app') && (
-                                <p>• <span className="font-semibold">{t('rcpt_timeline_medical_notes', 'app')}</span> {med.notes}</p>
-                              )}
+                              </div>
+                            ))}
+
+                            {/* Medical Consultations (by location) */}
+                            {medEntries.map((med: any, mIdx: number) => (
+                              <div key={`med-${group.key}-${mIdx}`} className="flex gap-3">
+                                <div className="flex flex-col items-center">
+                                  <div className="w-3 h-3 rounded-full bg-blue-500 flex-shrink-0"></div>
+                                  <div className="w-0.5 flex-1 bg-slate-200"></div>
+                                </div>
+                                <div className="pb-4 flex-1">
+                                  <p className="text-xs font-bold text-slate-800">🏥 {med.location_name || t('rcpt_timeline_medical_consultation', 'app')}</p>
+                                  <p className="text-[10px] text-slate-400">
+                                    {med.created_at ? new Date(med.created_at).toLocaleString(locale) : med.date || '—'}
+                                  </p>
+                                  <div className="mt-1.5 text-[10px] text-slate-500 space-y-0.5 border-l-2 border-blue-200 pl-2">
+                                    {med.triage_edits && (
+                                      <div className="mb-1">
+                                        {med.triage_edits.diagnosis && (
+                                          <p>• <span className="font-semibold text-amber-600">{t('rcpt_timeline_triage_edited', 'app')}</span> {med.triage_edits.diagnosis}</p>
+                                        )}
+                                        {med.triage_edits.vital_signs && (
+                                          <div className="ml-2 space-y-0.5">
+                                            {med.triage_edits.vital_signs.bp && <p className="text-amber-600">{t('rcpt_triage_bp_label', 'app')}: {med.triage_edits.vital_signs.bp}</p>}
+                                            {med.triage_edits.vital_signs.temp && <p className="text-amber-600">{t('rcpt_triage_temp_label', 'app')}: {med.triage_edits.vital_signs.temp}°C</p>}
+                                            {med.triage_edits.vital_signs.spo2 && <p className="text-amber-600">{t('rcpt_triage_spo2_label', 'app')}: {med.triage_edits.vital_signs.spo2}%</p>}
+                                            {med.triage_edits.vital_signs.hr && <p className="text-amber-600">{t('rcpt_triage_hr_label', 'app')}: {med.triage_edits.vital_signs.hr} BPM</p>}
+                                            {med.triage_edits.vital_signs.rr && <p className="text-amber-600">{t('rcpt_triage_rr_label', 'app')}: {med.triage_edits.vital_signs.rr} IRPM</p>}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                    {med.diagnosis && (
+                                      <p>• <span className="font-semibold">{t('rcpt_timeline_diagnosis', 'app')}</span> {med.diagnosis}</p>
+                                    )}
+                                    {med.cid10 && med.cid10 !== 'Z00.0' && (
+                                      <p>• <span className="font-semibold">{t('rcpt_timeline_cid10', 'app')}</span> {med.cid10}</p>
+                                    )}
+                                    {med.prescriptions && med.prescriptions.length > 0 && med.prescriptions[0] !== t('rcpt_triage_no_procedure', 'app') && (
+                                      <p>• <span className="font-semibold">{t('rcpt_timeline_prescription', 'app')}</span> {med.prescriptions.join(', ')}</p>
+                                    )}
+                                    {med.notes && med.notes !== t('rcpt_triage_default_note', 'app') && (
+                                      <p>• <span className="font-semibold">{t('rcpt_timeline_medical_notes', 'app')}</span> {med.notes}</p>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+
+                            {/* Conclusion for this consultation */}
+                            <div className="flex gap-3">
+                              <div className="flex flex-col items-center">
+                                <div className="w-3 h-3 rounded-full bg-green-600 flex-shrink-0"></div>
+                              </div>
+                              <div>
+                                <p className="text-xs font-bold text-green-700">{t('rcpt_timeline_visit_completed', 'app')}</p>
+                                <p className="text-[10px] text-slate-400">
+                                  {(() => {
+                                    const lastEntry = entries[entries.length - 1];
+                                    const completedTime = lastEntry.created_at || lastEntry.triaged_at;
+                                    return completedTime ? new Date(completedTime).toLocaleString(locale) : '—';
+                                  })()}
+                                </p>
+                              </div>
                             </div>
-                          )}
-                        </div>
-                      </div>
-                      );
+                          </div>
+                        );
                       });
                     })()}
-
-                    {/* Remaining medical consultations without location (hide if all have location_name) */}
-                    {(() => {
-                      const orphans = timelinePatient.clinicalHistory?.filter((h: any) => h.type === 'Consulta Médica' && !h.location_name) || [];
-                      const assignedNames = new Set(timelineAssignments.map(a => a.locationName));
-                      const unassigned = orphans.filter((h: any) => !assignedNames.has(h.location_name || ''));
-                      if (unassigned.length === 0) return null;
-                      return unassigned.map((entry, idx) => (
-                      <div key={`med-${idx}`} className="flex gap-3">
-                        <div className="flex flex-col items-center">
-                          <div className="w-3 h-3 rounded-full bg-purple-500 flex-shrink-0"></div>
-                          <div className="w-0.5 flex-1 bg-slate-200"></div>
-                        </div>
-                        <div className="pb-4 flex-1">
-                          <p className="text-xs font-bold text-slate-800">💊 {entry.type}</p>
-                          <p className="text-[10px] text-slate-400">{entry.date}</p>
-                          {entry.diagnosis && (
-                            <p className="text-[10px] text-slate-500">{t('rcpt_timeline_diagnosis_label', 'app')} {entry.diagnosis}</p>
-                          )}
-                          {entry.cid10 && entry.cid10 !== 'Z00.0' && (
-                            <p className="text-[10px] text-slate-500">{t('rcpt_timeline_cid10', 'app')} {entry.cid10}</p>
-                          )}
-                          {entry.prescriptions && entry.prescriptions.length > 0 && (
-                            <p className="text-[10px] text-slate-500">{t('rcpt_timeline_prescription_label', 'app')} {entry.prescriptions.join(', ')}</p>
-                          )}
-                          {entry.notes && (
-                            <p className="text-[10px] text-slate-500">{t('rcpt_timeline_notes_label', 'app')} {entry.notes}</p>
-                          )}
-                        </div>
-                      </div>
-                      ));
-                    })()}
-
-                    {/* Conclusion */}
-                    <div className="flex gap-3">
-                      <div className="flex flex-col items-center">
-                        <div className="w-3 h-3 rounded-full bg-green-600 flex-shrink-0"></div>
-                      </div>
-                      <div>
-                        <p className="text-xs font-bold text-green-700">{t('rcpt_timeline_visit_completed', 'app')}</p>
-                        <p className="text-[10px] text-slate-400">
-                          {(() => {
-                            const lastAssignment = timelineAssignments[timelineAssignments.length - 1];
-                            const completedTime = lastAssignment?.completedAt || lastAssignment?.assignedAt;
-                            return completedTime ? new Date(completedTime).toLocaleString(locale) : '—';
-                          })()}
-                        </p>
-                      </div>
-                    </div>
-
-                    {timelineAssignments.length === 0 && (!timelinePatient.clinicalHistory || timelinePatient.clinicalHistory.length === 0) && (
-                      <p className="text-sm text-slate-400 text-center py-8">{t('rcpt_timeline_no_history', 'app')}</p>
-                    )}
                   </div>
                 )}
               </div>
@@ -4456,7 +4670,12 @@ const medEntry = { id: `his_med_${++hisMedCounterRef.current}`, date: new Date()
                     const pid = selectedLocation.currentPatients[0];
                     const pat = patients.find(p => p.id === pid);
                     if (!pat) return <p className="text-sm text-slate-400 text-center py-8">{t('rcpt_detail_patient_not_found', 'app')}</p>;
-                    const triage = pat.clinicalHistory?.find((h: any) => h.type?.includes('Triagem'));
+                    const triages = pat.clinicalHistory?.filter((h: any) => h.type?.includes('Triagem')) || [];
+                    const triage = [...triages].sort((a: any, b: any) => {
+                      const dateA = new Date(a.triaged_at || a.created_at || a.date || 0).getTime();
+                      const dateB = new Date(b.triaged_at || b.created_at || b.date || 0).getTime();
+                      return dateB - dateA;
+                    })[0];
                     const vitals = triage?.vital_signs;
                     const colorDot: Record<string, string> = {
                       red: 'bg-red-500', orange: 'bg-orange-500', yellow: 'bg-amber-400', green: 'bg-green-500', blue: 'bg-blue-500',
@@ -4490,12 +4709,6 @@ const medEntry = { id: `his_med_${++hisMedCounterRef.current}`, date: new Date()
                                 )}
                                 {!isEditingTriage ? (
                                   <button onClick={() => {
-                                    setEditTriageReason(triage.diagnosis || '');
-                                    setEditTriageBP(vitals?.bp || '');
-                                    setEditTriageTemp(vitals?.temp || '');
-                                    setEditTriageSpo2(vitals?.spo2 || '');
-                                    setEditTriageHR(vitals?.hr || '');
-                                    setEditTriageRR(vitals?.rr || '');
                                     setIsEditingTriage(true);
                                   }} className="text-xs text-blue-600 hover:text-blue-800 font-bold cursor-pointer px-2 py-1 rounded hover:bg-blue-50 transition">
                                     {t('rcpt_detail_edit', 'app')}
@@ -4539,7 +4752,7 @@ const medEntry = { id: `his_med_${++hisMedCounterRef.current}`, date: new Date()
                                 {triage.preliminary_procedures && triage.preliminary_procedures.length > 0 && (
                                   <p className="text-[11px] text-slate-600"><span className="font-bold">{t('rcpt_detail_procedures', 'app')}</span> {triage.preliminary_procedures.join(', ')}</p>
                                 )}
-                                {triage.notes && <p className="text-[11px] text-slate-500 italic">{triage.notes}</p>}
+                                {triage.notes && <p className="text-[11px] text-slate-500 italic">{['Triagem realizada sem observações adicionais.', 'Triage performed without additional observations.', 'Triage realizado sin observaciones adicionales.'].includes(triage.notes) ? t('rcpt_triage_default_note', 'app') : triage.notes}</p>}
                               </div>
                             )}
                           </div>
@@ -4548,52 +4761,36 @@ const medEntry = { id: `his_med_${++hisMedCounterRef.current}`, date: new Date()
                         {/* Medical Consultation */}
                         <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
                           <p className="text-xs font-bold text-blue-800">{t('rcpt_detail_medical_consultation', 'app')}</p>
-                          {prevMedDiagnosis && (
-                            <p className="text-[10px] text-slate-400 italic">{t('rcpt_detail_previous_data_gray', 'app')}</p>
-                          )}
+                          {prevMedDiagnosis || prevMedCid10 || prevMedPrescription || prevMedNotes ? (
+                            <p className="text-[10px] italic text-slate-500">{t('rcpt_detail_previous_data_legend', 'app')}</p>
+                          ) : null}
                           <div>
-                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_detail_diagnosis', 'app')}</label>
-                            {prevMedDiagnosis ? (
-                              <div className="flex">
-                                <span className="bg-slate-100 text-slate-500 text-xs px-2 py-2 rounded-l-lg border border-r-0 border-slate-200 whitespace-nowrap max-w-[50%] overflow-hidden text-ellipsis">{prevMedDiagnosis} -</span>
-                                <input type="text" value={medDiagnosis} onChange={e => setMedDiagnosis(e.target.value)} placeholder={t('rcpt_ph_add', 'app')} className="flex-1 p-2 bg-white border border-slate-200 rounded-r-lg text-xs focus:outline-blue-500" />
-                              </div>
-                            ) : (
-                              <input type="text" value={medDiagnosis} onChange={e => setMedDiagnosis(e.target.value)} placeholder={t('rcpt_ph_describe_diagnosis', 'app')} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_detail_diagnosis', 'app')} *</label>
+                            {prevMedDiagnosis && (
+                              <div className="w-full p-2 bg-slate-100 border border-slate-200 rounded-lg text-xs text-slate-500 whitespace-pre-wrap mb-1">{prevMedDiagnosis}</div>
                             )}
+                            <input type="text" value={medDiagnosis} onChange={e => setMedDiagnosis(e.target.value)} placeholder={t('rcpt_ph_add_below', 'app')} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
                           </div>
                           <div>
                             <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_detail_cid10', 'app')}</label>
-                            {prevMedCid10 ? (
-                              <div className="flex">
-                                <span className="bg-slate-100 text-slate-500 text-xs px-2 py-2 rounded-l-lg border border-r-0 border-slate-200 whitespace-nowrap max-w-[50%] overflow-hidden text-ellipsis">{prevMedCid10} -</span>
-                                <input type="text" value={medCid10} onChange={e => setMedCid10(e.target.value)} placeholder={t('rcpt_ph_add', 'app')} className="flex-1 p-2 bg-white border border-slate-200 rounded-r-lg text-xs focus:outline-blue-500" />
-                              </div>
-                            ) : (
-                              <input type="text" value={medCid10} onChange={e => setMedCid10(e.target.value)} placeholder={t('rcpt_ph_cid10', 'app')} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
+                            {prevMedCid10 && (
+                              <div className="w-full p-2 bg-slate-100 border border-slate-200 rounded-lg text-xs text-slate-500 whitespace-pre-wrap mb-1">{prevMedCid10}</div>
                             )}
+                            <input type="text" value={medCid10} onChange={e => setMedCid10(e.target.value)} placeholder={t('rcpt_ph_add_below', 'app')} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
                           </div>
                           <div>
                             <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_detail_prescription', 'app')}</label>
-                            {prevMedPrescription ? (
-                              <div className="flex">
-                                <span className="bg-slate-100 text-slate-500 text-xs px-2 py-2 rounded-l-lg border border-r-0 border-slate-200 whitespace-nowrap max-w-[50%] overflow-hidden text-ellipsis">{prevMedPrescription} -</span>
-                                <textarea value={medPrescription} onChange={e => setMedPrescription(e.target.value)} placeholder={t('rcpt_ph_add', 'app')} rows={3} className="flex-1 p-2 bg-white border border-slate-200 rounded-r-lg text-xs focus:outline-blue-500" />
-                              </div>
-                            ) : (
-                              <textarea value={medPrescription} onChange={e => setMedPrescription(e.target.value)} placeholder={t('rcpt_ph_prescription', 'app')} rows={3} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
+                            {prevMedPrescription && (
+                              <div className="w-full p-2 bg-slate-100 border border-slate-200 rounded-lg text-xs text-slate-500 whitespace-pre-wrap mb-1">{prevMedPrescription}</div>
                             )}
+                            <textarea value={medPrescription} onChange={e => setMedPrescription(e.target.value)} placeholder={t('rcpt_ph_add_below', 'app')} rows={3} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
                           </div>
                           <div>
                             <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_detail_medical_notes', 'app')}</label>
-                            {prevMedNotes ? (
-                              <div className="flex">
-                                <span className="bg-slate-100 text-slate-500 text-xs px-2 py-2 rounded-l-lg border border-r-0 border-slate-200 whitespace-nowrap max-w-[50%] overflow-hidden text-ellipsis">{prevMedNotes} -</span>
-                                <textarea value={medNotes} onChange={e => setMedNotes(e.target.value)} placeholder={t('rcpt_ph_add', 'app')} rows={2} className="flex-1 p-2 bg-white border border-slate-200 rounded-r-lg text-xs focus:outline-blue-500" />
-                              </div>
-                            ) : (
-                              <textarea value={medNotes} onChange={e => setMedNotes(e.target.value)} placeholder={t('rcpt_ph_notes', 'app')} rows={2} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
+                            {prevMedNotes && (
+                              <div className="w-full p-2 bg-slate-100 border border-slate-200 rounded-lg text-xs text-slate-500 whitespace-pre-wrap mb-1">{prevMedNotes}</div>
                             )}
+                            <textarea value={medNotes} onChange={e => setMedNotes(e.target.value)} placeholder={t('rcpt_ph_add_below', 'app')} rows={2} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
                           </div>
                         </div>
                       </div>
@@ -4605,7 +4802,12 @@ const medEntry = { id: `his_med_${++hisMedCounterRef.current}`, date: new Date()
                     const pid = selectedDetailPatientId;
                     const pat = patients.find(p => p.id === pid);
                     if (!pat) return <p className="text-sm text-slate-400 text-center py-8">{t('rcpt_detail_patient_not_found', 'app')}</p>;
-                    const triage = pat.clinicalHistory?.find((h: any) => h.type?.includes('Triagem'));
+                    const triages = pat.clinicalHistory?.filter((h: any) => h.type?.includes('Triagem')) || [];
+                    const triage = [...triages].sort((a: any, b: any) => {
+                      const dateA = new Date(a.triaged_at || a.created_at || a.date || 0).getTime();
+                      const dateB = new Date(b.triaged_at || b.created_at || b.date || 0).getTime();
+                      return dateB - dateA;
+                    })[0];
                     const vitals = triage?.vital_signs;
                     const colorDot: Record<string, string> = {
                       red: 'bg-red-500', orange: 'bg-orange-500', yellow: 'bg-amber-400', green: 'bg-green-500', blue: 'bg-blue-500',
@@ -4642,12 +4844,6 @@ const medEntry = { id: `his_med_${++hisMedCounterRef.current}`, date: new Date()
                                 )}
                                 {!isEditingTriage ? (
                                   <button onClick={() => {
-                                    setEditTriageReason(triage.diagnosis || '');
-                                    setEditTriageBP(vitals?.bp || '');
-                                    setEditTriageTemp(vitals?.temp || '');
-                                    setEditTriageSpo2(vitals?.spo2 || '');
-                                    setEditTriageHR(vitals?.hr || '');
-                                    setEditTriageRR(vitals?.rr || '');
                                     setIsEditingTriage(true);
                                   }} className="text-xs text-blue-600 hover:text-blue-800 font-bold cursor-pointer px-2 py-1 rounded hover:bg-blue-50 transition">
                                     {t('rcpt_detail_edit', 'app')}
@@ -4691,7 +4887,7 @@ const medEntry = { id: `his_med_${++hisMedCounterRef.current}`, date: new Date()
                                 {triage.preliminary_procedures && triage.preliminary_procedures.length > 0 && (
                                   <p className="text-[11px] text-slate-600"><span className="font-bold">{t('rcpt_detail_procedures', 'app')}</span> {triage.preliminary_procedures.join(', ')}</p>
                                 )}
-                                {triage.notes && <p className="text-[11px] text-slate-500 italic">{triage.notes}</p>}
+                                {triage.notes && <p className="text-[11px] text-slate-500 italic">{['Triagem realizada sem observações adicionais.', 'Triage performed without additional observations.', 'Triage realizado sin observaciones adicionales.'].includes(triage.notes) ? t('rcpt_triage_default_note', 'app') : triage.notes}</p>}
                               </div>
                             )}
                           </div>
@@ -4700,52 +4896,36 @@ const medEntry = { id: `his_med_${++hisMedCounterRef.current}`, date: new Date()
                         {/* Medical Consultation */}
                         <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
                           <p className="text-xs font-bold text-blue-800">{t('rcpt_detail_medical_consultation', 'app')}</p>
-                          {prevMedDiagnosis && (
-                            <p className="text-[10px] text-slate-400 italic">{t('rcpt_detail_previous_data_gray', 'app')}</p>
-                          )}
+                          {prevMedDiagnosis || prevMedCid10 || prevMedPrescription || prevMedNotes ? (
+                            <p className="text-[10px] italic text-slate-500">{t('rcpt_detail_previous_data_legend', 'app')}</p>
+                          ) : null}
                           <div>
-                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_detail_diagnosis', 'app')}</label>
-                            {prevMedDiagnosis ? (
-                              <div className="flex">
-                                <span className="bg-slate-100 text-slate-500 text-xs px-2 py-2 rounded-l-lg border border-r-0 border-slate-200 whitespace-nowrap max-w-[50%] overflow-hidden text-ellipsis">{prevMedDiagnosis} -</span>
-                                <input type="text" value={medDiagnosis} onChange={e => setMedDiagnosis(e.target.value)} placeholder={t('rcpt_ph_add', 'app')} className="flex-1 p-2 bg-white border border-slate-200 rounded-r-lg text-xs focus:outline-blue-500" />
-                              </div>
-                            ) : (
-                              <input type="text" value={medDiagnosis} onChange={e => setMedDiagnosis(e.target.value)} placeholder={t('rcpt_ph_describe_diagnosis', 'app')} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_detail_diagnosis', 'app')} *</label>
+                            {prevMedDiagnosis && (
+                              <div className="w-full p-2 bg-slate-100 border border-slate-200 rounded-lg text-xs text-slate-500 whitespace-pre-wrap mb-1">{prevMedDiagnosis}</div>
                             )}
+                            <input type="text" value={medDiagnosis} onChange={e => setMedDiagnosis(e.target.value)} placeholder={t('rcpt_ph_add_below', 'app')} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
                           </div>
                           <div>
                             <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_detail_cid10', 'app')}</label>
-                            {prevMedCid10 ? (
-                              <div className="flex">
-                                <span className="bg-slate-100 text-slate-500 text-xs px-2 py-2 rounded-l-lg border border-r-0 border-slate-200 whitespace-nowrap max-w-[50%] overflow-hidden text-ellipsis">{prevMedCid10} -</span>
-                                <input type="text" value={medCid10} onChange={e => setMedCid10(e.target.value)} placeholder={t('rcpt_ph_add', 'app')} className="flex-1 p-2 bg-white border border-slate-200 rounded-r-lg text-xs focus:outline-blue-500" />
-                              </div>
-                            ) : (
-                              <input type="text" value={medCid10} onChange={e => setMedCid10(e.target.value)} placeholder={t('rcpt_ph_cid10', 'app')} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
+                            {prevMedCid10 && (
+                              <div className="w-full p-2 bg-slate-100 border border-slate-200 rounded-lg text-xs text-slate-500 whitespace-pre-wrap mb-1">{prevMedCid10}</div>
                             )}
+                            <input type="text" value={medCid10} onChange={e => setMedCid10(e.target.value)} placeholder={t('rcpt_ph_add_below', 'app')} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
                           </div>
                           <div>
                             <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_detail_prescription', 'app')}</label>
-                            {prevMedPrescription ? (
-                              <div className="flex">
-                                <span className="bg-slate-100 text-slate-500 text-xs px-2 py-2 rounded-l-lg border border-r-0 border-slate-200 whitespace-nowrap max-w-[50%] overflow-hidden text-ellipsis">{prevMedPrescription} -</span>
-                                <textarea value={medPrescription} onChange={e => setMedPrescription(e.target.value)} placeholder={t('rcpt_ph_add', 'app')} rows={3} className="flex-1 p-2 bg-white border border-slate-200 rounded-r-lg text-xs focus:outline-blue-500" />
-                              </div>
-                            ) : (
-                              <textarea value={medPrescription} onChange={e => setMedPrescription(e.target.value)} placeholder={t('rcpt_ph_prescription', 'app')} rows={3} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
+                            {prevMedPrescription && (
+                              <div className="w-full p-2 bg-slate-100 border border-slate-200 rounded-lg text-xs text-slate-500 whitespace-pre-wrap mb-1">{prevMedPrescription}</div>
                             )}
+                            <textarea value={medPrescription} onChange={e => setMedPrescription(e.target.value)} placeholder={t('rcpt_ph_add_below', 'app')} rows={3} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
                           </div>
                           <div>
                             <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_detail_medical_notes', 'app')}</label>
-                            {prevMedNotes ? (
-                              <div className="flex">
-                                <span className="bg-slate-100 text-slate-500 text-xs px-2 py-2 rounded-l-lg border border-r-0 border-slate-200 whitespace-nowrap max-w-[50%] overflow-hidden text-ellipsis">{prevMedNotes} -</span>
-                                <textarea value={medNotes} onChange={e => setMedNotes(e.target.value)} placeholder={t('rcpt_ph_add', 'app')} rows={2} className="flex-1 p-2 bg-white border border-slate-200 rounded-r-lg text-xs focus:outline-blue-500" />
-                              </div>
-                            ) : (
-                              <textarea value={medNotes} onChange={e => setMedNotes(e.target.value)} placeholder={t('rcpt_ph_notes', 'app')} rows={2} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
+                            {prevMedNotes && (
+                              <div className="w-full p-2 bg-slate-100 border border-slate-200 rounded-lg text-xs text-slate-500 whitespace-pre-wrap mb-1">{prevMedNotes}</div>
                             )}
+                            <textarea value={medNotes} onChange={e => setMedNotes(e.target.value)} placeholder={t('rcpt_ph_add_below', 'app')} rows={2} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
                           </div>
                         </div>
                       </div>
@@ -4757,7 +4937,12 @@ const medEntry = { id: `his_med_${++hisMedCounterRef.current}`, date: new Date()
                     const pat = patients.find(p => p.id === pid);
                     const patName = pat?.name || patientNameMap[pid] || t('rcpt_patient_fallback', 'app');
                     const patPhone = pat?.phone || '';
-                    const triage = pat?.clinicalHistory?.find((h: any) => h.type?.includes('Triagem'));
+                    const triages = pat?.clinicalHistory?.filter((h: any) => h.type?.includes('Triagem')) || [];
+                    const triage = [...triages].sort((a: any, b: any) => {
+                      const dateA = new Date(a.triaged_at || a.created_at || a.date || 0).getTime();
+                      const dateB = new Date(b.triaged_at || b.created_at || b.date || 0).getTime();
+                      return dateB - dateA;
+                    })[0];
                     const triageColor = triage?.triage_color;
                     const colorDot: Record<string, string> = {
                       red: 'bg-red-500', orange: 'bg-orange-500', yellow: 'bg-amber-400', green: 'bg-green-500', blue: 'bg-blue-500',
@@ -4799,23 +4984,37 @@ const medEntry = { id: `his_med_${++hisMedCounterRef.current}`, date: new Date()
                         <button
                           onClick={() => {
                             const pat = patientsRef.current.find(p => p.id === pid);
-                            const triage = pat?.clinicalHistory?.find((h: any) => h.type?.includes('Triagem'));
+                            const triages = pat?.clinicalHistory?.filter((h: any) => h.type?.includes('Triagem')) || [];
+                    const triage = [...triages].sort((a: any, b: any) => {
+                      const dateA = new Date(a.triaged_at || a.created_at || a.date || 0).getTime();
+                      const dateB = new Date(b.triaged_at || b.created_at || b.date || 0).getTime();
+                      return dateB - dateA;
+                    })[0];
                             const vitals = triage?.vital_signs;
-                            const triageEdits = hasTriageEdits ? {
+                            const triageChanged = (
+                              (editTriageBP && editTriageBP !== (vitals?.bp || '')) ||
+                              (editTriageTemp && editTriageTemp !== (vitals?.temp || '')) ||
+                              (editTriageSpo2 && editTriageSpo2 !== (vitals?.spo2 || '')) ||
+                              (editTriageHR && editTriageHR !== (vitals?.hr || '')) ||
+                              (editTriageRR && editTriageRR !== (vitals?.rr || '')) ||
+                              (editTriageReason && editTriageReason !== (triage?.diagnosis || ''))
+                            );
+                            const effectiveHasTriageEdits = hasTriageEdits || triageChanged;
+                            const triageEdits = effectiveHasTriageEdits ? {
                               diagnosis: editTriageReason || null,
                               vital_signs: { bp: editTriageBP || null, temp: editTriageTemp || null, spo2: editTriageSpo2 || null, hr: editTriageHR || null, rr: editTriageRR || null },
                             } : null;
                             pendingMedDataRef.current = {
                               pid,
                               medData: {
-                                diagnosis: prevMedDiagnosis ? (medDiagnosis ? `${prevMedDiagnosis} - ${medDiagnosis}` : prevMedDiagnosis) : medDiagnosis || '',
-                                cid10: prevMedCid10 ? (medCid10 ? `${prevMedCid10} - ${medCid10}` : prevMedCid10) : (medCid10 || 'Z00.0'),
-                                prescriptions: prevMedPrescription ? (medPrescription ? [`${prevMedPrescription} - ${medPrescription}`] : [prevMedPrescription]) : (medPrescription ? medPrescription.split('\n').filter(Boolean) : []),
-                                notes: prevMedNotes ? (medNotes ? `${prevMedNotes} - ${medNotes}` : prevMedNotes) : (medNotes || ''),
+                                diagnosis: medDiagnosis || '',
+                                cid10: medCid10 || 'Z00.0',
+                                prescriptions: medPrescription ? medPrescription.split('\n').filter(Boolean) : [],
+                                notes: medNotes || '',
                                 doctor: t('rcpt_doctor', 'app'),
                                 location_name: selectedLocation?.name || null,
                                 triage_edits: triageEdits,
-                                vital_signs: hasTriageEdits ? {
+                                vital_signs: effectiveHasTriageEdits ? {
                                   bp: editTriageBP || vitals?.bp || '', temp: editTriageTemp || vitals?.temp || '',
                                   spo2: editTriageSpo2 || vitals?.spo2 || '', hr: editTriageHR || vitals?.hr || '',
                                   rr: editTriageRR || vitals?.rr || '', weight: vitals?.weight || '', height: vitals?.height || '', imc: vitals?.imc || '',
@@ -4828,7 +5027,7 @@ const medEntry = { id: `his_med_${++hisMedCounterRef.current}`, date: new Date()
                               },
                             };
                             const patFinal = patientsRef.current.find(p => p.id === pid);
-                            if (patFinal) { setRedirectPatient(patFinal); setShowRedirectModal(true); setShowLocationDetail(false); setSelectedDetailPatientId(null); setMedDiagnosis(''); setMedCid10(''); setMedPrescription(''); setMedNotes(''); setPrevMedDiagnosis(''); setPrevMedCid10(''); setPrevMedPrescription(''); setPrevMedNotes(''); setIsEditingTriage(false); setHasTriageEdits(false); }
+                            if (patFinal) { setRedirectPatient(patFinal); setShowRedirectModal(true); setShowLocationDetail(false); setSelectedDetailPatientId(null); setIsEditingTriage(false); setHasTriageEdits(false); }
                           }}
                           className="flex-1 py-2.5 text-sm font-bold rounded-lg transition cursor-pointer bg-blue-100 text-blue-700 hover:bg-blue-200 flex items-center justify-center gap-1"
                         >
@@ -4839,9 +5038,23 @@ const medEntry = { id: `his_med_${++hisMedCounterRef.current}`, date: new Date()
                             if (!medDiagnosis.trim()) { alert(t('rcpt_alert_fill_diagnosis', 'app')); return; }
                             if (!confirm(t('rcpt_confirm_finalize', 'app'))) return;
                             const pat = patientsRef.current.find(p => p.id === pid);
-                            const triage = pat?.clinicalHistory?.find((h: any) => h.type?.includes('Triagem'));
+                            const triages = pat?.clinicalHistory?.filter((h: any) => h.type?.includes('Triagem')) || [];
+                    const triage = [...triages].sort((a: any, b: any) => {
+                      const dateA = new Date(a.triaged_at || a.created_at || a.date || 0).getTime();
+                      const dateB = new Date(b.triaged_at || b.created_at || b.date || 0).getTime();
+                      return dateB - dateA;
+                    })[0];
                             const vitals = triage?.vital_signs;
-                            const triageEdits = hasTriageEdits ? {
+                            const triageChanged = (
+                              (editTriageBP && editTriageBP !== (vitals?.bp || '')) ||
+                              (editTriageTemp && editTriageTemp !== (vitals?.temp || '')) ||
+                              (editTriageSpo2 && editTriageSpo2 !== (vitals?.spo2 || '')) ||
+                              (editTriageHR && editTriageHR !== (vitals?.hr || '')) ||
+                              (editTriageRR && editTriageRR !== (vitals?.rr || '')) ||
+                              (editTriageReason && editTriageReason !== (triage?.diagnosis || ''))
+                            );
+                            const effectiveHasTriageEdits = hasTriageEdits || triageChanged;
+                            const triageEdits = effectiveHasTriageEdits ? {
                               diagnosis: editTriageReason || null,
                               vital_signs: {
                                 bp: editTriageBP || null,
@@ -4853,15 +5066,21 @@ const medEntry = { id: `his_med_${++hisMedCounterRef.current}`, date: new Date()
                             } : null;
                             if (supabase && pat) {
                               try {
-                                const medData = {
-                                  diagnosis: prevMedDiagnosis ? (medDiagnosis ? `${prevMedDiagnosis} - ${medDiagnosis}` : prevMedDiagnosis) : medDiagnosis || '',
-                                  cid10: prevMedCid10 ? (medCid10 ? `${prevMedCid10} - ${medCid10}` : prevMedCid10) : (medCid10 || 'Z00.0'),
-                                  prescriptions: prevMedPrescription ? (medPrescription ? [`${prevMedPrescription} - ${medPrescription}`] : [prevMedPrescription]) : (medPrescription ? medPrescription.split('\n').filter(Boolean) : []),
-                                  notes: prevMedNotes ? (medNotes ? `${prevMedNotes} - ${medNotes}` : prevMedNotes) : (medNotes || ''),
+                                const medEntry = {
+                                  id: `his_med_${++hisMedCounterRef.current}`,
+                                  consultation_id: activeConsultationIdRef.current,
+                                  date: new Date().toISOString().split('T')[0],
+                                  created_at: new Date().toISOString(),
+                                  type: 'Consulta Médica',
+                                  patient_id: pid,
+                                  diagnosis: medDiagnosis || '',
+                                  cid10: medCid10 || 'Z00.0',
+                                  prescriptions: medPrescription ? medPrescription.split('\n').filter(Boolean) : [],
+                                  notes: medNotes || '',
                                   doctor: t('rcpt_doctor', 'app'),
                                   location_name: selectedLocation?.name || null,
                                   triage_edits: triageEdits,
-                                  vital_signs: isEditingTriage ? {
+                                  vital_signs: effectiveHasTriageEdits ? {
                                     bp: editTriageBP || vitals?.bp || '',
                                     temp: editTriageTemp || vitals?.temp || '',
                                     spo2: editTriageSpo2 || vitals?.spo2 || '',
@@ -4877,13 +5096,12 @@ const medEntry = { id: `his_med_${++hisMedCounterRef.current}`, date: new Date()
                                   attached_files: triage?.attached_files || [],
                                   triaged_at: triage?.triaged_at || null,
                                 };
-const medEntry = { id: `his_med_${++hisMedCounterRef.current}`, date: new Date().toISOString().split('T')[0], created_at: new Date().toISOString(), type: 'Consulta Médica', ...medData };
-                                const { error } = await supabase.from('clinical_history').insert({ ...medEntry, patient_id: pid });
+                                const { error } = await supabase.from('clinical_history').insert(medEntry);
                                 if (error) {
                                   console.error('[SUPABASE] INSERT medical consultation FAILED:', error.message);
                                 } else {
                                   console.log('[SUPABASE] INSERT medical consultation OK:', medEntry.id);
-                                  setPatients(prev => prev.map(p => p.id === pid ? { ...p, clinicalHistory: [{ ...medEntry, patient_id: pid } as any, ...(p.clinicalHistory || [])] } : p));
+                                  setPatients(prev => prev.map(p => p.id === pid ? { ...p, clinicalHistory: [medEntry as any, ...(p.clinicalHistory || [])] } : p));
                                 }
                               } catch (err) {
                                 console.error('[SUPABASE] SAVE medical consultation FAILED:', err);
@@ -4893,7 +5111,7 @@ const medEntry = { id: `his_med_${++hisMedCounterRef.current}`, date: new Date()
                             setShowLocationDetail(false);
                             setSelectedLocation(null);
                             setSelectedDetailPatientId(null);
-                            setMedDiagnosis(''); setMedCid10(''); setMedPrescription(''); setMedNotes(''); setPrevMedDiagnosis(''); setPrevMedCid10(''); setPrevMedPrescription(''); setPrevMedNotes(''); setIsEditingTriage(false);
+                            setMedDiagnosis(''); setMedCid10(''); setMedPrescription(''); setMedNotes(''); setPrevMedDiagnosis(''); setPrevMedCid10(''); setPrevMedPrescription(''); setPrevMedNotes(''); setIsEditingTriage(false); pendingMedDataRef.current = null;
                           }}
                           className="flex-1 py-2.5 text-sm font-bold rounded-lg transition cursor-pointer bg-green-600 text-white hover:bg-green-700 flex items-center justify-center gap-1"
                         >

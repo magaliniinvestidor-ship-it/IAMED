@@ -40,6 +40,66 @@ function InlineModal({ open, onClose, children, className = '' }: { open: boolea
 }
 
 // ==============================================================
+// PATIENT CARD (Cadastro de Pacientes)
+// ==============================================================
+function ClinicPatientCard({
+  cp,
+  locale,
+  t,
+  canEdit,
+  onEdit,
+  onDelete,
+}: {
+  cp: ClinicPatient;
+  locale: string;
+  t: (key: string, ns?: string) => string;
+  canEdit: boolean;
+  onEdit: (cp: ClinicPatient) => void;
+  onDelete: (cp: ClinicPatient) => void;
+}) {
+  return (
+    <div className="p-4 bg-white rounded-xl border border-slate-200 hover:shadow-md transition-all">
+      <div className="flex items-start gap-3">
+        {cp.photo_url ? (
+          <img src={cp.photo_url} alt={cp.name} className="w-20 h-20 rounded-full object-cover border-2 border-slate-200" />
+        ) : (
+          <div className="w-20 h-20 rounded-full bg-teal-100 flex items-center justify-center text-teal-700 font-bold text-sm">
+            {cp.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
+          </div>
+        )}
+        <div className="flex-1 min-w-0">
+          <p className="font-bold text-sm text-slate-800 truncate">{cp.name}</p>
+          {cp.birth_date && (() => {
+            const today = new Date();
+            const birth = new Date(cp.birth_date);
+            let age = today.getFullYear() - birth.getFullYear();
+            const m = today.getMonth() - birth.getMonth();
+            if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+            return <p className="text-xs text-slate-500">{t('agenda_birth_date', 'app')} {new Date(cp.birth_date).toLocaleDateString(locale)} ({age} {t('agenda_years', 'app')})</p>;
+          })()}
+          {cp.gender && <p className="text-xs text-slate-500">{t('agenda_gender', 'app')} {cp.gender}</p>}
+          {cp.phone && <p className="text-xs text-slate-500">{t('agenda_phone', 'app')} {cp.phone}</p>}
+          {cp.preferred_language && <p className="text-xs text-slate-500">{t('agenda_preferred_language', 'app')} {cp.preferred_language === 'es' ? 'Espanhol' : cp.preferred_language === 'es-AR' ? 'Espanhol (Argentina)' : cp.preferred_language === 'es-PY' ? 'Espanhol (Paraguay)' : cp.preferred_language === 'gn' ? 'Guarani' : cp.preferred_language === 'pt-BR' ? 'Português (Brasil)' : cp.preferred_language === 'pt-PT' ? 'Português (Portugal)' : cp.preferred_language === 'en' ? 'English' : cp.preferred_language === 'outros' ? 'Outros' : cp.preferred_language}</p>}
+          {cp.allergies && <p className="text-xs text-slate-500 truncate" title={cp.allergies}>{t('agenda_allergies', 'app')} {cp.allergies}</p>}
+        </div>
+      </div>
+      <div className="flex items-center gap-2 mt-3 pt-2 border-t border-slate-100">
+        {cp.insurance_type && (
+          <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-blue-100 text-blue-700">{cp.insurance_type}</span>
+        )}
+        <div className="flex-1" />
+        {canEdit && (
+          <>
+            <button onClick={() => onEdit(cp)} className="text-blue-600 hover:text-blue-800 text-xs font-semibold">{t('agenda_edit', 'app')}</button>
+            <button onClick={() => onDelete(cp)} className="text-rose-500 hover:text-rose-700 text-xs font-semibold">{t('agenda_delete', 'app')}</button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ==============================================================
 // TYPES
 // ==============================================================
 interface AgendaModuleProps {
@@ -305,6 +365,8 @@ const AgendaModuleContent = ({
   const [showNewPatientModal, setShowNewPatientModal] = useState(false);
   const [editingClinicPatient, setEditingClinicPatient] = useState<ClinicPatient | null>(null);
   const [clinicPatientSearch, setClinicPatientSearch] = useState('');
+  const [clinicPatientSort, setClinicPatientSort] = useState<'name_asc' | 'name_desc' | 'recent' | 'oldest'>('name_asc');
+  const [clinicPatientVisibleCount, setClinicPatientVisibleCount] = useState(3);
   const [clinicPatientFormTab, setClinicPatientFormTab] = useState<'identification' | 'contact' | 'complementary' | 'guardian'>('identification');
   const [cpForm, setCpForm] = useState({
     name: '', document_type: '', document_number: '', birth_date: '', gender: '',
@@ -1600,15 +1662,36 @@ const AgendaModuleContent = ({
     return remainder > 1 ? 11 - remainder : 0;
   }, [cpForm.responsible_document_number, cpForm.responsible_document_type]);
 
-  const filteredClinicPatients = useMemo(() => {
-    if (!patientSearchQuery) return clinicPatients;
-    const q = patientSearchQuery.toLowerCase();
-    return clinicPatients.filter(p =>
-      p.name.toLowerCase().includes(q) ||
-      (p.document_number && p.document_number.includes(q)) ||
-      (p.phone && p.phone.includes(q))
-    );
-  }, [clinicPatients, patientSearchQuery]);
+  const sortedFilteredClinicPatients = useMemo(() => {
+    const filtered = !patientSearchQuery
+      ? clinicPatients
+      : clinicPatients.filter(p => {
+          const q = patientSearchQuery.toLowerCase();
+          return (
+            p.name.toLowerCase().includes(q) ||
+            (p.document_number && p.document_number.toLowerCase().includes(q)) ||
+            (p.phone && p.phone.toLowerCase().includes(q)) ||
+            (p.email && p.email.toLowerCase().includes(q))
+          );
+        });
+    const arr = [...filtered];
+    switch (clinicPatientSort) {
+      case 'name_desc':
+        arr.sort((a, b) => b.name.localeCompare(a.name));
+        break;
+      case 'recent':
+        arr.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+        break;
+      case 'oldest':
+        arr.sort((a, b) => (a.created_at || '').localeCompare(b.created_at || ''));
+        break;
+      case 'name_asc':
+      default:
+        arr.sort((a, b) => a.name.localeCompare(b.name));
+        break;
+    }
+    return arr;
+  }, [clinicPatients, patientSearchQuery, clinicPatientSort]);
 
   const resetCpForm = () => {
     setCpForm({
@@ -1982,7 +2065,7 @@ const AgendaModuleContent = ({
           <div className="flex justify-between items-center">
             <h3 className="font-bold text-slate-800 flex items-center gap-2">
               <UserPlus className="w-5 h-5 text-teal-600" />
-              {t('agenda_patient_registration', 'app')} ({clinicPatients.length})
+              {t('agenda_patient_registration', 'app')} ({patientSearchQuery ? `${sortedFilteredClinicPatients.length} / ${clinicPatients.length}` : clinicPatients.length})
             </h3>
             {canEdit && (
               <button onClick={() => { resetCpForm(); setShowNewPatientModal(true); }}
@@ -1992,6 +2075,33 @@ const AgendaModuleContent = ({
             )}
           </div>
 
+          {/* Search + Sort Bar */}
+          {clinicPatients.length > 0 && (
+            <div className="flex flex-col sm:flex-row gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  type="text"
+                  value={patientSearchQuery}
+                  onChange={(e) => { setPatientSearchQuery(e.target.value); setClinicPatientVisibleCount(3); }}
+                  placeholder={t('agenda_search_patient_placeholder', 'app')}
+                  className="w-full pl-10 pr-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                />
+              </div>
+              <select
+                value={clinicPatientSort}
+                onChange={(e) => { setClinicPatientSort(e.target.value as typeof clinicPatientSort); setClinicPatientVisibleCount(3); }}
+                className="px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                aria-label={t('agenda_sort_by', 'app')}
+              >
+                <option value="name_asc">{t('agenda_sort_name_asc', 'app')}</option>
+                <option value="name_desc">{t('agenda_sort_name_desc', 'app')}</option>
+                <option value="recent">{t('agenda_sort_recent', 'app')}</option>
+                <option value="oldest">{t('agenda_sort_oldest', 'app')}</option>
+              </select>
+            </div>
+          )}
+
           {/* Patient List */}
           {clinicPatients.length === 0 ? (
             <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
@@ -1999,49 +2109,38 @@ const AgendaModuleContent = ({
               <p className="font-semibold text-slate-600">{t('agenda_no_patients', 'app')}</p>
               <p className="text-sm text-slate-400 mt-1">{t('agenda_register_first_patient', 'app')}</p>
             </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {clinicPatients.map(cp => (
-                <div key={cp.id} className="p-4 bg-white rounded-xl border border-slate-200 hover:shadow-md transition-all">
-                  <div className="flex items-start gap-3">
-                    {cp.photo_url ? (
-                      <img src={cp.photo_url} alt={cp.name} className="w-20 h-20 rounded-full object-cover border-2 border-slate-200" />
-                    ) : (
-                      <div className="w-20 h-20 rounded-full bg-teal-100 flex items-center justify-center text-teal-700 font-bold text-sm">
-                        {cp.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
-                      </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="font-bold text-sm text-slate-800 truncate">{cp.name}</p>
-                      {cp.birth_date && (() => {
-                        const today = new Date();
-                        const birth = new Date(cp.birth_date);
-                        let age = today.getFullYear() - birth.getFullYear();
-                        const m = today.getMonth() - birth.getMonth();
-                        if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
-                        return <p className="text-xs text-slate-500">{t('agenda_birth_date', 'app')} {new Date(cp.birth_date).toLocaleDateString(locale)} ({age} {t('agenda_years', 'app')})</p>;
-                      })()}
-                      {cp.gender && <p className="text-xs text-slate-500">{t('agenda_gender', 'app')} {cp.gender}</p>}
-                      {cp.phone && <p className="text-xs text-slate-500">{t('agenda_phone', 'app')} {cp.phone}</p>}
-                      {cp.preferred_language && <p className="text-xs text-slate-500">{t('agenda_preferred_language', 'app')} {cp.preferred_language === 'es' ? 'Espanhol' : cp.preferred_language === 'es-AR' ? 'Espanhol (Argentina)' : cp.preferred_language === 'es-PY' ? 'Espanhol (Paraguay)' : cp.preferred_language === 'gn' ? 'Guarani' : cp.preferred_language === 'pt-BR' ? 'Português (Brasil)' : cp.preferred_language === 'pt-PT' ? 'Português (Portugal)' : cp.preferred_language === 'en' ? 'English' : cp.preferred_language === 'outros' ? 'Outros' : cp.preferred_language}</p>}
-                      {cp.allergies && <p className="text-xs text-slate-500 truncate" title={cp.allergies}>{t('agenda_allergies', 'app')} {cp.allergies}</p>}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 mt-3 pt-2 border-t border-slate-100">
-                    {cp.insurance_type && (
-                      <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-blue-100 text-blue-700">{cp.insurance_type}</span>
-                    )}
-                    <div className="flex-1" />
-                    {canEdit && (
-                      <>
-                        <button onClick={() => handleEditClinicPatient(cp)} className="text-blue-600 hover:text-blue-800 text-xs font-semibold">{t('agenda_edit', 'app')}</button>
-                        <button onClick={() => handleDeleteClinicPatient(cp)} className="text-rose-500 hover:text-rose-700 text-xs font-semibold">{t('agenda_delete', 'app')}</button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              ))}
+          ) : sortedFilteredClinicPatients.length === 0 ? (
+            <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
+              <Search className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+              <p className="font-semibold text-slate-600">{t('agenda_no_patients_found', 'app')}</p>
+              <p className="text-sm text-slate-400 mt-1">{patientSearchQuery}</p>
             </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {sortedFilteredClinicPatients.slice(0, clinicPatientVisibleCount).map(cp => (
+                  <ClinicPatientCard
+                    key={cp.id}
+                    cp={cp}
+                    locale={locale}
+                    t={t}
+                    canEdit={canEdit}
+                    onEdit={handleEditClinicPatient}
+                    onDelete={handleDeleteClinicPatient}
+                  />
+                ))}
+              </div>
+              {sortedFilteredClinicPatients.length > clinicPatientVisibleCount && (
+                <div className="flex justify-center pt-2">
+                  <button
+                    onClick={() => setClinicPatientVisibleCount(prev => prev + 3)}
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded-lg transition"
+                  >
+                    {t('agenda_load_more', 'app')} ({sortedFilteredClinicPatients.length - clinicPatientVisibleCount} {t('agenda_remaining', 'app')})
+                  </button>
+                </div>
+              )}
+            </>
           )}
 
           {/* Blocked Slots List */}
