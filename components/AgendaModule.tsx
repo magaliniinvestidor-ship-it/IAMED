@@ -2167,7 +2167,7 @@ const AgendaModuleContent = ({
                       <div>
                         <p className="font-semibold text-sm">{b.description}</p>
                         <p className="text-xs text-slate-500">
-                          {b.start_date} a {b.end_date} {b.start_time && `(${normalizeTime(b.start_time)}-${normalizeTime(b.end_time || '')})`}
+                          {new Date(b.start_date + 'T12:00:00').toLocaleDateString(locale)} {t('agenda_date_connector', 'app')} {new Date(b.end_date + 'T12:00:00').toLocaleDateString(locale)} {b.start_time && `(${normalizeTime(b.start_time)}-${normalizeTime(b.end_time || '')})`}
                           {b.doctor_name && ` • ${b.doctor_name}`}
                           {b.branch && ` • ${b.branch}`}
                         </p>
@@ -2664,7 +2664,7 @@ const AgendaModuleContent = ({
                 d.setDate(d.getDate() - (calendarView === 'day' ? 1 : calendarView === 'week' ? 7 : 30));
                 setSelectedDate(d.toISOString().split('T')[0]);
               }} className="p-1.5 hover:bg-slate-100 rounded-lg"><ChevronLeft className="w-4 h-4" /></button>
-              <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} lang={locale}
+              <I18nDatePicker value={selectedDate} onChange={setSelectedDate}
                 className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold" />
               <button onClick={() => {
                 const d = new Date(selectedDate);
@@ -2925,7 +2925,7 @@ const AgendaModuleContent = ({
                       <div>
                         <p className="font-semibold text-sm">{b.description}</p>
                         <p className="text-xs text-slate-500">
-                          {b.start_date} a {b.end_date} {b.start_time && `(${normalizeTime(b.start_time)}-${normalizeTime(b.end_time || '')})`}
+                          {new Date(b.start_date + 'T12:00:00').toLocaleDateString(locale)} {t('agenda_date_connector', 'app')} {new Date(b.end_date + 'T12:00:00').toLocaleDateString(locale)} {b.start_time && `(${normalizeTime(b.start_time)}-${normalizeTime(b.end_time || '')})`}
                           {b.doctor_name && ` • ${b.doctor_name}`}
                           {b.branch && ` • ${b.branch}`}
                         </p>
@@ -2993,7 +2993,7 @@ const AgendaModuleContent = ({
                 d.setDate(d.getDate() - (whatsappDateView === 'day' ? 1 : whatsappDateView === 'week' ? 7 : 30));
                 setWhatsappSelectedDate(d.toISOString().split('T')[0]);
               }} className="p-1.5 hover:bg-slate-100 rounded-lg"><ChevronLeft className="w-4 h-4" /></button>
-              <input type="date" value={whatsappSelectedDate} onChange={e => setWhatsappSelectedDate(e.target.value)} lang={locale}
+              <I18nDatePicker value={whatsappSelectedDate} onChange={setWhatsappSelectedDate}
                 className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold" />
               <button onClick={() => {
                 const d = new Date(whatsappSelectedDate + 'T12:00:00');
@@ -3115,7 +3115,7 @@ const AgendaModuleContent = ({
                 d.setDate(d.getDate() - (waitlistDateView === 'day' ? 1 : waitlistDateView === 'week' ? 7 : 30));
                 setWaitlistSelectedDate(d.toISOString().split('T')[0]);
               }} className="p-1.5 hover:bg-slate-100 rounded-lg"><ChevronLeft className="w-4 h-4" /></button>
-              <input type="date" value={waitlistSelectedDate} onChange={e => setWaitlistSelectedDate(e.target.value)} lang={locale}
+              <I18nDatePicker value={waitlistSelectedDate} onChange={setWaitlistSelectedDate}
                 className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold" />
               <button onClick={() => {
                 const d = new Date(waitlistSelectedDate + 'T12:00:00');
@@ -3374,7 +3374,7 @@ const AgendaModuleContent = ({
             </div>
             <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-2 py-1">
               <button onClick={() => { const d = new Date(callSelectedDate); d.setDate(d.getDate() - (callDateView === 'day' ? 1 : callDateView === 'week' ? 7 : 30)); setCallSelectedDate(d.toISOString().split('T')[0]); }} className="text-slate-400 hover:text-slate-600">{'<'}</button>
-              <input type="date" value={callSelectedDate} onChange={e => setCallSelectedDate(e.target.value)} lang={locale} className="text-xs text-slate-600 border-0 bg-transparent w-28 text-center" />
+              <I18nDatePicker value={callSelectedDate} onChange={setCallSelectedDate} className="text-xs text-slate-600 border-0 bg-transparent w-28 text-center" />
               <button onClick={() => { const d = new Date(callSelectedDate); d.setDate(d.getDate() + (callDateView === 'day' ? 1 : callDateView === 'week' ? 7 : 30)); setCallSelectedDate(d.toISOString().split('T')[0]); }} className="text-slate-400 hover:text-slate-600">{'>'}</button>
             </div>
             <button onClick={() => setCallSelectedDate(new Date().toISOString().split('T')[0])} className="px-3 py-1.5 text-xs font-semibold bg-rose-100 text-rose-700 rounded-lg hover:bg-rose-200 transition">{t('agenda_today', 'app')}</button>
@@ -3814,14 +3814,14 @@ const AgendaModuleContent = ({
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-slate-600 mb-1">Sede *</label>
-                <select value={blockForm.branch} onChange={e => setBlockForm({ ...blockForm, branch: e.target.value, doctor_name: '' })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
+                <select value={blockForm.branch} onChange={e => setBlockForm({ ...blockForm, branch: e.target.value, doctor_name: '' })} className="w-full p-2 pr-8 bg-slate-50 border border-slate-200 rounded-lg appearance-none text-sm" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.5rem center', backgroundSize: '1rem' }} required>
                   <option value="">{t('agenda_select_branch', 'app')}</option>
                   {locations.map(loc => <option key={loc.id} value={loc.id}>{loc.name}</option>)}
                 </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_professionals', 'app')} *</label>
-                <select value={blockForm.doctor_name} onChange={e => setBlockForm({ ...blockForm, doctor_name: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required disabled={!blockForm.branch}>
+                <select value={blockForm.doctor_name} onChange={e => setBlockForm({ ...blockForm, doctor_name: e.target.value })} className="w-full p-2 pr-8 bg-slate-50 border border-slate-200 rounded-lg appearance-none text-sm" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.5rem center', backgroundSize: '1rem' }} required disabled={!blockForm.branch}>
                   <option value="">{blockForm.branch ? t('agenda_all_professionals', 'app') : t('agenda_select_branch_first', 'app')}</option>
                   {blockProfessionals.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
                 </select>

@@ -126,6 +126,7 @@ export default function ReceptionModule({
   const patientsRef = useRef(patients);
   const pendingMedDataRef = useRef<any>(null);
   const activeConsultationIdRef = useRef<string | null>(null);
+  const initialTriageValuesRef = useRef<{ bp: string; temp: string; spo2: string; hr: string; rr: string; reason: string } | null>(null);
 
   // Keep patientsRef in sync with latest patients prop
   useEffect(() => { patientsRef.current = patients; });
@@ -321,6 +322,7 @@ export default function ReceptionModule({
   const [showRedirectModal, setShowRedirectModal] = useState(false);
   const [triageTab, setTriageTab] = useState<'aguardando' | 'em_atendimento' | 'atendidos'>('aguardando');
   const [attendedPatients, setAttendedPatients] = useState<{ patient: Patient; locationName: string; completedAt: string }[]>([]);
+  const [searchAttended, setSearchAttended] = useState('');
   const [patientNameMap, setPatientNameMap] = useState<Record<string, string>>({});
   const [selectedLocation, setSelectedLocation] = useState<HospitalLocation | null>(null);
   const [selectedDetailPatientId, setSelectedDetailPatientId] = useState<string | null>(null);
@@ -590,12 +592,26 @@ export default function ReceptionModule({
       });
       const mostRecentMed = sortedMeds.length > 0 ? sortedMeds[0] : null;
 
-      if (allMeds.length > 0) {
-        const prevMeds = allMeds.slice(0, allMeds.length);
-        const allDiag = prevMeds.map((m: any) => String(m.diagnosis || '').trim()).filter(Boolean);
-        const allCid = prevMeds.map((m: any) => String(m.cid10 || '').trim()).filter(Boolean).filter((v: string) => v !== 'Z00.0');
-        const allRx = prevMeds.flatMap((m: any) => Array.isArray(m.prescriptions) ? m.prescriptions : (m.prescriptions ? String(m.prescriptions).split('\n').filter(Boolean) : []));
-        const allNotes = prevMeds.map((m: any) => String(m.notes || '').trim()).filter(Boolean);
+      // Find most recent triage record and med entry to determine context
+      const triagesAll = history.filter((h: any) => h.type?.includes('Triagem'));
+      const sortedTriagesAll = [...triagesAll].sort((a: any, b: any) => {
+        const dateA = new Date(a.triaged_at || a.created_at || a.date || 0).getTime();
+        const dateB = new Date(b.triaged_at || b.created_at || b.date || 0).getTime();
+        return dateB - dateA;
+      });
+      const latestTriageForCtx = sortedTriagesAll[0];
+      const triageTimeForCtx = latestTriageForCtx ? new Date(latestTriageForCtx.triaged_at || latestTriageForCtx.created_at || latestTriageForCtx.date || 0).getTime() : 0;
+
+      // Only load previous med data from CURRENT consultation (entries created after latest triage)
+      const currentConsultMeds = allMeds.filter((m: any) => {
+        const medTime = new Date(m.created_at || m.date || 0).getTime();
+        return medTime > triageTimeForCtx;
+      });
+      if (currentConsultMeds.length > 0) {
+        const allDiag = currentConsultMeds.map((m: any) => String(m.diagnosis || '').trim()).filter(Boolean);
+        const allCid = currentConsultMeds.map((m: any) => String(m.cid10 || '').trim()).filter(Boolean).filter((v: string) => v !== 'Z00.0');
+        const allRx = currentConsultMeds.flatMap((m: any) => Array.isArray(m.prescriptions) ? m.prescriptions : (m.prescriptions ? String(m.prescriptions).split('\n').filter(Boolean) : []));
+        const allNotes = currentConsultMeds.map((m: any) => String(m.notes || '').trim()).filter(Boolean);
         setPrevMedDiagnosis(allDiag.join('\n'));
         setPrevMedCid10(allCid.join('\n'));
         setPrevMedPrescription(allRx.join('\n'));
@@ -630,38 +646,72 @@ export default function ReceptionModule({
       });
       const medWithEdits = sortedMedsWithEdits.length > 0 ? sortedMedsWithEdits[0] : null;
 
-      if (medWithEdits?.triage_edits) {
+      const latestTriage = sortedTriagesAll[0];
+      const triageTime = latestTriage ? new Date(latestTriage.triaged_at || latestTriage.created_at || latestTriage.date || 0).getTime() : 0;
+      const medTime = medWithEdits ? new Date(medWithEdits.created_at || medWithEdits.date || 0).getTime() : 0;
+
+      // Prefer triage record if it's more recent than med entry (new consultation)
+      if (latestTriage && triageTime >= medTime) {
+        const loadedReason = latestTriage.diagnosis || '';
+        const loadedBP = latestTriage.vital_signs?.bp || '';
+        const loadedTemp = latestTriage.vital_signs?.temp || '';
+        const loadedSpo2 = latestTriage.vital_signs?.spo2 || '';
+        const loadedHR = latestTriage.vital_signs?.hr || '';
+        const loadedRR = latestTriage.vital_signs?.rr || '';
+        setEditTriageReason(loadedReason);
+        setEditTriageBP(loadedBP);
+        setEditTriageTemp(loadedTemp);
+        setEditTriageSpo2(loadedSpo2);
+        setEditTriageHR(loadedHR);
+        setEditTriageRR(loadedRR);
+        initialTriageValuesRef.current = { bp: loadedBP, temp: loadedTemp, spo2: loadedSpo2, hr: loadedHR, rr: loadedRR, reason: loadedReason };
+      } else if (medWithEdits?.triage_edits) {
         const te = medWithEdits.triage_edits;
-        setEditTriageReason(te.diagnosis || '');
-        setEditTriageBP(te.vital_signs?.bp || '');
-        setEditTriageTemp(te.vital_signs?.temp || '');
-        setEditTriageSpo2(te.vital_signs?.spo2 || '');
-        setEditTriageHR(te.vital_signs?.hr || '');
-        setEditTriageRR(te.vital_signs?.rr || '');
+        const loadedReason = te.diagnosis || '';
+        const loadedBP = te.vital_signs?.bp || '';
+        const loadedTemp = te.vital_signs?.temp || '';
+        const loadedSpo2 = te.vital_signs?.spo2 || '';
+        const loadedHR = te.vital_signs?.hr || '';
+        const loadedRR = te.vital_signs?.rr || '';
+        setEditTriageReason(loadedReason);
+        setEditTriageBP(loadedBP);
+        setEditTriageTemp(loadedTemp);
+        setEditTriageSpo2(loadedSpo2);
+        setEditTriageHR(loadedHR);
+        setEditTriageRR(loadedRR);
+        initialTriageValuesRef.current = { bp: loadedBP, temp: loadedTemp, spo2: loadedSpo2, hr: loadedHR, rr: loadedRR, reason: loadedReason };
       } else if (medWithEdits?.vital_signs) {
         const vs = medWithEdits.vital_signs;
-        setEditTriageReason(medWithEdits.diagnosis || '');
-        setEditTriageBP(vs.bp || '');
-        setEditTriageTemp(vs.temp || '');
-        setEditTriageSpo2(vs.spo2 || '');
-        setEditTriageHR(vs.hr || '');
-        setEditTriageRR(vs.rr || '');
+        const loadedBP = vs.bp || '';
+        const loadedTemp = vs.temp || '';
+        const loadedSpo2 = vs.spo2 || '';
+        const loadedHR = vs.hr || '';
+        const loadedRR = vs.rr || '';
+        const loadedReason = latestTriage?.diagnosis || '';
+        setEditTriageReason(loadedReason);
+        setEditTriageBP(loadedBP);
+        setEditTriageTemp(loadedTemp);
+        setEditTriageSpo2(loadedSpo2);
+        setEditTriageHR(loadedHR);
+        setEditTriageRR(loadedRR);
+        initialTriageValuesRef.current = { bp: loadedBP, temp: loadedTemp, spo2: loadedSpo2, hr: loadedHR, rr: loadedRR, reason: loadedReason };
       } else {
-        const triages = history.filter((h: any) => h.type?.includes('Triagem'));
-        const sortedTriages = [...triages].sort((a: any, b: any) => {
-          const dateA = new Date(a.triaged_at || a.created_at || a.date || 0).getTime();
-          const dateB = new Date(b.triaged_at || b.created_at || b.date || 0).getTime();
-          return dateB - dateA;
-        });
-        const triage = sortedTriages[0];
-        setEditTriageReason(triage?.diagnosis || '');
-        setEditTriageBP(triage?.vital_signs?.bp || '');
-        setEditTriageTemp(triage?.vital_signs?.temp || '');
-        setEditTriageSpo2(triage?.vital_signs?.spo2 || '');
-        setEditTriageHR(triage?.vital_signs?.hr || '');
-        setEditTriageRR(triage?.vital_signs?.rr || '');
+        const loadedReason = latestTriage?.diagnosis || '';
+        const loadedBP = latestTriage?.vital_signs?.bp || '';
+        const loadedTemp = latestTriage?.vital_signs?.temp || '';
+        const loadedSpo2 = latestTriage?.vital_signs?.spo2 || '';
+        const loadedHR = latestTriage?.vital_signs?.hr || '';
+        const loadedRR = latestTriage?.vital_signs?.rr || '';
+        setEditTriageReason(loadedReason);
+        setEditTriageBP(loadedBP);
+        setEditTriageTemp(loadedTemp);
+        setEditTriageSpo2(loadedSpo2);
+        setEditTriageHR(loadedHR);
+        setEditTriageRR(loadedRR);
+        initialTriageValuesRef.current = { bp: loadedBP, temp: loadedTemp, spo2: loadedSpo2, hr: loadedHR, rr: loadedRR, reason: loadedReason };
       }
       setIsEditingTriage(false);
+
       const hasAnyTriageEdits = allMeds.some((h: any) => h.triage_edits || h.vital_signs);
       setHasTriageEdits(hasAnyTriageEdits);
     };
@@ -2017,7 +2067,7 @@ if (hasAnyField) {
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-semibold text-slate-800 truncate">{p.name}</p>
                               <p className="text-[11px] text-slate-500">
-                                {p.document_type} {p.document_number} · {p.birthdate}
+                                {p.document_type} {p.document_number} · {new Date(p.birthdate).toLocaleDateString(locale)}
                               </p>
                             </div>
                             <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
@@ -2985,7 +3035,7 @@ if (hasAnyField) {
                     triageTab === 'atendidos' ? 'bg-green-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'
                   }`}
                 >
-                  {t('rcpt_attendance_attended', 'app')} ({attendedPatients.length})
+                  {t('rcpt_attendance_attended', 'app')} ({new Set(attendedPatients.map(a => a.patient.id)).size})
                 </button>
               </div>
 
@@ -3083,7 +3133,21 @@ if (hasAnyField) {
                       <span className="font-semibold">{item.locationName}</span>
                     </p>
                     <button
-                      onClick={() => { setSelectedLocation(hospitalLocations.find(l => l.id === item.locationId) || null); setShowLocationDetail(true); }}
+                      onClick={() => {
+                        setSelectedLocation(hospitalLocations.find(l => l.id === item.locationId) || null);
+                        setShowLocationDetail(true);
+                        const locItem = hospitalLocations.find(l => l.id === item.locationId);
+                        if (locItem && locItem.currentPatients.length > 0) {
+                          const locPat = patientsRef.current.find((p: any) => p.id === locItem.currentPatients[0]);
+                          const locTriages = locPat?.clinicalHistory?.filter((h: any) => h.type?.includes('Triagem')) || [];
+                          const latestLocTriage = [...locTriages].sort((a: any, b: any) => {
+                            const dA = new Date(a.triaged_at || a.created_at || a.date || 0).getTime();
+                            const dB = new Date(b.triaged_at || b.created_at || b.date || 0).getTime();
+                            return dB - dA;
+                          })[0];
+                          activeConsultationIdRef.current = latestLocTriage?.consultation_id || null;
+                        }
+                      }}
                       className="w-full mt-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold py-1.5 rounded-lg transition cursor-pointer flex items-center justify-center gap-1"
                     >
                       <ChevronRight className="w-3 h-3" /> {t('rcpt_dist_view_details', 'app')}
@@ -3097,9 +3161,35 @@ if (hasAnyField) {
               {/* Aba: Atendidos */}
               {triageTab === 'atendidos' && (
               <div className="space-y-3 max-h-[500px] overflow-y-auto">
+                {attendedPatients.length > 0 && (
+                  <input
+                    type="text"
+                    value={searchAttended}
+                    onChange={e => setSearchAttended(e.target.value)}
+                    placeholder={`${t('rcpt_search_patient', 'app')}...`}
+                    className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500"
+                  />
+                )}
                 {attendedPatients.length === 0 ? (
                   <p className="text-sm text-slate-400 text-center py-8">{t('rcpt_dist_no_visits', 'app')}</p>
-                ) : [...attendedPatients].sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()).map((item, idx) => {
+                ) : (() => {
+                  const sorted = [...attendedPatients].sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime());
+                  const uniqueByPatient: typeof sorted = [];
+                  const seenIds = new Set<string>();
+                  sorted.forEach(item => {
+                    if (!seenIds.has(item.patient.id)) {
+                      seenIds.add(item.patient.id);
+                      uniqueByPatient.push(item);
+                    }
+                  });
+                  const filtered = searchAttended.trim()
+                    ? uniqueByPatient.filter(item =>
+                        item.patient.name.toLowerCase().includes(searchAttended.toLowerCase()) ||
+                        (item.patient.document_number && item.patient.document_number.includes(searchAttended)) ||
+                        (item.patient.phone && item.patient.phone.includes(searchAttended))
+                      )
+                    : uniqueByPatient;
+                  return filtered.map((item, idx) => {
                   const triage = item.patient.clinicalHistory?.find((h: any) => h.type?.includes('Triagem'));
                   const triagedAt = triage?.triaged_at;
                   return (
@@ -3128,7 +3218,8 @@ if (hasAnyField) {
                     </p>
                   </div>
                   );
-                })}
+                });
+                })()}
               </div>
               )}
             </div>
@@ -3143,7 +3234,19 @@ if (hasAnyField) {
                 {[...hospitalLocations].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })).map(loc => (
                   <div 
                     key={loc.id} 
-                    onClick={() => { if (loc.capacity > 1 || loc.currentPatients.length > 0) { setSelectedLocation(loc); setShowLocationDetail(true); } }}
+                    onClick={() => { if (loc.capacity > 1 || loc.currentPatients.length > 0) {
+                      setSelectedLocation(loc); setShowLocationDetail(true);
+                      if (loc.currentPatients.length > 0) {
+                        const locPat = patientsRef.current.find((p: any) => p.id === loc.currentPatients[0]);
+                        const locTriages = locPat?.clinicalHistory?.filter((h: any) => h.type?.includes('Triagem')) || [];
+                        const latestLocTriage = [...locTriages].sort((a: any, b: any) => {
+                          const dA = new Date(a.triaged_at || a.created_at || a.date || 0).getTime();
+                          const dB = new Date(b.triaged_at || b.created_at || b.date || 0).getTime();
+                          return dB - dA;
+                        })[0];
+                        activeConsultationIdRef.current = latestLocTriage?.consultation_id || null;
+                      }
+                    } }}
                     className={`border rounded-xl p-4 transition ${
                       loc.status === 'manutencao' ? 'bg-slate-100 border-slate-300 opacity-60' :
                       loc.currentPatients.length >= loc.capacity ? 'bg-red-50 border-red-200' :
@@ -3638,7 +3741,7 @@ if (hasAnyField) {
                   <div>
                     <h3 className="font-extrabold text-slate-800 text-base">{t('rcpt_triage_title', 'app')}</h3>
                     <p className="text-xs text-slate-500 font-medium">
-                      Paciente: <b className="text-teal-700">{triagePatient.name}</b> — {triagePatient.health_insurance_type || 'Particular'} | {triagePatient.birthdate}
+                      Paciente: <b className="text-teal-700">{triagePatient.name}</b> — {triagePatient.health_insurance_type || 'Particular'} | {new Date(triagePatient.birthdate).toLocaleDateString(locale)}
                     </p>
                   </div>
                 </div>
@@ -3695,9 +3798,14 @@ if (hasAnyField) {
                       <div>
                         <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_triage_height', 'app')}</label>
                         <input
-                          type="number"
+                          type="text"
                           value={triageHeight}
-                          onChange={e => setTriageHeight(e.target.value)}
+                          onChange={e => {
+                            const raw = e.target.value.replace(/[^0-9.]/g, '');
+                            const dotCount = (raw.match(/\./g) || []).length;
+                            if (dotCount > 1) return;
+                            setTriageHeight(raw);
+                          }}
                           placeholder={t('rcpt_ph_height', 'app')}
                           className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans font-bold"
                         />
@@ -3736,9 +3844,15 @@ if (hasAnyField) {
                             const raw = e.target.value.replace(/[^0-9/]/g, '');
                             const slashCount = (raw.match(/\//g) || []).length;
                             if (slashCount > 1) return;
-                            setTriageBP(raw);
+                            const digitsOnly = raw.replace(/\//g, '');
+                            if (digitsOnly.length === 3 && !raw.includes('/') && e.target.value.length > triageBP.length) {
+                              setTriageBP(digitsOnly + '/');
+                            } else {
+                              setTriageBP(raw);
+                            }
                           }}
-                          placeholder={t('rcpt_ph_bp', 'app')}
+                          maxLength={6}
+                          placeholder="120/80"
                           className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans"
                         />
                         {triageBP && (() => {
@@ -3793,12 +3907,16 @@ if (hasAnyField) {
                       <div>
                         <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_triage_spo2', 'app')}</label>
                         <input
-                          type="number"
+                          type="text"
                           value={triageSpo2}
-                          onChange={e => setTriageSpo2(e.target.value)}
+                          onChange={e => {
+                            const raw = e.target.value.replace(/[^0-9.]/g, '');
+                            const dotCount = (raw.match(/\./g) || []).length;
+                            if (dotCount > 1) return;
+                            setTriageSpo2(raw);
+                          }}
                           placeholder={t('rcpt_ph_spo2', 'app')}
-                          min={60}
-                          max={100}
+                          maxLength={5}
                           className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans"
                         />
                         {triageSpo2 && (() => {
@@ -3816,9 +3934,14 @@ if (hasAnyField) {
                       <div>
                         <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_triage_heart_rate', 'app')}</label>
                         <input
-                          type="number"
+                          type="text"
                           value={triageHR}
-                          onChange={e => setTriageHR(e.target.value)}
+                          onChange={e => {
+                            const raw = e.target.value.replace(/[^0-9.]/g, '');
+                            const dotCount = (raw.match(/\./g) || []).length;
+                            if (dotCount > 1) return;
+                            setTriageHR(raw);
+                          }}
                           placeholder={t('rcpt_ph_hr', 'app')}
                           className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans"
                         />
@@ -3843,9 +3966,14 @@ if (hasAnyField) {
                       <div>
                         <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_triage_resp_rate', 'app')}</label>
                         <input
-                          type="number"
+                          type="text"
                           value={triageRR}
-                          onChange={e => setTriageRR(e.target.value)}
+                          onChange={e => {
+                            const raw = e.target.value.replace(/[^0-9.]/g, '');
+                            const dotCount = (raw.match(/\./g) || []).length;
+                            if (dotCount > 1) return;
+                            setTriageRR(raw);
+                          }}
                           placeholder={t('rcpt_ph_rr', 'app')}
                           className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans"
                         />
@@ -3971,8 +4099,8 @@ if (hasAnyField) {
                         <div className="text-[11px] text-slate-500 space-y-0.5 text-center">
                           <p className="font-bold text-slate-700 text-xs">{triagePatient.name}</p>
                           <p>{triagePatient.document_type || 'CI'}: {triagePatient.document_number || 'N/A'}</p>
-                          <p>{triagePatient.birthdate} ({triagePatient.birthdate ? new Date().getFullYear() - new Date(triagePatient.birthdate).getFullYear() : '-'} anos)</p>
-                          {triagePatient.blood_type && <p>Tipo: <span className="font-bold text-rose-600">{triagePatient.blood_type}</span></p>}
+                          <p>{new Date(triagePatient.birthdate).toLocaleDateString(locale)} ({triagePatient.birthdate ? new Date().getFullYear() - new Date(triagePatient.birthdate).getFullYear() : '-'} {t('rcpt_list_years', 'app')})</p>
+                          {triagePatient.blood_type && <p>{t('rcpt_dist_type', 'app')} <span className="font-bold text-rose-600">{triagePatient.blood_type}</span></p>}
                         </div>
                       </div>
                     </div>
@@ -4730,23 +4858,23 @@ if (hasAnyField) {
                                   <input type="text" value={editTriageReason} onChange={e => setEditTriageReason(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
                                 </div>
                                 <div className="grid grid-cols-2 gap-2">
-                                  <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_triage_bp_label', 'app')}</label><input type="text" value={editTriageBP} onChange={e => { const raw = e.target.value.replace(/[^0-9/]/g, ''); if ((raw.match(/\//g) || []).length > 1) return; setEditTriageBP(raw); }} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
+                                  <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_triage_bp_label', 'app')}</label><input type="text" value={editTriageBP} onChange={e => { const raw = e.target.value.replace(/[^0-9/]/g, ''); if ((raw.match(/\//g) || []).length > 1) return; const digitsOnly = raw.replace(/\//g, ''); if (digitsOnly.length === 3 && !raw.includes('/') && e.target.value.length > editTriageBP.length) { setEditTriageBP(digitsOnly + '/'); } else { setEditTriageBP(raw); } }} maxLength={6} placeholder="120/80" className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
                                   <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_triage_temp_label', 'app')}</label><input type="text" value={editTriageTemp} onChange={e => { const raw = e.target.value.replace(/[^0-9.]/g, ''); if ((raw.match(/\./g) || []).length > 1) return; setEditTriageTemp(raw); }} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
-                                  <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_triage_spo2_label', 'app')}</label><input type="text" value={editTriageSpo2} onChange={e => setEditTriageSpo2(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
-                                  <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_triage_hr_label', 'app')}</label><input type="text" value={editTriageHR} onChange={e => setEditTriageHR(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
-                                  <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_triage_rr_label', 'app')}</label><input type="text" value={editTriageRR} onChange={e => setEditTriageRR(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
+                                  <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_triage_spo2_label', 'app')}</label><input type="text" value={editTriageSpo2} onChange={e => { const raw = e.target.value.replace(/[^0-9.]/g, ''); const dotCount = (raw.match(/\./g) || []).length; if (dotCount > 1) return; setEditTriageSpo2(raw); }} maxLength={5} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
+                                  <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_triage_hr_label', 'app')}</label><input type="text" value={editTriageHR} onChange={e => { const raw = e.target.value.replace(/[^0-9.]/g, ''); const dotCount = (raw.match(/\./g) || []).length; if (dotCount > 1) return; setEditTriageHR(raw); }} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
+                                  <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_triage_rr_label', 'app')}</label><input type="text" value={editTriageRR} onChange={e => { const raw = e.target.value.replace(/[^0-9.]/g, ''); const dotCount = (raw.match(/\./g) || []).length; if (dotCount > 1) return; setEditTriageRR(raw); }} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
                                 </div>
                               </div>
                             ) : (
                               <div className="space-y-2">
-                                <p className="text-xs text-slate-600"><span className="font-bold">{t('rcpt_detail_reason_label', 'app')}</span> {hasTriageEdits ? editTriageReason : triage.diagnosis}</p>
-                                {(hasTriageEdits || vitals) && (
+                                <p className="text-xs text-slate-600"><span className="font-bold">{t('rcpt_detail_reason_label', 'app')}</span> {editTriageReason || triage.diagnosis}</p>
+                                {(editTriageBP || editTriageTemp || editTriageSpo2 || editTriageHR || editTriageRR || vitals) && (
                                   <div className="grid grid-cols-2 gap-2 text-[11px]">
-                                    {(hasTriageEdits ? editTriageBP : vitals?.bp) && <p className="text-slate-600">{t('rcpt_triage_bp_label', 'app')}: <span className="font-bold">{hasTriageEdits ? editTriageBP : vitals?.bp}</span></p>}
-                                    {(hasTriageEdits ? editTriageTemp : vitals?.temp) && <p className="text-slate-600">{t('rcpt_triage_temp_label', 'app')}: <span className="font-bold">{hasTriageEdits ? editTriageTemp : vitals?.temp}°C</span></p>}
-                                    {(hasTriageEdits ? editTriageSpo2 : vitals?.spo2) && <p className="text-slate-600">{t('rcpt_triage_spo2_label', 'app')}: <span className="font-bold">{hasTriageEdits ? editTriageSpo2 : vitals?.spo2}%</span></p>}
-                                    {(hasTriageEdits ? editTriageHR : vitals?.hr) && <p className="text-slate-600">{t('rcpt_triage_hr_label', 'app')}: <span className="font-bold">{hasTriageEdits ? editTriageHR : vitals?.hr} BPM</span></p>}
-                                    {(hasTriageEdits ? editTriageRR : vitals?.rr) && <p className="text-slate-600">{t('rcpt_triage_rr_label', 'app')}: <span className="font-bold">{hasTriageEdits ? editTriageRR : vitals?.rr} IRPM</span></p>}
+                                    {(editTriageBP || vitals?.bp) && <p className="text-slate-600">{t('rcpt_triage_bp_label', 'app')}: <span className="font-bold">{editTriageBP || vitals?.bp}</span></p>}
+                                    {(editTriageTemp || vitals?.temp) && <p className="text-slate-600">{t('rcpt_triage_temp_label', 'app')}: <span className="font-bold">{editTriageTemp || vitals?.temp}°C</span></p>}
+                                    {(editTriageSpo2 || vitals?.spo2) && <p className="text-slate-600">{t('rcpt_triage_spo2_label', 'app')}: <span className="font-bold">{editTriageSpo2 || vitals?.spo2}%</span></p>}
+                                    {(editTriageHR || vitals?.hr) && <p className="text-slate-600">{t('rcpt_triage_hr_label', 'app')}: <span className="font-bold">{editTriageHR || vitals?.hr} BPM</span></p>}
+                                    {(editTriageRR || vitals?.rr) && <p className="text-slate-600">{t('rcpt_triage_rr_label', 'app')}: <span className="font-bold">{editTriageRR || vitals?.rr} IRPM</span></p>}
                                   </div>
                                 )}
                                 {triage.preliminary_procedures && triage.preliminary_procedures.length > 0 && (
@@ -4865,23 +4993,23 @@ if (hasAnyField) {
                                   <input type="text" value={editTriageReason} onChange={e => setEditTriageReason(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
                                 </div>
                                 <div className="grid grid-cols-2 gap-2">
-                                  <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_triage_bp_label', 'app')}</label><input type="text" value={editTriageBP} onChange={e => { const raw = e.target.value.replace(/[^0-9/]/g, ''); if ((raw.match(/\//g) || []).length > 1) return; setEditTriageBP(raw); }} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
+                                  <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_triage_bp_label', 'app')}</label><input type="text" value={editTriageBP} onChange={e => { const raw = e.target.value.replace(/[^0-9/]/g, ''); if ((raw.match(/\//g) || []).length > 1) return; const digitsOnly = raw.replace(/\//g, ''); if (digitsOnly.length === 3 && !raw.includes('/') && e.target.value.length > editTriageBP.length) { setEditTriageBP(digitsOnly + '/'); } else { setEditTriageBP(raw); } }} maxLength={6} placeholder="120/80" className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
                                   <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_triage_temp_label', 'app')}</label><input type="text" value={editTriageTemp} onChange={e => { const raw = e.target.value.replace(/[^0-9.]/g, ''); if ((raw.match(/\./g) || []).length > 1) return; setEditTriageTemp(raw); }} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
-                                  <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_triage_spo2_label', 'app')}</label><input type="text" value={editTriageSpo2} onChange={e => setEditTriageSpo2(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
-                                  <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_triage_hr_label', 'app')}</label><input type="text" value={editTriageHR} onChange={e => setEditTriageHR(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
-                                  <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_triage_rr_label', 'app')}</label><input type="text" value={editTriageRR} onChange={e => setEditTriageRR(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
+                                  <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_triage_spo2_label', 'app')}</label><input type="text" value={editTriageSpo2} onChange={e => { const raw = e.target.value.replace(/[^0-9.]/g, ''); const dotCount = (raw.match(/\./g) || []).length; if (dotCount > 1) return; setEditTriageSpo2(raw); }} maxLength={5} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
+                                  <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_triage_hr_label', 'app')}</label><input type="text" value={editTriageHR} onChange={e => { const raw = e.target.value.replace(/[^0-9.]/g, ''); const dotCount = (raw.match(/\./g) || []).length; if (dotCount > 1) return; setEditTriageHR(raw); }} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
+                                  <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_triage_rr_label', 'app')}</label><input type="text" value={editTriageRR} onChange={e => { const raw = e.target.value.replace(/[^0-9.]/g, ''); const dotCount = (raw.match(/\./g) || []).length; if (dotCount > 1) return; setEditTriageRR(raw); }} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" /></div>
                                 </div>
                               </div>
                             ) : (
                               <div className="space-y-2">
-                                <p className="text-xs text-slate-600"><span className="font-bold">{t('rcpt_detail_reason_label', 'app')}</span> {hasTriageEdits ? editTriageReason : triage.diagnosis}</p>
-                                {(hasTriageEdits || vitals) && (
+                                <p className="text-xs text-slate-600"><span className="font-bold">{t('rcpt_detail_reason_label', 'app')}</span> {editTriageReason || triage.diagnosis}</p>
+                                {(editTriageBP || editTriageTemp || editTriageSpo2 || editTriageHR || editTriageRR || vitals) && (
                                   <div className="grid grid-cols-2 gap-2 text-[11px]">
-                                    {(hasTriageEdits ? editTriageBP : vitals?.bp) && <p className="text-slate-600">{t('rcpt_triage_bp_label', 'app')}: <span className="font-bold">{hasTriageEdits ? editTriageBP : vitals?.bp}</span></p>}
-                                    {(hasTriageEdits ? editTriageTemp : vitals?.temp) && <p className="text-slate-600">{t('rcpt_triage_temp_label', 'app')}: <span className="font-bold">{hasTriageEdits ? editTriageTemp : vitals?.temp}°C</span></p>}
-                                    {(hasTriageEdits ? editTriageSpo2 : vitals?.spo2) && <p className="text-slate-600">{t('rcpt_triage_spo2_label', 'app')}: <span className="font-bold">{hasTriageEdits ? editTriageSpo2 : vitals?.spo2}%</span></p>}
-                                    {(hasTriageEdits ? editTriageHR : vitals?.hr) && <p className="text-slate-600">{t('rcpt_triage_hr_label', 'app')}: <span className="font-bold">{hasTriageEdits ? editTriageHR : vitals?.hr} BPM</span></p>}
-                                    {(hasTriageEdits ? editTriageRR : vitals?.rr) && <p className="text-slate-600">{t('rcpt_triage_rr_label', 'app')}: <span className="font-bold">{hasTriageEdits ? editTriageRR : vitals?.rr} IRPM</span></p>}
+                                    {(editTriageBP || vitals?.bp) && <p className="text-slate-600">{t('rcpt_triage_bp_label', 'app')}: <span className="font-bold">{editTriageBP || vitals?.bp}</span></p>}
+                                    {(editTriageTemp || vitals?.temp) && <p className="text-slate-600">{t('rcpt_triage_temp_label', 'app')}: <span className="font-bold">{editTriageTemp || vitals?.temp}°C</span></p>}
+                                    {(editTriageSpo2 || vitals?.spo2) && <p className="text-slate-600">{t('rcpt_triage_spo2_label', 'app')}: <span className="font-bold">{editTriageSpo2 || vitals?.spo2}%</span></p>}
+                                    {(editTriageHR || vitals?.hr) && <p className="text-slate-600">{t('rcpt_triage_hr_label', 'app')}: <span className="font-bold">{editTriageHR || vitals?.hr} BPM</span></p>}
+                                    {(editTriageRR || vitals?.rr) && <p className="text-slate-600">{t('rcpt_triage_rr_label', 'app')}: <span className="font-bold">{editTriageRR || vitals?.rr} IRPM</span></p>}
                                   </div>
                                 )}
                                 {triage.preliminary_procedures && triage.preliminary_procedures.length > 0 && (
@@ -4948,7 +5076,17 @@ if (hasAnyField) {
                       red: 'bg-red-500', orange: 'bg-orange-500', yellow: 'bg-amber-400', green: 'bg-green-500', blue: 'bg-blue-500',
                     };
                     return (
-                      <div key={pid} onClick={() => setSelectedDetailPatientId(pid)} className="bg-slate-50 border border-slate-200 rounded-xl p-4 cursor-pointer hover:border-teal-300 hover:bg-teal-50 transition">
+                      <div key={pid} onClick={() => {
+                        setSelectedDetailPatientId(pid);
+                        const detailPat = patientsRef.current.find((p: any) => p.id === pid);
+                        const detailTriages = detailPat?.clinicalHistory?.filter((h: any) => h.type?.includes('Triagem')) || [];
+                        const latestDetailTriage = [...detailTriages].sort((a: any, b: any) => {
+                          const dA = new Date(a.triaged_at || a.created_at || a.date || 0).getTime();
+                          const dB = new Date(b.triaged_at || b.created_at || b.date || 0).getTime();
+                          return dB - dA;
+                        })[0];
+                        activeConsultationIdRef.current = latestDetailTriage?.consultation_id || null;
+                      }} className="bg-slate-50 border border-slate-200 rounded-xl p-4 cursor-pointer hover:border-teal-300 hover:bg-teal-50 transition">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <div className="w-9 h-9 rounded-full bg-teal-100 flex items-center justify-center">
@@ -4983,6 +5121,7 @@ if (hasAnyField) {
                       <div className="flex gap-2">
                         <button
                           onClick={() => {
+                            if (isEditingTriage) { alert(t('rcpt_alert_save_triage_before_action', 'app')); return; }
                             const pat = patientsRef.current.find(p => p.id === pid);
                             const triages = pat?.clinicalHistory?.filter((h: any) => h.type?.includes('Triagem')) || [];
                     const triage = [...triages].sort((a: any, b: any) => {
@@ -4991,16 +5130,16 @@ if (hasAnyField) {
                       return dateB - dateA;
                     })[0];
                             const vitals = triage?.vital_signs;
+                            const initVals = initialTriageValuesRef.current || { bp: '', temp: '', spo2: '', hr: '', rr: '', reason: '' };
                             const triageChanged = (
-                              (editTriageBP && editTriageBP !== (vitals?.bp || '')) ||
-                              (editTriageTemp && editTriageTemp !== (vitals?.temp || '')) ||
-                              (editTriageSpo2 && editTriageSpo2 !== (vitals?.spo2 || '')) ||
-                              (editTriageHR && editTriageHR !== (vitals?.hr || '')) ||
-                              (editTriageRR && editTriageRR !== (vitals?.rr || '')) ||
-                              (editTriageReason && editTriageReason !== (triage?.diagnosis || ''))
+                              editTriageBP !== initVals.bp ||
+                              editTriageTemp !== initVals.temp ||
+                              editTriageSpo2 !== initVals.spo2 ||
+                              editTriageHR !== initVals.hr ||
+                              editTriageRR !== initVals.rr ||
+                              editTriageReason !== initVals.reason
                             );
-                            const effectiveHasTriageEdits = hasTriageEdits || triageChanged;
-                            const triageEdits = effectiveHasTriageEdits ? {
+                            const triageEdits = triageChanged ? {
                               diagnosis: editTriageReason || null,
                               vital_signs: { bp: editTriageBP || null, temp: editTriageTemp || null, spo2: editTriageSpo2 || null, hr: editTriageHR || null, rr: editTriageRR || null },
                             } : null;
@@ -5014,11 +5153,11 @@ if (hasAnyField) {
                                 doctor: t('rcpt_doctor', 'app'),
                                 location_name: selectedLocation?.name || null,
                                 triage_edits: triageEdits,
-                                vital_signs: effectiveHasTriageEdits ? {
+                                vital_signs: {
                                   bp: editTriageBP || vitals?.bp || '', temp: editTriageTemp || vitals?.temp || '',
                                   spo2: editTriageSpo2 || vitals?.spo2 || '', hr: editTriageHR || vitals?.hr || '',
                                   rr: editTriageRR || vitals?.rr || '', weight: vitals?.weight || '', height: vitals?.height || '', imc: vitals?.imc || '',
-                                } : vitals || null,
+                                },
                                 triage_priority: triage?.triage_priority || null,
                                 triage_color: triage?.triage_color || null,
                                 preliminary_procedures: triage?.preliminary_procedures || [],
@@ -5035,6 +5174,7 @@ if (hasAnyField) {
                         </button>
                         <button
                           onClick={async () => {
+                            if (isEditingTriage) { alert(t('rcpt_alert_save_triage_before_action', 'app')); return; }
                             if (!medDiagnosis.trim()) { alert(t('rcpt_alert_fill_diagnosis', 'app')); return; }
                             if (!confirm(t('rcpt_confirm_finalize', 'app'))) return;
                             const pat = patientsRef.current.find(p => p.id === pid);
@@ -5045,16 +5185,16 @@ if (hasAnyField) {
                       return dateB - dateA;
                     })[0];
                             const vitals = triage?.vital_signs;
+                            const initVals = initialTriageValuesRef.current || { bp: '', temp: '', spo2: '', hr: '', rr: '', reason: '' };
                             const triageChanged = (
-                              (editTriageBP && editTriageBP !== (vitals?.bp || '')) ||
-                              (editTriageTemp && editTriageTemp !== (vitals?.temp || '')) ||
-                              (editTriageSpo2 && editTriageSpo2 !== (vitals?.spo2 || '')) ||
-                              (editTriageHR && editTriageHR !== (vitals?.hr || '')) ||
-                              (editTriageRR && editTriageRR !== (vitals?.rr || '')) ||
-                              (editTriageReason && editTriageReason !== (triage?.diagnosis || ''))
+                              editTriageBP !== initVals.bp ||
+                              editTriageTemp !== initVals.temp ||
+                              editTriageSpo2 !== initVals.spo2 ||
+                              editTriageHR !== initVals.hr ||
+                              editTriageRR !== initVals.rr ||
+                              editTriageReason !== initVals.reason
                             );
-                            const effectiveHasTriageEdits = hasTriageEdits || triageChanged;
-                            const triageEdits = effectiveHasTriageEdits ? {
+                            const triageEdits = triageChanged ? {
                               diagnosis: editTriageReason || null,
                               vital_signs: {
                                 bp: editTriageBP || null,
@@ -5080,7 +5220,7 @@ if (hasAnyField) {
                                   doctor: t('rcpt_doctor', 'app'),
                                   location_name: selectedLocation?.name || null,
                                   triage_edits: triageEdits,
-                                  vital_signs: effectiveHasTriageEdits ? {
+                                  vital_signs: {
                                     bp: editTriageBP || vitals?.bp || '',
                                     temp: editTriageTemp || vitals?.temp || '',
                                     spo2: editTriageSpo2 || vitals?.spo2 || '',
@@ -5089,7 +5229,7 @@ if (hasAnyField) {
                                     weight: vitals?.weight || '',
                                     height: vitals?.height || '',
                                     imc: vitals?.imc || '',
-                                  } : vitals || null,
+                                  },
                                   triage_priority: triage?.triage_priority || null,
                                   triage_color: triage?.triage_color || null,
                                   preliminary_procedures: triage?.preliminary_procedures || [],
