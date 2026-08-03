@@ -105,7 +105,7 @@ const ClinicalModuleContent = ({
   setAsos,
   activeOperator = 'Operador',
 }: ClinicalModuleProps) => {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
 
   // Patient selection
   const [selectedPatId, setSelectedPatId] = useState('');
@@ -1334,11 +1334,10 @@ const ClinicalModuleContent = ({
   const labelCls = 'block text-xs font-semibold text-slate-600 mb-1';
   const sectionCls = 'bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs space-y-4';
 
-  const formatDateBR = (dateStr: string) => {
+  const formatDate = (dateStr: string) => {
     if (!dateStr) return '';
-    const parts = dateStr.split('-');
-    if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
-    return dateStr;
+    const date = new Date(dateStr + 'T12:00:00');
+    return date.toLocaleDateString(locale);
   };
 
   const translateStatus = (s: string) => {
@@ -1396,7 +1395,7 @@ const ClinicalModuleContent = ({
                 <div className="space-y-3">
                   <div className="p-3 bg-teal-50/50 border border-teal-100 rounded-xl text-xs space-y-1">
                     <h4 className="font-bold text-teal-800 text-sm">{selectedPatient.name}</h4>
-                    <p className="text-teal-700">📅 {formatDateBR(selectedPatient.birthdate)}</p>
+                    <p className="text-teal-700">📅 {formatDate(selectedPatient.birthdate)}</p>
                     <p className="text-teal-700">🩺 <b className="uppercase">{translateStatus(selectedPatient.status)}</b></p>
                     <p className="text-teal-700">✉️ {selectedPatient.email}</p>
                     {selectedPatient.allergies && (
@@ -1414,69 +1413,132 @@ const ClinicalModuleContent = ({
               </h5>
               <div className="border-l-2 border-slate-200 pl-3 space-y-3 max-h-[300px] overflow-y-auto">
                 {(() => {
-                  const triageEntry = selectedPatient?.clinicalHistory?.find((h: any) => h.type?.includes('Triagem'));
-                  const nonTriageEntries = (selectedPatient?.clinicalHistory || []).filter((h: any) => !h.type?.includes('Triagem'));
-                  if (timelineAssignments.length === 0 && !triageEntry && nonTriageEntries.length === 0) {
+                  const history = selectedPatient?.clinicalHistory || [];
+                  const grouped: Record<string, any[]> = {};
+                  history.forEach((entry: any) => {
+                    const key = entry.consultation_id || '__legacy__';
+                    if (!grouped[key]) grouped[key] = [];
+                    grouped[key].push(entry);
+                  });
+                  const sortedKeys = Object.keys(grouped).sort((a, b) => {
+                    if (a === '__legacy__') return -1;
+                    if (b === '__legacy__') return 1;
+                    const dateA = new Date(grouped[a][0].triaged_at || grouped[a][0].created_at || 0).getTime();
+                    const dateB = new Date(grouped[b][0].triaged_at || grouped[b][0].created_at || 0).getTime();
+                    return dateA - dateB;
+                  });
+                  if (sortedKeys.length === 0) {
                     return <p className="text-xs text-slate-400">{t('no_records', 'app')}</p>;
                   }
-                  return (
-                    <>
-                      {triageEntry && (
-                        <div className="relative text-xs">
-                          <span className="absolute -left-[17px] top-1 w-2 h-2 bg-green-500 rounded-full border border-white" />
-                          <p className="font-bold text-slate-800">{t('hce_timeline_triage', 'app')}</p>
-                          <p className="text-[10px] text-slate-400">{triageEntry.date ? formatDateBR(triageEntry.date) : '—'}</p>
-                        </div>
-                      )}
-                      {timelineAssignments.length > 0 ? (
-                        <>
-                          {timelineAssignments.map((a, idx) => {
-                            const isLast = idx === timelineAssignments.length - 1;
-                            const isFinished = selectedPatient?.status === 'atendido';
-                            return (
-                            <div key={idx} className="relative text-xs">
-                              <div className="flex flex-col items-center absolute -left-[17px] top-1">
-                                <span className="w-2 h-2 bg-blue-500 rounded-full border border-white"></span>
-                                <span className="w-0.5 flex-1 bg-slate-200"></span>
-                              </div>
-                              <p className="font-bold text-slate-800">🏥 {a.locationName}</p>
-                              <p className="text-[10px] text-slate-400">{t('rcpt_timeline_entry', 'app')} {new Date(a.assignedAt).toLocaleString()}</p>
-                              {a.completedAt ? (
-                                <p className="text-[10px] text-slate-400">{t('rcpt_timeline_exit', 'app')} {new Date(a.completedAt).toLocaleString()}</p>
-                              ) : isLast && isFinished ? (
-                                <p className="text-[10px] text-slate-400">{t('rcpt_timeline_exit', 'app')} —</p>
-                              ) : (
-                                <p className="text-[10px] text-amber-500 font-semibold">{t('rcpt_timeline_ongoing', 'app')}</p>
+                  let consultationNumber = 0;
+                  return sortedKeys.map(key => {
+                    const entries = grouped[key];
+                    const isLegacy = key === '__legacy__';
+                    if (!isLegacy) consultationNumber++;
+                    const triageEntries = entries.filter((e: any) => e.type?.includes('Triagem'));
+                    const medEntries = entries.filter((e: any) => e.type === 'Consulta Médica');
+                    triageEntries.sort((a: any, b: any) => new Date(a.triaged_at || a.created_at || 0).getTime() - new Date(b.triaged_at || b.created_at || 0).getTime());
+                    medEntries.sort((a: any, b: any) => new Date(a.created_at || a.date || 0).getTime() - new Date(b.created_at || b.date || 0).getTime());
+                    const firstEntry = entries[0];
+                    const dateLabel = firstEntry.triaged_at
+                      ? new Date(firstEntry.triaged_at).toLocaleDateString(locale, { day: '2-digit', month: '2-digit', year: 'numeric' })
+                      : firstEntry.date || '—';
+                    return (
+                      <div key={key} className="mb-4">
+                        {!isLegacy && (
+                          <div className="bg-slate-50 rounded-lg p-2 mb-3 border border-slate-200">
+                            <p className="text-[10px] font-bold text-slate-700">
+                              📋 {t('rcpt_timeline_consultation', 'app')} #{consultationNumber} — {dateLabel}
+                            </p>
+                          </div>
+                        )}
+                        {triageEntries.map((triageEntry: any, tIdx: number) => (
+                          <div key={`triage-${key}-${tIdx}`} className="flex gap-2.5 mb-3">
+                            <div className="flex flex-col items-center">
+                              <div className="w-2.5 h-2.5 rounded-full bg-green-500 flex-shrink-0"></div>
+                              <div className="w-0.5 flex-1 bg-slate-200"></div>
+                            </div>
+                            <div className="flex-1 text-xs">
+                              <p className="font-bold text-slate-800">{t('rcpt_timeline_triage', 'app')}</p>
+                              <p className="text-[10px] text-slate-400">
+                                {triageEntry.triaged_at ? new Date(triageEntry.triaged_at).toLocaleString(locale) : '—'}
+                              </p>
+                              {triageEntry.vital_signs && (
+                                <div className="mt-1 text-[10px] text-slate-500 space-y-0.5">
+                                  {triageEntry.vital_signs.bp && <p>{t('rcpt_triage_bp_label', 'app')}: {triageEntry.vital_signs.bp}</p>}
+                                  {triageEntry.vital_signs.spo2 && <p>{t('rcpt_triage_spo2_label', 'app')}: {triageEntry.vital_signs.spo2}</p>}
+                                  {triageEntry.vital_signs.temp && <p>{t('rcpt_triage_temp_label', 'app')}: {triageEntry.vital_signs.temp}</p>}
+                                  {triageEntry.vital_signs.hr && <p>{t('rcpt_triage_hr_label', 'app')}: {triageEntry.vital_signs.hr}</p>}
+                                  {triageEntry.vital_signs.rr && <p>{t('rcpt_triage_rr_label', 'app')}: {triageEntry.vital_signs.rr}</p>}
+                                </div>
                               )}
                             </div>
-                            );
-                          })}
-                          {(timelineAssignments[timelineAssignments.length - 1]?.completedAt || selectedPatient?.status === 'atendido') && (
-                            <div className="relative text-xs">
-                              <span className="absolute -left-[17px] top-1 w-2 h-2 bg-green-600 rounded-full border border-white" />
-                              <p className="font-bold text-green-700">{t('rcpt_timeline_visit_completed', 'app')}</p>
-                              <p className="text-[10px] text-slate-400">
-                                {(() => {
-                                  const last = timelineAssignments[timelineAssignments.length - 1];
-                                  const completedTime = last?.completedAt || last?.assignedAt;
-                                  return completedTime ? new Date(completedTime).toLocaleString() : '—';
-                                })()}
-                              </p>
-                            </div>
-                          )}
-                        </>
-                      ) : (
-                        nonTriageEntries.slice(0, 5).map(entry => (
-                          <div key={entry.id} className="relative text-xs">
-                            <span className="absolute -left-[17px] top-1 w-2 h-2 bg-teal-500 rounded-full border border-white" />
-                            <p className="font-black text-slate-800">{formatDateBR(entry.date)}</p>
-                            <p className="text-[10px] text-teal-700 font-bold">{entry.type}</p>
-                            <p className="text-slate-600 mt-0.5 line-clamp-2">{entry.notes}</p>
                           </div>
-                        ))
-                      )}
-                    </>
-                  );
+                        ))}
+                        {medEntries.map((med: any, mIdx: number) => (
+                          <div key={`med-${key}-${mIdx}`} className="flex gap-2.5 mb-3">
+                            <div className="flex flex-col items-center">
+                              <div className="w-2.5 h-2.5 rounded-full bg-blue-500 flex-shrink-0"></div>
+                              <div className="w-0.5 flex-1 bg-slate-200"></div>
+                            </div>
+                            <div className="flex-1 text-xs">
+                              <p className="font-bold text-slate-800">🏥 {med.location_name || t('rcpt_timeline_medical_consultation', 'app')}</p>
+                              <p className="text-[10px] text-slate-400">
+                                {med.created_at ? new Date(med.created_at).toLocaleString(locale) : med.date || '—'}
+                              </p>
+                              <div className="mt-1 text-[10px] text-slate-500 space-y-0.5 border-l-2 border-blue-200 pl-2">
+                                {med.triage_edits && (
+                                  <div className="mb-1">
+                                    {med.triage_edits.diagnosis && (
+                                      <p>• <span className="font-semibold text-amber-600">{t('rcpt_timeline_triage_edited', 'app')}</span> {med.triage_edits.diagnosis}</p>
+                                    )}
+                                    {med.triage_edits.vital_signs && (
+                                      <div className="ml-2 space-y-0.5">
+                                        {med.triage_edits.vital_signs.bp && <p className="text-amber-600">{t('rcpt_triage_bp_label', 'app')}: {med.triage_edits.vital_signs.bp}</p>}
+                                        {med.triage_edits.vital_signs.temp && <p className="text-amber-600">{t('rcpt_triage_temp_label', 'app')}: {med.triage_edits.vital_signs.temp}°C</p>}
+                                        {med.triage_edits.vital_signs.spo2 && <p className="text-amber-600">{t('rcpt_triage_spo2_label', 'app')}: {med.triage_edits.vital_signs.spo2}%</p>}
+                                        {med.triage_edits.vital_signs.hr && <p className="text-amber-600">{t('rcpt_triage_hr_label', 'app')}: {med.triage_edits.vital_signs.hr} BPM</p>}
+                                        {med.triage_edits.vital_signs.rr && <p className="text-amber-600">{t('rcpt_triage_rr_label', 'app')}: {med.triage_edits.vital_signs.rr} IRPM</p>}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                                {med.diagnosis && (
+                                  <p>• <span className="font-semibold">{t('rcpt_timeline_diagnosis', 'app')}</span> {med.diagnosis}</p>
+                                )}
+                                {med.cid10 && med.cid10 !== 'Z00.0' && (
+                                  <p>• <span className="font-semibold">{t('rcpt_timeline_cid10', 'app')}</span> {med.cid10}</p>
+                                )}
+                                {med.prescriptions && med.prescriptions.length > 0 && med.prescriptions[0] !== t('rcpt_triage_no_procedure', 'app') && (
+                                  <p>• <span className="font-semibold">{t('rcpt_timeline_prescription', 'app')}</span> {med.prescriptions.join(', ')}</p>
+                                )}
+                                {med.notes && med.notes !== t('rcpt_triage_default_note', 'app') && (
+                                  <p>• <span className="font-semibold">{t('rcpt_timeline_medical_notes', 'app')}</span> {med.notes}</p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                        {(() => {
+                          const lastEntry = entries[entries.length - 1];
+                          const completedTime = lastEntry.created_at || lastEntry.triaged_at;
+                          return (
+                            <div className="flex gap-2.5">
+                              <div className="flex flex-col items-center">
+                                <div className="w-2.5 h-2.5 rounded-full bg-green-600 flex-shrink-0"></div>
+                              </div>
+                              <div className="text-xs">
+                                <p className="font-bold text-green-700">{t('rcpt_timeline_visit_completed', 'app')}</p>
+                                <p className="text-[10px] text-slate-400">
+                                  {completedTime ? new Date(completedTime).toLocaleString(locale) : '—'}
+                                </p>
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    );
+                  });
                 })()}
               </div>
             </div>
@@ -1732,7 +1794,7 @@ const ClinicalModuleContent = ({
                         {anamnese.surgicalHistory.map((s, i) => (
                           <div key={i} className="flex items-center justify-between bg-purple-50 border border-purple-200 rounded-lg px-3 py-1.5 text-xs">
                             <span className="font-bold text-purple-800">{s.procedure}</span>
-                            <span className="text-purple-600">{formatDateBR(s.date)} - {s.hospital}</span>
+                            <span className="text-purple-600">{formatDate(s.date)} - {s.hospital}</span>
                             <button onClick={() => setAnamnese(p => ({ ...p, surgicalHistory: p.surgicalHistory.filter((_, j) => j !== i) }))} className="text-purple-500 hover:text-purple-700"><Trash2 className="w-3 h-3" /></button>
                           </div>
                         ))}
@@ -2813,7 +2875,7 @@ const ClinicalModuleContent = ({
                             <div className="pb-4 flex-1">
                               <p className="text-xs font-bold text-slate-800">{t('hce_timeline_triage', 'app')}</p>
                               <p className="text-[10px] text-slate-400">
-                                {triageEntry.triaged_at ? new Date(triageEntry.triaged_at).toLocaleString() : triageEntry.date ? formatDateBR(triageEntry.date.split('T')[0]) : '—'}
+                                {triageEntry.triaged_at ? new Date(triageEntry.triaged_at).toLocaleString(locale) : triageEntry.date ? formatDate(triageEntry.date.split('T')[0]) : '—'}
                               </p>
                               {triageEntry.vital_signs && (
                                 <div className="mt-1 text-[10px] text-slate-500 space-y-0.5">
@@ -2864,11 +2926,11 @@ const ClinicalModuleContent = ({
                               <div className="pb-4 flex-1">
                                 <p className="text-xs font-bold text-slate-800">🏥 {assignment.locationName}</p>
                                 <p className="text-[10px] text-slate-400">
-                                  {t('rcpt_timeline_entry', 'app')} {new Date(assignment.assignedAt).toLocaleString()}
+                                  {t('rcpt_timeline_entry', 'app')} {new Date(assignment.assignedAt).toLocaleString(locale)}
                                 </p>
                                 {assignment.completedAt ? (
                                   <p className="text-[10px] text-slate-400">
-                                    {t('rcpt_timeline_exit', 'app')} {new Date(assignment.completedAt).toLocaleString()}
+                                    {t('rcpt_timeline_exit', 'app')} {new Date(assignment.completedAt).toLocaleString(locale)}
                                   </p>
                                 ) : isLast && isFinished ? (
                                   <p className="text-[10px] text-slate-400">{t('rcpt_timeline_exit', 'app')} —</p>
@@ -2914,7 +2976,7 @@ const ClinicalModuleContent = ({
                             </div>
                             <div className="pb-4 flex-1">
                               <p className="text-xs font-bold text-slate-800">{evt.eventTitle}</p>
-                              <p className="text-[10px] text-slate-400">{formatDateBR(evt.eventDate.split('T')[0])} | {evt.doctorName}</p>
+                              <p className="text-[10px] text-slate-400">{formatDate(evt.eventDate.split('T')[0])} | {evt.doctorName}</p>
                               <p className="text-[10px] text-slate-500 line-clamp-2 mt-0.5">{evt.eventDescription}</p>
                               {evt.cid10Code && (
                                 <span className="text-[9px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded border border-slate-200 font-bold mt-1 inline-block">CID: {evt.cid10Code}</span>
@@ -2936,7 +2998,7 @@ const ClinicalModuleContent = ({
                               {(() => {
                                 const last = timelineAssignments[timelineAssignments.length - 1];
                                 const completedTime = last?.completedAt || last?.assignedAt;
-                                return completedTime ? new Date(completedTime).toLocaleString() : '—';
+                                return completedTime ? new Date(completedTime).toLocaleString(locale) : '—';
                               })()}
                             </p>
                           </div>

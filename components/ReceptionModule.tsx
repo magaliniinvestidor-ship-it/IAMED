@@ -791,7 +791,7 @@ export default function ReceptionModule({
               attendedMap.set(a.patient_id, {
                 patient: foundPatient || { id: a.patient_id, name: a.patients?.name || t('rcpt_patient_fallback', 'app'), phone: a.patients?.phone || '', email: '', birthdate: '', gender: '', priority: 'normal' as const, status: 'atendido' as const, clinicalHistory: [] } as Patient,
                 locationName: a.hospital_locations?.name || 'Local',
-                completedAt: a.assigned_at,
+                completedAt: a.completed_at || a.assigned_at,
               });
             }
           }
@@ -802,15 +802,33 @@ export default function ReceptionModule({
           .select('id, name, phone')
           .eq('status', 'atendido');
         if (atendidoPatients && atendidoPatients.length > 0) {
+          const missingIds = atendidoPatients.filter(p => !attendedMap.has(p.id)).map(p => p.id);
+          const lastCompletedMap = new Map<string, { locationName: string; completedAt: string }>();
+          if (missingIds.length > 0) {
+            const { data: missingAssignments } = await supabase
+              .from('patient_location_assignments')
+              .select('patient_id, completed_at, hospital_locations!inner(name)')
+              .in('patient_id', missingIds)
+              .eq('active', false)
+              .order('completed_at', { ascending: false });
+            if (missingAssignments) {
+              for (const a of missingAssignments) {
+                if (!lastCompletedMap.has(a.patient_id) && a.completed_at) {
+                  lastCompletedMap.set(a.patient_id, { locationName: (Array.isArray(a.hospital_locations) ? a.hospital_locations[0]?.name : (a.hospital_locations as any)?.name) || 'Local', completedAt: a.completed_at });
+                }
+              }
+            }
+          }
           for (const p of atendidoPatients) {
             if (!attendedMap.has(p.id)) {
               const foundPatient = patients.find(pt => pt.id === p.id);
               const hist = foundPatient?.clinicalHistory || [];
               const lastMed = hist.filter((h: any) => h.type === 'Consulta Médica').sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())[0];
+              const completedData = lastCompletedMap.get(p.id);
               attendedMap.set(p.id, {
                 patient: foundPatient || { id: p.id, name: p.name || t('rcpt_patient_fallback', 'app'), phone: p.phone || '', email: '', birthdate: '', gender: '', priority: 'normal' as const, status: 'atendido' as const, clinicalHistory: [] } as Patient,
-                locationName: lastMed?.location_name || '—',
-                completedAt: (lastMed as any)?.created_at || new Date().toISOString(),
+                locationName: completedData?.locationName || lastMed?.location_name || '—',
+                completedAt: completedData?.completedAt || (lastMed as any)?.created_at || '',
               });
             }
           }
