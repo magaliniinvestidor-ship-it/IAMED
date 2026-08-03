@@ -4,9 +4,10 @@ import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { Patient, AsoExam, Cid10Code, DrugCatalogItem, Prescription, ExamRequest, Procedure, Anamnese, SoapNote, Diagnosis, PhysicalExam, VitalSigns, AllergyEntry, MedicationEntry, FamilyHistoryEntry, SurgicalEntry, ElectronicSignature, AccessControl, PatientTimelineEvent, nationalProcedures, sensitiveFieldConfig, drugInteractions } from '@/lib/mockData';
 import { supabase } from '@/lib/supabaseClient';
 import { useI18n } from '@/lib/i18n/I18nContext';
+
 import {
   ClipboardList, Microscope, HeartPulse, ShieldAlert,
-  Send, Plus, FileDown, Check, Eye, Trash2, Sliders, AlertCircle,
+  Send, Plus, FileDown, Check, Eye, Trash2, Sliders, AlertCircle, Pencil,
   Search, Filter, Pill, Stethoscope, FileText, Paperclip,
   Shield, Clock, User, Activity, AlertTriangle, QrCode, Hash,
   ChevronDown, ChevronRight, Lock, Unlock, Printer, Calendar,
@@ -31,41 +32,7 @@ interface ClinicalModuleProps {
 type HCETab = 'anamnese' | 'exam' | 'soap' | 'diagnoses' | 'prescriptions' | 'exams' | 'procedures' | 'attachments' | 'signatures' | 'timeline' | 'security';
 
 // CID-10 seed data inline for lookup
-const cid10Data: Cid10Code[] = [
-  { code: 'A00', description: 'Cólera', chapter: 'I', block: 'A00-A09' },
-  { code: 'A09', description: 'Outras doenças infecciosas intestinais', chapter: 'I', block: 'A00-A09' },
-  { code: 'B20', description: 'Doença pelo HIV', chapter: 'I', block: 'B20-B24' },
-  { code: 'C34', description: 'Neoplasia maligna dos brônquios e pulmão', chapter: 'II', block: 'C30-C39' },
-  { code: 'C50', description: 'Neoplasia maligna da mama', chapter: 'II', block: 'C50-C50' },
-  { code: 'E11', description: 'Diabetes mellitus tipo 2', chapter: 'IV', block: 'E08-E13' },
-  { code: 'E78', description: 'Transtornos do metabolismo lipídico', chapter: 'IV', block: 'E70-E90' },
-  { code: 'F32', description: 'Episódios depressivos', chapter: 'V', block: 'F30-F39' },
-  { code: 'F41', description: 'Outros transtornos de ansiedade', chapter: 'V', block: 'F40-F48' },
-  { code: 'G40', description: 'Epilepsia', chapter: 'VI', block: 'G40-G47' },
-  { code: 'G43', description: 'Enxaqueca', chapter: 'VI', block: 'G40-G47' },
-  { code: 'I10', description: 'Hipertensão arterial primária', chapter: 'IX', block: 'I10-I15' },
-  { code: 'I25', description: 'Doença arterial coronariana crônica', chapter: 'IX', block: 'I20-I25' },
-  { code: 'I50', description: 'Insuficiência cardíaca', chapter: 'IX', block: 'I50-I50' },
-  { code: 'J06', description: 'Infecções agudas vias aéreas superiores', chapter: 'X', block: 'J00-J06' },
-  { code: 'J18', description: 'Pneumonia por fungos', chapter: 'X', block: 'J09-J18' },
-  { code: 'K21', description: 'Doença de refluxo gastroesofágica', chapter: 'XI', block: 'K20-K31' },
-  { code: 'K80', description: 'Colelitíase', chapter: 'XI', block: 'K80-K87' },
-  { code: 'M17', description: 'Artrose do joelho', chapter: 'XIII', block: 'M15-M19' },
-  { code: 'M47', description: 'Espondilose', chapter: 'XIII', block: 'M40-M54' },
-  { code: 'M54', description: 'Dorsalgia', chapter: 'XIII', block: 'M40-M54' },
-  { code: 'M76', description: 'Enfermidades dos tecidos moles peritendinosos', chapter: 'XIII', block: 'M70-M79' },
-  { code: 'N18', description: 'Insuficiência renal crônica', chapter: 'XIV', block: 'N17-N19' },
-  { code: 'N39', description: 'Outros transtornos do trato urinário', chapter: 'XIV', block: 'N30-N39' },
-  { code: 'O80', description: 'Parto normal', chapter: 'XV', block: 'O80-O84' },
-  { code: 'Q21', description: 'Defeitos cardíacos congênitos', chapter: 'XVII', block: 'Q20-Q24' },
-  { code: 'R50', description: 'Febre, não especificada', chapter: 'XVIII', block: 'R50-R69' },
-  { code: 'S72', description: 'Fratura do fêmur', chapter: 'XIX', block: 'S70-S79' },
-  { code: 'T78', description: 'Efeitos adversos, não classificados', chapter: 'XX', block: 'T66-T78' },
-  { code: 'Z00', description: 'Exame geral e investigação', chapter: 'XXI', block: 'Z00-Z13' },
-  { code: 'Z23', description: 'Necessidade de imunização', chapter: 'XXI', block: 'Z20-Z29' },
-  { code: 'Z34', description: 'Supervisão de gravidez normal', chapter: 'XXI', block: 'Z30-Z39' },
-  { code: 'Z72', description: 'Problemas associados ao estilo de vida', chapter: 'XXI', block: 'Z70-Z76' },
-];
+
 
 const drugCatalogData: DrugCatalogItem[] = [
   { id: 'drug_1', name: 'Paracetamol 500mg', activeIngredient: 'Paracetamol', presentation: 'Comprimido 500mg', manufacturer: 'Lab PY', category: 'Analgésico', controlledCategory: 'comum', requiresPrescription: false, minAgeMonths: 1, pregnantCategory: 'B', breastfeedingSafe: true, commonDoseAdult: '500mg-1g a cada 6-8h', commonDosePediatric: '10-15mg/kg/dose a cada 6-8h', route: 'oral', contraindications: [], sideEffects: [], interactions: [] },
@@ -145,10 +112,11 @@ const ClinicalModuleContent = ({
   });
 
   // ─── CID-10 STATE ───
+  const [cid10Data, setCid10Data] = useState<Cid10Code[]>([]);
   const [cidSearch, setCidSearch] = useState('');
   const [diagnoses, setDiagnoses] = useState<Diagnosis[]>([]);
   const [newDiagnosis, setNewDiagnosis] = useState<Partial<Diagnosis>>({
-    cid10Code: '', cid10Description: '', diagnosisType: 'principal', status: 'ativo', notes: '',
+    cid10Code: '', cid10Description: '', diagnosisType: 'principal', status: 'ativo', notes: '', snomedCode: '', snomedDescription: '',
   });
   const [editingDiagnosis, setEditingDiagnosis] = useState<Diagnosis | null>(null);
   const [editingPrescription, setEditingPrescription] = useState<Prescription | null>(null);
@@ -273,6 +241,29 @@ const ClinicalModuleContent = ({
     };
     initCounters();
   }, [selectedPatId, supabase]);
+
+  // Load CID-10 codes from Supabase (server-side search)
+  useEffect(() => {
+    if (!supabase) return;
+    const loadCid10 = async () => {
+      const { data } = await supabase.from('cid10_codes').select('code, description, description_es, description_pt, chapter, block').order('code').limit(100);
+      if (data) setCid10Data(data);
+    };
+    loadCid10();
+  }, [supabase]);
+
+  const searchCid10 = useCallback(async (query: string) => {
+    if (!supabase) return;
+    if (!query.trim()) {
+      const { data } = await supabase.from('cid10_codes').select('code, description, description_es, description_pt, chapter, block').order('code').limit(100);
+      if (data) setCid10Data(data);
+      return;
+    }
+    const { data } = await supabase.from('cid10_codes').select('code, description, description_es, description_pt, chapter, block')
+      .or(`code.ilike.%${query}%,description.ilike.%${query}%,description_es.ilike.%${query}%,description_pt.ilike.%${query}%`)
+      .order('code').limit(100);
+    if (data) setCid10Data(data);
+  }, [supabase]);
 
   // Initial state factories for form reset on patient change
   const makeAnamnese = useCallback((patientId: string): Anamnese => ({
@@ -674,14 +665,19 @@ const ClinicalModuleContent = ({
   // Reset form when patient changes (moved from useEffect to event handler)
   const handlePatientChange = useCallback((newPatientId: string) => {
     setSelectedPatId(newPatientId);
+    setNewDiagnosis({ cid10Code: '', cid10Description: '', diagnosisType: 'principal', status: 'ativo', notes: '', snomedCode: '', snomedDescription: '' });
+    setCidSearch('');
+    setEditingDiagnosis(null);
   }, []);
 
   // ─── CID-10 LOOKUP ───
-  const filteredCid10 = useMemo(() => {
-    if (!cidSearch.trim()) return cid10Data;
-    const q = cidSearch.toLowerCase();
-    return cid10Data.filter(c => c.code.toLowerCase().includes(q) || c.description.toLowerCase().includes(q));
-  }, [cidSearch]);
+  const getCid10Description = useCallback((code: string, dbDescription: string, descriptionEs?: string, descriptionPt?: string) => {
+    if (locale.startsWith('pt') && descriptionPt) return descriptionPt;
+    if (locale.startsWith('es') && descriptionEs) return descriptionEs;
+    return dbDescription;
+  }, [locale]);
+
+  const filteredCid10 = useMemo(() => cid10Data, [cid10Data]);
 
   // ─── DRUG SEARCH ───
   const filteredDrugs = useMemo(() => {
@@ -1370,7 +1366,7 @@ const ClinicalModuleContent = ({
                 {patientDropdownOpen && (
                   <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
                     <div
-                      onClick={() => { setSelectedPatId(''); setPatientSearch(''); setPatientDropdownOpen(false); }}
+                      onClick={() => { handlePatientChange(''); setPatientSearch(''); setPatientDropdownOpen(false); }}
                       className="px-3 py-2 text-xs text-slate-500 hover:bg-slate-50 cursor-pointer font-semibold border-b border-slate-100"
                     >
                       {t('agenda_select', 'app')}
@@ -1378,7 +1374,7 @@ const ClinicalModuleContent = ({
                     {filteredPatients.map(p => (
                       <div
                         key={p.id}
-                        onClick={() => { setSelectedPatId(p.id); setPatientSearch(''); setPatientDropdownOpen(false); }}
+                        onClick={() => { handlePatientChange(p.id); setPatientSearch(''); setPatientDropdownOpen(false); }}
                         className={`px-3 py-2 text-xs cursor-pointer hover:bg-teal-50 flex justify-between items-center ${selectedPatId === p.id ? 'bg-teal-50 text-teal-700 font-bold' : 'text-slate-700'}`}
                       >
                         <span>{p.name}</span>
@@ -2121,33 +2117,33 @@ const ClinicalModuleContent = ({
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className={`${labelCls} text-blue-700`}>{t('hce_subjective', 'app')}</label>
-                      <textarea value={soapNote.subjective} onChange={e => setSoapNote(p => ({ ...p, subjective: e.target.value }))} rows={5} className={textareaCls} placeholder="Queixa principal do paciente, em suas próprias palavras..." />
+                      <textarea value={soapNote.subjective} onChange={e => setSoapNote(p => ({ ...p, subjective: e.target.value }))} rows={5} className={textareaCls} placeholder={t('hce_subjective_placeholder', 'app')} />
                     </div>
                     <div>
                       <label className={`${labelCls} text-green-700`}>{t('hce_objective', 'app')}</label>
-                      <textarea value={soapNote.objective} onChange={e => setSoapNote(p => ({ ...p, objective: e.target.value }))} rows={5} className={textareaCls} placeholder="Dados objetivos: sinais vitais, exame físico, achados clínicos..." />
+                      <textarea value={soapNote.objective} onChange={e => setSoapNote(p => ({ ...p, objective: e.target.value }))} rows={5} className={textareaCls} placeholder={t('hce_objective_placeholder', 'app')} />
                     </div>
                     <div>
                       <label className={`${labelCls} text-amber-700`}>{t('hce_assessment', 'app')}</label>
-                      <textarea value={soapNote.assessment} onChange={e => setSoapNote(p => ({ ...p, assessment: e.target.value }))} rows={5} className={textareaCls} placeholder="Hipótese diagnóstica, CID-10, raciocínio clínico..." />
+                      <textarea value={soapNote.assessment} onChange={e => setSoapNote(p => ({ ...p, assessment: e.target.value }))} rows={5} className={textareaCls} placeholder={t('hce_assessment_placeholder', 'app')} />
                     </div>
                     <div>
                       <label className={`${labelCls} text-purple-700`}>{t('hce_plan', 'app')}</label>
-                      <textarea value={soapNote.plan} onChange={e => setSoapNote(p => ({ ...p, plan: e.target.value }))} rows={5} className={textareaCls} placeholder="Conduta terapêutica, prescrições, exames solicitados, retorno..." />
+                      <textarea value={soapNote.plan} onChange={e => setSoapNote(p => ({ ...p, plan: e.target.value }))} rows={5} className={textareaCls} placeholder={t('hce_plan_placeholder', 'app')} />
                     </div>
                   </div>
                   <div>
-                    <label className={labelCls}>Observações Adicionais</label>
+                    <label className={labelCls}>{t('hce_notes', 'app')}</label>
                     <textarea value={soapNote.notes} onChange={e => setSoapNote(p => ({ ...p, notes: e.target.value }))} rows={2} className={textareaCls} />
                   </div>
                   <div className="flex justify-end gap-2">
                     {soapNote.id && (
                       <button onClick={handleDeleteSoap} className="py-2.5 px-4 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-lg text-xs transition">
-                        Excluir
+                        {t('hce_delete', 'app')}
                       </button>
                     )}
                     <button onClick={handleSaveSoap} className="py-2.5 px-6 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-lg text-xs transition">
-                      Salvar Evolução SOAP
+                      {t('hce_save_soap', 'app')}
                     </button>
                   </div>
 
@@ -2159,7 +2155,7 @@ const ClinicalModuleContent = ({
               {hceTab === 'diagnoses' && (
                 <div className="space-y-4 pt-4">
                   <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
-                    <Tag className="w-4 h-4 text-teal-600" /> Diagnósticos CID-10 / CIE-10
+                    <Tag className="w-4 h-4 text-teal-600" /> {t('hce_tab_diagnoses', 'app')}
                   </h3>
 
                   {!selectedPatId ? (
@@ -2172,41 +2168,62 @@ const ClinicalModuleContent = ({
                   {/* CID-10 Search */}
                   <div className="relative">
                     <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
-                    <input type="text" value={cidSearch} onChange={e => setCidSearch(e.target.value)} placeholder={t('hce_cid10_lookup', 'app')}
+                    <input type="text" value={cidSearch} onChange={e => { setCidSearch(e.target.value); searchCid10(e.target.value); }} placeholder={t('hce_cid10_lookup', 'app')}
                       className={`${inputCls} pl-9`} />
                   </div>
-                  <div className="max-h-[200px] overflow-y-auto border border-slate-100 rounded-xl divide-y divide-slate-50">
-                    {filteredCid10.slice(0, 20).map(c => (
+                  <div className="max-h-[120px] overflow-y-auto border border-slate-100 rounded-xl divide-y divide-slate-50">
+                    {filteredCid10.map(c => (
                       <div key={c.code} onClick={() => setNewDiagnosis(p => ({ ...p, cid10Code: c.code, cid10Description: c.description }))}
-                        className="px-3 py-2 hover:bg-teal-50 cursor-pointer flex items-center justify-between text-xs transition">
-                        <span className="font-bold text-teal-700">{c.code}</span>
-                        <span className="text-slate-600 flex-1 ml-2">{c.description}</span>
-                        <span className="text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">Cap. {c.chapter}</span>
+                        className="px-3 py-2.5 hover:bg-teal-50 cursor-pointer flex items-center gap-2 text-sm transition">
+                        <span className="font-bold text-teal-700 whitespace-nowrap">{c.code}</span>
+                        <span className="text-slate-600 flex-1 min-w-0 truncate">{getCid10Description(c.code, c.description, c.description_es, c.description_pt)}</span>
+                        <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded whitespace-nowrap flex-shrink-0">Cap. {c.chapter}</span>
                       </div>
                     ))}
                   </div>
                   {/* Add Diagnosis Form */}
-                  <div className="grid grid-cols-4 gap-2">
+                  <div className="grid grid-cols-2 gap-2">
                     <div>
                       <label className={labelCls}>{t('hce_cid10_code', 'app')}</label>
                       <input type="text" value={newDiagnosis.cid10Code} onChange={e => setNewDiagnosis(p => ({ ...p, cid10Code: e.target.value }))} className={inputCls} readOnly />
                     </div>
                     <div>
                       <label className={labelCls}>{t('hce_cid10_description', 'app')}</label>
-                      <input type="text" value={newDiagnosis.cid10Description || ''} onChange={e => setNewDiagnosis(p => ({ ...p, cid10Description: e.target.value }))} className={inputCls} />
+                      <input type="text" value={getCid10Description(newDiagnosis.cid10Code || '', newDiagnosis.cid10Description || '')} onChange={e => setNewDiagnosis(p => ({ ...p, cid10Description: e.target.value }))} className={inputCls} />
+                    </div>
+                  </div>
+                  <div className="border border-teal-200 rounded-xl p-3 space-y-2">
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <label className={labelCls}>{t('hce_diagnosis_type', 'app')}</label>
+                        <select value={newDiagnosis.diagnosisType} onChange={e => setNewDiagnosis(p => ({ ...p, diagnosisType: e.target.value as any }))} className={inputCls}>
+                          <option value="principal">{t('hce_diagnosis_principal', 'app')}</option>
+                          <option value="secundário">{t('hce_diagnosis_secundario', 'app')}</option>
+                          <option value="diferencial">{t('hce_diagnosis_diferencial', 'app')}</option>
+                          <option value="presuntivo">{t('hce_diagnosis_presuntivo', 'app')}</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className={labelCls}>{t('hce_diagnosis_status', 'app')}</label>
+                        <select value={newDiagnosis.status || 'ativo'} onChange={e => setNewDiagnosis(p => ({ ...p, status: e.target.value as any }))} className={inputCls}>
+                          <option value="ativo">{t('hce_diagnosis_status_ativo', 'app')}</option>
+                          <option value="em_tratamento">{t('hce_diagnosis_status_em_tratamento', 'app')}</option>
+                          <option value="crônico">{t('hce_diagnosis_status_cronico', 'app')}</option>
+                          <option value="resolvido">{t('hce_diagnosis_status_resolvido', 'app')}</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className={labelCls}>{t('hce_snomed_code', 'app')}</label>
+                        <input type="text" value={newDiagnosis.snomedCode || ''} onChange={e => setNewDiagnosis(p => ({ ...p, snomedCode: e.target.value }))} className={inputCls} placeholder="SNOMED-CT" />
+                      </div>
                     </div>
                     <div>
-                      <label className={labelCls}>{t('hce_diagnosis_type', 'app')}</label>
-                      <select value={newDiagnosis.diagnosisType} onChange={e => setNewDiagnosis(p => ({ ...p, diagnosisType: e.target.value as any }))} className={inputCls}>
-                        <option value="principal">{t('hce_diagnosis_principal', 'app')}</option>
-                        <option value="secundário">{t('hce_diagnosis_secundario', 'app')}</option>
-                        <option value="diferencial">{t('hce_diagnosis_diferencial', 'app')}</option>
-                        <option value="presuntivo">{t('hce_diagnosis_presuntivo', 'app')}</option>
-                      </select>
+                      <label className={labelCls}>{t('hce_snomed_description', 'app')}</label>
+                      <input type="text" value={newDiagnosis.snomedDescription || ''} onChange={e => setNewDiagnosis(p => ({ ...p, snomedDescription: e.target.value }))} className={inputCls} />
                     </div>
                     <div>
-                      <label className={labelCls}>{t('hce_snomed_code', 'app')}</label>
-                      <input type="text" value={newDiagnosis.snomedCode || ''} onChange={e => setNewDiagnosis(p => ({ ...p, snomedCode: e.target.value }))} className={inputCls} placeholder="SNOMED-CT" />
+                      <label className={labelCls}>{t('hce_notes', 'app')}</label>
+                      <input type="text" value={newDiagnosis.notes || ''} onChange={e => setNewDiagnosis(p => ({ ...p, notes: e.target.value }))} className={inputCls} />
                     </div>
                   </div>
                   <div className="flex justify-end">
@@ -2215,7 +2232,7 @@ const ClinicalModuleContent = ({
                         const diagId = nextId('diag');
                         const newDiag = { ...newDiagnosis, id: diagId, patientId: selectedPatient?.id || '', createdBy: activeOperator, createdAt: new Date().toISOString(), status: newDiagnosis.status || 'ativo', notes: newDiagnosis.notes || '' } as Diagnosis;
                         setDiagnoses(prev => [...prev, newDiag]);
-                        setNewDiagnosis({ cid10Code: '', cid10Description: '', diagnosisType: 'principal', status: 'ativo', notes: '' });
+                        setNewDiagnosis({ cid10Code: '', cid10Description: '', diagnosisType: 'principal', status: 'ativo', notes: '', snomedCode: '', snomedDescription: '' });
                         if (supabase) {
                           await supabase.from('diagnoses').insert({
                             id: diagId, patient_id: selectedPatient?.id || '', created_by: activeOperator,
@@ -2227,73 +2244,97 @@ const ClinicalModuleContent = ({
                         }
                       }
                     }} className="bg-slate-800 hover:bg-slate-900 text-white text-xs px-4 py-2 rounded-lg font-bold">
-                      Adicionar Diagnóstico
+                      {t('hce_diagnosis_add', 'app')}
                     </button>
                   </div>
                   {/* Diagnoses List */}
                   <div className="space-y-2">
                     {diagnoses.map(d => (
                       editingDiagnosis?.id === d.id ? (
-                        <div key={d.id} className="p-3 bg-teal-50 border border-teal-200 rounded-xl text-xs space-y-2">
-                          <div className="grid grid-cols-3 gap-2">
+                        <div key={d.id} className="p-3 bg-teal-50 border border-teal-200 rounded-xl text-sm space-y-2">
+                          <div className="grid grid-cols-2 gap-2">
                             <div>
-                              <label className={labelCls}>{t('hce_diagnosis_type', 'app')}</label>
-                              <select value={editingDiagnosis.diagnosisType} onChange={e => setEditingDiagnosis(p => p ? { ...p, diagnosisType: e.target.value as any } : null)} className={inputCls}>
-                                <option value="principal">{t('hce_diagnosis_principal', 'app')}</option>
-                                <option value="secundário">{t('hce_diagnosis_secundario', 'app')}</option>
-                                <option value="diferencial">{t('hce_diagnosis_diferencial', 'app')}</option>
-                                <option value="presuntivo">{t('hce_diagnosis_presuntivo', 'app')}</option>
-                              </select>
+                              <label className={labelCls}>{t('hce_cid10_code', 'app')}</label>
+                              <input type="text" value={editingDiagnosis.cid10Code} className={inputCls} readOnly />
                             </div>
                             <div>
-                              <label className={labelCls}>Status</label>
-                              <select value={editingDiagnosis.status} onChange={e => setEditingDiagnosis(p => p ? { ...p, status: e.target.value as any } : null)} className={inputCls}>
-                                <option value="ativo">Ativo</option>
-                                <option value="em_tratamento">Em Tratamento</option>
-                                <option value="crônico">Crônico</option>
-                                <option value="resolvido">Resolvido</option>
-                              </select>
-                            </div>
-                            <div>
-                              <label className={labelCls}>SNOMED-CT</label>
-                              <input type="text" value={editingDiagnosis.snomedCode || ''} onChange={e => setEditingDiagnosis(p => p ? { ...p, snomedCode: e.target.value } : null)} className={inputCls} placeholder="SNOMED-CT" />
+                              <label className={labelCls}>{t('hce_cid10_description', 'app')}</label>
+                              <input type="text" value={getCid10Description(editingDiagnosis.cid10Code, editingDiagnosis.cid10Description)} className={inputCls} readOnly />
                             </div>
                           </div>
-                          <div>
-                            <label className={labelCls}>Observações</label>
-                            <input type="text" value={editingDiagnosis.notes} onChange={e => setEditingDiagnosis(p => p ? { ...p, notes: e.target.value } : null)} className={inputCls} />
+                          <div className="border border-teal-200 rounded-xl p-3 space-y-2">
+                            <div className="grid grid-cols-3 gap-2">
+                              <div>
+                                <label className={labelCls}>{t('hce_diagnosis_type', 'app')}</label>
+                                <select value={editingDiagnosis.diagnosisType} onChange={e => setEditingDiagnosis(p => p ? { ...p, diagnosisType: e.target.value as any } : null)} className={inputCls}>
+                                  <option value="principal">{t('hce_diagnosis_principal', 'app')}</option>
+                                  <option value="secundário">{t('hce_diagnosis_secundario', 'app')}</option>
+                                  <option value="diferencial">{t('hce_diagnosis_diferencial', 'app')}</option>
+                                  <option value="presuntivo">{t('hce_diagnosis_presuntivo', 'app')}</option>
+                                </select>
+                              </div>
+                              <div>
+                                <label className={labelCls}>{t('hce_diagnosis_status', 'app')}</label>
+                                <select value={editingDiagnosis.status} onChange={e => setEditingDiagnosis(p => p ? { ...p, status: e.target.value as any } : null)} className={inputCls}>
+                                  <option value="ativo">{t('hce_diagnosis_status_ativo', 'app')}</option>
+                                  <option value="em_tratamento">{t('hce_diagnosis_status_em_tratamento', 'app')}</option>
+                                  <option value="crônico">{t('hce_diagnosis_status_cronico', 'app')}</option>
+                                  <option value="resolvido">{t('hce_diagnosis_status_resolvido', 'app')}</option>
+                                </select>
+                              </div>
+                              <div>
+                                <label className={labelCls}>{t('hce_snomed_code', 'app')}</label>
+                                <input type="text" value={editingDiagnosis.snomedCode || ''} onChange={e => setEditingDiagnosis(p => p ? { ...p, snomedCode: e.target.value } : null)} className={inputCls} placeholder="SNOMED-CT" />
+                              </div>
+                            </div>
+                            <div>
+                              <label className={labelCls}>{t('hce_snomed_description', 'app')}</label>
+                              <input type="text" value={editingDiagnosis.snomedDescription || ''} onChange={e => setEditingDiagnosis(p => p ? { ...p, snomedDescription: e.target.value } : null)} className={inputCls} />
+                            </div>
+                            <div>
+                              <label className={labelCls}>{t('hce_notes', 'app')}</label>
+                              <input type="text" value={editingDiagnosis.notes} onChange={e => setEditingDiagnosis(p => p ? { ...p, notes: e.target.value } : null)} className={inputCls} />
+                            </div>
                           </div>
                           <div className="flex justify-end gap-2">
-                            <button onClick={() => setEditingDiagnosis(null)} className="px-3 py-1.5 text-slate-600 hover:text-slate-800 text-xs font-bold rounded-lg">Cancelar</button>
-                            <button onClick={() => editingDiagnosis && handleUpdateDiagnosis(editingDiagnosis)} className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg">Salvar</button>
+                            <button onClick={() => setEditingDiagnosis(null)} className="px-4 py-2 text-slate-600 hover:text-slate-800 text-xs font-bold rounded-lg">{t('hce_cancel', 'app')}</button>
+                            <button onClick={() => editingDiagnosis && handleUpdateDiagnosis(editingDiagnosis)} className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg">{t('save', 'app')}</button>
                           </div>
                         </div>
                       ) : (
-                        <div key={d.id} className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-xs">
+                        <div key={d.id} className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-sm">
                           <div>
                             <span className="font-bold text-teal-700">{d.cid10Code}</span>
-                            <span className="text-slate-600 ml-2">{d.cid10Description}</span>
-                            <span className={`ml-2 px-2 py-0.5 rounded text-[10px] font-bold ${
+                            <span className="text-slate-600 ml-2">{getCid10Description(d.cid10Code, d.cid10Description)}</span>
+                            <span className={`ml-2 px-2 py-0.5 rounded text-xs font-bold ${
                               d.diagnosisType === 'principal' ? 'bg-teal-100 text-teal-700' :
                               d.diagnosisType === 'secundário' ? 'bg-blue-100 text-blue-700' :
                               d.diagnosisType === 'diferencial' ? 'bg-amber-100 text-amber-700' :
                               'bg-slate-100 text-slate-700'
-                            }`}>{d.diagnosisType}</span>
+                            }`}>{t(`hce_diagnosis_${d.diagnosisType === 'secundário' ? 'secundario' : d.diagnosisType}`, 'app')}</span>
                           </div>
                           <div className="flex items-center gap-2">
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            <span className={`px-2 py-0.5 rounded text-xs font-bold ${
                               d.status === 'ativo' ? 'bg-rose-100 text-rose-700' :
                               d.status === 'em_tratamento' ? 'bg-amber-100 text-amber-700' :
                               d.status === 'crônico' ? 'bg-purple-100 text-purple-700' :
                               'bg-green-100 text-green-700'
-                            }`}>{d.status}</span>
-                            <button onClick={() => setEditingDiagnosis(d)} className="text-teal-500 hover:text-teal-700"><Sliders className="w-3 h-3" /></button>
+                            }`}>{t(`hce_diagnosis_status_${d.status}`, 'app')}</span>
+                            <button onClick={() => setEditingDiagnosis(d)} className="group relative px-2 py-1.5 bg-teal-100 hover:bg-teal-200 text-teal-700 text-xs font-bold rounded-lg transition">
+                              <Pencil className="w-3.5 h-3.5" />
+                              <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition pointer-events-none whitespace-nowrap">{t('hce_edit', 'app')}</span>
+                            </button>
                             <button onClick={async () => {
-                              setDiagnoses(prev => prev.filter(x => x.id !== d.id));
-                              if (supabase) {
-                                await supabase.from('diagnoses').delete().eq('id', d.id);
+                              if (window.confirm(t('hce_confirm_delete_diagnosis', 'app') || 'Tem certeza que deseja excluir este diagnóstico?')) {
+                                setDiagnoses(prev => prev.filter(x => x.id !== d.id));
+                                if (supabase) {
+                                  await supabase.from('diagnoses').delete().eq('id', d.id);
+                                }
                               }
-                            }} className="text-rose-500 hover:text-rose-700"><Trash2 className="w-3 h-3" /></button>
+                            }} className="group relative px-2 py-1.5 bg-rose-100 hover:bg-rose-200 text-rose-700 text-xs font-bold rounded-lg transition">
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition pointer-events-none whitespace-nowrap">{t('hce_delete', 'app')}</span>
+                            </button>
                           </div>
                         </div>
                       )

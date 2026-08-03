@@ -1,4 +1,4 @@
-{
+﻿{
   "login": {
     "operator_email": "E-mail do operador",
     "password": "Senha",
@@ -191,15 +191,26 @@
     "hce_objective": "Objetivo (O)",
     "hce_assessment": "Análise (A)",
     "hce_plan": "Plano (P)",
+    "hce_subjective_placeholder": "Queixa principal do paciente, em suas próprias palavras...",
+    "hce_objective_placeholder": "Dados objetivos: sinais vitais, exame físico, achados clínicos...",
+    "hce_assessment_placeholder": "Hipótese diagnóstica, CID-10, raciocínio clínico...",
+    "hce_plan_placeholder": "Conduta terapêutica, prescrições, exames solicitados, retorno...",
+    "hce_save_soap": "Salvar Evolução SOAP",
     "hce_cid10_lookup": "Buscar CID-10",
     "hce_cid10_code": "Código CID-10",
     "hce_cid10_description": "Descrição",
-    "hce_snomed_code": "Código SNOMED-CT",
+    "hce_snomed_description": "Descrição SNOMED-CT", "hce_snomed_code": "Código SNOMED-CT",
     "hce_diagnosis_type": "Tipo de Diagnóstico",
     "hce_diagnosis_principal": "Principal",
     "hce_diagnosis_secundario": "Secundário",
     "hce_diagnosis_diferencial": "Diferencial",
     "hce_diagnosis_presuntivo": "Presuntivo",
+    "hce_diagnosis_add": "Adicionar Diagnóstico",
+    "hce_diagnosis_status": "Status",
+    "hce_diagnosis_status_ativo": "Ativo",
+    "hce_diagnosis_status_em_tratamento": "Em Tratamento",
+    "hce_diagnosis_status_cronico": "Crônico",
+    "hce_diagnosis_status_resolvido": "Resolvido",
     "hce_drug_search": "Buscar Medicamento",
     "hce_drug_name": "Medicamento",
     "hce_active_ingredient": "Princípio Ativo",
@@ -304,7 +315,7 @@
     "hce_notes": "Observações",
     "hce_notes_placeholder": "Observações adicionais da anamnese...",
     "hce_save_anamnese": "Salvar Anamnese",
-    "hce_delete": "Excluir",
+    "hce_confirm_delete_diagnosis": "Tem certeza que deseja excluir este diagnóstico?", "hce_edit": "Editar", "hce_delete": "Excluir",
     "hce_save_physical_exam": "Salvar Exame Físico",
     "hce_exam_placeholder": "Descreva o exame de",
     "hce_add": "Adicionar",
@@ -1912,3 +1923,4 @@
     "id_document": "Documento de Identidade"
   }
 }
+

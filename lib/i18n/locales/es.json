@@ -1,4 +1,4 @@
-{
+﻿{
   "login": {
     "operator_email": "Correo electrónico del operador",
     "password": "Contraseña",
@@ -1197,15 +1197,26 @@
     "hce_objective": "Objetivo (O)",
     "hce_assessment": "Análisis (A)",
     "hce_plan": "Plan (P)",
+    "hce_subjective_placeholder": "Queja principal del paciente, en sus propias palabras...",
+    "hce_objective_placeholder": "Datos objetivos: signos vitales, examen físico, hallazgos clínicos...",
+    "hce_assessment_placeholder": "Hipótesis diagnóstica, CIE-10, razonamiento clínico...",
+    "hce_plan_placeholder": "Conducta terapéutica, prescripciones, exámenes solicitados, seguimiento...",
+    "hce_save_soap": "Guardar Evolución SOAP",
     "hce_cid10_lookup": "Buscar CID-10",
     "hce_cid10_code": "Código CID-10",
     "hce_cid10_description": "Descripción",
-    "hce_snomed_code": "Código SNOMED-CT",
+    "hce_snomed_description": "Descripción SNOMED-CT", "hce_snomed_code": "Código SNOMED-CT",
     "hce_diagnosis_type": "Tipo de Diagnóstico",
     "hce_diagnosis_principal": "Principal",
     "hce_diagnosis_secundario": "Secundario",
     "hce_diagnosis_diferencial": "Diferencial",
     "hce_diagnosis_presuntivo": "Presuntivo",
+    "hce_diagnosis_add": "Agregar Diagnóstico",
+    "hce_diagnosis_status": "Estado",
+    "hce_diagnosis_status_ativo": "Activo",
+    "hce_diagnosis_status_em_tratamento": "En Tratamiento",
+    "hce_diagnosis_status_cronico": "Crónico",
+    "hce_diagnosis_status_resolvido": "Resuelto",
     "hce_drug_search": "Buscar Medicamento",
     "hce_drug_name": "Medicamento",
     "hce_active_ingredient": "Principio Activo",
@@ -1310,7 +1321,7 @@
     "hce_notes": "Observaciones",
     "hce_notes_placeholder": "Observaciones adicionales de la anamnesis...",
     "hce_save_anamnese": "Guardar Anamnesis",
-    "hce_delete": "Eliminar",
+    "hce_confirm_delete_diagnosis": "¿Está seguro de que desea eliminar este diagnóstico?", "hce_edit": "Editar", "hce_delete": "Eliminar",
     "hce_save_physical_exam": "Guardar Examen Físico",
     "hce_exam_placeholder": "Describa el examen de",
     "hce_add": "Agregar",
@@ -2075,3 +2086,5 @@
     "portal_status_cancelled": "Cancelado"
   }
 }
+
+

@@ -189,6 +189,8 @@ export interface Diagnosis {
 export interface Cid10Code {
   code: string;
   description: string;
+  description_es: string;
+  description_pt: string;
   chapter: string;
   block: string;
 }
@@ -1524,39 +1526,39 @@ export const initialProfessionals: Professional[] = [
 // HCE SEED DATA - CID-10 Codes
 // ==========================================
 export const cid10Codes: Cid10Code[] = [
-  { code: 'A00', description: 'Cólera', chapter: 'I', block: 'A00-A09' },
-  { code: 'A09', description: 'Outras doenças infecciosas e parasitárias intestinais', chapter: 'I', block: 'A00-A09' },
-  { code: 'B20', description: 'Doença pelo HIV', chapter: 'I', block: 'B20-B24' },
-  { code: 'C34', description: 'Neoplasia maligna dos brônquios e do pulmão', chapter: 'II', block: 'C30-C39' },
-  { code: 'C50', description: 'Neoplasia maligna da mama', chapter: 'II', block: 'C50-C50' },
-  { code: 'E11', description: 'Diabetes mellitus tipo 2', chapter: 'IV', block: 'E08-E13' },
-  { code: 'E78', description: 'Transtornos do metabolismo lipídico', chapter: 'IV', block: 'E70-E90' },
-  { code: 'F32', description: 'Episódios depressivos', chapter: 'V', block: 'F30-F39' },
-  { code: 'F41', description: 'Outros transtornos de ansiedade', chapter: 'V', block: 'F40-F48' },
-  { code: 'G40', description: 'Epilepsia', chapter: 'VI', block: 'G40-G47' },
-  { code: 'G43', description: 'Enxaqueca', chapter: 'VI', block: 'G40-G47' },
-  { code: 'I10', description: 'Hipertensão arterial primária', chapter: 'IX', block: 'I10-I15' },
-  { code: 'I25', description: 'Doença arterial coronariana crônica', chapter: 'IX', block: 'I20-I25' },
-  { code: 'I50', description: 'Insuficiência cardíaca', chapter: 'IX', block: 'I50-I50' },
-  { code: 'J06', description: 'Infecções agudas das vias aéreas superiores', chapter: 'X', block: 'J00-J06' },
-  { code: 'J18', description: 'Pneumonia por fungos', chapter: 'X', block: 'J09-J18' },
-  { code: 'K21', description: 'Doença de refluxo gastroesofágica', chapter: 'XI', block: 'K20-K31' },
-  { code: 'K80', description: 'Colelitíase', chapter: 'XI', block: 'K80-K87' },
-  { code: 'M17', description: 'Artrose do joelho', chapter: 'XIII', block: 'M15-M19' },
-  { code: 'M47', description: 'Espondilose', chapter: 'XIII', block: 'M40-M54' },
-  { code: 'M54', description: 'Dorsalgia', chapter: 'XIII', block: 'M40-M54' },
-  { code: 'M76', description: 'Enfermidades dos tecidos moles peritendinosos', chapter: 'XIII', block: 'M70-M79' },
-  { code: 'N18', description: 'Insuficiência renal crônica', chapter: 'XIV', block: 'N17-N19' },
-  { code: 'N39', description: 'Outros transtornos do trato urinário', chapter: 'XIV', block: 'N30-N39' },
-  { code: 'O80', description: 'Parto normal', chapter: 'XV', block: 'O80-O84' },
-  { code: 'Q21', description: 'Defeitos cardíacos congênitos', chapter: 'XVII', block: 'Q20-Q24' },
-  { code: 'R50', description: 'Febre, não especificada', chapter: 'XVIII', block: 'R50-R69' },
-  { code: 'S72', description: 'Fratura do fêmur', chapter: 'XIX', block: 'S70-S79' },
-  { code: 'T78', description: 'Efeitos adversos, não classificados em outra parte', chapter: 'XX', block: 'T66-T78' },
-  { code: 'Z00', description: 'Exame geral e investigação de pessoas sem queixa', chapter: 'XXI', block: 'Z00-Z13' },
-  { code: 'Z23', description: 'Necessidade de imunização contra doença bacteriana', chapter: 'XXI', block: 'Z20-Z29' },
-  { code: 'Z34', description: 'Supervisão de gravidez normal', chapter: 'XXI', block: 'Z30-Z39' },
-  { code: 'Z72', description: 'Problemas associados ao estilo de vida', chapter: 'XXI', block: 'Z70-Z76' },
+  { code: 'A00', description: 'Cólera', description_es: '', description_pt: 'Cólera', chapter: 'I', block: 'A00-A09' },
+  { code: 'A09', description: 'Outras doenças infecciosas e parasitárias intestinais', description_es: '', description_pt: 'Outras doenças infecciosas e parasitárias intestinais', chapter: 'I', block: 'A00-A09' },
+  { code: 'B20', description: 'Doença pelo HIV', description_es: '', description_pt: 'Doença pelo HIV', chapter: 'I', block: 'B20-B24' },
+  { code: 'C34', description: 'Neoplasia maligna dos brônquios e do pulmão', description_es: '', description_pt: 'Neoplasia maligna dos brônquios e do pulmão', chapter: 'II', block: 'C30-C39' },
+  { code: 'C50', description: 'Neoplasia maligna da mama', description_es: '', description_pt: 'Neoplasia maligna da mama', chapter: 'II', block: 'C50-C50' },
+  { code: 'E11', description: 'Diabetes mellitus tipo 2', description_es: '', description_pt: 'Diabetes mellitus tipo 2', chapter: 'IV', block: 'E08-E13' },
+  { code: 'E78', description: 'Transtornos do metabolismo lipídico', description_es: '', description_pt: 'Transtornos do metabolismo lipídico', chapter: 'IV', block: 'E70-E90' },
+  { code: 'F32', description: 'Episódios depressivos', description_es: '', description_pt: 'Episódios depressivos', chapter: 'V', block: 'F30-F39' },
+  { code: 'F41', description: 'Outros transtornos de ansiedade', description_es: '', description_pt: 'Outros transtornos de ansiedade', chapter: 'V', block: 'F40-F48' },
+  { code: 'G40', description: 'Epilepsia', description_es: '', description_pt: 'Epilepsia', chapter: 'VI', block: 'G40-G47' },
+  { code: 'G43', description: 'Enxaqueca', description_es: '', description_pt: 'Enxaqueca', chapter: 'VI', block: 'G40-G47' },
+  { code: 'I10', description: 'Hipertensão arterial primária', description_es: '', description_pt: 'Hipertensão arterial primária', chapter: 'IX', block: 'I10-I15' },
+  { code: 'I25', description: 'Doença arterial coronariana crônica', description_es: '', description_pt: 'Doença arterial coronariana crônica', chapter: 'IX', block: 'I20-I25' },
+  { code: 'I50', description: 'Insuficiência cardíaca', description_es: '', description_pt: 'Insuficiência cardíaca', chapter: 'IX', block: 'I50-I50' },
+  { code: 'J06', description: 'Infecções agudas das vias aéreas superiores', description_es: '', description_pt: 'Infecções agudas das vias aéreas superiores', chapter: 'X', block: 'J00-J06' },
+  { code: 'J18', description: 'Pneumonia por fungos', description_es: '', description_pt: 'Pneumonia por fungos', chapter: 'X', block: 'J09-J18' },
+  { code: 'K21', description: 'Doença de refluxo gastroesofágica', description_es: '', description_pt: 'Doença de refluxo gastroesofágica', chapter: 'XI', block: 'K20-K31' },
+  { code: 'K80', description: 'Colelitíase', description_es: '', description_pt: 'Colelitíase', chapter: 'XI', block: 'K80-K87' },
+  { code: 'M17', description: 'Artrose do joelho', description_es: '', description_pt: 'Artrose do joelho', chapter: 'XIII', block: 'M15-M19' },
+  { code: 'M47', description: 'Espondilose', description_es: '', description_pt: 'Espondilose', chapter: 'XIII', block: 'M40-M54' },
+  { code: 'M54', description: 'Dorsalgia', description_es: '', description_pt: 'Dorsalgia', chapter: 'XIII', block: 'M40-M54' },
+  { code: 'M76', description: 'Enfermidades dos tecidos moles peritendinosos', description_es: '', description_pt: 'Enfermidades dos tecidos moles peritendinosos', chapter: 'XIII', block: 'M70-M79' },
+  { code: 'N18', description: 'Insuficiência renal crônica', description_es: '', description_pt: 'Insuficiência renal crônica', chapter: 'XIV', block: 'N17-N19' },
+  { code: 'N39', description: 'Outros transtornos do trato urinário', description_es: '', description_pt: 'Outros transtornos do trato urinário', chapter: 'XIV', block: 'N30-N39' },
+  { code: 'O80', description: 'Parto normal', description_es: '', description_pt: 'Parto normal', chapter: 'XV', block: 'O80-O84' },
+  { code: 'Q21', description: 'Defeitos cardíacos congênitos', description_es: '', description_pt: 'Defeitos cardíacos congênitos', chapter: 'XVII', block: 'Q20-Q24' },
+  { code: 'R50', description: 'Febre, não especificada', description_es: '', description_pt: 'Febre, não especificada', chapter: 'XVIII', block: 'R50-R69' },
+  { code: 'S72', description: 'Fratura do fêmur', description_es: '', description_pt: 'Fratura do fêmur', chapter: 'XIX', block: 'S70-S79' },
+  { code: 'T78', description: 'Efeitos adversos, não classificados em outra parte', description_es: '', description_pt: 'Efeitos adversos, não classificados em outra parte', chapter: 'XX', block: 'T66-T78' },
+  { code: 'Z00', description: 'Exame geral e investigação de pessoas sem queixa', description_es: '', description_pt: 'Exame geral e investigação de pessoas sem queixa', chapter: 'XXI', block: 'Z00-Z13' },
+  { code: 'Z23', description: 'Necessidade de imunização contra doença bacteriana', description_es: '', description_pt: 'Necessidade de imunização contra doença bacteriana', chapter: 'XXI', block: 'Z20-Z29' },
+  { code: 'Z34', description: 'Supervisão de gravidez normal', description_es: '', description_pt: 'Supervisão de gravidez normal', chapter: 'XXI', block: 'Z30-Z39' },
+  { code: 'Z72', description: 'Problemas associados ao estilo de vida', description_es: '', description_pt: 'Problemas associados ao estilo de vida', chapter: 'XXI', block: 'Z70-Z76' },
 ];
 
 // ==========================================

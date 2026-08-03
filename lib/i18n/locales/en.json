@@ -1,4 +1,4 @@
-{
+﻿{
   "login": {
     "operator_email": "Operator Email",
     "password": "Password",
@@ -1577,15 +1577,26 @@
     "hce_objective": "Objective (O)",
     "hce_assessment": "Assessment (A)",
     "hce_plan": "Plan (P)",
+    "hce_subjective_placeholder": "Chief complaint, in the patient's own words...",
+    "hce_objective_placeholder": "Objective data: vital signs, physical exam, clinical findings...",
+    "hce_assessment_placeholder": "Diagnostic hypothesis, ICD-10, clinical reasoning...",
+    "hce_plan_placeholder": "Therapeutic approach, prescriptions, requested exams, follow-up...",
+    "hce_save_soap": "Save SOAP Progress Note",
     "hce_cid10_lookup": "Search ICD-10",
     "hce_cid10_code": "ICD-10 Code",
     "hce_cid10_description": "Description",
-    "hce_snomed_code": "SNOMED-CT Code",
+    "hce_snomed_description": "SNOMED-CT Description", "hce_snomed_code": "SNOMED-CT Code",
     "hce_diagnosis_type": "Diagnosis Type",
     "hce_diagnosis_principal": "Primary",
     "hce_diagnosis_secundario": "Secondary",
     "hce_diagnosis_diferencial": "Differential",
     "hce_diagnosis_presuntivo": "Presumptive",
+    "hce_diagnosis_add": "Add Diagnosis",
+    "hce_diagnosis_status": "Status",
+    "hce_diagnosis_status_ativo": "Active",
+    "hce_diagnosis_status_em_tratamento": "In Treatment",
+    "hce_diagnosis_status_cronico": "Chronic",
+    "hce_diagnosis_status_resolvido": "Resolved",
     "hce_drug_search": "Search Medication",
     "hce_drug_name": "Medication",
     "hce_active_ingredient": "Active Ingredient",
@@ -1690,7 +1701,7 @@
     "hce_notes": "Notes",
     "hce_notes_placeholder": "Additional anamnesis notes...",
     "hce_save_anamnese": "Save Anamnesis",
-    "hce_delete": "Delete",
+    "hce_confirm_delete_diagnosis": "Are you sure you want to delete this diagnosis?", "hce_edit": "Edit", "hce_delete": "Delete",
     "hce_save_physical_exam": "Save Physical Exam",
     "hce_exam_placeholder": "Describe the exam of",
     "hce_add": "Add",
@@ -1912,3 +1923,5 @@
     "id_document": "ID Document"
   }
 }
+
+
