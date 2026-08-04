@@ -1758,13 +1758,21 @@ const AgendaModuleContent = ({
         }).eq('id', editingClinicPatient.id);
       }
     } else {
-      // Gerar ID sequencial: CLI001, CLI002, etc.
-      const numericIds = clinicPatients.map(p => {
-        const match = p.id.match(/^CLI(\d+)$/);
-        return match ? parseInt(match[1], 10) : 0;
-      });
-      const nextIdNum = Math.max(...numericIds, 0) + 1;
-      const tempId = `CLI${String(nextIdNum).padStart(3, '0')}`;
+      let tempId: string;
+      if (supabase) {
+        const { data, error } = await supabase.rpc('next_appointment_id');
+        if (error || !data) {
+          console.error('Erro ao gerar ID de agendamento:', error?.message);
+          return;
+        }
+        tempId = data;
+      } else {
+        const numericIds = clinicPatients.map(p => {
+          const match = p.id.match(/^CLI(\d+)$/);
+          return match ? parseInt(match[1], 10) : 0;
+        });
+        tempId = `CLI${String(Math.max(...numericIds, 0) + 1).padStart(3, '0')}`;
+      }
       const newPatient: ClinicPatient = {
         id: tempId,
         ...cpForm,

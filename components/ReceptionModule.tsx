@@ -960,13 +960,19 @@ export default function ReceptionModule({
     let patientId: string;
     if (isEditing) {
       patientId = selectedPatientId;
+    } else if (supabase) {
+      const { data, error } = await supabase.rpc('next_patient_id');
+      if (error || !data) {
+        console.error('Erro ao gerar ID de paciente:', error?.message);
+        return;
+      }
+      patientId = data;
     } else {
       const numericIds = patients.map(p => {
         const match = p.id.match(/^PAC(\d+)$/);
         return match ? parseInt(match[1], 10) : 0;
       });
-      const nextIdNum = Math.max(...numericIds, 0) + 1;
-      patientId = `PAC${String(nextIdNum).padStart(3, '0')}`;
+      patientId = `PAC${String(Math.max(...numericIds, 0) + 1).padStart(3, '0')}`;
     }
 
     // Se tem preview mas photoUrl ainda vazio (upload assíncrono pendente), faz upload agora

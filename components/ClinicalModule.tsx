@@ -192,55 +192,23 @@ const ClinicalModuleContent = ({
     return patients.filter(p => p.name.toLowerCase().includes(q) || p.id.toLowerCase().includes(q));
   }, [patients, patientSearch]);
 
-  // ─── SEQUENTIAL ID COUNTERS ───
-  const idCounters = React.useRef({
-    anam: 0, pexam: 0, soap: 0, diag: 0, presc: 0, exam: 0, proc: 0, att: 0, sig: 0, aso: 0,
-  });
-
+  // ─── SEQUENTIAL ID GENERATION (Postgres RPC) ───
   const patientsRef = React.useRef(patients);
   patientsRef.current = patients;
 
-  const nextId = useCallback((prefix: string) => {
-    const key = prefix as keyof typeof idCounters.current;
-    if (key in idCounters.current) {
-      idCounters.current[key]++;
-      return `${prefix}_${String(idCounters.current[key]).padStart(4, '0')}`;
+  const genId = useCallback(async (prefix: string): Promise<string> => {
+    if (!supabase) {
+      return `${prefix}_${String(Date.now()).padStart(13, '0')}`;
     }
-    return `${prefix}_${Date.now()}`;
-  }, []);
-
-  // Initialize counters from existing data
-  useEffect(() => {
-    if (!supabase || !selectedPatId) return;
-    const initCounters = async () => {
-      const tables = [
-        { prefix: 'anam', table: 'anamnese' },
-        { prefix: 'pexam', table: 'physical_exams' },
-        { prefix: 'soap', table: 'soap_notes' },
-        { prefix: 'diag', table: 'diagnoses' },
-        { prefix: 'presc', table: 'prescriptions' },
-        { prefix: 'exam', table: 'exam_requests' },
-        { prefix: 'proc', table: 'procedures' },
-        { prefix: 'att', table: 'clinical_attachments' },
-        { prefix: 'sig', table: 'electronic_signatures' },
-        { prefix: 'aso', table: 'aso_exams' },
-      ];
-      for (const { prefix, table } of tables) {
-        const { data } = await supabase.from(table).select('id').order('created_at', { ascending: false }).limit(1);
-        if (data && data.length > 0) {
-          const match = data[0].id.match(/_(\d+)$/);
-          if (match) {
-            const num = parseInt(match[1], 10);
-            const key = prefix as keyof typeof idCounters.current;
-            if (num > idCounters.current[key]) {
-              idCounters.current[key] = num;
-            }
-          }
-        }
-      }
-    };
-    initCounters();
-  }, [selectedPatId, supabase]);
+    try {
+      const { data, error } = await supabase.rpc('next_clinical_id', { p_prefix: prefix });
+      if (error) throw error;
+      return data as string;
+    } catch (err) {
+      console.error(`[genId] Falha ao gerar ID (${prefix}), usando fallback:`, err);
+      return `${prefix}_${String(Date.now()).padStart(13, '0')}`;
+    }
+  }, [supabase]);
 
   // Load CID-10 codes from Supabase (server-side search)
   useEffect(() => {
@@ -780,9 +748,9 @@ const ClinicalModuleContent = ({
   };
 
   // ─── SIGNATURE SIMULATION ───
-  const handleSignDocument = useCallback((docType: string, docId: string) => {
+  const handleSignDocument = useCallback(async (docType: string, docId: string) => {
     const sig: ElectronicSignature = {
-      id: nextId('sig'),
+      id: await genId('sig'),
       signerId: 'current_user',
       signerName: activeOperator,
       signerCouncil: 'CRM',
@@ -831,7 +799,7 @@ const ClinicalModuleContent = ({
     const isEdit = !!anamnese.id;
     const entry: Anamnese = {
       ...anamnese,
-      id: anamnese.id || nextId('anam'),
+      id: anamnese.id || await genId('anam'),
       patientId: selectedPatient?.id || '',
       createdBy: anamnese.createdBy || activeOperator,
       createdAt: anamnese.createdAt || new Date().toISOString(),
@@ -892,7 +860,7 @@ const ClinicalModuleContent = ({
     const isEdit = !!soapNote.id;
     const entry: SoapNote = {
       ...soapNote,
-      id: soapNote.id || nextId('soap'),
+      id: soapNote.id || await genId('soap'),
       patientId: selectedPatient?.id || '',
       createdBy: soapNote.createdBy || activeOperator,
       createdAt: soapNote.createdAt || new Date().toISOString(),
@@ -940,7 +908,7 @@ const ClinicalModuleContent = ({
   const handleSavePrescription = async () => {
     if (!selectedDrug) return;
     const presc: Prescription = {
-      id: nextId('presc'),
+      id: await genId('presc'),
       patientId: selectedPatient?.id || '',
       createdBy: activeOperator,
       createdAt: new Date().toISOString(),
@@ -983,7 +951,7 @@ const ClinicalModuleContent = ({
     setPrescriptions(prev => prev.map(p =>
       p.id === prescId ? { ...p, status: 'assinado', signedAt: new Date().toISOString() } : p
     ));
-    handleSignDocument('prescricao', prescId);
+    await handleSignDocument('prescricao', prescId);
     if (supabase) {
       await supabase.from('prescriptions').update({ status: 'assinado', signed_at: new Date().toISOString() }).eq('id', prescId);
     }
@@ -1001,7 +969,7 @@ const ClinicalModuleContent = ({
   // ─── SAVE EXAM REQUEST ───
   const handleSaveExamRequest = async () => {
     const req: ExamRequest = {
-      id: nextId('exam'),
+      id: await genId('exam'),
       patientId: selectedPatient?.id || '',
       createdBy: activeOperator,
       createdAt: new Date().toISOString(),
@@ -1037,7 +1005,7 @@ const ClinicalModuleContent = ({
   // ─── SAVE PROCEDURE ───
   const handleSaveProcedure = async () => {
     const proc: Procedure = {
-      id: nextId('proc'),
+      id: await genId('proc'),
       patientId: selectedPatient?.id || '',
       createdBy: activeOperator,
       createdAt: new Date().toISOString(),
@@ -1134,7 +1102,7 @@ const ClinicalModuleContent = ({
   // ─── SAVE ATTACHMENT (INSERT to Supabase) ───
   const handleSaveAttachment = async (file: File) => {
     const att = {
-      id: nextId('att'),
+      id: await genId('att'),
       patient_id: selectedPatient?.id || '',
       created_by: activeOperator,
       updated_by: null,
@@ -1290,7 +1258,7 @@ const ClinicalModuleContent = ({
     e.preventDefault();
     if (!asoPatient.trim()) return;
     const newAso: AsoExam = {
-      id: nextId('aso'), patientName: asoPatient, type: asoType,
+      id: await genId('aso'), patientName: asoPatient, type: asoType,
       risks: asoRisks.split(',').map(r => r.trim()), status: asoStatus,
       date: new Date().toISOString().split('T')[0], doctor: 'Dr. Bruno Castro',
     };
@@ -2055,7 +2023,7 @@ const ClinicalModuleContent = ({
                       const isEdit = !!physicalExam.id;
                       const entry: PhysicalExam = {
                         ...physicalExam,
-                        id: physicalExam.id || nextId('pexam'),
+                        id: physicalExam.id || await genId('pexam'),
                         patientId: selectedPatient?.id || '',
                         createdBy: physicalExam.createdBy || activeOperator,
                         createdAt: physicalExam.createdAt || new Date().toISOString(),
@@ -2229,7 +2197,7 @@ const ClinicalModuleContent = ({
                   <div className="flex justify-end">
                     <button onClick={async () => {
                       if (newDiagnosis.cid10Code) {
-                        const diagId = nextId('diag');
+                        const diagId = await genId('diag');
                         const newDiag = { ...newDiagnosis, id: diagId, patientId: selectedPatient?.id || '', createdBy: activeOperator, createdAt: new Date().toISOString(), status: newDiagnosis.status || 'ativo', notes: newDiagnosis.notes || '' } as Diagnosis;
                         setDiagnoses(prev => [...prev, newDiag]);
                         setNewDiagnosis({ cid10Code: '', cid10Description: '', diagnosisType: 'principal', status: 'ativo', notes: '', snomedCode: '', snomedDescription: '' });

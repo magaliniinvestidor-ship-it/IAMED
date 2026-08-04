@@ -699,12 +699,21 @@ export default function AdminFinanceModule({
       }
       addAuditLog('Editou Local', locName);
     } else {
-      const numericIds = locations.map(l => {
-        const match = l.id.match(/^loc_(\d+)$/);
-        return match ? parseInt(match[1], 10) : 0;
-      });
-      const nextIdNum = Math.max(...numericIds, 0) + 1;
-      const newId = `loc_${nextIdNum}`;
+      let newId: string;
+      if (supabase) {
+        const { data, error } = await supabase.rpc('next_location_id');
+        if (error || !data) {
+          console.error('Erro ao gerar ID de local:', error?.message);
+          return;
+        }
+        newId = data;
+      } else {
+        const numericIds = locations.map(l => {
+          const match = l.id.match(/^loc_(\d+)$/);
+          return match ? parseInt(match[1], 10) : 0;
+        });
+        newId = `loc_${Math.max(...numericIds, 0) + 1}`;
+      }
       const newLoc: Location = { id: newId, name: locName, address: locAddress, phone: locPhone, city: locCity, status: locStatus };
       setLocations(prev => [...prev, newLoc]);
       if (supabase) {
@@ -741,12 +750,21 @@ export default function AdminFinanceModule({
       }
       addAuditLog('Editou Sala', roomName);
     } else {
-      const numericIds = clinicalRooms.map(r => {
-        const match = r.id.match(/^SALA(\d+)$/);
-        return match ? parseInt(match[1], 10) : 0;
-      });
-      const nextIdNum = Math.max(...numericIds, 0) + 1;
-      const newId = `SALA${String(nextIdNum).padStart(3, '0')}`;
+      let newId: string;
+      if (supabase) {
+        const { data, error } = await supabase.rpc('next_room_id');
+        if (error || !data) {
+          console.error('Erro ao gerar ID de sala:', error?.message);
+          return;
+        }
+        newId = data;
+      } else {
+        const numericIds = clinicalRooms.map(r => {
+          const match = r.id.match(/^SALA(\d+)$/);
+          return match ? parseInt(match[1], 10) : 0;
+        });
+        newId = `SALA${String(Math.max(...numericIds, 0) + 1).padStart(3, '0')}`;
+      }
       const newRoom: ClinicalRoom = { id: newId, name: roomName, type: roomType, location_id: roomLocationId, capacity: roomCapacity, equipment: roomEquipment, status: roomStatus };
       setClinicalRooms(prev => [...prev, newRoom]);
       if (supabase) {
@@ -843,12 +861,21 @@ const resetProfForm = () => {
         }
       }
     } else {
-      const numericIds = professionals.map(p => {
-        const match = p.id.match(/^PRF(\d+)$/);
-        return match ? parseInt(match[1], 10) : 0;
-      });
-      const nextIdNum = Math.max(...numericIds, 0) + 1;
-      const newProfId = `PRF${String(nextIdNum).padStart(3, '0')}`;
+      let newProfId: string;
+      if (supabase) {
+        const { data, error } = await supabase.rpc('next_professional_id');
+        if (error || !data) {
+          console.error('Erro ao gerar ID de profissional:', error?.message);
+          return;
+        }
+        newProfId = data;
+      } else {
+        const numericIds = professionals.map(p => {
+          const match = p.id.match(/^PRF(\d+)$/);
+          return match ? parseInt(match[1], 10) : 0;
+        });
+        newProfId = `PRF${String(Math.max(...numericIds, 0) + 1).padStart(3, '0')}`;
+      }
 
       const newProf: Professional = {
         id: newProfId,

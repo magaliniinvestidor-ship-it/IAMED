@@ -6,6 +6,7 @@
     "dev": "start brave http://localhost:3000 && next dev",
     "build": "next build",
     "start": "next start",
+    "backup": "node scripts/export_backup.js",
     "lint": "eslint .",
     "clean": "next clean"
   },

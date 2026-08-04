@@ -53,12 +53,21 @@ export default function RolesTab({ professionalRoles, setProfessionalRoles, supa
       setProfessionalRoles(prev => prev.map(r => r.id === editingId ? { ...r, name: name.trim(), description: description.trim(), category: category.trim() || undefined, active: true } : r));
       addAuditLog('Editou Profissão', name);
     } else {
-      const numericIds = professionalRoles.map(r => {
-        const match = r.id.match(/^role_(\d+)$/);
-        return match ? parseInt(match[1], 10) : 0;
-      });
-      const nextIdNum = Math.max(...numericIds, 0) + 1;
-      const newId = `role_${String(nextIdNum).padStart(2, '0')}`;
+      let newId: string;
+      if (supabase) {
+        const { data, error } = await supabase.rpc('next_role_id');
+        if (error || !data) {
+          console.error('Erro ao gerar ID de profissão:', error?.message);
+          return;
+        }
+        newId = data;
+      } else {
+        const numericIds = professionalRoles.map(r => {
+          const match = r.id.match(/^role_(\d+)$/);
+          return match ? parseInt(match[1], 10) : 0;
+        });
+        newId = `role_${String(Math.max(...numericIds, 0) + 1).padStart(2, '0')}`;
+      }
       if (supabase) {
         const { error } = await supabase.from('professional_roles').insert({
           id: newId,

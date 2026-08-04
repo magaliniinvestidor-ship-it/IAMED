@@ -77,3 +77,72 @@ const { t } = useI18n();
 - Não adicionar comentários desnecessários
 - Preferir edições em arquivos existentes
 - Nunca commitar senhas ou chaves secretas
+
+## Geração de IDs Sequenciais
+
+**REGRA OBRIGATÓRIA:** Todos os IDs de registros em tabelas do Supabase DEVEM ser gerados via função RPC no banco. **NUNCA** gerar IDs no front-end com `Math.max()`, `useRef`, `Date.now()` ou qualquer lógica client-side.
+
+### Por quê
+
+- `Math.max(...numericIds) + 1` colide quando dois usuários cadastram ao mesmo tempo
+- `useRef` zera ao dar F5 ou abrir nova aba
+- `Date.now()` gera IDs únicos mas não sequenciais (ex: `agenda_1782752456551`)
+
+### Como funciona
+
+O Postgres tem sequences por tabela. O front chama funções RPC que usam `nextval()` atomicamente:
+
+```tsx
+// ✅ CORRETO - chamada RPC atômica
+const { data: newId } = await supabase.rpc('next_patient_id');
+const { data: newId } = await supabase.rpc('next_clinical_id', { p_prefix: 'soap' });
+
+// ❌ ERRADO - lógica no front
+const nextIdNum = Math.max(...numericIds) + 1;
+patientId = `PAC${String(nextIdNum).padStart(3, '0')}`;
+```
+
+### Tabela de funções RPC disponíveis
+
+| Função RPC | Prefixo/Formato | Tabela |
+|---|---|---|
+| `next_patient_id()` | `PAC001`, `PAC002`... | `patients` |
+| `next_appointment_id()` | `CLI001`, `CLI002`... | `appointments` |
+| `next_location_id()` | `loc_1`, `loc_2`... | `locations` |
+| `next_room_id()` | `SALA001`, `SALA002`... | `clinical_rooms` |
+| `next_professional_id()` | `PRF001`, `PRF002`... | `professionals` |
+| `next_role_id()` | `role_01`, `role_02`... | `professional_roles` |
+| `next_clinical_id(p_prefix text)` | `presc_0001`, `soap_0001`... | módulo 3 |
+
+### Prefixos aceitos por `next_clinical_id()`
+
+`presc`, `anam`, `soap`, `diag`, `exam`, `proc`, `att`, `sig`, `aso`
+
+### Padrão recomendado em componentes
+
+```tsx
+const handleSave = async () => {
+  if (!supabase) return;
+  const { data: newId, error } = await supabase.rpc('next_clinical_id', { p_prefix: 'soap' });
+  if (error || !newId) {
+    console.error('Erro ao gerar ID:', error?.message);
+    return;
+  }
+  await supabase.from('soap_notes').insert({ id: newId, ... });
+};
+```
+
+### Migrações de sequence
+
+As sequences ficam em `scripts/0[1-3]_*.sql`. Para sincronizar uma sequence após mudar dados manualmente:
+
+```sql
+select setval('seq_pacientes', 
+  coalesce((select max(
+    case when id ~ '^PAC[0-9]+$' 
+         then substring(id from '^PAC([0-9]+)$')::int 
+         else 0 end) from public.patients), 0) + 1,
+  true);
+```
+
+NUNCA usar `Date.now()` como fallback em produção — manter consistência do formato.
