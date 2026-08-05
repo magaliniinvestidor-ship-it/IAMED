@@ -1,5 +1,6 @@
 -- ════════════════════════════════════════════════════════════════════
 -- BLOCO 12: Tabelas de dominio - Farmacia, CRM, MT, Financeiro, Internacao
+-- Schema alinhado com o codigo real (usa item_id, nao pharmacy_item_id).
 -- Idempotente. Pode ser executado multiplas vezes sem erro.
 -- ════════════════════════════════════════════════════════════════════
 
@@ -8,16 +9,16 @@ create table if not exists public.pharmacy_items (
   id text primary key,
   name text not null,
   category text,
+  form text,
   presentation text,
   manufacturer text,
-  controlled_category text,
+  dinavisa_registration text,
   requires_prescription boolean default false,
-  min_stock integer default 0,
-  max_stock integer,
   total_quantity integer default 0,
-  unit text,
-  unit_cost numeric(15,2),
-  sale_price numeric(15,2),
+  min_quantity integer default 10,
+  storage_location text,
+  unit_cost numeric(15,2) default 0,
+  unit_price numeric(15,2) default 0,
   active boolean default true,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
@@ -25,44 +26,63 @@ create table if not exists public.pharmacy_items (
 
 create table if not exists public.lot_controls (
   id text primary key,
-  pharmacy_item_id text references public.pharmacy_items(id) on delete cascade,
+  item_id text references public.pharmacy_items(id) on delete cascade,
   lot_number text not null,
+  serial_number text,
+  manufacture_date date,
   expiry_date date not null,
   quantity integer not null default 0,
-  status text default 'disponivel',
-  manufacturer text,
+  initial_quantity integer not null default 0,
+  cost_per_unit numeric(15,2) default 0,
+  dinavisa_registration text,
+  dte_entry_number text,
+  supplier_name text,
+  supplier_ruc text,
   received_date date default current_date,
+  status text default 'disponivel',
   created_at timestamptz default now()
 );
 
 create table if not exists public.stock_movements (
   id text primary key,
-  pharmacy_item_id text references public.pharmacy_items(id),
+  item_id text references public.pharmacy_items(id),
+  item_name text,
   lot_id text references public.lot_controls(id),
-  type text not null,
+  lot_number text,
+  movement_type text not null,
   quantity integer not null,
-  reason text,
-  patient_id text,
-  operator text,
-  date timestamptz default now(),
+  unit_cost numeric(15,2),
+  total_cost numeric(15,2),
+  patient_name text,
+  procedure_name text,
+  sector text,
+  room text,
+  doctor_name text,
+  operator_name text,
+  dte_number text,
+  supplier_name text,
+  notes text,
+  date date default current_date,
   created_at timestamptz default now()
 );
 
 create table if not exists public.inventory_counts (
   id text primary key,
-  pharmacy_item_id text references public.pharmacy_items(id),
+  item_id text references public.pharmacy_items(id),
+  lot_id text references public.lot_controls(id),
   system_quantity integer not null,
   counted_quantity integer not null,
   difference integer generated always as (counted_quantity - system_quantity) stored,
-  operator text,
+  operator_name text,
   date date default current_date,
   created_at timestamptz default now()
 );
 
 create table if not exists public.adverse_events (
   id text primary key,
-  pharmacy_item_id text references public.pharmacy_items(id),
+  item_id text references public.pharmacy_items(id),
   patient_id text,
+  patient_name text,
   event_type text not null,
   severity text,
   description text,
@@ -74,7 +94,7 @@ create table if not exists public.adverse_events (
 
 create table if not exists public.quality_deviations (
   id text primary key,
-  pharmacy_item_id text references public.pharmacy_items(id),
+  item_id text references public.pharmacy_items(id),
   deviation_type text not null,
   description text,
   report_date timestamptz default now(),
@@ -87,7 +107,7 @@ create table if not exists public.quality_deviations (
 
 create table if not exists public.batch_recalls (
   id text primary key,
-  pharmacy_item_id text references public.pharmacy_items(id),
+  item_id text references public.pharmacy_items(id),
   lot_id text references public.lot_controls(id),
   recall_reason text,
   alert_date timestamptz default now(),
@@ -329,8 +349,9 @@ create table if not exists public.beds (
 create index if not exists idx_patients_status on public.patients(status);
 create index if not exists idx_appointments_date on public.appointments(date);
 create index if not exists idx_pharmacy_items_active on public.pharmacy_items(active);
-create index if not exists idx_lot_controls_pharmacy_item on public.lot_controls(pharmacy_item_id);
+create index if not exists idx_lot_controls_item_id on public.lot_controls(item_id);
 create index if not exists idx_lot_controls_expiry on public.lot_controls(expiry_date);
+create index if not exists idx_stock_movements_item_id on public.stock_movements(item_id);
 create index if not exists idx_dtes_status on public.dtes(status);
 create index if not exists idx_dtes_date on public.dtes(date);
 
@@ -347,7 +368,6 @@ alter table public.surgeries enable row level security;
 alter table public.hospitalizations enable row level security;
 alter table public.beds enable row level security;
 
--- Policies permissivas (autenticados tem acesso total)
 drop policy if exists "auth_all_pharmacy_items" on public.pharmacy_items;
 create policy "auth_all_pharmacy_items" on public.pharmacy_items for all to authenticated using (true) with check (true);
 

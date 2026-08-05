@@ -9,40 +9,57 @@ export interface PharmacyItem {
   id: string;
   name: string;
   category?: string;
+  form?: string;
   presentation?: string;
   manufacturer?: string;
-  controlled_category?: string;
+  dinavisa_registration?: string;
   requires_prescription?: boolean;
-  min_stock?: number;
-  max_stock?: number;
   total_quantity?: number;
-  unit?: string;
+  min_quantity?: number;
+  storage_location?: string;
   unit_cost?: number;
-  sale_price?: number;
+  unit_price?: number;
   active?: boolean;
   created_at?: string;
 }
 
 export interface LotControl {
   id: string;
-  pharmacy_item_id?: string;
+  item_id?: string;
   lot_number?: string;
+  serial_number?: string;
+  manufacture_date?: string;
   expiry_date?: string;
   quantity?: number;
-  status?: string;
-  manufacturer?: string;
+  initial_quantity?: number;
+  cost_per_unit?: number;
+  dinavisa_registration?: string;
+  dte_entry_number?: string;
+  supplier_name?: string;
+  supplier_ruc?: string;
   received_date?: string;
+  status?: string;
 }
 
 export interface StockMovement {
   id: string;
-  pharmacy_item_id?: string;
+  item_id?: string;
+  item_name?: string;
   lot_id?: string;
-  type: 'entrada' | 'saida' | 'ajuste' | 'transferencia';
+  lot_number?: string;
+  movement_type: 'entrada' | 'saida' | 'ajuste' | 'transferencia' | 'perda';
   quantity: number;
-  reason?: string;
-  patient_id?: string;
-  operator?: string;
+  unit_cost?: number;
+  total_cost?: number;
+  patient_name?: string;
+  procedure_name?: string;
+  sector?: string;
+  room?: string;
+  doctor_name?: string;
+  operator_name?: string;
+  dte_number?: string;
+  supplier_name?: string;
+  notes?: string;
   date?: string;
 }
 
