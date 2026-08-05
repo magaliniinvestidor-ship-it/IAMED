@@ -21,6 +21,8 @@ begin
     when 'att'   then 'seq_clinical_attachments'
     when 'sig'   then 'seq_electronic_signatures'
     when 'aso'   then 'seq_aso_exams'
+    when 'ac'    then 'seq_access_control'
+    when 'pexam' then 'seq_physical_exams'
     else null
   end;
   if v_seq is null then

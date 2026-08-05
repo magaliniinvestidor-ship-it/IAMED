@@ -17,6 +17,7 @@ import {
   Patient, initialPatients,
 } from '@/lib/mockData';
 import { useI18n } from '@/lib/i18n/I18nContext';
+import { useModuleId } from '@/hooks/useModuleId';
 import {
   BedDouble, CalendarClock, Users, FileBarChart,
   Plus, Search, AlertTriangle, Check, X, RefreshCw,
@@ -129,6 +130,7 @@ export default function InternacaoCentroCirurgicoModule({
   setPatients,
 }: InternacaoCentroCirurgicoModuleProps) {
   const { t, locale } = useI18n();
+  const genModuleId = useModuleId();
   const [tab, setTab] = useState<TabType>('dashboard');
   const [search, setSearch] = useState('');
   const [sectorFilter, setSectorFilter] = useState<string>('todos');
@@ -260,11 +262,12 @@ export default function InternacaoCentroCirurgicoModule({
     setShowModal(true);
   }
 
-  function addSurgery() {
+  async function addSurgery() {
     if (!surgForm.patientName || !surgForm.surgeon || !surgForm.scheduledDate) return;
+    const newId = await genModuleId('surg');
     const newSurg: SurgerySchedule = {
-      id: `surg_${Date.now()}`,
-      patientId: surgForm.patientId || `pat_${Date.now()}`,
+      id: newId,
+      patientId: surgForm.patientId || '',
       patientName: surgForm.patientName,
       surgeon: surgForm.surgeon,
       team: {
@@ -294,13 +297,14 @@ export default function InternacaoCentroCirurgicoModule({
     setSurgForm({ patientId: '', patientName: '', surgeon: '', room: '', procedureType: '', estimatedDuration: 60, anesthesiaType: 'geral', scheduledDate: '', scheduledTime: '', preOpDiagnosis: '', notes: '', anesthesiologist: '', instrumentator: '', circulator: '', assistants: '' });
   }
 
-  function admitPatient() {
+  async function admitPatient() {
     if (!admitForm.patientName || !admitForm.responsibleDoctor || !admitForm.bedId) return;
     const bed = beds.find(b => b.id === admitForm.bedId);
     if (!bed) return;
+    const newId = await genModuleId('hosp');
     const newHosp: HospitalizationEpisode = {
-      id: `hosp_${Date.now()}`,
-      patientId: admitForm.patientId || `pat_${Date.now()}`,
+      id: newId,
+      patientId: admitForm.patientId || '',
       patientName: admitForm.patientName,
       admissionDate: todayStr(),
       admissionTime: new Date().toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }),
@@ -328,13 +332,14 @@ export default function InternacaoCentroCirurgicoModule({
     setAdmitForm({ patientId: '', patientName: '', reason: '', initialDiagnosis: '', initialCid10: '', responsibleDoctor: '', coverageType: 'particular', coverageAuthorization: '', bedId: '' });
   }
 
-  function transferBed() {
+  async function transferBed() {
     if (!transferForm.bedToId || !transferForm.reason) return;
     const bedFrom = beds.find(b => b.id === transferForm.bedFromId);
     const bedTo = beds.find(b => b.id === transferForm.bedToId);
     if (!bedFrom || !bedTo) return;
+    const newId = await genModuleId('bt');
     const newTransfer: BedTransfer = {
-      id: `bt_${Date.now()}`,
+      id: newId,
       bedFromId: transferForm.bedFromId,
       bedFromName: bedFrom.name,
       bedToId: transferForm.bedToId,
@@ -376,9 +381,10 @@ export default function InternacaoCentroCirurgicoModule({
     setDischargeForm({ dischargeType: 'alta_medica', summary: '', doctor: '', transferInstitution: '', deathCause: '', deathCertificate: '' });
   }
 
-  function addEvolution(hosp: HospitalizationEpisode) {
+  async function addEvolution(hosp: HospitalizationEpisode) {
+    const newId = await genModuleId('evol');
     const newEvol: MedicalEvolution = {
-      id: `evol_${Date.now()}`,
+      id: newId,
       hospitalizationId: hosp.id,
       patientId: hosp.patientId,
       date: todayStr(),
@@ -397,9 +403,10 @@ export default function InternacaoCentroCirurgicoModule({
     setEvolForm({ subjective: '', objective: '', assessment: '', plan: '', bp: '', hr: 0, rr: 0, temp: '', spo2: 0 });
   }
 
-  function addNursingSheet(hosp: HospitalizationEpisode) {
+  async function addNursingSheet(hosp: HospitalizationEpisode) {
+    const newId = await genModuleId('nurs');
     const newSheet: NursingSheet = {
-      id: `nurs_${Date.now()}`,
+      id: newId,
       hospitalizationId: hosp.id,
       patientId: hosp.patientId,
       date: nursForm.date,
@@ -418,9 +425,10 @@ export default function InternacaoCentroCirurgicoModule({
     setNursForm({ date: todayStr(), shift: 'manha', intake: 0, output: 0, observations: '' });
   }
 
-  function completeChecklist(surg: SurgerySchedule) {
+  async function completeChecklist(surg: SurgerySchedule) {
+    const newId = await genModuleId('check');
     const newCheck: SurgicalChecklist = {
-      id: `check_${Date.now()}`,
+      id: newId,
       surgeryId: surg.id,
       patientIdentityVerified: checkForm.patientIdentityVerified,
       lateralityVerified: checkForm.lateralityVerified,

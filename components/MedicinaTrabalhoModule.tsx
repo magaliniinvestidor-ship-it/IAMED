@@ -310,9 +310,9 @@ export default function MedicinaTrabalhoModule({
           </div>
         </div>
         <div className="flex items-center gap-2 text-teal-100 text-xs">
-          <span className="bg-white/20 px-3 py-1 rounded-full font-bold">{empresas.length} empresas</span>
-          <span className="bg-white/20 px-3 py-1 rounded-full font-bold">{totalTrab} trabalhadores</span>
-          <span className="bg-white/20 px-3 py-1 rounded-full font-bold">{totalCalsVigentes} CALs vigentes</span>
+          <span className="bg-white/20 px-3 py-1 rounded-full font-bold">{empresas.length} {t('medtrab_stat_companies', 'app')}</span>
+          <span className="bg-white/20 px-3 py-1 rounded-full font-bold">{totalTrab} {t('medtrab_stat_workers', 'app')}</span>
+          <span className="bg-white/20 px-3 py-1 rounded-full font-bold">{totalCalsVigentes} {t('medtrab_stat_cals_active', 'app')}</span>
         </div>
       </div>
 
@@ -357,8 +357,8 @@ export default function MedicinaTrabalhoModule({
                   <div key={item.empresa} className="flex items-center justify-between p-2.5 bg-slate-50 rounded-lg border border-slate-100">
                     <span className="text-xs font-bold text-slate-700">{item.empresa}</span>
                     <div className="flex items-center gap-3">
-                      <span className="text-xs text-slate-500">{item.count} trabalhadores</span>
-                      <span className="text-xs text-teal-600 font-semibold">{item.exames} exames</span>
+                      <span className="text-xs text-slate-500">{item.count} {t('medtrab_stat_workers', 'app')}</span>
+                      <span className="text-xs text-teal-600 font-semibold">{item.exames} {t('medtrab_stat_exams', 'app')}</span>
                     </div>
                   </div>
                 ))}
@@ -414,7 +414,7 @@ export default function MedicinaTrabalhoModule({
             <div className="flex items-center justify-between">
               <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2"><Building2 className="w-4 h-4 text-teal-600" /> {t('medtrab_client_companies', 'app')}</h4>
               <button onClick={() => setShowForm(showForm === 'empresa' ? null : 'empresa')} className={btnSmCls}>
-                <Plus className="w-3 h-3 inline mr-1" /> Nova
+                <Plus className="w-3 h-3 inline mr-1" /> {t('medtrab_btn_new_fem', 'app')}
               </button>
             </div>
             {showForm === 'empresa' && (
@@ -496,7 +496,7 @@ export default function MedicinaTrabalhoModule({
               <>
                 <div className={sectionCls}>
                   <h4 className="font-bold text-slate-800 text-sm">
-                    {getEmpresaNome(selectedEmpresaId)} — Detalhes
+                    {getEmpresaNome(selectedEmpresaId)} — {t('medtrab_details', 'app')}
                   </h4>
                   <div className="grid grid-cols-3 gap-4 text-xs">
                     {(() => {
@@ -505,18 +505,18 @@ export default function MedicinaTrabalhoModule({
                       return (
                         <>
                           <div><span className="text-slate-500">RUC:</span> <b>{emp.ruc}</b></div>
-                          <div><span className="text-slate-500">Setor:</span> <b>{emp.setor}</b></div>
-                          <div><span className="text-slate-500">Porte:</span> <b>{emp.porte}</b></div>
-                          <div><span className="text-slate-500">Funcionários:</span> <b>{emp.nroFuncionarios}</b></div>
-                          <div><span className="text-slate-500">Endereço:</span> <b>{emp.endereco}</b></div>
-                          <div><span className="text-slate-500">Representante:</span> <b>{emp.representanteNome || '—'}</b></div>
+                          <div><span className="text-slate-500">{t('medtrab_label_sector_detail', 'app')}</span> <b>{emp.setor}</b></div>
+                          <div><span className="text-slate-500">{t('medtrab_label_size', 'app')}</span> <b>{emp.porte}</b></div>
+                          <div><span className="text-slate-500">{t('medtrab_label_employees_detail', 'app')}</span> <b>{emp.nroFuncionarios}</b></div>
+                          <div><span className="text-slate-500">{t('medtrab_label_address_detail', 'app')}</span> <b>{emp.endereco}</b></div>
+                          <div><span className="text-slate-500">{t('medtrab_label_representative_detail', 'app')}</span> <b>{emp.representanteNome || '—'}</b></div>
                         </>
                       );
                     })()}
                   </div>
                 </div>
                 <div className={sectionCls}>
-                  <h4 className="font-bold text-slate-800 text-sm">Contratos</h4>
+                  <h4 className="font-bold text-slate-800 text-sm">{t('medtrab_contracts', 'app')}</h4>
                   {getContratosEmpresa(selectedEmpresaId).length === 0 ? (
                     <p className="text-xs text-slate-400">{t('medtrab_no_contract', 'app')}</p>
                   ) : (
@@ -525,10 +525,10 @@ export default function MedicinaTrabalhoModule({
                         <div key={ctr.id} className="p-3 bg-slate-50 rounded-lg border border-slate-100 flex items-center justify-between text-xs">
                           <div>
                             <p className="font-bold text-slate-700">{ctr.numeroContrato}</p>
-                            <p className="text-slate-500">{ctr.tipo} | Início: {ctr.dataInicio}</p>
+                            <p className="text-slate-500">{ctr.tipo} | {t('medtrab_label_start', 'app')} {ctr.dataInicio}</p>
                           </div>
                           <div className="text-right">
-                            <p className="font-bold text-teal-700">Gs. {ctr.valorMensal.toLocaleString()}/mês</p>
+                            <p className="font-bold text-teal-700">Gs. {ctr.valorMensal.toLocaleString()}{t('medtrab_per_month', 'app')}</p>
                             <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${ctr.status === 'vigente' ? 'bg-green-50 text-green-700' : 'bg-rose-50 text-rose-700'}`}>{ctr.status}</span>
                           </div>
                         </div>
@@ -545,7 +545,7 @@ export default function MedicinaTrabalhoModule({
                       {getPostosEmpresa(selectedEmpresaId).map(posto => (
                         <div key={posto.id} className="p-2.5 bg-slate-50 rounded-lg border border-slate-100 text-xs">
                           <p className="font-bold text-slate-700">{posto.nome}</p>
-                          <p className="text-slate-500 text-[10px]">{posto.setor} | {posto.turno} | {posto.nroTrabalhadores} trab.</p>
+                          <p className="text-slate-500 text-[10px]">{posto.setor} | {posto.turno} | {posto.nroTrabalhadores} {t('medtrab_abbr_workers', 'app')}</p>
                         </div>
                       ))}
                     </div>
@@ -554,7 +554,7 @@ export default function MedicinaTrabalhoModule({
               </>
             ) : (
               <div className="flex items-center justify-center h-full p-10 text-slate-400 text-sm">
-                Selecione uma empresa ao lado para ver detalhes.
+                {t('medtrab_select_company_hint', 'app')}
               </div>
             )}
           </div>
@@ -566,7 +566,7 @@ export default function MedicinaTrabalhoModule({
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-5">
           <div className={sectionCls + ' lg:col-span-1'}>
             <div className="flex items-center justify-between">
-              <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2"><Users className="w-4 h-4 text-teal-600" /> Trabalhadores</h4>
+              <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2"><Users className="w-4 h-4 text-teal-600" /> {t('medtrab_workers_heading', 'app')}</h4>
               <button onClick={() => setShowForm(showForm === 'trabalhador' ? null : 'trabalhador')} className={btnSmCls}>
                 <Plus className="w-3 h-3 inline mr-1" /> Novo
               </button>
@@ -648,7 +648,7 @@ export default function MedicinaTrabalhoModule({
                   <p className="text-[10px] text-slate-500">CI: {trab.ci} | {trab.funcao}</p>
                   <p className="text-[10px] text-slate-400">{getEmpresaNome(trab.empresaId)}</p>
                   <button onClick={() => handleToggleStatusTrab(trab.id)} className="text-[9px] text-teal-600 hover:text-teal-800 mt-1 font-semibold">
-                    {trab.status === 'ativo' ? 'Suspender' : 'Reativar'}
+                    {trab.status === 'ativo' ? t('medtrab_btn_suspend', 'app') : t('medtrab_btn_reactivate', 'app')}
                   </button>
                 </div>
               ))}
@@ -664,7 +664,7 @@ export default function MedicinaTrabalhoModule({
                     <div key={trab.id} className="p-3 bg-slate-50 rounded-lg border border-slate-100 text-xs">
                       <div className="flex items-center justify-between">
                         <span className="font-bold text-slate-700">{trab.nome}</span>
-                        <span className="text-slate-500">{examesTrab.length} exames</span>
+                        <span className="text-slate-500">{examesTrab.length} {t('medtrab_stat_exams', 'app')}</span>
                       </div>
                       {examesTrab.length > 0 && (
                         <div className="mt-1.5 space-y-1">
@@ -707,14 +707,14 @@ export default function MedicinaTrabalhoModule({
                 <div>
                   <label className={labelCls}>{t('medtrab_label_worker', 'app')} *</label>
                   <select value={exameForm.trabalhadorId} onChange={e => setExameForm(p => ({ ...p, trabalhadorId: e.target.value }))} className={inputCls}>
-                    <option value="">Selecione...</option>
+                    <option value="">{t('medtrab_select_worker', 'app')}</option>
                     {trabalhadores.filter(t => t.empresaId === exameForm.empresaId).map(t => (
                       <option key={t.id} value={t.id}>{t.nome} (CI: {t.ci})</option>
                     ))}
                   </select>
                 </div>
                 <div>
-                  <label className={labelCls}>Tipo de Exame</label>
+                  <label className={labelCls}>{t('medtrab_label_exam_type', 'app')}</label>
                   <select value={exameForm.tipo} onChange={e => setExameForm(p => ({ ...p, tipo: e.target.value as ExameOcupacional['tipo'] }))} className={inputCls}>
                     <option value="Pré-ocupacional">Pré-ocupacional (Admissional)</option>
                     <option value="Periódico">Periódico</option>
@@ -724,11 +724,11 @@ export default function MedicinaTrabalhoModule({
                   </select>
                 </div>
                 <div>
-                  <label className={labelCls}>Médico Responsável</label>
+                  <label className={labelCls}>{t('medtrab_label_responsible_doctor', 'app')}</label>
                   <input type="text" value={exameForm.medicoResponsavel} onChange={e => setExameForm(p => ({ ...p, medicoResponsavel: e.target.value }))} className={inputCls} />
                 </div>
                 <div>
-                  <label className={labelCls}>Exames a Realizar</label>
+                  <label className={labelCls}>{t('medtrab_label_exams_to_perform', 'app')}</label>
                   <div className="space-y-1 max-h-[180px] overflow-y-auto border border-slate-200 rounded-lg p-2">
                     {examesDisponiveis.map(ex => (
                       <label key={ex} className="flex items-center gap-2 cursor-pointer text-xs py-0.5">
@@ -740,7 +740,7 @@ export default function MedicinaTrabalhoModule({
                   </div>
                 </div>
                 <button onClick={handleRealizarExame} className={btnCls + ' w-full'}>
-                  Realizar Exame & Emitir CAL
+                  {t('medtrab_btn_perform_exam_emit_cal', 'app')}
                 </button>
               </div>
             )}
@@ -770,14 +770,14 @@ export default function MedicinaTrabalhoModule({
                     </span>
                   </div>
                   <div className="grid grid-cols-3 gap-3 text-xs text-slate-600">
-                    <div><span className="text-slate-500">Tipo:</span> <b>{ex.tipo}</b></div>
-                    <div><span className="text-slate-500">Data:</span> <b>{ex.dataRealizacao}</b></div>
-                    <div><span className="text-slate-500">Médico:</span> <b>{ex.medicoResponsavel}</b></div>
+                    <div><span className="text-slate-500">{t('medtrab_label_type', 'app')}</span> <b>{ex.tipo}</b></div>
+                    <div><span className="text-slate-500">{t('medtrab_label_date', 'app')}</span> <b>{ex.dataRealizacao}</b></div>
+                    <div><span className="text-slate-500">{t('medtrab_label_doctor', 'app')}</span> <b>{ex.medicoResponsavel}</b></div>
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     {ex.examesRealizados.map((er, i) => (
                       <span key={i} className={`text-[9px] px-2 py-0.5 rounded-full font-medium border ${ex.resultados[i]?.includes('Normal') || ex.resultados[i]?.includes('Pendente') ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
-                        {er}: {ex.resultados[i] || 'Pendente'}
+                        {er}: {ex.resultados[i] || t('medtrab_pending', 'app')}
                       </span>
                     ))}
                   </div>
@@ -793,10 +793,10 @@ export default function MedicinaTrabalhoModule({
         <div className="space-y-4">
           <div className={sectionCls}>
             <div className="flex items-center justify-between">
-              <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2"><FileCheck className="w-4 h-4 text-teal-600" /> Certificados de Aptidão Laboral (CAL)</h4>
+              <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2"><FileCheck className="w-4 h-4 text-teal-600" /> {t('medtrab_title_cal', 'app')}</h4>
               <div className="flex gap-2">
-                <span className="text-xs font-bold bg-green-50 text-green-700 px-2.5 py-1 rounded-full border border-green-200">{cals.filter(c => c.status === 'válido').length} válidos</span>
-                <span className="text-xs font-bold bg-amber-50 text-amber-700 px-2.5 py-1 rounded-full border border-amber-200">{cals.filter(c => c.status === 'expirado').length} expirados</span>
+                <span className="text-xs font-bold bg-green-50 text-green-700 px-2.5 py-1 rounded-full border border-green-200">{cals.filter(c => c.status === 'válido').length} {t('medtrab_valid_count', 'app')}</span>
+                <span className="text-xs font-bold bg-amber-50 text-amber-700 px-2.5 py-1 rounded-full border border-amber-200">{cals.filter(c => c.status === 'expirado').length} {t('medtrab_expired_count', 'app')}</span>
               </div>
             </div>
           </div>
@@ -815,21 +815,21 @@ export default function MedicinaTrabalhoModule({
                     </span>
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-xs">
-                    <div><span className="text-slate-500">Trabalhador:</span> <b>{trab?.nome || '—'}</b></div>
+                    <div><span className="text-slate-500">{t('medtrab_label_worker_detail', 'app')}</span> <b>{trab?.nome || '—'}</b></div>
                     <div><span className="text-slate-500">CI:</span> <b>{trab?.ci || '—'}</b></div>
-                    <div><span className="text-slate-500">Empresa:</span> <b>{getEmpresaNome(cal.empresaId)}</b></div>
-                    <div><span className="text-slate-500">Parecido:</span>
+                    <div><span className="text-slate-500">{t('medtrab_label_company_detail', 'app')}</span> <b>{getEmpresaNome(cal.empresaId)}</b></div>
+                    <div><span className="text-slate-500">{t('medtrab_label_assessment', 'app')}</span>
                       <span className={`ml-1 font-bold ${cal.parecido === 'Apto' ? 'text-green-600' : cal.parecido === 'Apto com Restrições' ? 'text-amber-600' : 'text-red-600'}`}>
                         {cal.parecido}
                       </span>
                     </div>
-                    <div><span className="text-slate-500">Emissão:</span> <b>{cal.dataEmissao}</b></div>
-                    <div><span className="text-slate-500">Validade:</span> <b>{cal.dataValidade || '—'}</b></div>
-                    <div className="col-span-2"><span className="text-slate-500">Médico:</span> <b>{cal.medicoEmissor}</b> ({cal.registroConselho})</div>
+                    <div><span className="text-slate-500">{t('medtrab_label_emission', 'app')}</span> <b>{cal.dataEmissao}</b></div>
+                    <div><span className="text-slate-500">{t('medtrab_label_validity', 'app')}</span> <b>{cal.dataValidade || '—'}</b></div>
+                    <div className="col-span-2"><span className="text-slate-500">{t('medtrab_label_doctor', 'app')}</span> <b>{cal.medicoEmissor}</b> ({cal.registroConselho})</div>
                   </div>
                   {cal.restricoes && (
                     <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 font-medium">
-                      Restrições: {cal.restricoes}
+                      {t('medtrab_restrictions', 'app')} {cal.restricoes}
                     </div>
                   )}
                 </div>
@@ -843,7 +843,7 @@ export default function MedicinaTrabalhoModule({
       {tab === 'riscos' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           <div className={sectionCls}>
-            <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-teal-600" /> Riscos Ocupacionais</h4>
+            <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-teal-600" /> {t('medtrab_occupational_risks', 'app')}</h4>
             <div className="space-y-1.5">
               {riscos.map(r => (
                 <div key={r.id} className="flex items-center gap-2.5 p-2 bg-slate-50 rounded-lg border border-slate-100 text-xs">
@@ -860,8 +860,8 @@ export default function MedicinaTrabalhoModule({
             </div>
           </div>
           <div className={sectionCls}>
-            <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2"><ClipboardList className="w-4 h-4 text-teal-600" /> Matriz de Exames Complementares</h4>
-            <p className="text-xs text-slate-500">Relação Risco ↔ Exames obrigatórios conforme normativa paraguaia</p>
+            <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2"><ClipboardList className="w-4 h-4 text-teal-600" /> {t('medtrab_exam_matrix', 'app')}</h4>
+            <p className="text-xs text-slate-500">{t('medtrab_exam_matrix_subtitle', 'app')}</p>
             <div className="space-y-1.5 max-h-[500px] overflow-y-auto">
               {matrizExames.map(mat => {
                 const risco = riscos.find(r => r.id === mat.riscoId);
@@ -874,7 +874,7 @@ export default function MedicinaTrabalhoModule({
                     </div>
                     <div className="text-right text-[10px]">
                       <p className="text-slate-500">{mat.periodicidadeRecomendadaDias ? `${mat.periodicidadeRecomendadaDias}d` : '—'}</p>
-                      <span className={`font-bold ${mat.obrigatorio ? 'text-teal-600' : 'text-slate-400'}`}>{mat.obrigatorio ? 'Obrigatório' : 'Opcional'}</span>
+                      <span className={`font-bold ${mat.obrigatorio ? 'text-teal-600' : 'text-slate-400'}`}>{mat.obrigatorio ? t('medtrab_mandatory', 'app') : t('medtrab_optional', 'app')}</span>
                     </div>
                   </div>
                 );
@@ -889,9 +889,9 @@ export default function MedicinaTrabalhoModule({
         <div className="space-y-5">
           <div className={sectionCls}>
             <div className="flex items-center justify-between">
-              <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2"><FileBarChart className="w-4 h-4 text-teal-600" /> Relatórios Consolidados para MTESS</h4>
+              <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2"><FileBarChart className="w-4 h-4 text-teal-600" /> {t('medtrab_consolidated_reports', 'app')}</h4>
             </div>
-            <p className="text-xs text-slate-500">Ministerio de Trabajo, Empleo y Seguridad Social — Auditorias trabalhistas paraguaias</p>
+            <p className="text-xs text-slate-500">{t('medtrab_mtess_subtitle', 'app')}</p>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -902,13 +902,13 @@ export default function MedicinaTrabalhoModule({
                   <h5 className="font-bold text-sm text-slate-800">{emp.nome}</h5>
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div><span className="text-slate-500">Trabalhadores:</span> <b>{getTrabalhadoresEmpresa(emp.id).length}</b></div>
-                  <div><span className="text-slate-500">Exames realizados:</span> <b>{getExamesEmpresa(emp.id).filter(e => e.status === 'realizado').length}</b></div>
-                  <div><span className="text-slate-500">CALs válidos:</span> <b>{cals.filter(c => c.empresaId === emp.id && c.status === 'válido').length}</b></div>
-                  <div><span className="text-slate-500">Contratos:</span> <b>{getContratosEmpresa(emp.id).length}</b></div>
+                  <div><span className="text-slate-500">{t('medtrab_label_workers_detail', 'app')}</span> <b>{getTrabalhadoresEmpresa(emp.id).length}</b></div>
+                  <div><span className="text-slate-500">{t('medtrab_label_exams_done', 'app')}</span> <b>{getExamesEmpresa(emp.id).filter(e => e.status === 'realizado').length}</b></div>
+                  <div><span className="text-slate-500">{t('medtrab_label_cals_valid', 'app')}</span> <b>{cals.filter(c => c.empresaId === emp.id && c.status === 'válido').length}</b></div>
+                  <div><span className="text-slate-500">{t('medtrab_label_contracts_detail', 'app')}</span> <b>{getContratosEmpresa(emp.id).length}</b></div>
                 </div>
                 <button onClick={() => handleGerarRelatorioMtess(emp.id)} className="w-full py-2 px-3 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-lg text-xs flex items-center justify-center gap-2 transition cursor-pointer">
-                  <Download className="w-3.5 h-3.5" /> Gerar Relatório MTESS
+                  <Download className="w-3.5 h-3.5" /> {t('medtrab_btn_generate_mtess', 'app')}
                 </button>
               </div>
             ))}
@@ -916,7 +916,7 @@ export default function MedicinaTrabalhoModule({
 
           {relatorios.length > 0 && (
             <div className={sectionCls}>
-              <h4 className="font-bold text-slate-800 text-sm">Relatórios Gerados</h4>
+              <h4 className="font-bold text-slate-800 text-sm">{t('medtrab_generated_reports', 'app')}</h4>
               <div className="space-y-2">
                 {relatorios.map(rel => (
                   <div key={rel.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100 text-xs">
@@ -941,20 +941,20 @@ export default function MedicinaTrabalhoModule({
           <div className="p-4 bg-gradient-to-r from-slate-800 to-slate-900 rounded-xl text-white space-y-3">
             <div className="flex items-center gap-2">
               <ShieldAlert className="w-5 h-5 text-teal-400" />
-              <h5 className="font-bold text-sm">Legislação Aplicável — Paraguai</h5>
+              <h5 className="font-bold text-sm">{t('medtrab_applicable_law_title', 'app')}</h5>
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 text-xs text-slate-300">
               <div className="p-2.5 bg-white/10 rounded-lg">
-                <p className="font-bold text-teal-300">Código do Trabalho</p>
-                <p>Lei 213/93 e suas modificações — Direitos e obrigações trabalhistas</p>
+                <p className="font-bold text-teal-300">{t('medtrab_law_labor_code', 'app')}</p>
+                <p>{t('medtrab_law_labor_code_desc', 'app')}</p>
               </div>
               <div className="p-2.5 bg-white/10 rounded-lg">
-                <p className="font-bold text-teal-300">Segurança e Higiene</p>
-                <p>Decreto 14.390/92 — Condições de trabalho, exames obrigatórios e EPIs</p>
+                <p className="font-bold text-teal-300">{t('medtrab_law_safety_hygiene', 'app')}</p>
+                <p>{t('medtrab_law_safety_hygiene_desc', 'app')}</p>
               </div>
               <div className="p-2.5 bg-white/10 rounded-lg">
                 <p className="font-bold text-teal-300">MTESS</p>
-                <p>Resoluções do Ministério de Trabajo — Fiscalização e penalidades</p>
+                <p>{t('medtrab_law_mtess_desc', 'app')}</p>
               </div>
             </div>
           </div>
@@ -971,11 +971,11 @@ export default function MedicinaTrabalhoModule({
           <div className="border-b border-slate-100 pb-3">
             <div className="flex items-center gap-2">
               <HeartPulse className="w-5 h-5 text-teal-600" />
-              <h3 className="font-semibold text-slate-800 text-base">Registrar ASO (PCMSO)</h3>
+              <h3 className="font-semibold text-slate-800 text-base">{t('medtrab_register_aso', 'app')}</h3>
             </div>
           </div>
           {/* Keep the existing ASO form from ClinicalModule */}
-          <p className="text-xs text-slate-500 mt-2">Para o módulo completo Paraguay, acesse o sub-módulo 9 (Opcional).</p>
+          <p className="text-xs text-slate-500 mt-2">{t('medtrab_aso_legacy_hint', 'app')}</p>
         </div>
       </div>
     );

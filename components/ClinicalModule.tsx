@@ -1655,8 +1655,8 @@ const ClinicalModuleContent = ({
                       <input type="text" placeholder={t('hce_since', 'app')} value={newMedication.since} onChange={e => setNewMedication(p => ({ ...p, since: e.target.value }))} className={inputCls} />
                       <button type="button" onClick={() => {
                         const missing = [];
-                        if (!newMedication.name.trim()) missing.push('Medicamento');
-                        if (!newMedication.frequency.trim()) missing.push('Frequência');
+                        if (!newMedication.name.trim()) missing.push(t('hce_medication', 'app'));
+                        if (!newMedication.frequency.trim()) missing.push(t('hce_frequency', 'app'));
                         if (missing.length > 0) {
                           alert(`${t('clinical_alert_fill_fields', 'app')} ${missing.join(', ')}`);
                           return;
@@ -1687,8 +1687,8 @@ const ClinicalModuleContent = ({
                       <input type="number" placeholder={t('hce_age', 'app')} value={newFamily.age || ''} onChange={e => setNewFamily(p => ({ ...p, age: parseInt(e.target.value) || undefined }))} className={inputCls} />
                       <button type="button" onClick={() => {
                         const missing = [];
-                        if (!newFamily.relation.trim()) missing.push('Parentesco');
-                        if (!newFamily.condition.trim()) missing.push('Condição');
+                        if (!newFamily.relation.trim()) missing.push(t('hce_relation', 'app'));
+                        if (!newFamily.condition.trim()) missing.push(t('hce_condition', 'app'));
                         if (missing.length > 0) {
                           alert(`${t('clinical_alert_fill_fields', 'app')} ${missing.join(', ')}`);
                           return;
@@ -1702,7 +1702,7 @@ const ClinicalModuleContent = ({
                         {anamnese.familyHistory.map((f, i) => (
                           <div key={i} className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 text-xs">
                             <span className="font-bold text-amber-800">{f.relation}</span>
-                            <span className="text-amber-600">{f.condition}{f.age ? ` - ${f.age} anos` : ''}</span>
+                            <span className="text-amber-600">{f.condition}{f.age ? ` - ${f.age} ${t('hce_years_short', 'app')}` : ''}</span>
                             <button onClick={() => setAnamnese(p => ({ ...p, familyHistory: p.familyHistory.filter((_, j) => j !== i) }))} className="text-amber-500 hover:text-amber-700"><Trash2 className="w-3 h-3" /></button>
                           </div>
                         ))}
@@ -2401,7 +2401,7 @@ const ClinicalModuleContent = ({
                                   </div>
                                   <div>
                                     <label className={labelCls}>{t('presc_instructions', 'app')}</label>
-                                    <input type="text" value={editingPrescription.notes} onChange={e => setEditingPrescription(prev => prev ? { ...prev, notes: e.target.value } : null)} className={inputCls} placeholder="Tomar con agua, después de comer..." />
+                                    <input type="text" value={editingPrescription.notes} onChange={e => setEditingPrescription(prev => prev ? { ...prev, notes: e.target.value } : null)} className={inputCls} placeholder={t('hce_prescription_notes_placeholder', 'app')} />
                                   </div>
                                   <div className="flex justify-end gap-2">
                                     <button onClick={() => setEditingPrescription(null)} className="px-3 py-1.5 text-slate-600 hover:text-slate-800 text-xs font-bold rounded-lg">{t('presc_cancel', 'app')}</button>
@@ -2581,11 +2581,11 @@ const ClinicalModuleContent = ({
                     </div>
                     <div>
                       <label className={labelCls}>{t('hce_exam_name', 'app')}</label>
-                      <input type="text" value={examRequestForm.examName} onChange={e => setExamRequestForm(p => ({ ...p, examName: e.target.value }))} className={inputCls} placeholder="Ex: Hemograma Completo" />
+                      <input type="text" value={examRequestForm.examName} onChange={e => setExamRequestForm(p => ({ ...p, examName: e.target.value }))} className={inputCls} placeholder={t('hce_exam_name_placeholder', 'app')} />
                     </div>
                     <div className="col-span-2">
                       <label className={labelCls}>{t('hce_clinical_indication', 'app')}</label>
-                      <textarea value={examRequestForm.clinicalIndication} onChange={e => setExamRequestForm(p => ({ ...p, clinicalIndication: e.target.value }))} rows={2} className={textareaCls} placeholder="Indicação clínica para o exame..." />
+                      <textarea value={examRequestForm.clinicalIndication} onChange={e => setExamRequestForm(p => ({ ...p, clinicalIndication: e.target.value }))} rows={2} className={textareaCls} placeholder={t('hce_clinical_indication_placeholder', 'app')} />
                     </div>
                     <div>
                       <label className={labelCls}>{t('hce_urgency', 'app')}</label>
@@ -2597,7 +2597,7 @@ const ClinicalModuleContent = ({
                     </div>
                     <div className="flex items-end">
                       <button onClick={handleSaveExamRequest} className="w-full py-2 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-lg text-xs transition">
-                        Solicitar Exame
+                        {t('hce_request_exam', 'app')}
                       </button>
                     </div>
                   </div>
@@ -2609,22 +2609,22 @@ const ClinicalModuleContent = ({
                         <div key={e.id} className="p-3 bg-teal-50 border border-teal-200 rounded-xl text-xs space-y-2">
                           <div className="grid grid-cols-3 gap-2">
                             <div>
-                              <label className={labelCls}>Status</label>
+                              <label className={labelCls}>{t('hce_diagnosis_status', 'app')}</label>
                               <select value={editingExamRequest.status} onChange={ev => setEditingExamRequest(prev => prev ? { ...prev, status: ev.target.value as any } : null)} className={inputCls}>
-                                <option value="solicitado">Solicitado</option>
-                                <option value="em_andamento">Em Andamento</option>
-                                <option value="concluido">Concluído</option>
-                                <option value="cancelado">Cancelado</option>
+                                <option value="solicitado">{t('hce_status_solicitado', 'app')}</option>
+                                <option value="em_andamento">{t('hce_status_em_andamento', 'app')}</option>
+                                <option value="concluido">{t('hce_status_concluido', 'app')}</option>
+                                <option value="cancelado">{t('hce_status_cancelado', 'app')}</option>
                               </select>
                             </div>
                             <div className="col-span-2">
-                              <label className={labelCls}>Resultado / Observações</label>
-                              <textarea value={editingExamRequest.resultNotes} onChange={ev => setEditingExamRequest(prev => prev ? { ...prev, resultNotes: ev.target.value } : null)} rows={3} className={textareaCls} placeholder="Descreva os resultados do exame..." />
+                              <label className={labelCls}>{t('hce_result_observations', 'app')}</label>
+                              <textarea value={editingExamRequest.resultNotes} onChange={ev => setEditingExamRequest(prev => prev ? { ...prev, resultNotes: ev.target.value } : null)} rows={3} className={textareaCls} placeholder={t('hce_describe_exam_results_placeholder', 'app')} />
                             </div>
                           </div>
                           <div className="flex justify-end gap-2">
-                            <button onClick={() => setEditingExamRequest(null)} className="px-3 py-1.5 text-slate-600 hover:text-slate-800 text-xs font-bold rounded-lg">Cancelar</button>
-                            <button onClick={() => editingExamRequest && handleUpdateExamRequest({ ...editingExamRequest, resultDate: editingExamRequest.status === 'concluido' ? new Date().toISOString() : editingExamRequest.resultDate })} className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg">Salvar</button>
+                            <button onClick={() => setEditingExamRequest(null)} className="px-3 py-1.5 text-slate-600 hover:text-slate-800 text-xs font-bold rounded-lg">{t('hce_cancel', 'app')}</button>
+                            <button onClick={() => editingExamRequest && handleUpdateExamRequest({ ...editingExamRequest, resultDate: editingExamRequest.status === 'concluido' ? new Date().toISOString() : editingExamRequest.resultDate })} className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg">{t('app_save', 'app')}</button>
                           </div>
                         </div>
                       ) : (
@@ -2642,9 +2642,9 @@ const ClinicalModuleContent = ({
                               <button onClick={() => handleDeleteExamRequest(e.id)} className="text-rose-500 hover:text-rose-700"><Trash2 className="w-3 h-3" /></button>
                             </div>
                           </div>
-                          <p className="text-slate-500">Tipo: {e.examType} | Urgência: {e.urgency}</p>
-                          <p className="text-slate-500">Indicação: {e.clinicalIndication}</p>
-                          {e.resultNotes && <p className="text-green-600 font-bold">Resultado: {e.resultNotes}</p>}
+                          <p className="text-slate-500">{t('hce_type_label', 'app')}: {e.examType} | {t('hce_urgency_label', 'app')}: {e.urgency}</p>
+                          <p className="text-slate-500">{t('hce_indication_label', 'app')}: {e.clinicalIndication}</p>
+                          {e.resultNotes && <p className="text-green-600 font-bold">{t('hce_result_label', 'app')}: {e.resultNotes}</p>}
                         </div>
                       )
                     ))}
@@ -2671,7 +2671,7 @@ const ClinicalModuleContent = ({
                   <div className="grid grid-cols-3 gap-2">
                     <div>
                       <label className={labelCls}>{t('hce_procedure_code', 'app')}</label>
-                      <input type="text" value={procedureForm.procedureCode} onChange={e => setProcedureForm(p => ({ ...p, procedureCode: e.target.value }))} className={inputCls} placeholder="Ex: 10101012" />
+                      <input type="text" value={procedureForm.procedureCode} onChange={e => setProcedureForm(p => ({ ...p, procedureCode: e.target.value }))} className={inputCls} placeholder={t('hce_procedure_code_placeholder', 'app')} />
                     </div>
                     <div>
                       <label className={labelCls}>{t('hce_procedure_name', 'app')}</label>
@@ -2680,13 +2680,13 @@ const ClinicalModuleContent = ({
                     <div>
                       <label className={labelCls}>{t('hce_procedure_category', 'app')}</label>
                       <select value={procedureForm.procedureCategory} onChange={e => setProcedureForm(p => ({ ...p, procedureCategory: e.target.value }))} className={inputCls}>
-                        <option value="">Selecione...</option>
-                        <option value="Consulta">Consulta</option>
-                        <option value="Procedimento">Procedimento</option>
-                        <option value="Laboratório">Laboratório</option>
-                        <option value="Imagem">Imagem</option>
-                        <option value="Fisioterapia">Fisioterapia</option>
-                        <option value="Enfermagem">Enfermagem</option>
+                        <option value="">{t('hce_select_placeholder', 'app')}</option>
+                        <option value="Consulta">{t('hce_category_consulta', 'app')}</option>
+                        <option value="Procedimento">{t('hce_category_procedimento', 'app')}</option>
+                        <option value="Laboratório">{t('hce_category_laboratorio', 'app')}</option>
+                        <option value="Imagem">{t('hce_category_imagem', 'app')}</option>
+                        <option value="Fisioterapia">{t('hce_category_fisioterapia', 'app')}</option>
+                        <option value="Enfermagem">{t('hce_category_enfermagem', 'app')}</option>
                       </select>
                     </div>
                   </div>
@@ -2705,7 +2705,7 @@ const ClinicalModuleContent = ({
                     </div>
                     <div className="flex items-end">
                       <button onClick={handleSaveProcedure} className="w-full py-2 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-lg text-xs transition">
-                        Registrar Procedimento
+                        {t('hce_register_procedure', 'app')}
                       </button>
                     </div>
                   </div>
@@ -2716,22 +2716,22 @@ const ClinicalModuleContent = ({
                         <div key={p.id} className="p-3 bg-teal-50 border border-teal-200 rounded-xl text-xs space-y-2">
                           <div className="grid grid-cols-3 gap-2">
                             <div>
-                              <label className={labelCls}>Status</label>
+                              <label className={labelCls}>{t('hce_diagnosis_status', 'app')}</label>
                               <select value={editingProcedure.status} onChange={ev => setEditingProcedure(prev => prev ? { ...prev, status: ev.target.value as any } : null)} className={inputCls}>
-                                <option value="programado">Programado</option>
-                                <option value="em_execucao">Em Execução</option>
-                                <option value="concluido">Concluído</option>
-                                <option value="cancelado">Cancelado</option>
+                                <option value="programado">{t('hce_procedure_programado', 'app')}</option>
+                                <option value="em_execucao">{t('hce_procedure_em_execucao', 'app')}</option>
+                                <option value="concluido">{t('hce_procedure_concluido', 'app')}</option>
+                                <option value="cancelado">{t('hce_status_cancelado', 'app')}</option>
                               </select>
                             </div>
                             <div className="col-span-2">
-                              <label className={labelCls}>Complicações</label>
-                              <input type="text" value={editingProcedure.complications} onChange={ev => setEditingProcedure(prev => prev ? { ...prev, complications: ev.target.value } : null)} className={inputCls} placeholder="Descreva complicações, se houver..." />
+                              <label className={labelCls}>{t('hce_complications', 'app')}</label>
+                              <input type="text" value={editingProcedure.complications} onChange={ev => setEditingProcedure(prev => prev ? { ...prev, complications: ev.target.value } : null)} className={inputCls} placeholder={t('hce_describe_complications_placeholder', 'app')} />
                             </div>
                           </div>
                           <div className="flex justify-end gap-2">
-                            <button onClick={() => setEditingProcedure(null)} className="px-3 py-1.5 text-slate-600 hover:text-slate-800 text-xs font-bold rounded-lg">Cancelar</button>
-                            <button onClick={() => editingProcedure && handleUpdateProcedure({ ...editingProcedure, performedAt: editingProcedure.status === 'concluido' ? new Date().toISOString() : editingProcedure.performedAt })} className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg">Salvar</button>
+                            <button onClick={() => setEditingProcedure(null)} className="px-3 py-1.5 text-slate-600 hover:text-slate-800 text-xs font-bold rounded-lg">{t('hce_cancel', 'app')}</button>
+                            <button onClick={() => editingProcedure && handleUpdateProcedure({ ...editingProcedure, performedAt: editingProcedure.status === 'concluido' ? new Date().toISOString() : editingProcedure.performedAt })} className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg">{t('app_save', 'app')}</button>
                           </div>
                         </div>
                       ) : (
@@ -2774,8 +2774,8 @@ const ClinicalModuleContent = ({
 
                   <div className="p-6 border-2 border-dashed border-slate-300 rounded-xl text-center hover:border-teal-400 transition cursor-pointer">
                     <Paperclip className="w-8 h-8 mx-auto text-slate-400 mb-2" />
-                    <p className="text-xs text-slate-500 font-medium">Arraste arquivos aqui ou clique para selecionar</p>
-                    <p className="text-[10px] text-slate-400 mt-1">Suporta: PDF, DICOM, JPEG, PNG, MP4, WAV (máx. 50MB)</p>
+                    <p className="text-xs text-slate-500 font-medium">{t('hce_drag_files_or_click', 'app')}</p>
+                    <p className="text-[10px] text-slate-400 mt-1">{t('hce_supported_formats', 'app')}</p>
                     <input type="file" className="hidden" accept=".pdf,.dcm,.jpg,.jpeg,.png,.mp4,.wav" multiple onChange={e => {
                       const files = Array.from(e.target.files || []);
                       files.forEach(f => {
@@ -2818,12 +2818,12 @@ const ClinicalModuleContent = ({
 
                   <div className="p-4 bg-teal-50 border border-teal-200 rounded-xl text-xs text-teal-700">
                     <p className="font-bold">{t('hce_signature_info', 'app')}</p>
-                    <p className="mt-1">Compatível com dispositivos criptográficos (token USB) e assinatura em nuvem (HSM).</p>
-                    <p>Equivalência jurídica com assinatura manuscrita conforme art. 6º da Lei 6822/2021.</p>
+                    <p className="mt-1">{t('hce_signature_crypto_info', 'app')}</p>
+                    <p>{t('hce_signature_legal_info', 'app')}</p>
                   </div>
                   <div className="space-y-2">
                     {signatures.length === 0 ? (
-                      <p className="text-xs text-slate-400 text-center py-4">Nenhuma assinatura registrada. Assine prescrições, laudos ou documentos clínicos.</p>
+                      <p className="text-xs text-slate-400 text-center py-4">{t('hce_no_signatures', 'app')}</p>
                     ) : (
                       signatures.map(s => (
                         <div key={s.id} className={`p-3 border rounded-xl text-xs space-y-1 ${
@@ -2837,10 +2837,10 @@ const ClinicalModuleContent = ({
                               s.status === 'valida' ? 'bg-green-100 text-green-700' : 'bg-rose-100 text-rose-700'
                             }`}>{s.status === 'valida' ? t('hce_signature_valid', 'app') : s.status === 'revogada' ? t('hce_signature_revoked', 'app') : t('hce_signature_expired', 'app')}</span>
                           </div>
-                          <p className="text-slate-500">Assinante: {s.signerName} | {s.signerCouncil} {s.signerCouncilNumber}</p>
-                          <p className="text-slate-500">Emitido por: {s.certificateIssuer}</p>
+                          <p className="text-slate-500">{t('hce_signer_label', 'app')} {s.signerName} | {s.signerCouncil} {s.signerCouncilNumber}</p>
+                          <p className="text-slate-500">{t('hce_issued_by_label', 'app')} {s.certificateIssuer}</p>
                           <p className="text-[9px] text-slate-400 font-mono">Hash: {s.signatureHash.substring(0, 40)}...</p>
-                          <p className="text-[9px] text-slate-400 font-mono">Verificação: {s.verificationCode} | TSA: {s.timestampAuthority}</p>
+                          <p className="text-[9px] text-slate-400 font-mono">{t('hce_verification_label', 'app')} {s.verificationCode} | TSA: {s.timestampAuthority}</p>
                         </div>
                       ))
                     )}
@@ -3136,12 +3136,12 @@ const ClinicalModuleContent = ({
             <div className="border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
                 <Microscope className="w-5 h-5 text-teal-600" />
-                <h3 className="font-semibold text-slate-800 text-base">Laudar Novo Exame</h3>
+                <h3 className="font-semibold text-slate-800 text-base">{t('hce_report_new_exam', 'app')}</h3>
               </div>
             </div>
             <div className="space-y-3.5 text-xs">
               <div>
-                <label className={labelCls}>Paciente</label>
+                <label className={labelCls}>{t('hce_patient', 'app')}</label>
                 <select value={selectedPatId} onChange={e => handlePatientChange(e.target.value)} className={inputCls}>
                   <option value="">{t('agenda_select', 'app')}</option>
                   {patients.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -3149,33 +3149,33 @@ const ClinicalModuleContent = ({
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={labelCls}>Tipo de Exame</label>
+                  <label className={labelCls}>{t('hce_exam_type', 'app')}</label>
                   <select value={selectedExamType} onChange={e => {
                     setSelectedExamType(e.target.value);
                     if (e.target.value === 'Raio-X Tórax') setSelectedImageUrl('https://picsum.photos/seed/xray/600/400');
                     else if (e.target.value === 'Ressonância') setSelectedImageUrl('https://picsum.photos/seed/mri/600/400');
                     else setSelectedImageUrl('https://picsum.photos/seed/ct/600/400');
                   }} className={inputCls}>
-                    <option value="Raio-X Tórax">Raio-X Tórax</option>
-                    <option value="Ressonância">Ressonância Magnética</option>
-                    <option value="Tomografia">Tomografia Computadorizada</option>
+                    <option value="Raio-X Tórax">{t('hce_exam_type_raiox', 'app')}</option>
+                    <option value="Ressonância">{t('hce_exam_type_ressonancia', 'app')}</option>
+                    <option value="Tomografia">{t('hce_exam_type_tomografia', 'app')}</option>
                   </select>
                 </div>
                 <div>
-                  <label className={labelCls}>Status</label>
+                  <label className={labelCls}>{t('hce_diagnosis_status', 'app')}</label>
                   <div className="p-2.5 bg-orange-50 border border-orange-200 text-orange-800 rounded-lg font-bold text-center text-xs">
                     {t('hce_awaiting_report', 'app')}
                   </div>
                 </div>
               </div>
               <div>
-                <label className={labelCls}>Observações</label>
+                <label className={labelCls}>{t('hce_observations', 'app')}</label>
                 <textarea value={laboratoryNotes} onChange={e => setLaboratoryNotes(e.target.value)} rows={4} className={textareaCls}
-                  placeholder="Ex: Área cardiopulmonar preservada..." />
+                  placeholder={t('hce_observations_placeholder', 'app')} />
               </div>
               <button onClick={() => { addAuditLog('Emissão Laudo', `${selectedExamType} de ${selectedPatient?.name}`); alert(t('clinical_alert_report_saved', 'app')); setLaboratoryNotes(''); }}
                 className="w-full py-3 px-4 bg-slate-800 hover:bg-slate-900 text-white font-semibold rounded-lg text-xs">
-                Salvar Laudo
+                {t('hce_save_report', 'app')}
               </button>
             </div>
           </div>
@@ -3183,7 +3183,7 @@ const ClinicalModuleContent = ({
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <div>
                 <h4 className="font-bold text-slate-800 text-base">IAMED PACS Radiológico</h4>
-                <p className="text-xs text-slate-500">Visualizador de imagens diagnósticas</p>
+                <p className="text-xs text-slate-500">{t('hce_pacs_subtitle', 'app')}</p>
               </div>
               <div className="flex gap-2">
                 <span className="text-xs font-bold bg-slate-100 py-1 px-2.5 rounded text-slate-600">ID: PACS_8390</span>
@@ -3196,20 +3196,20 @@ const ClinicalModuleContent = ({
                 style={{ filter: `contrast(${imageContrast}%) brightness(${imageBrightness}%) grayscale(100%)` }}
                 className="object-cover max-h-full max-w-full transition duration-150" />
               <div className="absolute top-3 left-3 bg-black/70 p-2 rounded-md font-mono text-[9px] text-teal-400 space-y-0.5 pointer-events-none">
-                <p>NOME: {selectedPatient?.name.toUpperCase()}</p>
-                <p>EXAME: {selectedExamType.toUpperCase()}</p>
+                <p>{t('hce_name_label', 'app')}: {selectedPatient?.name.toUpperCase()}</p>
+                <p>{t('hce_exam_label', 'app')}: {selectedExamType.toUpperCase()}</p>
               </div>
             </div>
             <div className="bg-slate-50 p-4 border border-slate-200/80 rounded-xl grid grid-cols-2 gap-4 text-xs">
               <div className="flex items-center gap-3">
                 <Sliders className="w-4 h-4 text-slate-500" />
-                <span className="font-semibold text-slate-600 w-16">Contraste:</span>
+                <span className="font-semibold text-slate-600 w-16">{t('hce_contrast_label', 'app')}</span>
                 <input type="range" min="50" max="180" value={imageContrast} onChange={e => setImageContrast(Number(e.target.value))} className="flex-1 accent-teal-600" />
                 <span className="w-10 text-right font-bold">{imageContrast}%</span>
               </div>
               <div className="flex items-center gap-3">
                 <Sliders className="w-4 h-4 text-slate-500" />
-                <span className="font-semibold text-slate-600 w-16">Brilho:</span>
+                <span className="font-semibold text-slate-600 w-16">{t('hce_brightness_label', 'app')}</span>
                 <input type="range" min="50" max="180" value={imageBrightness} onChange={e => setImageBrightness(Number(e.target.value))} className="flex-1 accent-teal-600" />
                 <span className="w-10 text-right font-bold">{imageBrightness}%</span>
               </div>
@@ -3238,10 +3238,10 @@ const ClinicalModuleContent = ({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className={labelCls}>{t('hce_aso_type', 'app')}</label>
-                  <select value={asoType} onChange={e => setAsoType(e.target.value as any)} className={inputCls}>
-                    <option value="Admissional">Admissional</option>
-                    <option value="Periódico">Periódico</option>
-                    <option value="Demissional">Demissional</option>
+                   <select value={asoType} onChange={e => setAsoType(e.target.value as any)} className={inputCls}>
+                     <option value="Admissional">{t('hce_aso_admissional', 'app')}</option>
+                     <option value="Periódico">{t('hce_aso_periodico', 'app')}</option>
+                     <option value="Demissional">{t('hce_aso_demissional', 'app')}</option>
                   </select>
                 </div>
                 <div>
@@ -3297,54 +3297,54 @@ const ClinicalModuleContent = ({
           <div className={sectionCls}>
             <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
               <ShieldAlert className="w-5 h-5 text-teal-600" />
-              <h3 className="font-semibold text-slate-800 text-base">Emitir CAT</h3>
+              <h3 className="font-semibold text-slate-800 text-base">{t('hce_issue_cat', 'app')}</h3>
             </div>
             <form onSubmit={handleRegisterCat} className="space-y-4 text-xs">
               <div>
-                <label className={labelCls}>Trabalhador Acidentado *</label>
-                <input type="text" value={catEmployee} onChange={e => setCatEmployee(e.target.value)} placeholder="Nome" className={inputCls} required />
+                <label className={labelCls}>{t('hce_injured_worker', 'app')} *</label>
+                <input type="text" value={catEmployee} onChange={e => setCatEmployee(e.target.value)} placeholder={t('hce_full_name', 'app')} className={inputCls} required />
               </div>
               <div>
-                <label className={labelCls}>Data do Ocorrido</label>
+                <label className={labelCls}>{t('hce_incident_date', 'app')}</label>
                 <I18nDatePicker value={catDate} onChange={setCatDate} className={inputCls} />
               </div>
               <div>
-                <label className={labelCls}>Natureza da Lesão</label>
-                <textarea value={catNotes} onChange={e => setCatNotes(e.target.value)} rows={4} className={textareaCls} placeholder="Descreva..." required />
+                <label className={labelCls}>{t('hce_injury_nature', 'app')}</label>
+                <textarea value={catNotes} onChange={e => setCatNotes(e.target.value)} rows={4} className={textareaCls} placeholder={t('hce_describe_placeholder', 'app')} required />
               </div>
               <button type="submit" className="w-full py-3 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-lg">
-                Registrar CAT
+                {t('hce_register_cat', 'app')}
               </button>
               {catRegistered && (
                 <div className="p-3 bg-green-50 border border-green-200 text-green-800 rounded-lg font-bold flex items-center gap-2 animate-pulse">
-                  <Check className="w-4 h-4 text-green-600" /> CAT registrada com sucesso!
+                  <Check className="w-4 h-4 text-green-600" /> {t('hce_cat_registered_success', 'app')}
                 </div>
               )}
             </form>
           </div>
           <div className={sectionCls}>
-            <h4 className="font-bold text-slate-800 text-sm">Controle de EPI</h4>
+            <h4 className="font-bold text-slate-800 text-sm">{t('hce_ppe_control', 'app')}</h4>
             <div className="space-y-3 text-xs">
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
                 <div>
-                  <p className="font-bold text-slate-800">Protetores Auriculares</p>
+                  <p className="font-bold text-slate-800">{t('hce_ear_protectors', 'app')}</p>
                   <p className="text-[10px] text-slate-500">CA: 12.389</p>
                 </div>
-                <span className="py-1 px-2.5 bg-green-50 text-green-700 border border-green-200 font-semibold rounded">Estoque OK</span>
+                <span className="py-1 px-2.5 bg-green-50 text-green-700 border border-green-200 font-semibold rounded">{t('hce_stock_ok', 'app')}</span>
               </div>
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
                 <div>
-                  <p className="font-bold text-slate-800">Cinturões NR-35</p>
+                  <p className="font-bold text-slate-800">{t('hce_safety_harnesses', 'app')}</p>
                   <p className="text-[10px] text-slate-500">CA: 44.910</p>
                 </div>
-                <span className="py-1 px-2.5 bg-red-50 text-red-700 border border-red-200 font-semibold rounded animate-pulse">Revisão Pendente</span>
+                <span className="py-1 px-2.5 bg-red-50 text-red-700 border border-red-200 font-semibold rounded animate-pulse">{t('hce_review_pending', 'app')}</span>
               </div>
               <div className="p-4 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl flex gap-3 text-xs">
                 <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
                 <div>
                   <p className="font-bold">NR-35 & PCMSO</p>
                   <p className="mt-1 font-medium text-amber-800">
-                    Todo trabalhador em altura superior a 2m deve possuir ASO válido.
+                    {t('hce_nr35_asm_info', 'app')}
                   </p>
                 </div>
               </div>
@@ -3359,28 +3359,28 @@ const ClinicalModuleContent = ({
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 p-6 font-sans border border-slate-200" onClick={e => e.stopPropagation()}>
             <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-teal-600"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
-              <h3 className="font-extrabold text-slate-800 text-sm uppercase">Editar ASO</h3>
+              <h3 className="font-extrabold text-slate-800 text-sm uppercase">{t('hce_edit_aso', 'app')}</h3>
             </div>
             <div className="space-y-4 mt-4 text-xs">
               <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Paciente</label>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('hce_patient', 'app')}</label>
                 <p className="font-bold text-slate-800">{editingAso.patientName}</p>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Tipo de ASO</label>
-                  <select
-                    value={editingAso.type}
-                    onChange={e => setEditingAso(prev => prev ? { ...prev, type: e.target.value as any } : null)}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold"
-                  >
-                    <option value="Admissional">Admissional</option>
-                    <option value="Periódico">Periódico</option>
-                    <option value="Demissional">Demissional</option>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('hce_aso_type', 'app')}</label>
+                   <select
+                     value={editingAso.type}
+                     onChange={e => setEditingAso(prev => prev ? { ...prev, type: e.target.value as any } : null)}
+                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold"
+                   >
+                     <option value="Admissional">{t('hce_aso_admissional', 'app')}</option>
+                     <option value="Periódico">{t('hce_aso_periodico', 'app')}</option>
+                     <option value="Demissional">{t('hce_aso_demissional', 'app')}</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Parecer</label>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('hce_opinion', 'app')}</label>
                   <select
                     value={editingAso.status}
                     onChange={e => setEditingAso(prev => prev ? { ...prev, status: e.target.value as 'apto' | 'inapto' } : null)}
@@ -3392,13 +3392,13 @@ const ClinicalModuleContent = ({
                 </div>
               </div>
               <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Riscos Ocupacionais</label>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('hce_occupational_risks', 'app')}</label>
                 <input
                   type="text"
                   value={editingAso.risks.join(', ')}
                   onChange={e => setEditingAso(prev => prev ? { ...prev, risks: e.target.value.split(',').map(r => r.trim()) } : null)}
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
-                  placeholder="Separar por vírgula"
+                  placeholder={t('hce_separate_comma', 'app')}
                 />
               </div>
               <div className="flex gap-2 pt-2">
@@ -3410,7 +3410,7 @@ const ClinicalModuleContent = ({
                   }}
                   className="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-lg text-xs cursor-pointer transition"
                 >
-                  Salvar Alterações
+                  {t('app_save_changes', 'app')}
                 </button>
                 <button onClick={() => setEditingAso(null)} className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs cursor-pointer transition">
                   Cancelar

@@ -329,16 +329,16 @@ function KudeModal({ dte, onClose }: { dte: Dte; onClose: () => void }) {
               onClick={() => { alert(t('admin_alert_kude_printed', 'app')); }}
               className="flex-1 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-lg text-xs flex items-center justify-center gap-2 transition"
             >
-              <Printer className="w-4 h-4" /> Imprimir KuDE
+              <Printer className="w-4 h-4" /> {t('fin_btn_print_kude', 'app')}
             </button>
             <button
-              onClick={() => { alert('KuDE enviado ao e-mail/WhatsApp do paciente!'); }}
+              onClick={() => { alert(t('fin_alert_kude_sent', 'app')); }}
               className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-lg text-xs flex items-center justify-center gap-2 transition"
             >
-              <Send className="w-4 h-4" /> Enviar ao Paciente
+              <Send className="w-4 h-4" /> {t('fin_btn_send_to_patient', 'app')}
             </button>
             <button onClick={onClose} className="py-2 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg text-xs transition">
-              Fechar
+              {t('fin_btn_close', 'app')}
             </button>
           </div>
         </div>
@@ -349,6 +349,7 @@ function KudeModal({ dte, onClose }: { dte: Dte; onClose: () => void }) {
 
 // ─── XML Viewer Modal ──────────────────────────────────────────────────────────
 function XmlModal({ xml, onClose }: { xml: string; onClose: () => void }) {
+  const { t } = useI18n();
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={onClose}>
       <div className="bg-slate-950 rounded-2xl w-full max-w-3xl shadow-2xl border border-slate-800 overflow-hidden" onClick={e => e.stopPropagation()}>
@@ -366,9 +367,9 @@ function XmlModal({ xml, onClose }: { xml: string; onClose: () => void }) {
             onClick={() => { const b = new Blob([xml], { type: 'text/xml' }); const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href = u; a.download = 'dte_sifen.xml'; a.click(); }}
             className="py-2 px-4 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-lg text-xs flex items-center gap-2"
           >
-            <Download className="w-3.5 h-3.5" /> Baixar XML
+            <Download className="w-3.5 h-3.5" /> {t('fin_btn_download_xml', 'app')}
           </button>
-          <button onClick={onClose} className="py-2 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-lg text-xs">Fechar</button>
+          <button onClick={onClose} className="py-2 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-lg text-xs">{t('fin_btn_close', 'app')}</button>
         </div>
       </div>
     </div>
@@ -377,6 +378,7 @@ function XmlModal({ xml, onClose }: { xml: string; onClose: () => void }) {
 
 // ─── Gateway Modal ─────────────────────────────────────────────────────────────
 function GatewayModal({ dte, onClose, onConfirm }: { dte: Dte; onClose: () => void; onConfirm: (gateway: typeof GATEWAYS[number]) => void }) {
+  const { t } = useI18n();
   const [selected, setSelected] = useState<typeof GATEWAYS[number]>('Bancard');
 
   const gwIcons: Record<string, string> = {
@@ -398,7 +400,7 @@ function GatewayModal({ dte, onClose, onConfirm }: { dte: Dte; onClose: () => vo
         </div>
 
         <div className="p-5 space-y-4">
-          <p className="text-xs text-slate-600 font-semibold">Selecione o meio de pagamento:</p>
+          <p className="text-xs text-slate-600 font-semibold">{t('fin_select_payment_method', 'app')}</p>
           <div className="grid grid-cols-2 gap-2">
             {GATEWAYS.map(gw => (
               <button
@@ -429,7 +431,7 @@ function GatewayModal({ dte, onClose, onConfirm }: { dte: Dte; onClose: () => vo
           >
             <Zap className="w-4 h-4" /> Simular Webhook — Marcar como Pago & Conciliar
           </button>
-          <button onClick={onClose} className="w-full py-2 text-slate-500 text-xs font-semibold hover:text-slate-700">Cancelar</button>
+          <button onClick={onClose} className="w-full py-2 text-slate-500 text-xs font-semibold hover:text-slate-700">{t('fin_btn_cancel', 'app')}</button>
         </div>
       </div>
     </div>
@@ -687,7 +689,7 @@ export default function AdminFinanceModule({
   const handleSaveLocation = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!locName.trim() || !locAddress.trim() || !locCity.trim() || !locPhone.trim()) {
-      alert('Preencha todos os campos obrigatórios: Nome, Endereço, Cidade e Telefone.');
+      alert(t('fin_alert_fill_location_fields', 'app'));
       return;
     }
     if (editingLocId) {
@@ -938,19 +940,19 @@ const resetProfForm = () => {
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!userName.trim() || !userCi.trim() || !userLocation) {
-      alert('Preencha todos os campos obrigatórios: Nome, CI/Documento e Sede.');
+      alert(t('fin_alert_fill_user_fields', 'app'));
       return;
     }
     if (!editingUserId && !userPassword) {
-      alert('A senha é obrigatória para novos usuários.');
+      alert(t('fin_alert_password_required', 'app'));
       return;
     }
     if (userPassword && userPassword !== userPasswordConfirm) {
-      alert('As senhas não coincidem.');
+      alert(t('fin_alert_passwords_mismatch', 'app'));
       return;
     }
     if (userPassword && userPassword.length < 6) {
-      alert('A senha deve ter pelo menos 6 caracteres.');
+      alert(t('fin_alert_password_min_length', 'app'));
       return;
     }
 
@@ -986,11 +988,11 @@ const resetProfForm = () => {
             password: userPassword || undefined,
           }),
         });
-        if (!response.ok) await handleApiError(response, 'Erro ao atualizar usuário');
+        if (!response.ok) await handleApiError(response, t('fin_alert_error_update_user', 'app'));
         const data = await response.json();
         console.log('Update user response:', data);
         addAuditLog('Atualizou Usuário', userName);
-        alert('Usuário atualizado com sucesso!');
+        alert(t('fin_alert_user_updated', 'app'));
       } else {
         const response = await fetch('/api/admin/users', {
           method: 'POST',
@@ -1005,11 +1007,11 @@ const resetProfForm = () => {
             professionalId: userProfessionalId,
           }),
         });
-        if (!response.ok) await handleApiError(response, 'Erro ao criar usuário');
+        if (!response.ok) await handleApiError(response, t('fin_alert_error_create_user', 'app'));
         const data = await response.json();
         console.log('Create user response:', data);
         addAuditLog('Cadastrou Usuário via Auth', userName);
-        alert('Usuário criado com sucesso!');
+        alert(t('fin_alert_user_created', 'app'));
       }
 
       await loadSystemUsersFromSupabase();
@@ -1029,7 +1031,7 @@ const resetProfForm = () => {
     } catch (error: any) {
       const msg = (error && (error.message || String(error))) || 'Erro desconhecido';
       console.error('handleCreateUser failed:', error);
-      alert(`Erro: ${msg}`);
+      alert(t('fin_alert_error_prefix', 'app') + msg);
     }
   };
 
@@ -1079,7 +1081,7 @@ const resetProfForm = () => {
 
   const handleEmitirDte = async () => {
     if (!dtePatient.trim() || dteItems.length === 0) {
-      alert('Preencha o paciente e adicione ao menos um procedimento.');
+      alert(t('fin_alert_fill_patient_procedure', 'app'));
       return;
     }
     const seq = nextDteSeq;
@@ -1314,7 +1316,7 @@ const resetProfForm = () => {
                 onClick={() => { setShowInsuranceForm(true); setEditingInsuranceId(null); setInsuranceForm({ name: '', type: 'IPS', ruc: '', contact: '', phone: '', email: '', has_webservice: false, webservice_url: '', requires_authorization: true, requires_pre_approval: false, copay_rules: '', coverage_ceiling: 0 }); }}
                 className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg cursor-pointer transition"
               >
-                <Plus className="w-3.5 h-3.5" /> Novo Convênio
+                <Plus className="w-3.5 h-3.5" /> {t('fin_new_insurance', 'app')}
               </button>
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -1343,17 +1345,17 @@ const resetProfForm = () => {
                       }}
                       className="flex-1 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold rounded-lg cursor-pointer transition"
                     >
-                      Editar
+                      {t('fin_btn_edit', 'app')}
                     </button>
                     <button
                       onClick={() => {
-                        if (!confirm(`Excluir convênio "${ins.name}"?`)) return;
+                        if (!confirm(t('fin_confirm_delete_insurance', 'app').replace('{name}', ins.name))) return;
                         setInsurances(prev => prev.filter(i => i.id !== ins.id));
                         addAuditLog('Convênio excluído', ins.name);
                       }}
                       className="py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 text-[10px] font-bold rounded-lg cursor-pointer transition"
                     >
-                      Excluir
+                      {t('fin_btn_delete', 'app')}
                     </button>
                   </div>
                 </div>
@@ -1367,7 +1369,7 @@ const resetProfForm = () => {
               <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto">
                 <div className="bg-gradient-to-r from-emerald-600 to-teal-600 p-4 text-white rounded-t-2xl">
                   <div className="flex items-center justify-between">
-                    <h3 className="font-black text-sm">{editingInsuranceId ? 'Editar Convênio' : 'Novo Convênio'}</h3>
+                    <h3 className="font-black text-sm">{editingInsuranceId ? t('fin_edit_insurance', 'app') : t('fin_new_insurance', 'app')}</h3>
                     <button onClick={() => { setShowInsuranceForm(false); setEditingInsuranceId(null); }} className="text-white/80 hover:text-white cursor-pointer"><X className="w-5 h-5" /></button>
                   </div>
                 </div>
@@ -1429,7 +1431,7 @@ const resetProfForm = () => {
                   <div className="flex gap-3 pt-2">
                     <button
                       onClick={async () => {
-                        if (!insuranceForm.name.trim() || !insuranceForm.ruc.trim()) { alert('Nome e RUC são obrigatórios.'); return; }
+                        if (!insuranceForm.name.trim() || !insuranceForm.ruc.trim()) { alert(t('fin_alert_name_ruc_required', 'app')); return; }
                         if (editingInsuranceId) {
                           setInsurances(prev => prev.map(i => i.id === editingInsuranceId ? { ...i, ...insuranceForm } : i));
                           addAuditLog('Convênio atualizado', insuranceForm.name);
@@ -1662,7 +1664,7 @@ const resetProfForm = () => {
                   const pName = (document.getElementById('elig-patient-input') as HTMLInputElement)?.value;
                   const insId = (document.getElementById('elig-insurance-select') as HTMLSelectElement)?.value;
                   const procCode = (document.getElementById('elig-procedure-select') as HTMLSelectElement)?.value;
-                  if (!pName || !insId || !procCode) { alert('Preencha todos os campos'); return; }
+                   if (!pName || !insId || !procCode) { alert(t('fin_alert_fill_all_fields', 'app')); return; }
                   const ins = insurances.find(i => i.id === insId);
                   const proc = PROCEDURES.find(p => p.code === procCode);
                   if (!ins || !proc) return;
@@ -1790,7 +1792,7 @@ const resetProfForm = () => {
                 const profId = (document.getElementById('settle-prof-select') as HTMLSelectElement)?.value;
                 const gross = Number((document.getElementById('settle-gross-input') as HTMLInputElement)?.value) || 0;
                 const pct = Number((document.getElementById('settle-pct-select') as HTMLSelectElement)?.value) || 60;
-                if (!profId || !gross) { alert('Seleccione profesional e ingrese valor facturado'); return; }
+                if (!profId || !gross) { alert(t('fin_alert_select_professional_value', 'app')); return; }
                 const prof = professionals.find(p => p.id === profId);
                 if (!prof) return;
                 const honorario = Math.round(gross * pct / 100);
@@ -1865,11 +1867,12 @@ const resetProfForm = () => {
                   const currency = (document.getElementById('frn-currency-select') as HTMLSelectElement)?.value as ForeignBilling['currency'];
                   const rate = Number((document.getElementById('frn-rate-input') as HTMLInputElement)?.value) || 7500;
                   const amountLocal = Number((document.getElementById('frn-amount-input') as HTMLInputElement)?.value) || 0;
-                  if (!pName || !amountLocal) { alert('Preencha nome e montante'); return; }
+                   if (!pName || !amountLocal) { alert(t('fin_alert_fill_name_amount', 'app')); return; }
                   const amountForeign = Math.round(amountLocal / rate * 100) / 100;
                   const countryNames: Record<string, string> = { AR: 'Argentina', BR: 'Brasil', UY: 'Uruguay', CL: 'Chile', US: 'Estados Unidos' };
                   addAuditLog('Emitió Factura Extranjero', `${pName} - ${currency} ${amountForeign}`);
-                  const docs = [`Invoice_INV-${Date.now()}.pdf`, `Recibo_Rec-${Date.now()}.pdf`, `Comprobante_Reembolso_${country}.pdf`];
+                  const docId = await genModuleId('dte');
+                  const docs = [`Invoice_INV-${docId}.pdf`, `Recibo_Rec-${docId}.pdf`, `Comprobante_Reembolso_${country}_${docId}.pdf`];
                   const newFrn: ForeignBilling = { id: await genModuleId('frn'), patient_id: '', patient_name: pName, country, currency, exchange_rate: rate, amount_local: amountLocal, amount_foreign: amountForeign, documents_generated: docs, status: 'gerado' };
                   setForeignBillings(prev => [newFrn, ...prev]);
                   setForeignBillingsProp?.(prev => [newFrn, ...prev]);
@@ -2003,7 +2006,7 @@ const resetProfForm = () => {
                   onClick={() => setDteFormOpen(v => !v)}
                   className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg flex items-center gap-2 shadow-sm transition"
                 >
-                  <Plus className="w-4 h-4" /> Emitir Novo DTE
+                  <Plus className="w-4 h-4" /> {t('fin_emit_new_dte', 'app')}
                 </button>
               </div>
             </div>
@@ -2014,7 +2017,7 @@ const resetProfForm = () => {
             <div className="bg-white rounded-xl border border-teal-200 shadow-sm p-5 space-y-4">
               <div className="flex items-center justify-between">
                 <h4 className="font-black text-slate-800 text-sm flex items-center gap-2">
-                  <FileCheck className="w-4 h-4 text-teal-600" /> Novo Documento Tributário Eletrônico
+                  <FileCheck className="w-4 h-4 text-teal-600" /> {t('fin_new_electronic_tax_doc', 'app')}
                 </h4>
                 <button onClick={() => setDteFormOpen(false)}><X className="w-4 h-4 text-slate-400" /></button>
               </div>
@@ -2057,7 +2060,7 @@ const resetProfForm = () => {
 
               {/* Procedure picker */}
               <div className="border border-slate-200 rounded-xl p-3 space-y-3">
-                <h5 className="font-bold text-slate-700 text-xs">Adicionar Procedimentos / Serviços</h5>
+                <h5 className="font-bold text-slate-700 text-xs">{t('fin_add_procedures_services', 'app')}</h5>
                 <div className="flex gap-2 flex-wrap">
                   <select
                     value={selectedProcCode}
@@ -2071,7 +2074,7 @@ const resetProfForm = () => {
                     <input type="number" min={1} value={dteQty} onChange={e => setDteQty(Number(e.target.value))} className="w-16 p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-center" />
                   </div>
                   <button onClick={addProcedureItem} className="px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-lg flex items-center gap-1">
-                    <Plus className="w-3.5 h-3.5" /> Adicionar
+                    <Plus className="w-3.5 h-3.5" /> {t('fin_btn_add', 'app')}
                   </button>
                 </div>
 
@@ -2198,8 +2201,8 @@ const resetProfForm = () => {
                           )}
                           {dte.status !== 'Cancelado' && dte.status !== 'Inutilizado' && (
                             <button
-                              onClick={() => { if (confirm(`Cancelar DTE ${dte.number}?`)) handleCancelarDte(dte.id); }}
-                              title="Cancelar DTE"
+                              onClick={() => { if (confirm(t('fin_confirm_cancel_dte', 'app').replace('{number}', dte.number))) handleCancelarDte(dte.id); }}
+                              title={t('fin_cancel_dte', 'app')}
                               className="p-1.5 rounded-lg hover:bg-rose-50 text-rose-400 hover:text-rose-600 transition"
                             >
                               <Ban className="w-3.5 h-3.5" />
@@ -2212,7 +2215,7 @@ const resetProfForm = () => {
                   {dtes.length === 0 && (
                     <tr>
                       <td colSpan={8} className="px-4 py-10 text-center text-slate-400 text-xs font-semibold">
-                        Nenhum DTE emitido ainda. Clique em &quot;Emitir Novo DTE&quot; para começar.
+                        {t('fin_empty_dte_list', 'app')}
                       </td>
                     </tr>
                   )}
@@ -2764,7 +2767,7 @@ const resetProfForm = () => {
           <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs lg:col-span-1 space-y-4">
             <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
               <Pill className="w-5 h-5 text-teal-600" />
-              <h3 className="font-semibold text-slate-800 text-base">Cadastrar Novo Insumo</h3>
+              <h3 className="font-semibold text-slate-800 text-base">{t('fin_new_supply', 'app')}</h3>
             </div>
 
             <form onSubmit={handleAddStockItem} className="space-y-4 text-xs">
@@ -2842,8 +2845,8 @@ const resetProfForm = () => {
                           <AlertTriangle className="w-3" /> Baixo Estoque
                         </span>
                       )}
-                      <button onClick={() => handleUpdateStockQty(item.id, 50)} className="p-1 px-2.5 bg-slate-800 text-white font-bold rounded" title="Reabastecer 50 unid">+50</button>
-                      <button onClick={() => handleUpdateStockQty(item.id, -1)} className="p-1 px-2.5 bg-slate-200 text-slate-700 font-bold rounded" title="Dispensar">-1</button>
+                      <button onClick={() => handleUpdateStockQty(item.id, 50)} className="p-1 px-2.5 bg-slate-800 text-white font-bold rounded" title={t('fin_title_restock_50', 'app')}>+50</button>
+                      <button onClick={() => handleUpdateStockQty(item.id, -1)} className="p-1 px-2.5 bg-slate-200 text-slate-700 font-bold rounded" title={t('fin_title_dispense', 'app')}>-1</button>
                     </div>
                   </div>
                 );
@@ -2914,7 +2917,7 @@ const resetProfForm = () => {
                     <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
                       <UserPlus className="w-5 h-5 text-teal-600" />
                       <h3 className="font-semibold text-slate-800 text-base">
-                        {editingUserId ? 'Editar Usuário' : 'Criar Usuário para Profissional'}
+                        {editingUserId ? t('fin_edit_user', 'app') : t('fin_create_user_for_professional', 'app')}
                       </h3>
                     </div>
                     {userProfessionalId && !editingUserId && (
@@ -2959,7 +2962,7 @@ const resetProfForm = () => {
                         <input type="password" value={userPassword} onChange={e => setUserPassword(e.target.value)} placeholder={editingUserId ? 'Deixe vazio para manter' : 'Mín. 6 caracteres'} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" minLength={6} />
                       </div>
                       <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">Confirmar Senha {editingUserId ? '' : '*'}</label>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">{t('fin_confirm_password_label', 'app')} {editingUserId ? '' : '*'}</label>
                         <input type="password" value={userPasswordConfirm} onChange={e => setUserPasswordConfirm(e.target.value)} placeholder={editingUserId ? 'Deixe vazio para manter' : 'Confirme a senha'} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" minLength={6} />
                       </div>
                     </div>
@@ -2999,7 +3002,7 @@ const resetProfForm = () => {
                       <div>
                         <label className="block text-xs font-semibold text-slate-600 mb-1">Sede *</label>
                         <select value={userLocation} onChange={e => setUserLocation(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" required>
-                          <option value="">Selecione a sede</option>
+                          <option value="">{t('fin_select_location', 'app')}</option>
                           {locations.filter(l => l.status === 'ativo').map(loc => (
                             <option key={loc.id} value={loc.name}>{loc.name}</option>
                           ))}
@@ -3029,11 +3032,11 @@ const resetProfForm = () => {
                     </div>
                     <div className="flex gap-2 pt-2">
                       <button type="submit" className="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-lg text-xs cursor-pointer transition">
-                        {editingUserId ? 'Atualizar Usuário' : 'Criar Usuário'}
+                        {editingUserId ? t('fin_update_user', 'app') : t('fin_create_user', 'app')}
                       </button>
                       {editingUserId && (
                         <button type="button" onClick={() => { setEditingUserId(null); setUserProfessionalId(null); setUserName(''); setUserEmail(''); setUserCi(''); setUserRole('Visualizador'); setUserLocation(''); setUserStatus('ativo'); setUser2FA(false); setUser2FAMethod('none'); }} className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs cursor-pointer transition">
-                          Cancelar
+                          {t('fin_btn_cancel', 'app')}
                         </button>
                       )}
                     </div>
@@ -3045,10 +3048,9 @@ const resetProfForm = () => {
                 {!editingUserId && !userProfessionalId && (
                   <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs lg:col-span-1 space-y-4 text-center py-10">
                     <Users className="w-12 h-12 text-slate-300 mx-auto" />
-                    <h3 className="font-semibold text-slate-700">Criar Usuário a partir de Profissional</h3>
+                    <h3 className="font-semibold text-slate-700">{t('fin_title_create_user_from_professional', 'app')}</h3>
                     <p className="text-xs text-slate-500 max-w-xs mx-auto">
-                      Usuários do sistema são criados vinculando a um profissional.<br />
-                      Vá na aba <strong className="text-teal-600">Profissionais</strong>, clique no ícone <UserPlus className="w-3.5 h-3.5 inline text-teal-600" /> <strong>Criar Usuário</strong> no profissional desejado.
+                      {t('fin_create_user_hint', 'app')}
                     </p>
                   </div>
                 )}
@@ -3112,9 +3114,9 @@ const resetProfForm = () => {
                         <div className="flex items-center gap-1.5 shrink-0">
                           {u.twoFactorEnabled && <Fingerprint className="w-3 h-3 text-teal-500" />}
                           <span className={`px-1.5 py-0.5 text-[9px] font-bold rounded border ${u.status === 'ativo' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : u.status === 'bloqueado' ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>{u.status}</span>
-                          <button onClick={() => { setEditingUserId(u.id); setUserName(u.name); setUserEmail(u.email || ''); setUserCi(u.ci || ''); setUserRole(u.systemRole); setUserLocation(u.location || ''); setUserStatus(u.status); setUser2FA(u.twoFactorEnabled || false); setUser2FAMethod(u.twoFactorMethod || 'none'); setUserProfessionalId(u.professionalId || null); }} className="p-1.5 rounded-lg hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition cursor-pointer" title="Editar"><Edit2 className="w-3.5 h-3.5" /></button>
-                          <button onClick={() => { const nextStatus = u.status === 'ativo' ? 'inativo' : 'ativo'; if (confirm(`${nextStatus === 'ativo' ? 'Ativar' : 'Desativar'} usuário ${u.name}?`)) { setSystemUsers(prev => prev.map(x => x.id === u.id ? { ...x, status: nextStatus } : x)); if (supabase) { supabase.from('system_users').update({ status: nextStatus }).eq('id', u.id).then(({ error }) => { if (error) console.error('Erro ao alterar status:', error.message, error); }); } addAuditLog('Alterou Status Usuário', `${u.name} → ${nextStatus}`); } }} className="p-1.5 rounded-lg hover:bg-rose-50 text-slate-500 hover:text-rose-600 transition cursor-pointer" title={u.status === 'ativo' ? 'Desativar' : 'Ativar'}>{u.status === 'ativo' ? <UserX className="w-3 h-3" /> : <UserCheck className="w-3 h-3" />}</button>
-                          <button onClick={() => { if (confirm(`Tem certeza que deseja excluir o usuário "${u.name}"?\n\nEsta ação irá remover o acesso do usuário ao sistema e não pode ser desfeita.`)) { setSystemUsers(prev => prev.filter(x => x.id !== u.id)); if (supabase) { supabase.from('system_users').delete().eq('id', u.id).then(({ error }) => { if (error) console.error('Erro ao excluir usuário:', error.message, error); }); } addAuditLog('Excluiu Usuário', u.name); } }} className="p-1.5 rounded-lg hover:bg-rose-50 text-slate-500 hover:text-rose-600 transition cursor-pointer" title="Excluir"><Trash2 className="w-3 h-3" /></button>
+                          <button onClick={() => { setEditingUserId(u.id); setUserName(u.name); setUserEmail(u.email || ''); setUserCi(u.ci || ''); setUserRole(u.systemRole); setUserLocation(u.location || ''); setUserStatus(u.status); setUser2FA(u.twoFactorEnabled || false); setUser2FAMethod(u.twoFactorMethod || 'none'); setUserProfessionalId(u.professionalId || null); }} className="p-1.5 rounded-lg hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition cursor-pointer" title={t('fin_btn_edit', 'app')}><Edit2 className="w-3.5 h-3.5" /></button>
+                          <button onClick={() => { const nextStatus = u.status === 'ativo' ? 'inativo' : 'ativo'; if (confirm(`${nextStatus === 'ativo' ? t('fin_confirm_activate_user', 'app') : t('fin_confirm_deactivate_user', 'app')} usuário ${u.name}?`)) { setSystemUsers(prev => prev.map(x => x.id === u.id ? { ...x, status: nextStatus } : x)); if (supabase) { supabase.from('system_users').update({ status: nextStatus }).eq('id', u.id).then(({ error }) => { if (error) console.error('Erro ao alterar status:', error.message, error); }); } addAuditLog('Alterou Status Usuário', `${u.name} → ${nextStatus}`); } }} className="p-1.5 rounded-lg hover:bg-rose-50 text-slate-500 hover:text-rose-600 transition cursor-pointer" title={u.status === 'ativo' ? t('fin_btn_deactivate', 'app') : t('fin_btn_activate', 'app')}>{u.status === 'ativo' ? <UserX className="w-3 h-3" /> : <UserCheck className="w-3 h-3" />}</button>
+                          <button onClick={() => { if (confirm(t('fin_confirm_delete_user', 'app').replace('{name}', u.name))) { setSystemUsers(prev => prev.filter(x => x.id !== u.id)); if (supabase) { supabase.from('system_users').delete().eq('id', u.id).then(({ error }) => { if (error) console.error('Erro ao excluir usuário:', error.message, error); }); } addAuditLog('Excluiu Usuário', u.name); } }} className="p-1.5 rounded-lg hover:bg-rose-50 text-slate-500 hover:text-rose-600 transition cursor-pointer" title={t('fin_btn_delete', 'app')}><Trash2 className="w-3 h-3" /></button>
                         </div>
                       </div>
                     ))}
@@ -3173,7 +3175,7 @@ const resetProfForm = () => {
                   </div>
 
                   <button onClick={() => { setPasswordPolicySaved(true); addAuditLog('Alterou Política de Senhas', JSON.stringify(passwordPolicy)); setTimeout(() => setPasswordPolicySaved(false), 3000); }} className="w-full py-3 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-lg text-xs cursor-pointer transition flex items-center justify-center gap-2">
-                    {passwordPolicySaved ? <><CheckCheck className="w-4 h-4" /> Política Salva</> : 'Salvar Política de Senhas'}
+                    {passwordPolicySaved ? <><CheckCheck className="w-4 h-4" /> {t('fin_password_policy_saved', 'app')}</> : t('fin_save_password_policy', 'app')}
                   </button>
                 </div>
               </div>
@@ -3282,7 +3284,7 @@ const resetProfForm = () => {
                         <label className="block text-[10px] font-semibold text-slate-600 mb-1">Código de Verificação (6 dígitos)</label>
                         <input type="text" maxLength={6} value={twoFactorCode} onChange={e => setTwoFactorCode(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="000000" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono text-center tracking-widest" />
                       </div>
-                      <button onClick={() => { if (twoFactorCode.length === 6) { setTwoFactorVerified(true); addAuditLog('Verificou 2FA TOTP', 'Código validado com sucesso'); } else { alert('Digite um código de 6 dígitos.'); } }} className="px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-lg text-xs cursor-pointer transition">
+                       <button onClick={() => { if (twoFactorCode.length === 6) { setTwoFactorVerified(true); addAuditLog('Verificou 2FA TOTP', 'Código validado com sucesso'); } else { alert(t('fin_alert_6_digit_code', 'app')); } }} className="px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-lg text-xs cursor-pointer transition">
                         Verificar
                       </button>
                     </div>
@@ -3296,7 +3298,7 @@ const resetProfForm = () => {
                   {/* Códigos de Backup */}
                   <div className="border border-slate-200 rounded-xl p-4 space-y-2">
                     <h4 className="font-bold text-slate-700 text-xs flex items-center gap-1.5">
-                      <Copy className="w-4 h-4 text-amber-600" /> Códigos de Backup
+                      <Copy className="w-4 h-4 text-amber-600" /> {t('fin_backup_codes', 'app')}
                     </h4>
                     <p className="text-[10px] text-slate-500">Guarde estes códigos em local seguro. Cada código só pode ser usado uma vez.</p>
                     <div className="grid grid-cols-2 gap-1.5">
@@ -3306,8 +3308,8 @@ const resetProfForm = () => {
                         </div>
                       ))}
                     </div>
-                    <button onClick={() => { addAuditLog('Gerou novos códigos de backup 2FA', 'Backup codes regenerated'); setBackupCodes(Array.from({ length: 5 }, () => { const c = () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random() * 32)]; return `${c()}${c()}${c()}${c()}-${c()}${c()}${c()}${c()}`; })); alert('Novos códigos de backup gerados! Os anteriores foram invalidados.'); }} className="text-[10px] text-amber-600 font-bold hover:text-amber-800 cursor-pointer">
-                      Regenerar Códigos de Backup
+                       <button onClick={() => { addAuditLog('Gerou novos códigos de backup 2FA', 'Backup codes regenerated'); setBackupCodes(Array.from({ length: 5 }, () => { const c = () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random() * 32)]; return `${c()}${c()}${c()}${c()}-${c()}${c()}${c()}${c()}`; })); alert(t('fin_alert_new_backup_codes', 'app')); }} className="text-[10px] text-amber-600 font-bold hover:text-amber-800 cursor-pointer">
+                      {t('fin_regenerate_backup_codes', 'app')}
                     </button>
                   </div>
                 </div>
@@ -3357,15 +3359,15 @@ const resetProfForm = () => {
               <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs lg:col-span-1 space-y-4">
                 <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
                   <Globe className="w-5 h-5 text-teal-600" />
-                  <h3 className="font-semibold text-slate-800 text-base">{editingSsoId ? 'Editar Provedor SSO' : 'Novo Provedor SSO'}</h3>
+                  <h3 className="font-semibold text-slate-800 text-base">{editingSsoId ? t('fin_edit_sso_provider', 'app') : t('fin_new_sso_provider', 'app')}</h3>
                 </div>
                 <form onSubmit={async (e) => { e.preventDefault(); if (!ssoName.trim() || !ssoIssuer.trim() || !ssoClientId.trim()) return; if (editingSsoId) { setSSOProviders(prev => prev.map(p => p.id === editingSsoId ? { ...p, name: ssoName, type: ssoType, issuerUrl: ssoIssuer, clientId: ssoClientId, clientSecret: ssoClientSecret, metadataUrl: ssoMetadataUrl, certificateFingerprint: ssoCertFingerprint, defaultRole: ssoDefaultRole, enabled: ssoEnabled } : p)); addAuditLog('Editou Provedor SSO', ssoName); } else { const ssoId = await genModuleId('sso'); setSSOProviders(prev => [...prev, { id: ssoId, name: ssoName, type: ssoType, enabled: ssoEnabled, issuerUrl: ssoIssuer, clientId: ssoClientId, clientSecret: ssoClientSecret, metadataUrl: ssoMetadataUrl, certificateFingerprint: ssoCertFingerprint, defaultRole: ssoDefaultRole, active: ssoEnabled }]); addAuditLog('Cadastrou Provedor SSO', ssoName); } setSsoFormOpen(false); setEditingSsoId(null); setSsoName(''); }} className="space-y-3 text-xs font-sans">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">Nome do Provedor *</label>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">{t('fin_sso_provider_name', 'app')}</label>
                     <input type="text" value={ssoName} onChange={e => setSsoName(e.target.value)} placeholder="Azure AD" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" required />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">Tipo</label>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">{t('fin_sso_type', 'app')}</label>
                     <select value={ssoType} onChange={e => setSsoType(e.target.value as any)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs">
                       <option value="oidc">OpenID Connect (OIDC)</option>
                       <option value="oauth2">OAuth 2.0</option>
@@ -3418,11 +3420,11 @@ const resetProfForm = () => {
                     </button>
                   </div>
                   <button type="submit" className="w-full py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-lg text-xs cursor-pointer transition">
-                    {editingSsoId ? 'Atualizar Provedor' : 'Adicionar Provedor'}
+                    {editingSsoId ? t('fin_update_provider', 'app') : t('fin_add_provider', 'app')}
                   </button>
                   {editingSsoId && (
                     <button type="button" onClick={() => { setEditingSsoId(null); setSsoName(''); setSsoType('oidc'); setSsoIssuer(''); setSsoClientId(''); setSsoClientSecret(''); setSsoMetadataUrl(''); setSsoCertFingerprint(''); setSsoDefaultRole('Visualizador'); setSsoEnabled(false); }} className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs cursor-pointer transition">
-                      Cancelar
+                      {t('fin_btn_cancel', 'app')}
                     </button>
                   )}
                 </form>
@@ -3554,7 +3556,7 @@ const resetProfForm = () => {
                     {/* Selecionar profissional */}
                     <div>
                       <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">
-                        Selecionar Profissional para Editar Permissões
+                        {t('fin_select_professional_permissions', 'app')}
                       </label>
                       <select
                         value={rbacSelectedProfId || (professionals.length > 0 ? professionals[0].id : '')}
@@ -3588,7 +3590,7 @@ const resetProfForm = () => {
                     if (!rbacProf) {
                       return (
                         <div className="text-center py-10 text-slate-400 font-semibold text-xs">
-                          Selecione ou cadastre um profissional para gerenciar suas permissões no sistema.
+                          {t('fin_select_or_register_professional', 'app')}
                         </div>
                       );
                     }
@@ -3672,7 +3674,7 @@ const resetProfForm = () => {
                         { key: 'perform_admit', label: 'Internar / Admitir Paciente', desc: 'Registrar e priorizar pacientes na fila de triagem' },
                         { key: 'perform_prescribe', label: 'Prescrever / Evoluir HCE', desc: 'Evoluir anamneses clínicas e receitar remédios' },
                         { key: 'perform_sifen', label: 'Faturar e Emitir SIFEN', desc: 'Emitir XMLs de faturamento eletrônico integrado à DNIT' },
-                        { key: 'perform_post_finance', label: 'Lançar Receitas / Despesas', desc: 'Adicionar movimentações financeiras ao caixa geral' },
+                        { key: 'perform_post_finance', label: t('fin_post_revenue_expenses', 'app'), desc: t('fin_add_financial_transactions', 'app') },
                         { key: 'perform_stock', label: 'Dispensar Insumos / Droga', desc: 'Dispensar produtos e gerenciar baixa de estoque' },
                         { key: 'perform_beds', label: 'Gerenciar Leitos / UTI', desc: 'Internar pacientes e alterar status dos leitos' },
                         { key: 'perform_rbac', label: 'Configurar Regras RBAC', desc: 'Gerenciar níveis de acesso de outros profissionais' }
@@ -3695,7 +3697,7 @@ const resetProfForm = () => {
                               onClick={() => handleSelectAll('all')}
                               className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded text-[10px] transition cursor-pointer"
                             >
-                              Selecionar Tudo
+                              {t('fin_select_all', 'app')}
                             </button>
                             <button
                               onClick={handleClearAll}
@@ -3978,7 +3980,7 @@ const resetProfForm = () => {
                         className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg font-medium"
                         required
                       >
-                        <option value="">Selecione a sede</option>
+                        <option value="">{t('fin_select_location', 'app')}</option>
                         {locations.filter(l => l.status === 'ativo').map(loc => (
                           <option key={loc.id} value={loc.id}>{loc.name}</option>
                         ))}
@@ -4104,7 +4106,7 @@ const resetProfForm = () => {
                         <button
                           onClick={() => handleEditProf(prof)}
                           className="p-2 rounded-lg hover:bg-slate-200 text-slate-600 hover:text-slate-800 transition cursor-pointer"
-                          title="Editar"
+                          title={t('fin_btn_edit', 'app')}
                         >
                           <Edit2 className="w-3.5 h-3.5" />
                         </button>
@@ -4149,7 +4151,7 @@ const resetProfForm = () => {
                               setUserFormOpen(true);
                             }}
                             className="p-2 rounded-lg hover:bg-teal-50 text-teal-600 hover:text-teal-800 transition cursor-pointer"
-                            title="Criar Usuário"
+                            title={t('fin_create_user', 'app')}
                           >
                             <UserPlus className="w-3.5 h-3.5" />
                           </button>
@@ -4169,7 +4171,7 @@ const resetProfForm = () => {
 
                         <button
                           onClick={() => {
-                            if (confirm(`Tem certeza que deseja excluir o profissional "${prof.name}"? Esta ação não pode ser desfeita.`)) {
+                            if (confirm(t('fin_confirm_delete_professional', 'app').replace('{name}', prof.name))) {
                               setProfessionals?.(prev => prev.filter(p => p.id !== prof.id));
                               if (supabase) {
                                 supabase.from('professionals').delete().eq('id', prof.id).then(({ error }) => {
@@ -4180,7 +4182,7 @@ const resetProfForm = () => {
                             }
                           }}
                           className="p-2 rounded-lg hover:bg-rose-50 text-slate-500 hover:text-rose-600 transition cursor-pointer"
-                          title="Excluir"
+                          title={t('fin_btn_delete', 'app')}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -4202,7 +4204,7 @@ const resetProfForm = () => {
               <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs lg:col-span-1 space-y-4">
                 <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
                   <Building2 className="w-5 h-5 text-teal-600" />
-                  <h3 className="font-semibold text-slate-800 text-base">{editingLocId ? 'Editar Local' : 'Novo Local'}</h3>
+                  <h3 className="font-semibold text-slate-800 text-base">{editingLocId ? t('fin_edit_location', 'app') : t('fin_new_location', 'app')}</h3>
                 </div>
                 <form onSubmit={handleSaveLocation} className="space-y-3 text-xs font-sans">
                   <div>
@@ -4253,12 +4255,12 @@ const resetProfForm = () => {
                       </div>
                       <div className="flex items-center gap-2">
                         <span className={`px-2 py-0.5 text-[10px] font-bold rounded border ${loc.status === 'ativo' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'}`}>{loc.status === 'ativo' ? 'Ativo' : 'Inativo'}</span>
-                        <button onClick={() => { setEditingLocId(loc.id); setLocName(loc.name); setLocAddress(loc.address); setLocPhone(loc.phone); setLocCity(loc.city); setLocStatus(loc.status as 'ativo' | 'inativo'); setLocFormOpen(true); }} className="p-2 rounded-lg hover:bg-slate-200 text-slate-600 hover:text-slate-800 transition cursor-pointer" title="Editar"><Edit2 className="w-3.5 h-3.5" /></button>
+                        <button onClick={() => { setEditingLocId(loc.id); setLocName(loc.name); setLocAddress(loc.address); setLocPhone(loc.phone); setLocCity(loc.city); setLocStatus(loc.status as 'ativo' | 'inativo'); setLocFormOpen(true); }} className="p-2 rounded-lg hover:bg-slate-200 text-slate-600 hover:text-slate-800 transition cursor-pointer" title={t('fin_btn_edit', 'app')}><Edit2 className="w-3.5 h-3.5" /></button>
                         <button onClick={() => {
                           const roomsCount = clinicalRooms.filter(r => r.location_id === loc.id).length;
                           const msg = roomsCount > 0
-                            ? `Tem certeza que deseja excluir o local "${loc.name}"?\n\nATENÇÃO: Todas as ${roomsCount} sala(s) vinculadas a este local também serão excluídas. Esta ação não pode ser desfeita.`
-                            : `Tem certeza que deseja excluir o local "${loc.name}"? Esta ação não pode ser desfeita.`;
+                            ? t('fin_confirm_delete_location_with_rooms', 'app').replace('{name}', loc.name).replace('{count}', String(roomsCount))
+                            : t('fin_confirm_delete_location', 'app').replace('{name}', loc.name);
                           if (confirm(msg)) {
                             setClinicalRooms(prev => prev.filter(r => r.location_id !== loc.id));
                             setLocations(prev => prev.filter(l => l.id !== loc.id));
@@ -4272,11 +4274,11 @@ const resetProfForm = () => {
                             }
                             addAuditLog('Removeu Local', loc.name);
                           }
-                        }} className="p-2 rounded-lg hover:bg-rose-50 text-rose-500 transition cursor-pointer" title="Remover"><Trash2 className="w-3.5 h-3.5" /></button>
+                        }} className="p-2 rounded-lg hover:bg-rose-50 text-rose-500 transition cursor-pointer" title={t('fin_btn_remove', 'app')}><Trash2 className="w-3.5 h-3.5" /></button>
                       </div>
                     </div>
                   ))}
-                  {locations.length === 0 && <div className="text-center py-10 text-slate-400 font-semibold">Nenhum local cadastrado</div>}
+                  {locations.length === 0 && <div className="text-center py-10 text-slate-400 font-semibold">{t('fin_empty_locations', 'app')}</div>}
                 </div>
               </div>
             </div>
@@ -4287,7 +4289,7 @@ const resetProfForm = () => {
               <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs lg:col-span-1 space-y-4">
                 <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
                   <DoorOpen className="w-5 h-5 text-teal-600" />
-                  <h3 className="font-semibold text-slate-800 text-base">{editingRoomId ? 'Editar Sala' : 'Nova Sala'}</h3>
+                  <h3 className="font-semibold text-slate-800 text-base">{editingRoomId ? t('fin_edit_room', 'app') : t('fin_new_room', 'app')}</h3>
                 </div>
                 <form onSubmit={handleSaveRoom} className="space-y-3 text-xs font-sans">
                   <div>
@@ -4296,9 +4298,9 @@ const resetProfForm = () => {
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">Tipo</label>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">{t('fin_sso_type', 'app')}</label>
                       <select value={roomType} onChange={e => setRoomType(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs">
-                          <option value="">Selecione o tipo...</option>
+                          <option value="">{t('fin_select_type', 'app')}</option>
                           <option value="consultório">Consultório</option>
                           <option value="sala de procedimento">Sala de Procedimento</option>
                           <option value="sala de recuperação">Sala de Recuperação</option>
@@ -4323,7 +4325,7 @@ const resetProfForm = () => {
                     <div>
                       <label className="block text-xs font-semibold text-slate-600 mb-1">Sede *</label>
                       <select value={roomLocationId} onChange={e => setRoomLocationId(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" required>
-                        <option value="">Selecione...</option>
+                        <option value="">{t('fin_select_placeholder', 'app')}</option>
                         {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
                       </select>
                     </div>
@@ -4404,9 +4406,9 @@ const resetProfForm = () => {
                               setRoomEquipment(room.equipment);
                               setRoomStatus(room.status as 'ativo' | 'inativo' | 'manutenção');
                               setRoomFormOpen(true);
-                            }} className="p-2 rounded-lg hover:bg-slate-200 text-slate-600 hover:text-slate-800 transition cursor-pointer" title="Editar"><Edit2 className="w-3.5 h-3.5" /></button>
+                            }} className="p-2 rounded-lg hover:bg-slate-200 text-slate-600 hover:text-slate-800 transition cursor-pointer" title={t('fin_btn_edit', 'app')}><Edit2 className="w-3.5 h-3.5" /></button>
                           <button onClick={() => {
-                            if (confirm(`Tem certeza que deseja excluir a sala "${room.name}"? Esta ação não pode ser desfeita.`)) {
+                            if (confirm(t('fin_confirm_delete_room', 'app').replace('{name}', room.name))) {
                               setClinicalRooms(prev => prev.filter(r => r.id !== room.id));
                               if (supabase) {
                                 supabase.from('clinical_rooms').delete().eq('id', room.id).then(({ error }) => {
@@ -4415,12 +4417,12 @@ const resetProfForm = () => {
                               }
                               addAuditLog('Removeu Sala', room.name);
                             }
-                          }} className="p-2 rounded-lg hover:bg-rose-50 text-rose-500 transition cursor-pointer" title="Remover"><Trash2 className="w-3.5 h-3.5" /></button>
+                          }} className="p-2 rounded-lg hover:bg-rose-50 text-rose-500 transition cursor-pointer" title={t('fin_btn_remove', 'app')}><Trash2 className="w-3.5 h-3.5" /></button>
                         </div>
                       </div>
                     );
                   })}
-                  {clinicalRooms.length === 0 && <div className="text-center py-10 text-slate-400 font-semibold">Nenhuma sala cadastrada</div>}
+                  {clinicalRooms.length === 0 && <div className="text-center py-10 text-slate-400 font-semibold">{t('fin_empty_rooms', 'app')}</div>}
                 </div>
               </div>
             </div>

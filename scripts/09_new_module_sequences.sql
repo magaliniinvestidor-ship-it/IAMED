@@ -24,6 +24,7 @@ create sequence if not exists seq_trabalhadores      start 1;
 create sequence if not exists seq_exames_ocup        start 1;
 create sequence if not exists seq_cal_certs          start 1;
 create sequence if not exists seq_relatorios_mtess   start 1;
+create sequence if not exists seq_aso_ocupacionais   start 1;
 
 -- Módulo 10 - Portal do Paciente
 create sequence if not exists seq_portal_patients    start 1;
@@ -35,6 +36,7 @@ create sequence if not exists seq_payments           start 1;
 create sequence if not exists seq_diag_reports       start 1;
 create sequence if not exists seq_hl7_messages       start 1;
 create sequence if not exists seq_diag_measures      start 1;
+create sequence if not exists seq_diag_signatures    start 1;
 
 -- Módulo 12 - CRM / BI
 create sequence if not exists seq_campaigns          start 1;
@@ -54,5 +56,9 @@ create sequence if not exists seq_settlements        start 1;
 create sequence if not exists seq_foreign_billing    start 1;
 create sequence if not exists seq_batch_billing      start 1;
 
+-- Módulo 1 - Agenda (bloqueios)
+create sequence if not exists seq_blocked_slots      start 1;
+
 -- Módulo 3 - ClinicalModule (extra)
 create sequence if not exists seq_access_control     start 1;
+create sequence if not exists seq_physical_exams     start 1;

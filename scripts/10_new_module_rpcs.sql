@@ -32,6 +32,7 @@ begin
     when 'ex'         then 'seq_exames_ocup'
     when 'cal'        then 'seq_cal_certs'
     when 'rel'        then 'seq_relatorios_mtess'
+    when 'aso'        then 'seq_aso_ocupacionais'
     -- Portal do Paciente
     when 'pat_portal' then 'seq_portal_patients'
     when 'tel'        then 'seq_teleconsultas'
@@ -41,6 +42,7 @@ begin
     when 'rep'        then 'seq_diag_reports'
     when 'hl7'        then 'seq_hl7_messages'
     when 'm'          then 'seq_diag_measures'
+    when 'sig'        then 'seq_diag_signatures'
     -- CRM / BI
     when 'camp'       then 'seq_campaigns'
     when 'lead'       then 'seq_leads'
@@ -58,6 +60,8 @@ begin
     when 'sett'       then 'seq_settlements'
     when 'frn'        then 'seq_foreign_billing'
     when 'batch'      then 'seq_batch_billing'
+    -- Agenda (bloqueios)
+    when 'blk'        then 'seq_blocked_slots'
     -- ClinicalModule (extra)
     when 'ac'         then 'seq_access_control'
     else null

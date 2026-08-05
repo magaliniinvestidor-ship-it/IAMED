@@ -9,6 +9,7 @@ import {
 } from '@/lib/mockData';
 import { supabase } from '@/lib/supabaseClient';
 import { useI18n } from '@/lib/i18n/I18nContext';
+import { useModuleId } from '@/hooks/useModuleId';
 import I18nDatePicker from '@/components/I18nDatePicker';
 import {
   Smartphone, CalendarDays, ClipboardList, FileText, Receipt,
@@ -92,6 +93,7 @@ export default function PatientPortalModule({
   addAuditLog,
 }: PatientPortalModuleProps) {
   const { t } = useI18n();
+  const genModuleId = useModuleId();
 
   // Auth state
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -208,7 +210,7 @@ export default function PatientPortalModule({
     setRegLoading(true);
 
     const newPatient: Patient = {
-      id: `pat_portal_${Date.now()}`,
+      id: await genModuleId('pat_portal'),
       name: regForm.name,
       email: regForm.email,
       phone: regForm.phone,
@@ -262,12 +264,12 @@ export default function PatientPortalModule({
     }
   }, [isCallActive, stream, loggedPatient, addAuditLog]);
 
-  const handleRequestTelemedicine = () => {
+  const handleRequestTelemedicine = async () => {
     if (!telForm.specialty || !telForm.date || !telForm.time) return;
     setTelLoading(true);
     const doctor = DOCTORS[telForm.specialty]?.[0];
     const newReq: TelemedicineRequest = {
-      id: `tel_${Date.now()}`,
+      id: await genModuleId('tel'),
       patientId: loggedPatientId || '',
       patientName: loggedPatient?.name || '',
       doctorName: doctor?.name || '',
@@ -286,11 +288,11 @@ export default function PatientPortalModule({
   };
 
   // ─── Booking ───
-  const handleBookAppointment = () => {
+  const handleBookAppointment = async () => {
     if (!bookingForm.specialty || !bookingForm.doctorId || !bookingForm.date || !bookingForm.time) return;
     setBookingLoading(true);
     const newApp: Appointment = {
-      id: `app_portal_${Date.now()}`,
+      id: await genModuleId('app_portal'),
       patientId: loggedPatientId || '',
       patientName: loggedPatient?.name || '',
       doctorName: bookingForm.doctorName,
@@ -322,12 +324,12 @@ export default function PatientPortalModule({
   };
 
   // ─── Payment ───
-  const handleMakePayment = () => {
+  const handleMakePayment = async () => {
     setPaymentProcessing(true);
-    setTimeout(() => {
-      const txId = `PIX-${Date.now().toString(36).toUpperCase()}`;
+    setTimeout(async () => {
+      const txId = `PIX-${typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID().replace(/-/g, '').toUpperCase().slice(0, 16) : Date.now().toString(36).toUpperCase()}`;
       const newPay: OnlinePayment = {
-        id: `pay_${Date.now()}`,
+        id: await genModuleId('pay'),
         patientId: loggedPatientId || '',
         amount: paymentForm.amount,
         paymentMethod: paymentForm.method as any,
