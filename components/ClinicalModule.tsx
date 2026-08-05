@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { Patient, AsoExam, Cid10Code, DrugCatalogItem, Prescription, ExamRequest, Procedure, Anamnese, SoapNote, Diagnosis, PhysicalExam, VitalSigns, AllergyEntry, MedicationEntry, FamilyHistoryEntry, SurgicalEntry, ElectronicSignature, AccessControl, PatientTimelineEvent, nationalProcedures, sensitiveFieldConfig, drugInteractions } from '@/lib/mockData';
+import { Patient, AsoExam, Cid10Code, Prescription, ExamRequest, Procedure, Anamnese, SoapNote, Diagnosis, PhysicalExam, VitalSigns, AllergyEntry, MedicationEntry, FamilyHistoryEntry, SurgicalEntry, ElectronicSignature, AccessControl, PatientTimelineEvent, DrugCatalogItem, nationalProcedures, sensitiveFieldConfig } from '@/lib/mockData';
 import { supabase } from '@/lib/supabaseClient';
 import { useI18n } from '@/lib/i18n/I18nContext';
 
@@ -11,7 +11,7 @@ import {
   Search, Filter, Pill, Stethoscope, FileText, Paperclip,
   Shield, Clock, User, Activity, AlertTriangle, QrCode, Hash,
   ChevronDown, ChevronRight, Lock, Unlock, Printer, Calendar,
-  Baby, Calculator, BookOpen, Tag, FileSignature, Scan,
+  BookOpen, Tag, FileSignature, Scan,
   Lock as LockIcon
 } from 'lucide-react';
 import { PermissionGate, WithPermissions } from '@/components/ui/PermissionGate';
@@ -33,21 +33,6 @@ type HCETab = 'anamnese' | 'exam' | 'soap' | 'diagnoses' | 'prescriptions' | 'ex
 
 // CID-10 seed data inline for lookup
 
-
-const drugCatalogData: DrugCatalogItem[] = [
-  { id: 'drug_1', name: 'Paracetamol 500mg', activeIngredient: 'Paracetamol', presentation: 'Comprimido 500mg', manufacturer: 'Lab PY', category: 'Analgésico', controlledCategory: 'comum', requiresPrescription: false, minAgeMonths: 1, pregnantCategory: 'B', breastfeedingSafe: true, commonDoseAdult: '500mg-1g a cada 6-8h', commonDosePediatric: '10-15mg/kg/dose a cada 6-8h', route: 'oral', contraindications: [], sideEffects: [], interactions: [] },
-  { id: 'drug_2', name: 'Ibuprofeno 600mg', activeIngredient: 'Ibuprofeno', presentation: 'Comprimido 600mg', manufacturer: 'Lab PY', category: 'AINE', controlledCategory: 'comum', requiresPrescription: false, minAgeMonths: 6, pregnantCategory: 'C', breastfeedingSafe: false, commonDoseAdult: '200-600mg a cada 6-8h', commonDosePediatric: '5-10mg/kg/dose a cada 6-8h', route: 'oral', contraindications: ['úlcera péptica ativa', 'insuficiência renal grave'], sideEffects: [], interactions: [{ drugB: 'Losartana', severity: 'moderada', description: 'AINEs reduzem efeito anti-hipertensivo', recommendation: 'Monitorar PA' }] },
-  { id: 'drug_3', name: 'Amoxicilina 500mg', activeIngredient: 'Amoxicilina', presentation: 'Cápsula 500mg', manufacturer: 'Lab PY', category: 'Antibiótico', controlledCategory: 'comum', requiresPrescription: true, minAgeMonths: 1, pregnantCategory: 'B', breastfeedingSafe: true, commonDoseAdult: '500mg a cada 8h', commonDosePediatric: '25-50mg/kg/dia fracionado', route: 'oral', contraindications: ['alergia a penicilinas'], sideEffects: [], interactions: [] },
-  { id: 'drug_4', name: 'Losartana 50mg', activeIngredient: 'Losartana Potássica', presentation: 'Comprimido 50mg', manufacturer: 'Lab PY', category: 'Anti-hipertensivo', controlledCategory: 'comum', requiresPrescription: true, minAgeMonths: 144, pregnantCategory: 'D', breastfeedingSafe: false, commonDoseAdult: '50-100mg 1x/dia', commonDosePediatric: '', route: 'oral', contraindications: ['gravidez'], sideEffects: [], interactions: [] },
-  { id: 'drug_5', name: 'Omeprazol 20mg', activeIngredient: 'Omeprazol', presentation: 'Cápsula 20mg', manufacturer: 'Lab PY', category: 'IBP', controlledCategory: 'comum', requiresPrescription: false, minAgeMonths: 1, pregnantCategory: 'C', breastfeedingSafe: true, commonDoseAdult: '20mg 1x/dia', commonDosePediatric: '0.7-3.5mg/kg/dia', route: 'oral', contraindications: [], sideEffects: [], interactions: [] },
-  { id: 'drug_6', name: 'Dipirona 500mg', activeIngredient: 'Dipirona Sódica', presentation: 'Comprimido 500mg', manufacturer: 'Lab PY', category: 'Analgésico', controlledCategory: 'comum', requiresPrescription: false, minAgeMonths: 3, pregnantCategory: 'C', breastfeedingSafe: true, commonDoseAdult: '500mg-1g a cada 6h', commonDosePediatric: '10-15mg/kg/dose', route: 'oral', contraindications: ['asma induzida por AAS'], sideEffects: [], interactions: [] },
-  { id: 'drug_7', name: 'Rivotril 2mg', activeIngredient: 'Clonazepam', presentation: 'Comprimido 2mg', manufacturer: 'Lab PY', category: 'Benzodiazepínico', controlledCategory: 'controlado', requiresPrescription: true, minAgeMonths: 0, pregnantCategory: 'D', breastfeedingSafe: false, commonDoseAdult: '0.5-4mg/dia', commonDosePediatric: '0.01-0.03mg/kg/dia', route: 'oral', contraindications: [], sideEffects: [], interactions: [] },
-  { id: 'drug_8', name: 'Ritalina 10mg', activeIngredient: 'Metilfenidato', presentation: 'Comprimido 10mg', manufacturer: 'Lab PY', category: 'Psicoestimulante', controlledCategory: 'controlado', requiresPrescription: true, minAgeMonths: 36, pregnantCategory: 'C', breastfeedingSafe: false, commonDoseAdult: '10-20mg 2-3x/dia', commonDosePediatric: '5mg 2x/dia', route: 'oral', contraindications: [], sideEffects: [], interactions: [] },
-  { id: 'drug_9', name: 'Sulfato Ferroso 40mg', activeIngredient: 'Sulfato Ferroso', presentation: 'Comprimido 40mg', manufacturer: 'Lab PY', category: 'Suplemento', controlledCategory: 'comum', requiresPrescription: false, minAgeMonths: 0, pregnantCategory: 'A', breastfeedingSafe: true, commonDoseAdult: '40mg 1x/dia', commonDosePediatric: '3-6mg/kg/dia', route: 'oral', contraindications: [], sideEffects: [], interactions: [] },
-  { id: 'drug_10', name: 'Ácido Fólico 5mg', activeIngredient: 'Ácido Fólico', presentation: 'Comprimido 5mg', manufacturer: 'Lab PY', category: 'Vitamina', controlledCategory: 'comum', requiresPrescription: false, minAgeMonths: 0, pregnantCategory: 'A', breastfeedingSafe: true, commonDoseAdult: '5mg 1x/dia', commonDosePediatric: '0.1-0.4mg/dia', route: 'oral', contraindications: [], sideEffects: [], interactions: [] },
-  { id: 'drug_11', name: 'Metformina 850mg', activeIngredient: 'Cloridrato de Metformina', presentation: 'Comprimido 850mg', manufacturer: 'Lab PY', category: 'Antidiabético', controlledCategory: 'comum', requiresPrescription: true, minAgeMonths: 144, pregnantCategory: 'B', breastfeedingSafe: true, commonDoseAdult: '850mg 2-3x/dia', commonDosePediatric: '', route: 'oral', contraindications: ['insuficiência renal grave'], sideEffects: [], interactions: [] },
-  { id: 'drug_12', name: 'Azitromicina 500mg', activeIngredient: 'Azitromicina', presentation: 'Comprimido 500mg', manufacturer: 'Lab PY', category: 'Macrólido', controlledCategory: 'comum', requiresPrescription: true, minAgeMonths: 6, pregnantCategory: 'B', breastfeedingSafe: true, commonDoseAdult: '500mg 1x/dia por 3 dias', commonDosePediatric: '10mg/kg 1x/dia por 3 dias', route: 'oral', contraindications: ['alergia a macrólidos'], sideEffects: [], interactions: [] },
-];
 
 const timelineEventTypes = ['consulta', 'internacao', 'cirurgia', 'exame', 'prescricao', 'vacina', 'procedimento', 'alta', 'emergencia'] as const;
 
@@ -124,15 +109,15 @@ const ClinicalModuleContent = ({
   const [editingProcedure, setEditingProcedure] = useState<Procedure | null>(null);
 
   // ─── PRESCRIPTION STATE ───
-  const [drugSearch, setDrugSearch] = useState('');
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
-  const [selectedDrug, setSelectedDrug] = useState<DrugCatalogItem | null>(null);
   const [prescriptionForm, setPrescriptionForm] = useState({
-    dosage: '', frequency: '', route: 'oral', duration: '', quantity: 1, unit: 'unidade', notes: '',
+    drugName: '', activeIngredient: '', presentation: '',
+    dosage: '', frequency: '', route: 'oral', duration: '', quantity: 1, unit: 'comprimidos', notes: '',
     prescriptionType: 'comum' as 'comum' | 'controlado' | 'arquivado',
   });
-  const [pediatricWeight, setPediatricWeight] = useState('');
-  const [pediatricDoseResult, setPediatricDoseResult] = useState('');
+  const [drugCatalogItems, setDrugCatalogItems] = useState<DrugCatalogItem[]>([]);
+  const [drugSearch, setDrugSearch] = useState('');
+  const [showDrugDropdown, setShowDrugDropdown] = useState(false);
 
   // ─── EXAM REQUEST STATE ───
   const [examRequests, setExamRequests] = useState<ExamRequest[]>([]);
@@ -218,6 +203,33 @@ const ClinicalModuleContent = ({
       if (data) setCid10Data(data);
     };
     loadCid10();
+  }, [supabase]);
+
+  // Load drug catalog from Supabase
+  useEffect(() => {
+    if (!supabase) return;
+    const loadDrugCatalog = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token ?? '';
+      const resp = await supabase.functions.invoke('search-drugs', {
+        body: { query: '', source: 'all', limit: 50 },
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (resp.data?.results) {
+        setDrugCatalogItems(resp.data.results.map((d: any) => ({
+          id: d.id, name: d.name, activeIngredient: d.active_ingredient, presentation: d.presentation,
+          manufacturer: d.manufacturer, category: d.category, controlledCategory: d.controlled_category,
+          requiresPrescription: d.requires_prescription, minAgeMonths: d.min_age_months,
+          pregnantCategory: d.pregnant_category, breastfeedingSafe: d.breastfeeding_safe,
+          commonDoseAdult: d.common_dose_adult, commonDosePediatric: d.common_dose_pediatric,
+          route: d.route, contraindications: d.contraindications ?? [], sideEffects: d.side_effects ?? [], interactions: d.interactions ?? [],
+          source: d.source, sourceId: d.source_id, country: d.country,
+          registrationNumber: d.registration_number, defaultDosage: d.default_dosage,
+          defaultFrequency: d.default_frequency, defaultDuration: d.default_duration,
+        })));
+      }
+    };
+    loadDrugCatalog();
   }, [supabase]);
 
   const searchCid10 = useCallback(async (query: string) => {
@@ -645,46 +657,14 @@ const ClinicalModuleContent = ({
     return dbDescription;
   }, [locale]);
 
+  const lookupCid10Translation = useCallback((code: string, fallbackDesc?: string) => {
+    const entry = cid10Data.find(c => c.code === code);
+    return entry
+      ? getCid10Description(entry.code, entry.description, entry.description_es, entry.description_pt)
+      : (fallbackDesc || '');
+  }, [cid10Data, getCid10Description]);
+
   const filteredCid10 = useMemo(() => cid10Data, [cid10Data]);
-
-  // ─── DRUG SEARCH ───
-  const filteredDrugs = useMemo(() => {
-    if (!drugSearch.trim()) return drugCatalogData;
-    const q = drugSearch.toLowerCase();
-    return drugCatalogData.filter(d =>
-      d.name.toLowerCase().includes(q) || d.activeIngredient.toLowerCase().includes(q) || d.category.toLowerCase().includes(q)
-    );
-  }, [drugSearch]);
-
-  // ─── DRUG INTERACTIONS CHECK ───
-  const checkDrugInteractions = useCallback((drugName: string) => {
-    const activeDrugNames = prescriptions.map(p => p.drugName.split(' ')[0].toLowerCase());
-    const searchDrug = drugName.split(' ')[0].toLowerCase();
-    return drugInteractions.filter(i =>
-      (i.drugB.toLowerCase().includes(searchDrug) && activeDrugNames.some(ad => ad.includes(i.drugB.toLowerCase()))) ||
-      (activeDrugNames.some(ad => searchDrug.includes(ad)) && i.drugB.toLowerCase().includes(searchDrug))
-    );
-  }, [prescriptions]);
-
-  // ─── PEDIATRIC DOSE CALCULATOR ───
-  const calculatePediatricDose = useCallback(() => {
-    if (!selectedDrug || !pediatricWeight) return;
-    const weight = parseFloat(pediatricWeight);
-    if (isNaN(weight) || weight <= 0) return;
-    const doseStr = selectedDrug.commonDosePediatric;
-    if (!doseStr) {
-      setPediatricDoseResult('Dose pediátrica não disponível. Consulte bula.');
-      return;
-    }
-    const match = doseStr.match(/(\d+\.?\d*)-(\d+\.?\d*)mg\/kg/);
-    if (match) {
-      const minDose = (parseFloat(match[1]) * weight).toFixed(1);
-      const maxDose = (parseFloat(match[2]) * weight).toFixed(1);
-      setPediatricDoseResult(`${minDose}mg - ${maxDose}mg por dose (${selectedDrug.route})`);
-    } else {
-      setPediatricDoseResult(doseStr);
-    }
-  }, [selectedDrug, pediatricWeight]);
 
   // ─── QR CODE GENERATION (simple hash) ───
   const generateQRData = useCallback((prescription: Prescription) => {
@@ -906,15 +886,15 @@ const ClinicalModuleContent = ({
 
   // ─── SAVE PRESCRIPTION ───
   const handleSavePrescription = async () => {
-    if (!selectedDrug) return;
+    if (!prescriptionForm.drugName.trim()) return;
     const presc: Prescription = {
       id: await genId('presc'),
       patientId: selectedPatient?.id || '',
       createdBy: activeOperator,
       createdAt: new Date().toISOString(),
       prescriptionType: prescriptionForm.prescriptionType,
-      drugName: selectedDrug.name,
-      activeIngredient: selectedDrug.activeIngredient,
+      drugName: prescriptionForm.drugName,
+      activeIngredient: prescriptionForm.activeIngredient,
       dosage: prescriptionForm.dosage,
       frequency: prescriptionForm.frequency,
       route: prescriptionForm.route,
@@ -929,15 +909,15 @@ const ClinicalModuleContent = ({
     };
     presc.qrCodeData = generateQRData(presc);
     setPrescriptions(prev => [presc, ...prescriptions]);
-    setSelectedDrug(null);
-    setDrugSearch('');
+    setPrescriptionForm({ drugName: '', activeIngredient: '', presentation: '', dosage: '', frequency: '', route: 'oral', duration: '', quantity: 1, unit: 'comprimidos', notes: '', prescriptionType: 'comum' });
     addAuditLog('Prescrição Criada', `${presc.drugName} - ${selectedPatient?.name}`);
     if (supabase) {
       await supabase.from('prescriptions').insert({
         id: presc.id, patient_id: presc.patientId, created_by: presc.createdBy,
         updated_by: null,
         prescription_type: presc.prescriptionType, drug_name: presc.drugName,
-        active_ingredient: presc.activeIngredient, dosage: presc.dosage,
+        active_ingredient: presc.activeIngredient, presentation: prescriptionForm.presentation || '',
+        dosage: presc.dosage,
         frequency: presc.frequency, route: presc.route, duration: presc.duration,
         start_date: presc.startDate, quantity: presc.quantity, unit: presc.unit,
         refill_count: presc.refillCount, notes: presc.notes, qr_code_data: presc.qrCodeData,
@@ -1043,6 +1023,8 @@ const ClinicalModuleContent = ({
     addAuditLog('Atualizou Diagnóstico', `${diag.cid10Code} - ${selectedPatient?.name}`);
     if (supabase) {
       await supabase.from('diagnoses').update({
+        cid10_code: diag.cid10Code,
+        cid10_description: diag.cid10Description,
         diagnosis_type: diag.diagnosisType,
         status: diag.status,
         notes: diag.notes,
@@ -1056,15 +1038,19 @@ const ClinicalModuleContent = ({
   // ─── UPDATE PRESCRIPTION ───
   const handleUpdatePrescription = async (presc: Prescription) => {
     setPrescriptions(prev => prev.map(p => p.id === presc.id ? presc : p));
+    setEditingPrescription(null);
     addAuditLog('Atualizou Prescrição', `${presc.drugName} - ${selectedPatient?.name}`);
     if (supabase) {
       await supabase.from('prescriptions').update({
+        drug_name: presc.drugName,
+        active_ingredient: presc.activeIngredient,
         dosage: presc.dosage,
         frequency: presc.frequency,
         route: presc.route,
         duration: presc.duration,
         quantity: presc.quantity,
         unit: presc.unit,
+        prescription_type: presc.prescriptionType,
         notes: presc.notes,
         updated_by: activeOperator,
       }).eq('id', presc.id);
@@ -2157,7 +2143,7 @@ const ClinicalModuleContent = ({
                     </div>
                     <div>
                       <label className={labelCls}>{t('hce_cid10_description', 'app')}</label>
-                      <input type="text" value={getCid10Description(newDiagnosis.cid10Code || '', newDiagnosis.cid10Description || '')} onChange={e => setNewDiagnosis(p => ({ ...p, cid10Description: e.target.value }))} className={inputCls} />
+                      <input type="text" value={lookupCid10Translation(newDiagnosis.cid10Code || '', newDiagnosis.cid10Description)} onChange={e => setNewDiagnosis(p => ({ ...p, cid10Description: e.target.value }))} className={inputCls} />
                     </div>
                   </div>
                   <div className="border border-teal-200 rounded-xl p-3 space-y-2">
@@ -2223,11 +2209,11 @@ const ClinicalModuleContent = ({
                           <div className="grid grid-cols-2 gap-2">
                             <div>
                               <label className={labelCls}>{t('hce_cid10_code', 'app')}</label>
-                              <input type="text" value={editingDiagnosis.cid10Code} className={inputCls} readOnly />
+                              <input type="text" value={editingDiagnosis.cid10Code} onChange={e => setEditingDiagnosis(p => p ? { ...p, cid10Code: e.target.value } : null)} className={inputCls} />
                             </div>
                             <div>
                               <label className={labelCls}>{t('hce_cid10_description', 'app')}</label>
-                              <input type="text" value={getCid10Description(editingDiagnosis.cid10Code, editingDiagnosis.cid10Description)} className={inputCls} readOnly />
+                              <input type="text" value={lookupCid10Translation(editingDiagnosis.cid10Code, editingDiagnosis.cid10Description)} onChange={e => setEditingDiagnosis(p => p ? { ...p, cid10Description: e.target.value } : null)} className={inputCls} />
                             </div>
                           </div>
                           <div className="border border-teal-200 rounded-xl p-3 space-y-2">
@@ -2273,7 +2259,7 @@ const ClinicalModuleContent = ({
                         <div key={d.id} className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-sm">
                           <div>
                             <span className="font-bold text-teal-700">{d.cid10Code}</span>
-                            <span className="text-slate-600 ml-2">{getCid10Description(d.cid10Code, d.cid10Description)}</span>
+                            <span className="text-slate-600 ml-2">{lookupCid10Translation(d.cid10Code, d.cid10Description)}</span>
                             <span className={`ml-2 px-2 py-0.5 rounded text-xs font-bold ${
                               d.diagnosisType === 'principal' ? 'bg-teal-100 text-teal-700' :
                               d.diagnosisType === 'secundário' ? 'bg-blue-100 text-blue-700' :
@@ -2316,10 +2302,6 @@ const ClinicalModuleContent = ({
               {/* ═══ TAB: PRESCRIPTIONS ═══ */}
               {hceTab === 'prescriptions' && (
                 <div className="space-y-4 pt-4">
-                  <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
-                    <Pill className="w-4 h-4 text-teal-600" /> Receituário Eletrônico
-                  </h3>
-
                   {!selectedPatId ? (
                     <div className="flex flex-col items-center justify-center py-12 text-center">
                       <AlertTriangle className="w-10 h-10 text-amber-400 mb-3" />
@@ -2327,211 +2309,269 @@ const ClinicalModuleContent = ({
                     </div>
                   ) : (<>
 
-                  {/* Drug Search */}
-                  <div className="relative">
-                    <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
-                    <input type="text" value={drugSearch} onChange={e => setDrugSearch(e.target.value)} placeholder={t('hce_drug_search', 'app')}
-                      className={`${inputCls} pl-9`} />
-                  </div>
-                  <div className="max-h-[180px] overflow-y-auto border border-slate-100 rounded-xl divide-y divide-slate-50">
-                    {filteredDrugs.slice(0, 10).map(d => (
-                      <div key={d.id} onClick={() => setSelectedDrug(d)}
-                        className={`px-3 py-2 cursor-pointer flex items-center justify-between text-xs transition ${selectedDrug?.id === d.id ? 'bg-teal-100 border-l-3 border-teal-600' : 'hover:bg-slate-50'}`}>
-                        <div>
-                          <span className="font-bold text-slate-800">{d.name}</span>
-                          <span className="text-slate-500 ml-2">{d.activeIngredient}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${d.controlledCategory === 'controlado' ? 'bg-rose-100 text-rose-700' : 'bg-green-100 text-green-700'}`}>
-                            {d.controlledCategory === 'controlado' ? 'CONTROLADO' : 'COMUM'}
-                          </span>
-                          <span className="text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">{d.category}</span>
-                        </div>
+                  {/* ═══ RECETA MÉDICA - HEADER ═══ */}
+                  <div className="border-2 border-teal-600 rounded-xl overflow-hidden">
+                    {/* Doctor Header */}
+                    <div className="bg-teal-600 text-white p-4 flex items-center gap-4">
+                      <div className="w-14 h-14 bg-white rounded-full flex items-center justify-center flex-shrink-0">
+                        <Stethoscope className="w-7 h-7 text-teal-600" />
                       </div>
-                    ))}
-                  </div>
-
-                  {selectedDrug && (
-                    <div className="p-3 bg-teal-50 border border-teal-200 rounded-xl space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-bold text-teal-800">{selectedDrug.name}</p>
-                          <p className="text-xs text-teal-600">{selectedDrug.activeIngredient} | {selectedDrug.presentation}</p>
-                        </div>
-                        <button onClick={() => setSelectedDrug(null)} className="text-teal-500 hover:text-teal-700"><Trash2 className="w-3.5 h-3.5" /></button>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-lg truncate">{activeOperator}</p>
+                        <p className="text-teal-100 text-xs">{t('presc_header_rne_crm', 'app')} — —</p>
+                        <p className="text-teal-100 text-xs">{t('presc_header_specialty', 'app')} — —</p>
                       </div>
+                      <div className="text-right text-[10px] text-teal-100 flex-shrink-0">
+                        <p>{t('presc_header_address', 'app')} — —</p>
+                        <p>{t('presc_header_phone', 'app')} — —</p>
+                      </div>
+                    </div>
 
-                      {/* Drug Info */}
-                      {selectedDrug.contraindications.length > 0 && (
-                        <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg text-xs">
-                          <p className="font-bold text-amber-800 flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> Contraindicações:</p>
-                          <p className="text-amber-700">{selectedDrug.contraindications.join(', ')}</p>
+                    {/* Patient + Date */}
+                    <div className="bg-teal-50 px-4 py-2 flex items-center justify-between text-xs border-t border-teal-200">
+                      <div className="flex items-center gap-4">
+                        <span className="font-bold text-teal-800">{t('presc_header_patient', 'app')} <span className="font-normal text-slate-700">{selectedPatient?.name}</span></span>
+                        {selectedPatient?.birthdate && (
+                          <span className="text-slate-500">{t('presc_header_age', 'app')} {Math.floor((Date.now() - new Date(selectedPatient.birthdate).getTime()) / (365.25 * 24 * 60 * 60 * 1000))} {t('presc_header_years', 'app')}</span>
+                        )}
+                        {selectedPatient?.document_number && (
+                          <span className="text-slate-500">{t('presc_header_ci', 'app')} {selectedPatient.document_number}</span>
+                        )}
+                      </div>
+                      <span className="text-slate-500">{new Date().toLocaleDateString(locale)}</span>
+                    </div>
+
+                    {/* Title */}
+                    <div className="text-center py-2 border-b border-teal-200">
+                      <h3 className="font-bold text-teal-800 text-sm tracking-wider uppercase">{t('presc_title', 'app')}</h3>
+                    </div>
+
+                    {/* Medications List */}
+                    <div className="p-4 space-y-3">
+                      {prescriptions.length === 0 ? (
+                        <p className="text-center text-slate-400 text-xs py-4">{t('presc_empty', 'app')}</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {prescriptions.map((p, idx) => (
+                            <div key={p.id} className={`flex items-start gap-3 text-xs py-2 border-b border-slate-100 last:border-0 ${editingPrescription?.id === p.id ? 'bg-teal-50 -mx-2 px-2 rounded' : ''}`}>
+                              <span className="font-bold text-teal-600 mt-0.5">{idx + 1}.</span>
+                              {editingPrescription?.id === p.id ? (
+                                <div className="flex-1 space-y-2">
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                      <label className={labelCls}>{t('presc_medication', 'app')}</label>
+                                      <input type="text" value={editingPrescription.drugName} onChange={e => setEditingPrescription(prev => prev ? { ...prev, drugName: e.target.value } : null)} className={inputCls} />
+                                    </div>
+                                    <div>
+                                      <label className={labelCls}>{t('presc_active_ingredient', 'app')}</label>
+                                      <input type="text" value={editingPrescription.activeIngredient} onChange={e => setEditingPrescription(prev => prev ? { ...prev, activeIngredient: e.target.value } : null)} className={inputCls} />
+                                    </div>
+                                  </div>
+                                  <div className="grid grid-cols-3 gap-2">
+                                    <div>
+                                      <label className={labelCls}>{t('hce_dosage', 'app')}</label>
+                                      <input type="text" value={editingPrescription.dosage} onChange={e => setEditingPrescription(prev => prev ? { ...prev, dosage: e.target.value } : null)} className={inputCls} placeholder="500mg" />
+                                    </div>
+                                    <div>
+                                      <label className={labelCls}>{t('hce_frequency', 'app')}</label>
+                                      <input type="text" value={editingPrescription.frequency} onChange={e => setEditingPrescription(prev => prev ? { ...prev, frequency: e.target.value } : null)} className={inputCls} placeholder="8/8h" />
+                                    </div>
+                                    <div>
+                                      <label className={labelCls}>{t('presc_route', 'app')}</label>
+                                      <select value={editingPrescription.route} onChange={e => setEditingPrescription(prev => prev ? { ...prev, route: e.target.value } : null)} className={inputCls}>
+                                        <option value="oral">{t('presc_route_oral', 'app')}</option>
+                                        <option value="sublingual">{t('presc_route_sublingual', 'app')}</option>
+                                        <option value="venoso">{t('presc_route_venoso', 'app')}</option>
+                                        <option value="intramuscular">{t('presc_route_intramuscular', 'app')}</option>
+                                        <option value="topico">{t('presc_route_topico', 'app')}</option>
+                                        <option value="retal">{t('presc_route_retal', 'app')}</option>
+                                        <option value="inhalacion">{t('presc_route_inhalacion', 'app')}</option>
+                                        <option value="vaginal">{t('presc_route_vaginal', 'app')}</option>
+                                      </select>
+                                    </div>
+                                  </div>
+                                  <div className="grid grid-cols-4 gap-2">
+                                    <div>
+                                      <label className={labelCls}>{t('hce_duration', 'app')}</label>
+                                      <input type="text" value={editingPrescription.duration} onChange={e => setEditingPrescription(prev => prev ? { ...prev, duration: e.target.value } : null)} className={inputCls} placeholder={t('presc_placeholder_duration', 'app')} />
+                                    </div>
+                                    <div>
+                                      <label className={labelCls}>{t('presc_quantity', 'app')}</label>
+                                      <input type="number" value={editingPrescription.quantity} onChange={e => setEditingPrescription(prev => prev ? { ...prev, quantity: parseInt(e.target.value) || 1 } : null)} className={inputCls} min={1} />
+                                    </div>
+                                    <div>
+                                      <label className={labelCls}>{t('presc_unit', 'app')}</label>
+                                      <input type="text" value={editingPrescription.unit} onChange={e => setEditingPrescription(prev => prev ? { ...prev, unit: e.target.value } : null)} className={inputCls} />
+                                    </div>
+                                    <div>
+                                      <label className={labelCls}>{t('presc_type', 'app')}</label>
+                                      <select value={editingPrescription.prescriptionType} onChange={e => setEditingPrescription(prev => prev ? { ...prev, prescriptionType: e.target.value as any } : null)} className={inputCls}>
+                                        <option value="comum">{t('hce_prescription_comum', 'app')}</option>
+                                        <option value="controlado">{t('hce_prescription_controlado', 'app')}</option>
+                                        <option value="arquivado">{t('hce_prescription_arquivado', 'app')}</option>
+                                      </select>
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <label className={labelCls}>{t('presc_instructions', 'app')}</label>
+                                    <input type="text" value={editingPrescription.notes} onChange={e => setEditingPrescription(prev => prev ? { ...prev, notes: e.target.value } : null)} className={inputCls} placeholder="Tomar con agua, después de comer..." />
+                                  </div>
+                                  <div className="flex justify-end gap-2">
+                                    <button onClick={() => setEditingPrescription(null)} className="px-3 py-1.5 text-slate-600 hover:text-slate-800 text-xs font-bold rounded-lg">{t('presc_cancel', 'app')}</button>
+                                    <button onClick={() => editingPrescription && handleUpdatePrescription(editingPrescription)} className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg">{t('presc_save', 'app')}</button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="font-bold text-slate-800">{p.drugName}</p>
+                                    <p className="text-slate-500">{p.dosage} — {p.frequency} — {p.route}</p>
+                                    <p className="text-slate-400">{t('presc_duration_label', 'app')} {p.duration} | {t('presc_quantity_label', 'app')} {p.quantity} {p.unit}</p>
+                                    {p.notes && <p className="text-slate-400 italic mt-0.5">{p.notes}</p>}
+                                  </div>
+                                  <div className="flex items-center gap-1 flex-shrink-0">
+                                    <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                                      p.prescriptionType === 'controlado' ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-600'
+                                    }`}>{p.prescriptionType === 'controlado' ? t('presc_badge_controlled', 'app') : t('presc_badge_common', 'app')}</span>
+                                    <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                                      p.status === 'assinado' ? 'bg-green-100 text-green-700' :
+                                      p.status === 'rascunho' ? 'bg-slate-100 text-slate-600' :
+                                      'bg-rose-100 text-rose-700'
+                                    }`}>{t(`hce_prescription_${p.status}`, 'app')}</span>
+                                    {p.status === 'rascunho' && (
+                                      <>
+                                        <button onClick={() => setEditingPrescription(p)} className="group relative p-1.5 text-teal-500 hover:text-teal-700 hover:bg-teal-50 rounded-lg transition"><Pencil className="w-4 h-4" /><span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition pointer-events-none whitespace-nowrap">{t('hce_edit', 'app')}</span></button>
+                                        <button onClick={() => handleSignPrescription(p.id)} className="group relative p-1.5 text-green-600 hover:text-green-800 hover:bg-green-50 rounded-lg transition"><FileSignature className="w-4 h-4" /><span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition pointer-events-none whitespace-nowrap">{t('hce_sign', 'app')}</span></button>
+                                      </>
+                                    )}
+                                    <button onClick={() => { if (window.confirm(t('hce_confirm_delete_prescription', 'app') || '¿Está seguro que desea eliminar esta receta?')) { handleDeletePrescription(p.id); } }} className="group relative p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition"><Trash2 className="w-4 h-4" /><span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition pointer-events-none whitespace-nowrap">{t('hce_delete', 'app')}</span></button>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          ))}
                         </div>
                       )}
+                    </div>
 
-                      {/* Prescription Form */}
+                    {/* Add Medication Form */}
+                    <div className="border-t border-teal-200 p-4 space-y-3 bg-slate-50">
+                      <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">{t('presc_add_title', 'app')}</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="relative">
+                          <label className={labelCls}>{t('presc_add_name', 'app')} *</label>
+                          <input type="text" value={prescriptionForm.drugName} onChange={e => { setPrescriptionForm(p => ({ ...p, drugName: e.target.value })); setDrugSearch(e.target.value); setShowDrugDropdown(true); }} onFocus={() => { setDrugSearch(prescriptionForm.drugName); setShowDrugDropdown(true); }} onBlur={() => setTimeout(() => setShowDrugDropdown(false), 200)} className={inputCls} placeholder={t('presc_placeholder_drug', 'app')} />
+                          {showDrugDropdown && drugCatalogItems.length > 0 && (
+                            <div className="absolute z-50 mt-1 w-full max-h-48 overflow-y-auto bg-white border border-slate-200 rounded-lg shadow-lg">
+                              {drugCatalogItems.filter(d => {
+                                const s = (drugSearch || prescriptionForm.drugName).toLowerCase();
+                                return !s || d.name.toLowerCase().includes(s) || d.activeIngredient.toLowerCase().includes(s);
+                              }).slice(0, 10).map(d => (
+                                <button key={d.id} type="button" className="w-full text-left px-3 py-2 hover:bg-teal-50 border-b border-slate-100 last:border-0 transition" onMouseDown={ev => ev.preventDefault()} onClick={() => {
+                                  setPrescriptionForm(p => ({ ...p, drugName: d.name, activeIngredient: d.activeIngredient, presentation: d.presentation || p.presentation, dosage: d.defaultDosage || p.dosage, frequency: d.defaultFrequency || p.frequency, route: d.route || p.route, duration: d.defaultDuration || p.duration }));
+                                  setShowDrugDropdown(false);
+                                }}>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-semibold text-xs text-slate-800">{d.name}</span>
+                                    <span className={`px-1 py-0.5 rounded text-[8px] font-bold uppercase ${
+                                      d.source === 'dinavisa' ? 'bg-blue-100 text-blue-700' :
+                                      d.source === 'anvisa' ? 'bg-green-100 text-green-700' :
+                                      d.source === 'fda' ? 'bg-purple-100 text-purple-700' :
+                                      d.source === 'infarmed' ? 'bg-orange-100 text-orange-700' :
+                                      'bg-slate-100 text-slate-600'
+                                    }`}>{d.source === 'local' ? t('drug_source_local', 'app') : d.source.toUpperCase()}</span>
+                                  </div>
+                                  <p className="text-[10px] text-slate-400">{d.activeIngredient} — {d.presentation}</p>
+                                </button>
+                              ))}
+                              {drugCatalogItems.filter(d => {
+                                const s = (drugSearch || prescriptionForm.drugName).toLowerCase();
+                                return !s || d.name.toLowerCase().includes(s) || d.activeIngredient.toLowerCase().includes(s);
+                              }).length === 0 && (
+                                <p className="px-3 py-2 text-xs text-slate-400 italic">{t('drug_search_no_results', 'app')}</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        <div>
+                          <label className={labelCls}>{t('presc_active_ingredient', 'app')}</label>
+                          <input type="text" value={prescriptionForm.activeIngredient} onChange={e => setPrescriptionForm(p => ({ ...p, activeIngredient: e.target.value }))} className={inputCls} placeholder={t('presc_placeholder_ingredient', 'app')} />
+                        </div>
+                      </div>
                       <div className="grid grid-cols-3 gap-2">
                         <div>
-                          <label className={labelCls}>{t('hce_dosage', 'app')}</label>
-                          <input type="text" value={prescriptionForm.dosage} onChange={e => setPrescriptionForm(p => ({ ...p, dosage: e.target.value }))} className={inputCls} placeholder="Ex: 500mg" />
-                        </div>
-                        <div>
-                          <label className={labelCls}>{t('hce_frequency', 'app')}</label>
-                          <input type="text" value={prescriptionForm.frequency} onChange={e => setPrescriptionForm(p => ({ ...p, frequency: e.target.value }))} className={inputCls} placeholder="Ex: 8/8h" />
-                        </div>
-                        <div>
-                          <label className={labelCls}>{t('hce_route', 'app')}</label>
-                          <select value={prescriptionForm.route} onChange={e => setPrescriptionForm(p => ({ ...p, route: e.target.value }))} className={inputCls}>
-                            <option value="oral">Oral</option>
-                            <option value="venoso">Intravenoso</option>
-                            <option value="intramuscular">Intramuscular</option>
-                            <option value="topico">Tópico</option>
-                            <option value="sublingual">Sublingual</option>
-                            <option value="retal">Retal</option>
+                          <label className={labelCls}>{t('presc_add_presentation', 'app')}</label>
+                          <select value={prescriptionForm.presentation} onChange={e => setPrescriptionForm(p => ({ ...p, presentation: e.target.value }))} className={inputCls}>
+                            <option value="">{t('presc_presentation_select', 'app')}</option>
+                            <option value="Comprimido">{t('presc_presentation_comprimido', 'app')}</option>
+                            <option value="Cápsula">{t('presc_presentation_capsula', 'app')}</option>
+                            <option value="Jarabe">{t('presc_presentation_jarabe', 'app')}</option>
+                            <option value="Suspensión">{t('presc_presentation_suspension', 'app')}</option>
+                            <option value="Solución Inyectable">{t('presc_presentation_inyectable', 'app')}</option>
+                            <option value="Gotas">{t('presc_presentation_gotas', 'app')}</option>
+                            <option value="Pomada">{t('presc_presentation_pomada', 'app')}</option>
+                            <option value="Crema">{t('presc_presentation_crema', 'app')}</option>
+                            <option value="Óvulo">{t('presc_presentation_ovulo', 'app')}</option>
+                            <option value="Supositorio">{t('presc_presentation_supositorio', 'app')}</option>
+                            <option value="Inhalador">{t('presc_presentation_inhalador', 'app')}</option>
+                            <option value="Parche">{t('presc_presentation_parche', 'app')}</option>
+                            <option value="Otro">{t('presc_presentation_otro', 'app')}</option>
                           </select>
                         </div>
                         <div>
-                          <label className={labelCls}>{t('hce_duration', 'app')}</label>
-                          <input type="text" value={prescriptionForm.duration} onChange={e => setPrescriptionForm(p => ({ ...p, duration: e.target.value }))} className={inputCls} placeholder="Ex: 7 dias" />
+                          <label className={labelCls}>{t('presc_add_dosage', 'app')} *</label>
+                          <input type="text" value={prescriptionForm.dosage} onChange={e => setPrescriptionForm(p => ({ ...p, dosage: e.target.value }))} className={inputCls} placeholder={t('presc_placeholder_dosage', 'app')} />
                         </div>
                         <div>
-                          <label className={labelCls}>Quantidade</label>
+                          <label className={labelCls}>{t('presc_add_frequency', 'app')} *</label>
+                          <input type="text" value={prescriptionForm.frequency} onChange={e => setPrescriptionForm(p => ({ ...p, frequency: e.target.value }))} className={inputCls} placeholder={t('presc_placeholder_frequency', 'app')} />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-4 gap-2">
+                        <div>
+                          <label className={labelCls}>{t('presc_route', 'app')}</label>
+                          <select value={prescriptionForm.route} onChange={e => setPrescriptionForm(p => ({ ...p, route: e.target.value }))} className={inputCls}>
+                            <option value="oral">{t('presc_route_oral', 'app')}</option>
+                            <option value="sublingual">{t('presc_route_sublingual', 'app')}</option>
+                            <option value="venoso">{t('presc_route_venoso', 'app')}</option>
+                            <option value="intramuscular">{t('presc_route_intramuscular', 'app')}</option>
+                            <option value="topico">{t('presc_route_topico', 'app')}</option>
+                            <option value="retal">{t('presc_route_retal', 'app')}</option>
+                            <option value="inhalacion">{t('presc_route_inhalacion', 'app')}</option>
+                            <option value="vaginal">{t('presc_route_vaginal', 'app')}</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className={labelCls}>{t('presc_add_duration', 'app')}</label>
+                          <input type="text" value={prescriptionForm.duration} onChange={e => setPrescriptionForm(p => ({ ...p, duration: e.target.value }))} className={inputCls} placeholder={t('presc_placeholder_duration', 'app')} />
+                        </div>
+                        <div>
+                          <label className={labelCls}>{t('presc_quantity', 'app')}</label>
                           <input type="number" value={prescriptionForm.quantity} onChange={e => setPrescriptionForm(p => ({ ...p, quantity: parseInt(e.target.value) || 1 }))} className={inputCls} min={1} />
                         </div>
                         <div>
-                          <label className={labelCls}>{t('hce_prescription_type', 'app')}</label>
+                          <label className={labelCls}>{t('presc_unit', 'app')}</label>
+                          <input type="text" value={prescriptionForm.unit} onChange={e => setPrescriptionForm(p => ({ ...p, unit: e.target.value }))} className={inputCls} placeholder={t('presc_placeholder_unit', 'app')} />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className={labelCls}>{t('presc_add_type', 'app')}</label>
                           <select value={prescriptionForm.prescriptionType} onChange={e => setPrescriptionForm(p => ({ ...p, prescriptionType: e.target.value as any }))} className={inputCls}>
                             <option value="comum">{t('hce_prescription_comum', 'app')}</option>
                             <option value="controlado">{t('hce_prescription_controlado', 'app')}</option>
                             <option value="arquivado">{t('hce_prescription_arquivado', 'app')}</option>
                           </select>
                         </div>
-                      </div>
-
-                      {/* Pediatric Dose Calculator */}
-                      <div className="p-2 bg-blue-50 border border-blue-200 rounded-lg space-y-2">
-                        <p className="text-xs font-bold text-blue-800 flex items-center gap-1"><Baby className="w-3 h-3" /> {t('hce_calculate_dose', 'app')}</p>
-                        <div className="flex gap-2 items-end">
-                          <div className="flex-1">
-                            <label className={labelCls}>{t('hce_patient_weight', 'app')}</label>
-                            <input type="number" value={pediatricWeight} onChange={e => setPediatricWeight(e.target.value)} className={inputCls} placeholder="kg" step="0.1" />
-                          </div>
-                          <button type="button" onClick={calculatePediatricDose} className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-2 rounded-lg font-bold flex items-center gap-1">
-                            <Calculator className="w-3 h-3" /> Calcular
-                          </button>
+                        <div>
+                          <label className={labelCls}>{t('presc_add_instructions', 'app')}</label>
+                          <input type="text" value={prescriptionForm.notes} onChange={e => setPrescriptionForm(p => ({ ...p, notes: e.target.value }))} className={inputCls} placeholder={t('presc_placeholder_notes', 'app')} />
                         </div>
-                        {pediatricDoseResult && (
-                          <p className="text-xs font-bold text-blue-700 bg-blue-100 p-2 rounded-lg">{pediatricDoseResult}</p>
-                        )}
                       </div>
-
-                      {/* Drug Interactions Warning */}
-                      {(() => {
-                        const interactions = checkDrugInteractions(selectedDrug.name);
-                        if (interactions.length === 0) return null;
-                        return (
-                          <div className="p-2 bg-rose-50 border border-rose-200 rounded-lg space-y-1">
-                            {interactions.map((int, i) => (
-                              <div key={i} className="flex items-start gap-2 text-xs">
-                                <AlertTriangle className={`w-3.5 h-3.5 shrink-0 mt-0.5 ${
-                                  int.severity === 'grave' ? 'text-red-600' :
-                                  int.severity === 'moderada' ? 'text-amber-600' : 'text-yellow-600'
-                                }`} />
-                                <div>
-                                  <p className="font-bold text-rose-800">Interação {int.severity}: {int.description}</p>
-                                  <p className="text-rose-600">{int.recommendation}</p>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        );
-                      })()}
-
-                      <button onClick={handleSavePrescription} className="w-full py-2 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-lg text-xs transition">
-                        Adicionar ao Receituário
+                      <button onClick={handleSavePrescription} disabled={!prescriptionForm.drugName.trim()} className="w-full py-2.5 bg-teal-600 hover:bg-teal-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-semibold rounded-lg text-xs transition flex items-center justify-center gap-2">
+                        <Plus className="w-3.5 h-3.5" /> {t('presc_add_button', 'app')}
                       </button>
                     </div>
-                  )}
-
-                  {/* Prescriptions List */}
-                  <div className="space-y-2">
-                    {prescriptions.map(p => (
-                      editingPrescription?.id === p.id ? (
-                        <div key={p.id} className="p-3 bg-teal-50 border border-teal-200 rounded-xl text-xs space-y-2">
-                          <div className="grid grid-cols-3 gap-2">
-                            <div>
-                              <label className={labelCls}>{t('hce_dosage', 'app')}</label>
-                              <input type="text" value={editingPrescription.dosage} onChange={e => setEditingPrescription(prev => prev ? { ...prev, dosage: e.target.value } : null)} className={inputCls} />
-                            </div>
-                            <div>
-                              <label className={labelCls}>{t('hce_frequency', 'app')}</label>
-                              <input type="text" value={editingPrescription.frequency} onChange={e => setEditingPrescription(prev => prev ? { ...prev, frequency: e.target.value } : null)} className={inputCls} />
-                            </div>
-                            <div>
-                              <label className={labelCls}>{t('hce_route', 'app')}</label>
-                              <select value={editingPrescription.route} onChange={e => setEditingPrescription(prev => prev ? { ...prev, route: e.target.value } : null)} className={inputCls}>
-                                <option value="oral">Oral</option>
-                                <option value="venoso">Intravenoso</option>
-                                <option value="intramuscular">Intramuscular</option>
-                                <option value="topico">Tópico</option>
-                                <option value="sublingual">Sublingual</option>
-                                <option value="retal">Retal</option>
-                              </select>
-                            </div>
-                            <div>
-                              <label className={labelCls}>{t('hce_duration', 'app')}</label>
-                              <input type="text" value={editingPrescription.duration} onChange={e => setEditingPrescription(prev => prev ? { ...prev, duration: e.target.value } : null)} className={inputCls} />
-                            </div>
-                            <div>
-                              <label className={labelCls}>Quantidade</label>
-                              <input type="number" value={editingPrescription.quantity} onChange={e => setEditingPrescription(prev => prev ? { ...prev, quantity: parseInt(e.target.value) || 1 } : null)} className={inputCls} />
-                            </div>
-                            <div>
-                              <label className={labelCls}>Unidade</label>
-                              <input type="text" value={editingPrescription.unit} onChange={e => setEditingPrescription(prev => prev ? { ...prev, unit: e.target.value } : null)} className={inputCls} />
-                            </div>
-                          </div>
-                          <div>
-                            <label className={labelCls}>Observações</label>
-                            <input type="text" value={editingPrescription.notes} onChange={e => setEditingPrescription(prev => prev ? { ...prev, notes: e.target.value } : null)} className={inputCls} />
-                          </div>
-                          <div className="flex justify-end gap-2">
-                            <button onClick={() => setEditingPrescription(null)} className="px-3 py-1.5 text-slate-600 hover:text-slate-800 text-xs font-bold rounded-lg">Cancelar</button>
-                            <button onClick={() => editingPrescription && handleUpdatePrescription(editingPrescription)} className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg">Salvar</button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div key={p.id} className={`p-3 border rounded-xl flex items-center justify-between text-xs ${
-                          p.status === 'assinado' ? 'bg-green-50 border-green-200' :
-                          p.status === 'rascunho' ? 'bg-slate-50 border-slate-200' :
-                          p.status === 'cancelado' ? 'bg-rose-50 border-rose-200' :
-                          'bg-blue-50 border-blue-200'
-                        }`}>
-                          <div className="space-y-0.5">
-                            <p className="font-bold text-slate-800">💊 {p.drugName} — {p.dosage} | {p.frequency} | {p.route}</p>
-                            <p className="text-slate-500">Duração: {p.duration} | Qtd: {p.quantity} {p.unit} | {p.prescriptionType.toUpperCase()}</p>
-                            {p.qrCodeData && <p className="text-[9px] text-slate-400 font-mono">QR: {p.qrCodeData}</p>}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                              p.status === 'assinado' ? 'bg-green-100 text-green-700' :
-                              p.status === 'rascunho' ? 'bg-slate-100 text-slate-700' :
-                              p.status === 'cancelado' ? 'bg-rose-100 text-rose-700' :
-                              'bg-blue-100 text-blue-700'
-                            }`}>{t(`hce_prescription_${p.status}`, 'app')}</span>
-                            {p.status === 'rascunho' && (
-                              <>
-                                <button onClick={() => setEditingPrescription(p)} className="text-teal-500 hover:text-teal-700"><Sliders className="w-3 h-3" /></button>
-                                <button onClick={() => handleSignPrescription(p.id)} className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-[10px] font-bold flex items-center gap-1">
-                                  <FileSignature className="w-3 h-3" /> Assinar
-                                </button>
-                              </>
-                            )}
-                            <button onClick={() => handleDeletePrescription(p.id)} className="text-rose-500 hover:text-rose-700"><Trash2 className="w-3 h-3" /></button>
-                          </div>
-                        </div>
-                      )
-                    ))}
                   </div>
 
                   </>)}

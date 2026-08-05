@@ -116,7 +116,7 @@ export default function I18nDatePicker({
       onChange={(date: Date | null) => onChange(toDateString(date))}
       dateFormat="dd/MM/yyyy"
       placeholderText={placeholderText}
-      minDate={minDateObj}
+      minDate={minDateObj ?? undefined}
       className={className}
       required={required}
       locale={dpLocale}

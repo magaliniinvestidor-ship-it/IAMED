@@ -52,7 +52,7 @@ function ClinicPatientCard({
 }: {
   cp: ClinicPatient;
   locale: string;
-  t: (key: string, ns?: string) => string;
+  t: (key: string, section?: 'login' | 'app' | 'terms') => string;
   canEdit: boolean;
   onEdit: (cp: ClinicPatient) => void;
   onDelete: (cp: ClinicPatient) => void;
