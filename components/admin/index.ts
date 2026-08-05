@@ -4,3 +4,5 @@ export { KudeModal, XmlModal, GatewayModal } from './Modals';
 export { LocationsTab } from './LocationsTab';
 export { InsuranceTab } from './InsuranceTab';
 export { DteTab } from './DteTab';
+export { ProfessionalsTab } from './ProfessionalsTab';
+export { UsersTab } from './UsersTab';
