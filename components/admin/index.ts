@@ -6,3 +6,5 @@ export { InsuranceTab } from './InsuranceTab';
 export { DteTab } from './DteTab';
 export { ProfessionalsTab } from './ProfessionalsTab';
 export { UsersTab } from './UsersTab';
+export { FinancialTab } from './FinancialTab';
+export { AuditTab } from './AuditTab';
