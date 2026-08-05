@@ -35,6 +35,7 @@ import MedicinaTrabalhoModule from '@/components/MedicinaTrabalhoModule';
 import InternacaoCentroCirurgicoModule from '@/components/InternacaoCentroCirurgicoModule';
 import PatientPortalModule from '@/components/PatientPortalModule';
 import AgendaModule from '@/components/AgendaModule';
+import ErrorBoundary from '@/components/ErrorBoundary';
 
 // Permission Gate
 import { PermissionGate } from '@/components/ui/PermissionGate';
@@ -1473,6 +1474,7 @@ function HomeContent() {
               <div className="bg-slate-100/50 p-1.5 rounded-2xl border border-slate-200/65">
                 {activeSubmodule === 1 && (
                   <PermissionGate view="reception" userPermissions={profile?.permissions}>
+                    <ErrorBoundary moduleName="Recepção">
                     <ReceptionModule
                       patients={patients}
                       appointments={appointments}
@@ -1485,10 +1487,12 @@ function HomeContent() {
                       activeOperator={activeOperator}
                       userPermissions={profile?.permissions}
                     />
+                    </ErrorBoundary>
                   </PermissionGate>
                 )}
                 {activeSubmodule === 2 && (
                   <PermissionGate view="agenda" userPermissions={profile?.permissions}>
+                    <ErrorBoundary moduleName="Agenda">
                     <AgendaModule
                       patients={patients}
                       appointments={appointments}
@@ -1500,10 +1504,12 @@ function HomeContent() {
                       activeOperator={activeOperator}
                       userPermissions={profile?.permissions}
                     />
+                    </ErrorBoundary>
                   </PermissionGate>
                 )}
                 {(activeSubmodule === 3 || activeSubmodule === 8) && (
                   <PermissionGate view="hce" userPermissions={profile?.permissions}>
+                    <ErrorBoundary moduleName="Prontuário Eletrônico">
                     <ClinicalModule
                       patients={patients}
                       setPatients={setPatients}
@@ -1514,30 +1520,36 @@ function HomeContent() {
                       userPermissions={profile?.permissions}
                       activeOperator={activeOperator}
                     />
+                    </ErrorBoundary>
                   </PermissionGate>
                 )}
                 {activeSubmodule === 9 && (
                   <PermissionGate view="med_work" userPermissions={profile?.permissions}>
+                    <ErrorBoundary moduleName="Medicina do Trabalho">
                     <MedicinaTrabalhoModule
                       activeSubmodule={activeSubmodule}
                       addAuditLog={addAuditLog}
                       asos={asos}
                       setAsos={setAsos}
                     />
+                    </ErrorBoundary>
                   </PermissionGate>
                 )}
                 {activeSubmodule === 4 && (
                   <PermissionGate view="diagnostic" userPermissions={profile?.permissions}>
+                    <ErrorBoundary moduleName="Diagnóstico">
                     <DiagnosticModule
                       patients={patients}
                       activeSubmodule={activeSubmodule}
                       addAuditLog={addAuditLog}
                       userPermissions={profile?.permissions}
                     />
+                    </ErrorBoundary>
                   </PermissionGate>
                 )}
                 {activeSubmodule === 7 && (
                   <PermissionGate view="stock" userPermissions={profile?.permissions}>
+                    <ErrorBoundary moduleName="Estoque e Farmácia">
                     <EstoqueFarmaciaModule
                       addAuditLog={addAuditLog}
                       patients={patients}
@@ -1556,12 +1568,14 @@ function HomeContent() {
                       activeRole={activeRole}
                       activeOperator={activeOperator}
                     />
+                    </ErrorBoundary>
                   </PermissionGate>
                 )}
                 {(activeSubmodule === 5 || activeSubmodule === 6 || activeSubmodule === 14 ||
                   activeSubmodule === 15 || activeSubmodule === 16 || activeSubmodule === 17 ||
                   activeSubmodule === 18 || activeSubmodule === 19 || activeSubmodule === 20 || activeSubmodule === 21) && (
                   <PermissionGate view="security" userPermissions={profile?.permissions}>
+                    <ErrorBoundary moduleName="Administração e Finanças">
                     <AdminFinanceModule
                     activeSubmodule={activeSubmodule}
                     addAuditLog={addAuditLog}
@@ -1620,19 +1634,23 @@ function HomeContent() {
                     clinicalRooms={clinicalRooms}
                     setClinicalRooms={setClinicalRooms}
                     passwordPolicy={passwordPolicy}
-onPasswordPolicyChange={setPasswordPolicy}
+                    onPasswordPolicyChange={setPasswordPolicy}
                     />
+                    </ErrorBoundary>
                   </PermissionGate>
                 )}
                 {activeSubmodule === 11 && (
+                  <ErrorBoundary moduleName="Internação e Centro Cirúrgico">
                   <InternacaoCentroCirurgicoModule
                     activeSubmodule={activeSubmodule}
                     addAuditLog={addAuditLog}
                     patients={patients}
                     setPatients={setPatients}
                   />
+                  </ErrorBoundary>
                 )}
                 {(activeSubmodule === 10 || activeSubmodule === 12) && (
+                  <ErrorBoundary moduleName="CRM e BI">
                   <CrmBiModule
                     activeSubmodule={activeSubmodule}
                     addAuditLog={addAuditLog}
@@ -1641,8 +1659,10 @@ onPasswordPolicyChange={setPasswordPolicy}
                     patients={patients}
                     financePostings={finance}
                   />
+                  </ErrorBoundary>
                 )}
                 {activeSubmodule === 13 && (
+                  <ErrorBoundary moduleName="Portal do Paciente">
                   <PatientPortalModule
                     patients={patients}
                     setPatients={setPatients}
@@ -1652,6 +1672,7 @@ onPasswordPolicyChange={setPasswordPolicy}
                     setDtes={setDtes}
                     addAuditLog={addAuditLog}
                   />
+                  </ErrorBoundary>
                 )}
               </div>
             </motion.div>
