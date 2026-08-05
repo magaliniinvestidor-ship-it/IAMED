@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import PhoneInput from '@/components/PhoneInput';
 import { isValidPhoneNumber } from 'libphonenumber-js';
 import { FinancialPosting, StockItem, AuditLog, Dte, DteItem, Patient, Professional, ProfessionalCouncil, ProfessionalShift, FeeSchedule, InsuranceCompany, PreAuthorization, BatchInvoice, EligibilityCheck, ProfessionalSettlement, ForeignBilling, AccountPayable, AccountReceivable, CashFlowProjection, BankReconciliation, CostCenter, IncomeStatement, TaxCalculation, PurchaseBookEntry, SalesBookEntry, ExchangeRate, ChartOfAccount, AccountingEntry, initialInsurances, initialFeeSchedules, initialPreAuthorizations, initialBatchInvoices, initialEligibilityChecks, initialSettlements, initialForeignBillings, initialAccountsPayable, initialAccountsReceivable, initialCashFlows, initialBankReconciliations, initialCostCenters, initialIncomeStatements, initialTaxCalculations, initialPurchaseBook, initialSalesBook, initialExchangeRates, initialChartOfAccounts, initialAccountingEntries,
@@ -11,6 +11,7 @@ import { FinancialPosting, StockItem, AuditLog, Dte, DteItem, Patient, Professio
 } from '@/lib/mockData';
 import { supabase } from '@/lib/supabaseClient';
 import { useI18n } from '@/lib/i18n/I18nContext';
+import { useModuleId } from '@/hooks/useModuleId';
 import I18nDatePicker from '@/components/I18nDatePicker';
 import RolesTab from './RolesTab';
 import {
@@ -208,6 +209,7 @@ function generateXml(dte: Partial<Dte> & { items: DteItem[] }, certName: string,
 
 // ─── KuDE Modal ───────────────────────────────────────────────────────────────
 function KudeModal({ dte, onClose }: { dte: Dte; onClose: () => void }) {
+  const { t } = useI18n();
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={onClose}>
       <div
@@ -324,7 +326,7 @@ function KudeModal({ dte, onClose }: { dte: Dte; onClose: () => void }) {
           {/* Footer actions */}
           <div className="flex gap-2 pt-1">
             <button
-              onClick={() => { alert('PDF KuDE gerado e pronto para impressão!'); }}
+              onClick={() => { alert(t('admin_alert_kude_printed', 'app')); }}
               className="flex-1 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-lg text-xs flex items-center justify-center gap-2 transition"
             >
               <Printer className="w-4 h-4" /> Imprimir KuDE
@@ -496,6 +498,9 @@ export default function AdminFinanceModule({
   onPasswordPolicyChange,
 }: AdminFinanceModuleProps) {
   const { t } = useI18n();
+
+  // ─── SEQUENTIAL ID GENERATION (Postgres RPC) ───
+  const genModuleId = useModuleId();
 
   // Financial tabs
   const [finTab, setFinTab] = useState<'dashboard' | 'ap_ar' | 'cashflow' | 'reconciliation' | 'cost_centers' | 'dre' | 'tax' | 'books' | 'multicurrency' | 'chart_accounts' | 'accounting_entries'>('dashboard');
@@ -699,20 +704,14 @@ export default function AdminFinanceModule({
       }
       addAuditLog('Editou Local', locName);
     } else {
-      let newId: string;
-      if (supabase) {
-        const { data, error } = await supabase.rpc('next_location_id');
-        if (error || !data) {
-          console.error('Erro ao gerar ID de local:', error?.message);
-          return;
-        }
-        newId = data;
-      } else {
-        const numericIds = locations.map(l => {
-          const match = l.id.match(/^loc_(\d+)$/);
-          return match ? parseInt(match[1], 10) : 0;
-        });
-        newId = `loc_${Math.max(...numericIds, 0) + 1}`;
+      if (!supabase) {
+        console.error('Supabase não inicializado para gerar ID de local');
+        return;
+      }
+      const { data: newId, error: rpcErr } = await supabase.rpc('next_location_id');
+      if (rpcErr || !newId) {
+        console.error('Erro ao gerar ID de local via RPC:', rpcErr?.message);
+        return;
       }
       const newLoc: Location = { id: newId, name: locName, address: locAddress, phone: locPhone, city: locCity, status: locStatus };
       setLocations(prev => [...prev, newLoc]);
@@ -750,20 +749,14 @@ export default function AdminFinanceModule({
       }
       addAuditLog('Editou Sala', roomName);
     } else {
-      let newId: string;
-      if (supabase) {
-        const { data, error } = await supabase.rpc('next_room_id');
-        if (error || !data) {
-          console.error('Erro ao gerar ID de sala:', error?.message);
-          return;
-        }
-        newId = data;
-      } else {
-        const numericIds = clinicalRooms.map(r => {
-          const match = r.id.match(/^SALA(\d+)$/);
-          return match ? parseInt(match[1], 10) : 0;
-        });
-        newId = `SALA${String(Math.max(...numericIds, 0) + 1).padStart(3, '0')}`;
+      if (!supabase) {
+        console.error('Supabase não inicializado para gerar ID de sala');
+        return;
+      }
+      const { data: newId, error: rpcErr } = await supabase.rpc('next_room_id');
+      if (rpcErr || !newId) {
+        console.error('Erro ao gerar ID de sala via RPC:', rpcErr?.message);
+        return;
       }
       const newRoom: ClinicalRoom = { id: newId, name: roomName, type: roomType, location_id: roomLocationId, capacity: roomCapacity, equipment: roomEquipment, status: roomStatus };
       setClinicalRooms(prev => [...prev, newRoom]);
@@ -819,15 +812,15 @@ const resetProfForm = () => {
   const handleSaveProfessional = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!profName.trim() || !profSpecialty.trim() || !profCouncilNumber.trim() || !profAdmission.trim() || !profLocationId.trim()) {
-      alert('Preencha todos os campos obrigatórios: Nome, Especialidade, Número do Registro, Data de Admissão e Sede.');
+      alert(t('admin_alert_required_prof_fields', 'app'));
       return;
     }
     if (!profPhone.trim()) {
-      alert('Campo obrigatório não preenchido: Telefone');
+      alert(t('admin_alert_required_phone', 'app'));
       return;
     }
     if (!isValidPhoneNumber(profPhone)) {
-      alert('Formato de telefone inválido. Use o formato internacional (+55 11 99999-9999).');
+      alert(t('admin_alert_invalid_phone', 'app'));
       return;
     }
     if (!setProfessionals) return;
@@ -861,20 +854,14 @@ const resetProfForm = () => {
         }
       }
     } else {
-      let newProfId: string;
-      if (supabase) {
-        const { data, error } = await supabase.rpc('next_professional_id');
-        if (error || !data) {
-          console.error('Erro ao gerar ID de profissional:', error?.message);
-          return;
-        }
-        newProfId = data;
-      } else {
-        const numericIds = professionals.map(p => {
-          const match = p.id.match(/^PRF(\d+)$/);
-          return match ? parseInt(match[1], 10) : 0;
-        });
-        newProfId = `PRF${String(Math.max(...numericIds, 0) + 1).padStart(3, '0')}`;
+      if (!supabase) {
+        console.error('Supabase não inicializado para gerar ID de profissional');
+        return;
+      }
+      const { data: newProfId, error: rpcErr } = await supabase.rpc('next_professional_id');
+      if (rpcErr || !newProfId) {
+        console.error('Erro ao gerar ID de profissional via RPC:', rpcErr?.message);
+        return;
       }
 
       const newProf: Professional = {
@@ -967,6 +954,21 @@ const resetProfForm = () => {
       return;
     }
 
+    const handleApiError = async (response: Response, fallback: string) => {
+      let backendMsg = fallback;
+      try {
+        const data = await response.json();
+        if (data?.error) backendMsg = data.error;
+      } catch {
+        try {
+          const txt = await response.text();
+          if (txt) backendMsg = txt.slice(0, 500);
+        } catch {}
+      }
+      console.error('API /api/admin/users error:', response.status, backendMsg);
+      throw new Error(backendMsg);
+    };
+
     try {
       if (editingUserId) {
         const response = await fetch('/api/admin/users', {
@@ -984,8 +986,9 @@ const resetProfForm = () => {
             password: userPassword || undefined,
           }),
         });
+        if (!response.ok) await handleApiError(response, 'Erro ao atualizar usuário');
         const data = await response.json();
-        if (!response.ok) throw new Error(data.error || 'Erro ao atualizar usuário');
+        console.log('Update user response:', data);
         addAuditLog('Atualizou Usuário', userName);
         alert('Usuário atualizado com sucesso!');
       } else {
@@ -1002,8 +1005,9 @@ const resetProfForm = () => {
             professionalId: userProfessionalId,
           }),
         });
+        if (!response.ok) await handleApiError(response, 'Erro ao criar usuário');
         const data = await response.json();
-        if (!response.ok) throw new Error(data.error || 'Erro ao criar usuário');
+        console.log('Create user response:', data);
         addAuditLog('Cadastrou Usuário via Auth', userName);
         alert('Usuário criado com sucesso!');
       }
@@ -1023,7 +1027,9 @@ const resetProfForm = () => {
       setUser2FAMethod('none');
       setUserFormOpen(false);
     } catch (error: any) {
-      alert(`Erro: ${error.message}`);
+      const msg = (error && (error.message || String(error))) || 'Erro desconhecido';
+      console.error('handleCreateUser failed:', error);
+      alert(`Erro: ${msg}`);
     }
   };
 
@@ -1088,10 +1094,10 @@ const resetProfForm = () => {
       environment: dteEnv, items: dteItems,
     };
     const xml = generateXml(partial, certName, dteEnv);
+    const newDteId = await genModuleId('dte');
     const newDte: Dte = {
       ...partial as any,
-      // eslint-disable-next-line react-hooks/purity
-      id: `dte_${Date.now()}`,
+      id: newDteId,
       status: 'Enviado',
       payment_status: 'pendente',
       xml_content: xml,
@@ -1102,8 +1108,7 @@ const resetProfForm = () => {
 
     // Auto-create financial receipt
     const newPosting: FinancialPosting = {
-      // eslint-disable-next-line react-hooks/purity
-      id: `fin_dte_${Date.now()}`,
+      id: await genModuleId('fin_dte'),
       description: `DTE ${number} — ${dtePatient} (${dteType})`,
       type: 'receita',
       amount: totalAmount,
@@ -1161,7 +1166,7 @@ const resetProfForm = () => {
     e.preventDefault();
     if (!finDescription.trim()) return;
     const newPosting: FinancialPosting = {
-      id: `fin_${Date.now()}`,
+      id: await genModuleId('fin'),
       description: finDescription,
       type: finType,
       amount: finAmount,
@@ -1190,7 +1195,7 @@ const resetProfForm = () => {
     e.preventDefault();
     if (!newStockName.trim()) return;
     const newItem: StockItem = {
-      id: `stk_${Date.now()}`,
+      id: await genModuleId('stk'),
       name: newStockName,
       category: newStockCat,
       quantity: newStockQty,
@@ -1423,13 +1428,13 @@ const resetProfForm = () => {
                   )}
                   <div className="flex gap-3 pt-2">
                     <button
-                      onClick={() => {
+                      onClick={async () => {
                         if (!insuranceForm.name.trim() || !insuranceForm.ruc.trim()) { alert('Nome e RUC são obrigatórios.'); return; }
                         if (editingInsuranceId) {
                           setInsurances(prev => prev.map(i => i.id === editingInsuranceId ? { ...i, ...insuranceForm } : i));
                           addAuditLog('Convênio atualizado', insuranceForm.name);
                         } else {
-                          const newIns: InsuranceCompany = { id: `ins_${Date.now()}`, ...insuranceForm, active: true };
+                          const newIns: InsuranceCompany = { id: await genModuleId('ins'), ...insuranceForm, active: true };
                           setInsurances(prev => [...prev, newIns]);
                           addAuditLog('Novo convênio cadastrado', insuranceForm.name);
                         }
@@ -1586,8 +1591,8 @@ const resetProfForm = () => {
               <div><h3 className="font-black text-slate-800 text-sm">Lotes Masivos de Facturación</h3><p className="text-[10px] text-slate-500">Generación y envío de lotes consolidados por aseguradora y período</p></div>
             </div>
             <div className="flex gap-2 mb-4">
-              <button onClick={() => {
-                const newId = `batch_${Date.now()}`;
+              <button onClick={async () => {
+                const newId = await genModuleId('batch');
                 const newBatch: BatchInvoice = { id: newId, insurance_id: 'ins_1', insurance_name: 'IPS - Instituto de Previsión Social', period_start: '2026-07-01', period_end: '2026-07-31', total_amount: dtes.filter(d => d.status === 'Aprovado').reduce((s, d) => s + d.amount, 0), dte_count: dtes.filter(d => d.status === 'Aprovado').length, status: 'gerado', dte_ids: dtes.filter(d => d.status === 'Aprovado').map(d => d.id), created_at: new Date().toISOString().split('T')[0] };
                 setBatchInvoices(prev => [newBatch, ...prev]);
                 setBatchInvoicesProp?.(prev => [newBatch, ...prev]);
@@ -1653,7 +1658,7 @@ const resetProfForm = () => {
                     </div>
                   </div>
                 </div>
-                <button onClick={() => {
+                <button onClick={async () => {
                   const pName = (document.getElementById('elig-patient-input') as HTMLInputElement)?.value;
                   const insId = (document.getElementById('elig-insurance-select') as HTMLSelectElement)?.value;
                   const procCode = (document.getElementById('elig-procedure-select') as HTMLSelectElement)?.value;
@@ -1666,12 +1671,12 @@ const resetProfForm = () => {
                   if (wsSimulated) {
                     const covPct = ins.type === 'IPS' ? 95 : ins.type === 'EMP' ? 100 : 80;
                     const copayAmt = ins.type === 'IPS' ? Math.round(proc.price * 0.05) : ins.type === 'Sanidade Policial' ? Math.round(proc.price * 0.1) : 0;
-                    const newElig: EligibilityCheck = { id: `elig_${Date.now()}`, patient_id: '', patient_name: pName, insurance_id: insId, insurance_name: ins.name, procedure_code: procCode, procedure_name: proc.desc, status: 'coberto', coverage_percent: covPct, copay_amount: copayAmt, network: `RED_${ins.type.toUpperCase()}`, authorization_required: ins.requires_authorization, checked_at: new Date().toISOString(), response: `Cobertura vigente. ${ins.requires_authorization ? 'Requiere autorización previa.' : 'Sin autorización requerida.'}` };
+                    const newElig: EligibilityCheck = { id: await genModuleId('elig'), patient_id: '', patient_name: pName, insurance_id: insId, insurance_name: ins.name, procedure_code: procCode, procedure_name: proc.desc, status: 'coberto', coverage_percent: covPct, copay_amount: copayAmt, network: `RED_${ins.type.toUpperCase()}`, authorization_required: ins.requires_authorization, checked_at: new Date().toISOString(), response: `Cobertura vigente. ${ins.requires_authorization ? 'Requiere autorización previa.' : 'Sin autorización requerida.'}` };
                     setEligibilityChecks(prev => [newElig, ...prev]);
                     setEligProp?.(prev => [newElig, ...prev]);
                     alert(`✅ Cobertura Verificada\nPaciente: ${pName}\nConvênio: ${ins.name}\nProcedimiento: ${proc.desc}\nCobertura: ${covPct}%\nCopago: Gs. ${copayAmt.toLocaleString('es-PY')}\nAutorización: ${ins.requires_authorization ? 'Requerida' : 'No requerida'}\nRed: RED_${ins.type.toUpperCase()}\n\nWeb Service: ${ins.webservice_url || 'N/A'}`);
                   } else {
-                    const newElig: EligibilityCheck = { id: `elig_${Date.now()}`, patient_id: '', patient_name: pName, insurance_id: insId, insurance_name: ins.name, procedure_code: procCode, procedure_name: proc.desc, status: 'negado', coverage_percent: 0, copay_amount: 0, network: '', authorization_required: false, checked_at: new Date().toISOString(), response: 'Contribuyente no activo. Verificar datos con el convenio.' };
+                    const newElig: EligibilityCheck = { id: await genModuleId('elig'), patient_id: '', patient_name: pName, insurance_id: insId, insurance_name: ins.name, procedure_code: procCode, procedure_name: proc.desc, status: 'negado', coverage_percent: 0, copay_amount: 0, network: '', authorization_required: false, checked_at: new Date().toISOString(), response: 'Contribuyente no activo. Verificar datos con el convenio.' };
                     setEligibilityChecks(prev => [newElig, ...prev]);
                     setEligProp?.(prev => [newElig, ...prev]);
                     alert(`❌ Cobertura Negada\nPaciente: ${pName}\nConvênio: ${ins.name}\nRespuesta: Contribuyente no activo.\nContacte al convenio para más detalles.`);
@@ -1781,7 +1786,7 @@ const resetProfForm = () => {
                   </select>
                 </div>
               </div>
-              <button onClick={() => {
+              <button onClick={async () => {
                 const profId = (document.getElementById('settle-prof-select') as HTMLSelectElement)?.value;
                 const gross = Number((document.getElementById('settle-gross-input') as HTMLInputElement)?.value) || 0;
                 const pct = Number((document.getElementById('settle-pct-select') as HTMLSelectElement)?.value) || 60;
@@ -1794,7 +1799,7 @@ const resetProfForm = () => {
                 const deductions = irp + iva;
                 const neto = honorario - deductions;
                 addAuditLog('Simuló Honorarios', `${prof.name}: Bruto Gs. ${gross}, Neto Gs. ${neto}`);
-                const newSett: ProfessionalSettlement = { id: `sett_${Date.now()}`, professional_id: profId, professional_name: prof.name, period_start: new Date().toISOString().slice(0, 7) + '-01', period_end: new Date().toISOString().split('T')[0], gross_amount: gross, deductions, net_amount: neto, irp_withheld: irp, iva_withheld: iva, status: 'calculado', dte_ids: [], settlement_date: new Date().toISOString().split('T')[0], payment_date: '' };
+                const newSett: ProfessionalSettlement = { id: await genModuleId('sett'), professional_id: profId, professional_name: prof.name, period_start: new Date().toISOString().slice(0, 7) + '-01', period_end: new Date().toISOString().split('T')[0], gross_amount: gross, deductions, net_amount: neto, irp_withheld: irp, iva_withheld: iva, status: 'calculado', dte_ids: [], settlement_date: new Date().toISOString().split('T')[0], payment_date: '' };
                 setSettlements(prev => [newSett, ...prev]);
                 setSettlementsProp?.(prev => [newSett, ...prev]);
                 alert(`✅ Cálculo de Honorarios\nProfesional: ${prof.name}\nValor Facturado: Gs. ${gross.toLocaleString('es-PY')}\nRepasse (${pct}%): Gs. ${honorario.toLocaleString('es-PY')}\nIRP (3%): -Gs. ${irp.toLocaleString('es-PY')}\nIVA (12%): -Gs. ${iva.toLocaleString('es-PY')}\n\nNeto a Pagar: Gs. ${neto.toLocaleString('es-PY')}`);
@@ -1854,7 +1859,7 @@ const resetProfForm = () => {
                     <input type="number" className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs" placeholder="450000" id="frn-amount-input" />
                   </div>
                 </div>
-                <button onClick={() => {
+                <button onClick={async () => {
                   const pName = (document.getElementById('frn-patient-input') as HTMLInputElement)?.value;
                   const country = (document.getElementById('frn-country-select') as HTMLSelectElement)?.value;
                   const currency = (document.getElementById('frn-currency-select') as HTMLSelectElement)?.value as ForeignBilling['currency'];
@@ -1865,7 +1870,7 @@ const resetProfForm = () => {
                   const countryNames: Record<string, string> = { AR: 'Argentina', BR: 'Brasil', UY: 'Uruguay', CL: 'Chile', US: 'Estados Unidos' };
                   addAuditLog('Emitió Factura Extranjero', `${pName} - ${currency} ${amountForeign}`);
                   const docs = [`Invoice_INV-${Date.now()}.pdf`, `Recibo_Rec-${Date.now()}.pdf`, `Comprobante_Reembolso_${country}.pdf`];
-                  const newFrn: ForeignBilling = { id: `frn_${Date.now()}`, patient_id: '', patient_name: pName, country, currency, exchange_rate: rate, amount_local: amountLocal, amount_foreign: amountForeign, documents_generated: docs, status: 'gerado' };
+                  const newFrn: ForeignBilling = { id: await genModuleId('frn'), patient_id: '', patient_name: pName, country, currency, exchange_rate: rate, amount_local: amountLocal, amount_foreign: amountForeign, documents_generated: docs, status: 'gerado' };
                   setForeignBillings(prev => [newFrn, ...prev]);
                   setForeignBillingsProp?.(prev => [newFrn, ...prev]);
                   alert(`✅ Comprobante Internacional Generado\nPaciente: ${pName}\nPaís: ${countryNames[country] || country}\nMoneda: ${currency}\nMonto Local: Gs. ${amountLocal.toLocaleString('es-PY')}\nTasa: ${rate}\nMonto Extranjero: ${currency} ${amountForeign.toFixed(2)}\n\nDocumentos generados:\n${docs.map(d => `  📄 ${d}`).join('\n')}`);
@@ -3354,7 +3359,7 @@ const resetProfForm = () => {
                   <Globe className="w-5 h-5 text-teal-600" />
                   <h3 className="font-semibold text-slate-800 text-base">{editingSsoId ? 'Editar Provedor SSO' : 'Novo Provedor SSO'}</h3>
                 </div>
-                <form onSubmit={(e) => { e.preventDefault(); if (!ssoName.trim() || !ssoIssuer.trim() || !ssoClientId.trim()) return; if (editingSsoId) { setSSOProviders(prev => prev.map(p => p.id === editingSsoId ? { ...p, name: ssoName, type: ssoType, issuerUrl: ssoIssuer, clientId: ssoClientId, clientSecret: ssoClientSecret, metadataUrl: ssoMetadataUrl, certificateFingerprint: ssoCertFingerprint, defaultRole: ssoDefaultRole, enabled: ssoEnabled } : p)); addAuditLog('Editou Provedor SSO', ssoName); } else { setSSOProviders(prev => [...prev, { id: `sso_${Date.now()}`, name: ssoName, type: ssoType, enabled: ssoEnabled, issuerUrl: ssoIssuer, clientId: ssoClientId, clientSecret: ssoClientSecret, metadataUrl: ssoMetadataUrl, certificateFingerprint: ssoCertFingerprint, defaultRole: ssoDefaultRole, active: ssoEnabled }]); addAuditLog('Cadastrou Provedor SSO', ssoName); } setSsoFormOpen(false); setEditingSsoId(null); setSsoName(''); }} className="space-y-3 text-xs font-sans">
+                <form onSubmit={async (e) => { e.preventDefault(); if (!ssoName.trim() || !ssoIssuer.trim() || !ssoClientId.trim()) return; if (editingSsoId) { setSSOProviders(prev => prev.map(p => p.id === editingSsoId ? { ...p, name: ssoName, type: ssoType, issuerUrl: ssoIssuer, clientId: ssoClientId, clientSecret: ssoClientSecret, metadataUrl: ssoMetadataUrl, certificateFingerprint: ssoCertFingerprint, defaultRole: ssoDefaultRole, enabled: ssoEnabled } : p)); addAuditLog('Editou Provedor SSO', ssoName); } else { const ssoId = await genModuleId('sso'); setSSOProviders(prev => [...prev, { id: ssoId, name: ssoName, type: ssoType, enabled: ssoEnabled, issuerUrl: ssoIssuer, clientId: ssoClientId, clientSecret: ssoClientSecret, metadataUrl: ssoMetadataUrl, certificateFingerprint: ssoCertFingerprint, defaultRole: ssoDefaultRole, active: ssoEnabled }]); addAuditLog('Cadastrou Provedor SSO', ssoName); } setSsoFormOpen(false); setEditingSsoId(null); setSsoName(''); }} className="space-y-3 text-xs font-sans">
                   <div>
                     <label className="block text-xs font-semibold text-slate-600 mb-1">Nome do Provedor *</label>
                     <input type="text" value={ssoName} onChange={e => setSsoName(e.target.value)} placeholder="Azure AD" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" required />

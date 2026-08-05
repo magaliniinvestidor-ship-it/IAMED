@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { Patient, Bed, FinancialPosting, initialBeds, Campaign, Lead, CommercialOpportunity, NpsSurvey, OptOutRecord, WebFormLead, initialCampaigns, initialLeads, initialOpportunities, initialNpsSurveys, initialOptOuts, initialWebFormLeads, initialHospitalizations, initialSurgerySchedule, type HospitalizationEpisode, type SurgerySchedule } from '@/lib/mockData';
 import { supabase } from '@/lib/supabaseClient';
 import { useI18n } from '@/lib/i18n/I18nContext';
+import { useModuleId } from '@/hooks/useModuleId';
 import {
   Megaphone, BedDouble, BarChart3, Smartphone, Sparkles, Send,
   MessageSquare, Video, Check, AlertCircle, RefreshCw, Star, X,
@@ -36,6 +37,9 @@ export default function CrmBiModule({
   financePostings = [],
 }: CrmBiModuleProps) {
   const { t } = useI18n();
+
+  // ─── SEQUENTIAL ID GENERATION (Postgres RPC) ───
+  const genModuleId = useModuleId();
 
   // ─── CRM DATA ───
   const [campaigns, setCampaigns] = useState<Campaign[]>(initialCampaigns);
@@ -133,10 +137,10 @@ export default function CrmBiModule({
     setSelectedSegments(prev => prev.includes(label) ? prev.filter(s => s !== label) : [...prev, label]);
   };
 
-  const handleSaveCampaign = () => {
+  const handleSaveCampaign = async () => {
     if (!campForm.nome || !campForm.mensagem) return;
     const nova: Campaign = {
-      id: `camp_${Date.now()}`,
+      id: await genModuleId('camp'),
       nome: campForm.nome,
       tipo: campForm.tipo,
       template: campForm.template,
@@ -160,10 +164,10 @@ export default function CrmBiModule({
     setShowForm(null);
   };
 
-  const handleSaveLead = () => {
+  const handleSaveLead = async () => {
     if (!leadForm.nome) return;
     const novo: Lead = {
-      id: `lead_${Date.now()}`,
+      id: await genModuleId('lead'),
       nome: leadForm.nome,
       email: leadForm.email || undefined,
       telefone: leadForm.telefone || undefined,
@@ -183,10 +187,10 @@ export default function CrmBiModule({
     setShowForm(null);
   };
 
-  const handleSaveOpportunity = () => {
+  const handleSaveOpportunity = async () => {
     if (!oppForm.pacienteNome || !oppForm.descricao) return;
     const nova: CommercialOpportunity = {
-      id: `opp_${Date.now()}`,
+      id: await genModuleId('opp'),
       pacienteNome: oppForm.pacienteNome,
       pacienteTelefone: oppForm.pacienteTelefone || undefined,
       tipo: oppForm.tipo,
@@ -233,9 +237,9 @@ export default function CrmBiModule({
     }
   };
 
-  const handleRegisterOptOut = () => {
+  const handleRegisterOptOut = async () => {
     const novo: OptOutRecord = {
-      id: `opt_${Date.now()}`,
+      id: await genModuleId('opt'),
       pacienteNome: 'Paciente via formulário',
       pacienteContato: 'contato@exemplo.com',
       canal: 'todos',
@@ -925,8 +929,8 @@ export default function CrmBiModule({
                         <option value="email">E-mail</option>
                         <option value="app">App Paciente</option>
                       </select>
-                      <button className={btnCls + ' w-full mt-2'} onClick={() => {
-                        const novaNps: NpsSurvey = { id: `nps_${Date.now()}`, pacienteNome: 'Pesquisa automática', dataAtendimento: new Date().toISOString().split('T')[0], dataResposta: '', score: 0, categoria: 'neutro', origem: 'whatsapp', respondido: false };
+                      <button className={btnCls + ' w-full mt-2'} onClick={async () => {
+                        const novaNps: NpsSurvey = { id: await genModuleId('nps'), pacienteNome: 'Pesquisa automática', dataAtendimento: new Date().toISOString().split('T')[0], dataResposta: '', score: 0, categoria: 'neutro', origem: 'whatsapp', respondido: false };
                         setNpsSurveys(prev => [novaNps, ...prev]);
                         if (supabase) {
                           supabase.from('crm_nps_surveys').insert({ id: novaNps.id, paciente_nome: novaNps.pacienteNome, data_atendimento: novaNps.dataAtendimento, score: 0, categoria: 'neutro', origem: novaNps.origem, respondido: false });

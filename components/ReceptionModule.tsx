@@ -960,19 +960,17 @@ export default function ReceptionModule({
     let patientId: string;
     if (isEditing) {
       patientId = selectedPatientId;
-    } else if (supabase) {
+    } else {
+      if (!supabase) {
+        console.error('Supabase não inicializado para gerar ID de paciente');
+        return;
+      }
       const { data, error } = await supabase.rpc('next_patient_id');
       if (error || !data) {
-        console.error('Erro ao gerar ID de paciente:', error?.message);
+        console.error('Erro ao gerar ID de paciente via RPC:', error?.message);
         return;
       }
       patientId = data;
-    } else {
-      const numericIds = patients.map(p => {
-        const match = p.id.match(/^PAC(\d+)$/);
-        return match ? parseInt(match[1], 10) : 0;
-      });
-      patientId = `PAC${String(Math.max(...numericIds, 0) + 1).padStart(3, '0')}`;
     }
 
     // Se tem preview mas photoUrl ainda vazio (upload assíncrono pendente), faz upload agora
@@ -1316,8 +1314,18 @@ export default function ReceptionModule({
     const patient = patients.find(p => p.id === selectedPatientId);
     if (!patient) return;
 
+    let appGeneratedId = '';
+    if (supabase) {
+      const { data: rpcAppId, error: rpcErr } = await supabase.rpc('next_appointment_id');
+      if (!rpcErr && rpcAppId) appGeneratedId = rpcAppId;
+    }
+    if (!appGeneratedId) {
+      console.error('Falha ao gerar ID de agendamento sequencial via RPC next_appointment_id');
+      return;
+    }
+
     const appData = {
-      id: `app_${Date.now()}`,
+      id: appGeneratedId,
       patientId: selectedPatientId,
       patientName: patient.name,
       doctorName: selectedDoctor,
@@ -1429,8 +1437,18 @@ export default function ReceptionModule({
     const patient = patients.find(p => p.id === onlinePatientId);
     if (!patient) return;
 
+    let onlineAppId = '';
+    if (supabase) {
+      const { data: rpcAppId } = await supabase.rpc('next_appointment_id');
+      if (rpcAppId) onlineAppId = rpcAppId;
+    }
+    if (!onlineAppId) {
+      console.error('Falha ao gerar ID de agendamento online sequencial via RPC next_appointment_id');
+      return;
+    }
+
     const appData = {
-      id: `app_online_${Date.now()}`,
+      id: onlineAppId,
       patientId: onlinePatientId,
       patientName: patient.name,
       doctorName: onlineDoctor,

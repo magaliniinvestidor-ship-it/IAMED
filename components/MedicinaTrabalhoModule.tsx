@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
   Empresa, ContratoEmpresa, PlanoExame, PostoTrabalho,
   RiscoOcupacional, MatrizExame, Trabalhador, ExameOcupacional,
@@ -12,6 +12,7 @@ import {
 } from '@/lib/mockData';
 import { supabase } from '@/lib/supabaseClient';
 import { useI18n } from '@/lib/i18n/I18nContext';
+import { useModuleId } from '@/hooks/useModuleId';
 import I18nDatePicker from '@/components/I18nDatePicker';
 import {
   Building2, Users, Stethoscope, FileCheck, AlertTriangle,
@@ -37,6 +38,9 @@ export default function MedicinaTrabalhoModule({
   setAsos,
 }: MedicinaTrabalhoModuleProps) {
   const { t } = useI18n();
+
+  // ─── SEQUENTIAL ID GENERATION (Postgres RPC) ───
+  const genModuleId = useModuleId();
 
   // ─── Data State ───
   const [empresas, setEmpresas] = useState<Empresa[]>(initialEmpresas);
@@ -137,10 +141,10 @@ export default function MedicinaTrabalhoModule({
     }));
   };
 
-  const handleSaveEmpresa = () => {
+  const handleSaveEmpresa = async () => {
     if (!empresaForm.nome || !empresaForm.ruc) return;
     const nova: Empresa = {
-      id: `emp_${Date.now()}`,
+      id: await genModuleId('emp'),
       nome: empresaForm.nome || '',
       ruc: empresaForm.ruc || '',
       nomeFantasia: empresaForm.nomeFantasia,
@@ -164,10 +168,10 @@ export default function MedicinaTrabalhoModule({
     setShowForm(null);
   };
 
-  const handleSaveTrabalhador = () => {
+  const handleSaveTrabalhador = async () => {
     if (!trabForm.nome || !trabForm.ci || !trabForm.empresaId) return;
     const novoTrab: Trabalhador = {
-      id: `trab_${Date.now()}`,
+      id: await genModuleId('trab'),
       nome: trabForm.nome || '',
       ci: trabForm.ci || '',
       dataNascimento: trabForm.dataNascimento || '',
@@ -186,10 +190,10 @@ export default function MedicinaTrabalhoModule({
     setShowForm(null);
   };
 
-  const handleRealizarExame = () => {
+  const handleRealizarExame = async () => {
     if (!exameForm.trabalhadorId || !exameForm.empresaId || exameForm.examesSelecionados.length === 0) return;
     const novoExame: ExameOcupacional = {
-      id: `ex_${Date.now()}`,
+      id: await genModuleId('ex'),
       trabalhadorId: exameForm.trabalhadorId,
       empresaId: exameForm.empresaId,
       tipo: exameForm.tipo,
@@ -204,7 +208,7 @@ export default function MedicinaTrabalhoModule({
 
     const numCal = gerarNumeroCal();
     const novoCal: CalCertificado = {
-      id: `cal_${Date.now()}`,
+      id: await genModuleId('cal'),
       exameId: novoExame.id,
       trabalhadorId: exameForm.trabalhadorId,
       empresaId: exameForm.empresaId,
@@ -220,7 +224,7 @@ export default function MedicinaTrabalhoModule({
     addAuditLog('CAL Emitido', `${numCal} - ${getTrabalhadorNome(exameForm.trabalhadorId)}`);
 
     const asoEntry: AsoExam = {
-      id: `aso_${Date.now()}`,
+      id: await genModuleId('aso'),
       patientName: getTrabalhadorNome(exameForm.trabalhadorId),
       type: exameForm.tipo === 'Pré-ocupacional' ? 'Admissional' : exameForm.tipo === 'Demissional' ? 'Demissional' : 'Periódico',
       risks: [],
@@ -234,10 +238,9 @@ export default function MedicinaTrabalhoModule({
     setShowForm(null);
   };
 
-  const handleGerarRelatorioMtess = (empresaId: string) => {
+  const handleGerarRelatorioMtess = async (empresaId: string) => {
     const rel: RelatorioMtess = {
-      // eslint-disable-next-line react-hooks/purity
-      id: `rel_${Date.now()}`,
+      id: await genModuleId('rel'),
       empresaId,
       periodoInicio: new Date(new Date().getFullYear(), 0, 1).toISOString().split('T')[0],
       periodoFim: new Date().toISOString().split('T')[0],
@@ -332,10 +335,10 @@ export default function MedicinaTrabalhoModule({
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
           <div className="lg:col-span-3 grid grid-cols-2 lg:grid-cols-4 gap-4">
             {[
-              { label: 'Empresas Atendidas', value: empresas.filter(e => e.status === 'ativa').length, icon: Building2, color: 'bg-teal-50 text-teal-700 border-teal-200' },
-              { label: 'Trabalhadores', value: totalTrab, icon: Users, color: 'bg-blue-50 text-blue-700 border-blue-200' },
-              { label: 'Exames Realizados', value: totalExames, icon: ClipboardList, color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
-              { label: 'CALs Vigentes', value: totalCalsVigentes, icon: FileCheck, color: 'bg-green-50 text-green-700 border-green-200' },
+              { label: t('medtrab_kpi_empresas', 'app'), value: empresas.filter(e => e.status === 'ativa').length, icon: Building2, color: 'bg-teal-50 text-teal-700 border-teal-200' },
+              { label: t('medtrab_kpi_trabalhadores', 'app'), value: totalTrab, icon: Users, color: 'bg-blue-50 text-blue-700 border-blue-200' },
+              { label: t('medtrab_kpi_exames', 'app'), value: totalExames, icon: ClipboardList, color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
+              { label: t('medtrab_kpi_cals', 'app'), value: totalCalsVigentes, icon: FileCheck, color: 'bg-green-50 text-green-700 border-green-200' },
             ].map((stat, i) => (
               <div key={i} className={`${stat.color} border rounded-xl p-4 flex items-center gap-3`}>
                 <stat.icon className="w-8 h-8 opacity-60" />
@@ -348,7 +351,7 @@ export default function MedicinaTrabalhoModule({
           </div>
           <div className="lg:col-span-2 space-y-4">
             <div className={sectionCls}>
-              <h4 className="font-bold text-slate-800 text-sm">Trabalhadores por Empresa</h4>
+              <h4 className="font-bold text-slate-800 text-sm">{t('medtrab_workers_by_company', 'app')}</h4>
               <div className="space-y-2">
                 {trabalhadoresPorEmpresa.map(item => (
                   <div key={item.empresa} className="flex items-center justify-between p-2.5 bg-slate-50 rounded-lg border border-slate-100">
@@ -362,7 +365,7 @@ export default function MedicinaTrabalhoModule({
               </div>
             </div>
             <div className={sectionCls}>
-              <h4 className="font-bold text-slate-800 text-sm">Últimos CALs Emitidos</h4>
+              <h4 className="font-bold text-slate-800 text-sm">{t('medtrab_latest_cals', 'app')}</h4>
               <div className="space-y-1.5">
                 {cals.slice(0, 5).map(cal => (
                   <div key={cal.id} className="flex items-center justify-between p-2 text-xs border-b border-slate-50">
@@ -375,13 +378,13 @@ export default function MedicinaTrabalhoModule({
                     </span>
                   </div>
                 ))}
-                {cals.length === 0 && <p className="text-xs text-slate-400">Nenhum CAL emitido.</p>}
+                {cals.length === 0 && <p className="text-xs text-slate-400">{t('medtrab_no_cal', 'app')}</p>}
               </div>
             </div>
           </div>
           <div className="space-y-4">
             <div className={sectionCls}>
-              <h4 className="font-bold text-slate-800 text-sm">Riscos Monitorados</h4>
+              <h4 className="font-bold text-slate-800 text-sm">{t('medtrab_monitored_risks', 'app')}</h4>
               <div className="space-y-1.5">
                 {riscos.slice(0, 8).map(r => (
                   <div key={r.id} className="flex items-center gap-2 text-xs">
@@ -395,9 +398,9 @@ export default function MedicinaTrabalhoModule({
             <div className={sectionCls}>
               <h4 className="font-bold text-slate-800 text-sm">MTESS</h4>
               <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs space-y-2">
-                <p className="font-bold text-amber-800">Órgão Fiscalizador</p>
+                <p className="font-bold text-amber-800">{t('medtrab_regulatory_body', 'app')}</p>
                 <p className="text-amber-700">MTESS — Ministerio de Trabajo, Empleo y Seguridad Social</p>
-                <p className="text-amber-600 text-[10px]">Conforme Lei 6822/2021 e Código do Trabalho Paraguaio</p>
+                <p className="text-amber-600 text-[10px]">{t('medtrab_regulatory_law', 'app')}</p>
               </div>
             </div>
           </div>
@@ -409,7 +412,7 @@ export default function MedicinaTrabalhoModule({
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
           <div className={sectionCls + ' lg:col-span-1'}>
             <div className="flex items-center justify-between">
-              <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2"><Building2 className="w-4 h-4 text-teal-600" /> Empresas Clientes</h4>
+              <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2"><Building2 className="w-4 h-4 text-teal-600" /> {t('medtrab_client_companies', 'app')}</h4>
               <button onClick={() => setShowForm(showForm === 'empresa' ? null : 'empresa')} className={btnSmCls}>
                 <Plus className="w-3 h-3 inline mr-1" /> Nova
               </button>
@@ -418,8 +421,8 @@ export default function MedicinaTrabalhoModule({
               <div className="space-y-2.5 text-xs border-t border-slate-100 pt-3 mt-3">
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className={labelCls}>Nome *</label>
-                    <input type="text" value={empresaForm.nome} onChange={e => setEmpresaForm(p => ({ ...p, nome: e.target.value }))} className={inputCls} placeholder="Razão Social" />
+                    <label className={labelCls}>{t('medtrab_label_name', 'app')} *</label>
+                    <input type="text" value={empresaForm.nome} onChange={e => setEmpresaForm(p => ({ ...p, nome: e.target.value }))} className={inputCls} placeholder={t('medtrab_ph_razao_social', 'app')} />
                   </div>
                   <div>
                     <label className={labelCls}>RUC *</label>
@@ -427,43 +430,43 @@ export default function MedicinaTrabalhoModule({
                   </div>
                 </div>
                 <div>
-                  <label className={labelCls}>Endereço</label>
+                  <label className={labelCls}>{t('medtrab_label_address', 'app')}</label>
                   <input type="text" value={empresaForm.endereco} onChange={e => setEmpresaForm(p => ({ ...p, endereco: e.target.value }))} className={inputCls} />
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className={labelCls}>Atividade Econômica</label>
+                    <label className={labelCls}>{t('medtrab_label_econ_activity', 'app')}</label>
                     <input type="text" value={empresaForm.atividadeEconomica} onChange={e => setEmpresaForm(p => ({ ...p, atividadeEconomica: e.target.value }))} className={inputCls} />
                   </div>
                   <div>
-                    <label className={labelCls}>Setor</label>
+                    <label className={labelCls}>{t('medtrab_label_sector', 'app')}</label>
                     <select value={empresaForm.setor} onChange={e => setEmpresaForm(p => ({ ...p, setor: e.target.value as Empresa['setor'] }))} className={inputCls}>
-                      <option value="Industrial">Industrial</option>
-                      <option value="Comercial">Comercial</option>
-                      <option value="Serviços">Serviços</option>
-                      <option value="Agropecuária">Agropecuária</option>
-                      <option value="Construção">Construção</option>
-                      <option value="Transporte">Transporte</option>
-                      <option value="Outro">Outro</option>
+                      <option value="Industrial">{t('medtrab_sector_industrial', 'app')}</option>
+                      <option value="Comercial">{t('medtrab_sector_commercial', 'app')}</option>
+                      <option value="Serviços">{t('medtrab_sector_services', 'app')}</option>
+                      <option value="Agropecuária">{t('medtrab_sector_agriculture', 'app')}</option>
+                      <option value="Construção">{t('medtrab_sector_construction', 'app')}</option>
+                      <option value="Transporte">{t('medtrab_sector_transport', 'app')}</option>
+                      <option value="Outro">{t('medtrab_sector_other', 'app')}</option>
                     </select>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className={labelCls}>N° Funcionários</label>
+                    <label className={labelCls}>{t('medtrab_label_num_employees', 'app')}</label>
                     <input type="number" value={empresaForm.nroFuncionarios || ''} onChange={e => setEmpresaForm(p => ({ ...p, nroFuncionarios: parseInt(e.target.value) || 0 }))} className={inputCls} />
                   </div>
                   <div>
-                    <label className={labelCls}>Representante</label>
+                    <label className={labelCls}>{t('medtrab_label_representative', 'app')}</label>
                     <input type="text" value={empresaForm.representanteNome || ''} onChange={e => setEmpresaForm(p => ({ ...p, representanteNome: e.target.value }))} className={inputCls} />
                   </div>
                 </div>
-                <button onClick={handleSaveEmpresa} className={btnCls + ' w-full'}>Cadastrar Empresa</button>
+                <button onClick={handleSaveEmpresa} className={btnCls + ' w-full'}>{t('medtrab_btn_register_company', 'app')}</button>
               </div>
             )}
             <div className="relative mt-2">
               <Search className="absolute left-2 top-2 w-3.5 h-3.5 text-slate-400" />
-              <input type="text" value={search} onChange={e => { setSearch(e.target.value); setSelectedEmpresaId(''); }} placeholder="Buscar empresa..." className={`${inputCls} pl-7`} />
+              <input type="text" value={search} onChange={e => { setSearch(e.target.value); setSelectedEmpresaId(''); }} placeholder={t('medtrab_ph_search_company', 'app')} className={`${inputCls} pl-7`} />
             </div>
             <div className="space-y-1.5 max-h-[400px] overflow-y-auto mt-2">
               {filteredEmpresas.map(emp => (
@@ -515,7 +518,7 @@ export default function MedicinaTrabalhoModule({
                 <div className={sectionCls}>
                   <h4 className="font-bold text-slate-800 text-sm">Contratos</h4>
                   {getContratosEmpresa(selectedEmpresaId).length === 0 ? (
-                    <p className="text-xs text-slate-400">Nenhum contrato cadastrado.</p>
+                    <p className="text-xs text-slate-400">{t('medtrab_no_contract', 'app')}</p>
                   ) : (
                     <div className="space-y-2">
                       {getContratosEmpresa(selectedEmpresaId).map(ctr => (
@@ -534,9 +537,9 @@ export default function MedicinaTrabalhoModule({
                   )}
                 </div>
                 <div className={sectionCls}>
-                  <h4 className="font-bold text-slate-800 text-sm">Postos de Trabalho</h4>
+                  <h4 className="font-bold text-slate-800 text-sm">{t('medtrab_work_stations', 'app')}</h4>
                   {getPostosEmpresa(selectedEmpresaId).length === 0 ? (
-                    <p className="text-xs text-slate-400">Nenhum posto cadastrado.</p>
+                    <p className="text-xs text-slate-400">{t('medtrab_no_station', 'app')}</p>
                   ) : (
                     <div className="grid grid-cols-2 gap-2">
                       {getPostosEmpresa(selectedEmpresaId).map(posto => (
@@ -571,65 +574,65 @@ export default function MedicinaTrabalhoModule({
             {showForm === 'trabalhador' && (
               <div className="space-y-2.5 text-xs border-t border-slate-100 pt-3 mt-3">
                 <div>
-                  <label className={labelCls}>Empresa *</label>
+                  <label className={labelCls}>{t('medtrab_label_company', 'app')} *</label>
                   <select value={trabForm.empresaId} onChange={e => setTrabForm(p => ({ ...p, empresaId: e.target.value }))} className={inputCls}>
-                    <option value="">Selecione...</option>
+                    <option value="">{t('medtrab_select', 'app')}</option>
                     {empresas.map(e => <option key={e.id} value={e.id}>{e.nome}</option>)}
                   </select>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className={labelCls}>Nome *</label>
+                    <label className={labelCls}>{t('medtrab_label_name', 'app')} *</label>
                     <input type="text" value={trabForm.nome} onChange={e => setTrabForm(p => ({ ...p, nome: e.target.value }))} className={inputCls} />
                   </div>
                   <div>
-                    <label className={labelCls}>CI *</label>
+                    <label className={labelCls}>{t('medtrab_label_ci', 'app')} *</label>
                     <input type="text" value={trabForm.ci} onChange={e => setTrabForm(p => ({ ...p, ci: e.target.value }))} className={inputCls} />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className={labelCls}>Data Nascimento</label>
+                    <label className={labelCls}>{t('medtrab_label_birthdate', 'app')}</label>
                     <I18nDatePicker value={trabForm.dataNascimento || ''} onChange={v => setTrabForm(p => ({ ...p, dataNascimento: v }))} className={inputCls} />
                   </div>
                   <div>
-                    <label className={labelCls}>Gênero</label>
+                    <label className={labelCls}>{t('medtrab_label_gender', 'app')}</label>
                     <select value={trabForm.genero} onChange={e => setTrabForm(p => ({ ...p, genero: e.target.value }))} className={inputCls}>
-                      <option value="Masculino">Masculino</option>
-                      <option value="Feminino">Feminino</option>
+                      <option value="Masculino">{t('medtrab_gender_male', 'app')}</option>
+                      <option value="Feminino">{t('medtrab_gender_female', 'app')}</option>
                     </select>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className={labelCls}>Função</label>
+                    <label className={labelCls}>{t('medtrab_label_role', 'app')}</label>
                     <input type="text" value={trabForm.funcao} onChange={e => setTrabForm(p => ({ ...p, funcao: e.target.value }))} className={inputCls} />
                   </div>
                   <div>
-                    <label className={labelCls}>Data Admissão</label>
+                    <label className={labelCls}>{t('medtrab_label_admission_date', 'app')}</label>
                     <I18nDatePicker value={trabForm.dataAdmissao || ''} onChange={v => setTrabForm(p => ({ ...p, dataAdmissao: v }))} className={inputCls} />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className={labelCls}>Telefone</label>
+                    <label className={labelCls}>{t('medtrab_label_phone', 'app')}</label>
                     <input type="text" value={trabForm.telefone || ''} onChange={e => setTrabForm(p => ({ ...p, telefone: e.target.value }))} className={inputCls} />
                   </div>
                   <div>
-                    <label className={labelCls}>Email</label>
+                    <label className={labelCls}>{t('medtrab_label_email', 'app')}</label>
                     <input type="email" value={trabForm.email || ''} onChange={e => setTrabForm(p => ({ ...p, email: e.target.value }))} className={inputCls} />
                   </div>
                 </div>
-                <button onClick={handleSaveTrabalhador} className={btnCls + ' w-full'}>Cadastrar Trabalhador</button>
+                <button onClick={handleSaveTrabalhador} className={btnCls + ' w-full'}>{t('medtrab_btn_register_worker', 'app')}</button>
               </div>
             )}
             <div className="relative mt-2">
               <Search className="absolute left-2 top-2 w-3.5 h-3.5 text-slate-400" />
-              <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar trabalhador..." className={`${inputCls} pl-7`} />
+              <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder={t('medtrab_ph_search_worker', 'app')} className={`${inputCls} pl-7`} />
             </div>
             <div className="mt-2">
               <select value={selectedEmpresaId} onChange={e => setSelectedEmpresaId(e.target.value)} className={inputCls}>
-                <option value="">Todas as empresas</option>
+                <option value="">{t('medtrab_all_companies', 'app')}</option>
                 {empresas.map(e => <option key={e.id} value={e.id}>{e.nome}</option>)}
               </select>
             </div>
@@ -653,7 +656,7 @@ export default function MedicinaTrabalhoModule({
           </div>
           <div className="lg:col-span-3 space-y-4">
             <div className={sectionCls}>
-              <h4 className="font-bold text-slate-800 text-sm">Histórico de Exames por Trabalhador</h4>
+              <h4 className="font-bold text-slate-800 text-sm">{t('medtrab_exam_history', 'app')}</h4>
               <div className="space-y-2">
                 {filteredTrabalhadores.slice(0, 10).map(trab => {
                   const examesTrab = examesOcupacionais.filter(e => e.trabalhadorId === trab.id);
@@ -687,22 +690,22 @@ export default function MedicinaTrabalhoModule({
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
           <div className={sectionCls + ' lg:col-span-1'}>
             <div className="flex items-center justify-between">
-              <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2"><Stethoscope className="w-4 h-4 text-teal-600" /> Realizar Exame</h4>
+              <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2"><Stethoscope className="w-4 h-4 text-teal-600" /> {t('medtrab_perform_exam', 'app')}</h4>
               <button onClick={() => setShowForm(showForm === 'exame' ? null : 'exame')} className={btnSmCls}>
-                <Plus className="w-3 h-3 inline mr-1" /> Novo
+                <Plus className="w-3 h-3 inline mr-1" /> {t('medtrab_btn_new', 'app')}
               </button>
             </div>
             {showForm === 'exame' && (
               <div className="space-y-2.5 text-xs border-t border-slate-100 pt-3 mt-3">
                 <div>
-                  <label className={labelCls}>Empresa</label>
+                  <label className={labelCls}>{t('medtrab_label_company', 'app')}</label>
                   <select value={exameForm.empresaId} onChange={e => setExameForm(p => ({ ...p, empresaId: e.target.value, trabalhadorId: '' }))} className={inputCls}>
-                    <option value="">Selecione...</option>
+                    <option value="">{t('medtrab_select', 'app')}...</option>
                     {empresas.map(e => <option key={e.id} value={e.id}>{e.nome}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className={labelCls}>Trabalhador *</label>
+                  <label className={labelCls}>{t('medtrab_label_worker', 'app')} *</label>
                   <select value={exameForm.trabalhadorId} onChange={e => setExameForm(p => ({ ...p, trabalhadorId: e.target.value }))} className={inputCls}>
                     <option value="">Selecione...</option>
                     {trabalhadores.filter(t => t.empresaId === exameForm.empresaId).map(t => (
@@ -743,7 +746,7 @@ export default function MedicinaTrabalhoModule({
             )}
             <div className="relative mt-2">
               <Search className="absolute left-2 top-2 w-3.5 h-3.5 text-slate-400" />
-              <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar exames..." className={`${inputCls} pl-7`} />
+              <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder={t('medtrab_ph_search_exams', 'app')} className={`${inputCls} pl-7`} />
             </div>
             <div className="mt-2">
               <select value={selectedEmpresaId} onChange={e => setSelectedEmpresaId(e.target.value)} className={inputCls}>

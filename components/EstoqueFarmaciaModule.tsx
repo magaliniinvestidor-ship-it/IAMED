@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { PharmacyItem, LotControl, StockMovement, InventoryCount, AdverseEvent, QualityDeviation, BatchRecall, StockMovementType, DrugCategory, AdverseEventSeverity, AdverseEventOutcome } from '@/lib/mockData';
 import { supabase } from '@/lib/supabaseClient';
 import { useI18n } from '@/lib/i18n/I18nContext';
+import { useModuleId } from '@/hooks/useModuleId';
 import I18nDatePicker from '@/components/I18nDatePicker';
 import {
   Pill, Plus, AlertTriangle, X, Check, Search, Package,
@@ -85,6 +86,9 @@ export default function EstoqueFarmaciaModule({
   activeOperator,
 }: EstoqueFarmaciaModuleProps) {
   const { t } = useI18n();
+
+  // ─── SEQUENTIAL ID GENERATION (Postgres RPC) ───
+  const genModuleId = useModuleId();
   const [tab, setTab] = useState<'dashboard' | 'items' | 'entries' | 'exits' | 'movements' | 'lots' | 'inventory' | 'reports' | 'alerts' | 'pharmacovigilance'>('dashboard');
 
   const pharmacyItems = pharmacyItemsProp;
@@ -177,13 +181,13 @@ export default function EstoqueFarmaciaModule({
   }));
   const totalAlerts = lowStockItems.length + expiringItems.length + expiredItems.length;
 
-  const handleNewItem = (e: React.FormEvent) => {
+  const handleNewItem = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canPerformStock) { alert(t('pharm_perm_denied_new', 'app')); return; }
     if (!newItemName.trim()) return;
-    const newId = `pharm_${Date.now()}`;
+    const newId = await genModuleId('pharm');
     const newLot: LotControl = {
-      id: `lot_${Date.now()}`,
+      id: await genModuleId('lot'),
       itemId: newId,
       lotNumber: `LOT-NEW-${String(pharmacyItems.length + 1).padStart(3, '0')}`,
       manufactureDate: new Date().toISOString().split('T')[0],
@@ -234,14 +238,14 @@ export default function EstoqueFarmaciaModule({
     setNewItemQty(0); setNewItemMin(10); setNewItemLocation(''); setNewItemCost(0); setNewItemPrice(0);
   };
 
-  const handleEntry = (e: React.FormEvent) => {
+  const handleEntry = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canPerformStock) { alert(t('pharm_perm_denied_entry', 'app')); return; }
     if (!entryItemId || !entryQty || !entryLotNumber) return;
     const item = pharmacyItems.find(i => i.id === entryItemId);
     if (!item) return;
     const newLot: LotControl = {
-      id: `lot_${Date.now()}`,
+      id: await genModuleId('lot'),
       itemId: entryItemId,
       lotNumber: entryLotNumber,
       serialNumber: entrySerial || undefined,
@@ -258,7 +262,7 @@ export default function EstoqueFarmaciaModule({
       status: 'disponivel',
     };
     const newMovement: StockMovement = {
-      id: `mov_${Date.now()}`,
+      id: await genModuleId('mov'),
       itemId: entryItemId,
       itemName: item.name,
       lotId: newLot.id,
@@ -309,7 +313,7 @@ export default function EstoqueFarmaciaModule({
     setEntrySupplier(''); setEntrySupplierRuc('');
   };
 
-  const handleExit = (e: React.FormEvent) => {
+  const handleExit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canPerformStock) { alert(t('pharm_perm_denied_exit', 'app')); return; }
     if (!exitItemId || !exitLotId || !exitQty) return;
@@ -319,7 +323,7 @@ export default function EstoqueFarmaciaModule({
     if (!lot || lot.quantity < exitQty) { alert(t('pharm_insufficient_lot', 'app')); return; }
     const totalCost = exitQty * lot.costPerUnit;
     const newMovement: StockMovement = {
-      id: `mov_${Date.now()}`,
+      id: await genModuleId('mov'),
       itemId: exitItemId,
       itemName: item.name,
       lotId: exitLotId,
@@ -404,14 +408,14 @@ export default function EstoqueFarmaciaModule({
   };
 
   // ─── Farmacovigilância handlers ──────────────────────────
-  const handleNewAdverseEvent = (e: React.FormEvent) => {
+  const handleNewAdverseEvent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canPerformStock) { alert(t('pharm_perm_denied_ae', 'app')); return; }
     if (!aePatient.trim() || !aeMedication.trim() || !aeReaction.trim()) return;
     const item = pharmacyItems.find(i => i.id === aeItemId);
     const lot = item?.lots.find(l => l.id === aeLotId);
     const newEvent: AdverseEvent = {
-      id: `ae_${Date.now()}`,
+      id: await genModuleId('ae'),
       patientName: aePatient,
       medicationName: aeMedication,
       itemId: aeItemId,
@@ -447,14 +451,14 @@ export default function EstoqueFarmaciaModule({
     setAeDescription(''); setAeNotifier('');
   };
 
-  const handleNewQualityDeviation = (e: React.FormEvent) => {
+  const handleNewQualityDeviation = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canPerformStock) { alert(t('pharm_perm_denied_qd', 'app')); return; }
     if (!qdItemId || !qdLotId || !qdDesc.trim()) return;
     const item = pharmacyItems.find(i => i.id === qdItemId);
     const lot = item?.lots.find(l => l.id === qdLotId);
     const newDev: QualityDeviation = {
-      id: `qd_${Date.now()}`,
+      id: await genModuleId('qd'),
       itemId: qdItemId,
       itemName: item?.name || '',
       lotId: qdLotId,
@@ -929,7 +933,7 @@ export default function EstoqueFarmaciaModule({
                     <td className="px-4 py-3 text-right font-mono font-bold text-rose-600">{lot.quantity}</td>
                     <td className="px-4 py-3 text-[10px] text-slate-500">{lot.expiryDate}</td>
                     <td className="px-4 py-3">
-                      <button onClick={() => {
+                      <button onClick={async () => {
                         if (!canPerformStock) { alert(t('pharm_perm_denied_write_off', 'app')); return; }
                         setPharmacyItems(prev => prev.map(i => i.id === item.id ? {
                           ...i,
@@ -943,7 +947,7 @@ export default function EstoqueFarmaciaModule({
                             .eq('id', item.id)
                             .then(({ error }) => { if (error) console.warn('pharmacy_items expired update error:', error.message); });
                         }
-                        const lossId = `mov_${Date.now()}`;
+                        const lossId = await genModuleId('mov');
                         setMovements(prev => [{
                           id: lossId, itemId: item.id, itemName: item.name,
                           lotId: lot.id, lotNumber: lot.lotNumber, movementType: 'perda',

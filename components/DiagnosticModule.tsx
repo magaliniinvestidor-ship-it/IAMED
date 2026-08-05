@@ -10,6 +10,7 @@ import {
 } from '@/lib/mockData';
 import { useI18n } from '@/lib/i18n/I18nContext';
 import { supabase } from '@/lib/supabaseClient';
+import { useModuleId } from '@/hooks/useModuleId';
 import {
   Microscope, Eye, FileText, Layers, Settings2, Search, Filter, Sliders,
   Plus, Trash2, Check, AlertTriangle, AlertCircle, Send, Clock, User,
@@ -87,6 +88,9 @@ const DiagnosticModuleContent = ({
   addAuditLog,
 }: DiagnosticModuleProps) => {
   const { t } = useI18n();
+
+  // ─── SEQUENTIAL ID GENERATION (Postgres RPC) ───
+  const genModuleId = useModuleId();
   const [diagTab, setDiagTab] = useState<DiagnosticTab>('pacs');
   const [selectedPatId, setSelectedPatId] = useState(patients[0]?.id || '');
 
@@ -203,9 +207,9 @@ const DiagnosticModuleContent = ({
   }, [labAlerts, alertFilter]);
 
   // ── PACS HANDLERS ──
-  const handleAnnotateStudy = useCallback(() => {
+  const handleAnnotateStudy = useCallback(async () => {
     if (!selectedStudy || !pacsAnnotation.trim()) return;
-    const m = { id: `m_${Date.now()}`, label: pacsAnnotation, value: (Math.random() * 10).toFixed(1), unit: 'mm' };
+    const m = { id: await genModuleId('m'), label: pacsAnnotation, value: (Math.random() * 10).toFixed(1), unit: 'mm' };
     setPacsMeasurements(prev => [...prev, m]);
     setPacsAnnotation('');
     addAuditLog('Medición DICOM', `${m.label}: ${m.value}${m.unit} en ${selectedStudy.accessionNumber}`);
@@ -266,11 +270,11 @@ const DiagnosticModuleContent = ({
     }
   }, [voiceActive, selectedReport, addAuditLog]);
 
-  const handleSaveReport = useCallback(() => {
+  const handleSaveReport = useCallback(async () => {
     if (!reportEditor.findings.trim()) return;
     const studyId = selectedStudy?.id || dicomStudies[0]?.id || '';
     const report: ImagingReport = {
-      id: `rep_${Date.now()}`, studyId, patientId: selectedPatient?.id || '', patientName: selectedPatient?.name || '',
+      id: await genModuleId('rep'), studyId, patientId: selectedPatient?.id || '', patientName: selectedPatient?.name || '',
       modality: selectedStudy?.modality || 'RX', templateId: selectedTemplate?.id,
       technique: reportEditor.technique, findings: reportEditor.findings,
       impression: reportEditor.impression, recommendations: reportEditor.recommendations,
@@ -284,8 +288,9 @@ const DiagnosticModuleContent = ({
     addAuditLog('Laudo Guardado', `${report.modality} — ${selectedPatient?.name}`);
   }, [reportEditor, selectedStudy, selectedPatient, selectedTemplate, voiceLog, addAuditLog, dicomStudies]);
 
-  const handleSignReport = useCallback((reportId: string) => {
-    setReports(prev => prev.map(r => r.id === reportId ? { ...r, status: 'laudado', signedBy: 'Dra. Amanda Silva', signedAt: new Date().toISOString(), signatureId: `sig_${Date.now()}` } : r));
+  const handleSignReport = useCallback(async (reportId: string) => {
+    const sigId = await genModuleId('sig');
+    setReports(prev => prev.map(r => r.id === reportId ? { ...r, status: 'laudado', signedBy: 'Dra. Amanda Silva', signedAt: new Date().toISOString(), signatureId: sigId } : r));
     addAuditLog('Laudo Firmado', reportId);
   }, [addAuditLog]);
 
@@ -308,10 +313,11 @@ const DiagnosticModuleContent = ({
     addAuditLog('Worklist Actualizado', `${id} → ${status}`);
   }, [addAuditLog]);
 
-  const handleSendHl7 = useCallback(() => {
+  const handleSendHl7 = useCallback(async () => {
+    const msgId = await genModuleId('hl7');
     const msg: Hl7Message = {
-      id: `hl7_${Date.now()}`, messageType: 'ACK', triggerEvent: 'ACK',
-      controlId: `ACK-${Date.now()}`, sendingApp: 'IAMED', sendingFacility: 'IAMED',
+      id: msgId, messageType: 'ACK', triggerEvent: 'ACK',
+      controlId: `ACK-${msgId}`, sendingApp: 'IAMED', sendingFacility: 'IAMED',
       receivingApp: 'MODALITY-ALL', receivingFacility: 'ALL', patientId: selectedPatient?.id || '',
       patientName: selectedPatient?.name || '', rawMessage: 'ACK simulado',
       parsedSegments: [{ name: 'MSH', fields: ['IAMED', 'ACK', '2026'] }],
@@ -335,10 +341,10 @@ const DiagnosticModuleContent = ({
 
   // ── Tab config ──
   const diagTabs: { key: DiagnosticTab; label: string; icon: React.ElementType }[] = [
-    { key: 'pacs', label: 'PACS / DICOM', icon: MonitorPlay },
-    { key: 'laudos', label: 'Laudos Imagen', icon: FileText },
-    { key: 'worklist', label: 'Worklist / HL7 / FHIR', icon: Layers },
-    { key: 'laboratorio', label: 'Laboratorio', icon: Microscope },
+    { key: 'pacs', label: t('diag_tab_pacs', 'app'), icon: MonitorPlay },
+    { key: 'laudos', label: t('diag_tab_laudos', 'app'), icon: FileText },
+    { key: 'worklist', label: t('diag_tab_worklist', 'app'), icon: Layers },
+    { key: 'laboratorio', label: t('diag_tab_lab', 'app'), icon: Microscope },
   ];
 
   return (

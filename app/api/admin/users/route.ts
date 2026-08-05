@@ -4,6 +4,31 @@ import { NextRequest, NextResponse } from 'next/server';
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
+function extractError(err: unknown): string {
+  if (!err) return 'Erro desconhecido';
+  if (typeof err === 'string') return err;
+  if (err instanceof Error) return err.message || err.name || String(err);
+  if (typeof err === 'object' && err !== null) {
+    const obj = err as Record<string, unknown>;
+    const msg = obj.message ?? obj.msg ?? obj.error ?? obj.error_description ?? obj.error_id;
+    if (typeof msg === 'string' && msg && msg !== '{}') return msg;
+    if (typeof msg === 'object' && msg !== null && Object.keys(msg).length > 0) return JSON.stringify(msg);
+    try {
+      const seen = new WeakSet();
+      const raw = JSON.stringify(obj, (key, value) => {
+        if (typeof value === 'object' && value !== null) {
+          if (seen.has(value)) return '[Circular]';
+          seen.add(value);
+        }
+        return value;
+      });
+      if (raw && raw !== '{}' && raw !== 'null') return raw;
+    } catch {}
+    try { const s = String(err); return s !== '[object Object]' ? s : 'Erro desconhecido'; } catch { return 'Erro desconhecido'; }
+  }
+  return String(err);
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { email, password, name, role, location, ci, professionalId } = await req.json();
@@ -15,9 +40,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!supabaseServiceKey) {
+    if (!supabaseUrl || !supabaseServiceKey) {
       return NextResponse.json(
-        { error: 'SUPABASE_SERVICE_ROLE_KEY não configurado' },
+        { error: 'Supabase URL ou Service Role Key não configurados' },
         { status: 500 }
       );
     }
@@ -26,13 +51,19 @@ export async function POST(req: NextRequest) {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    // Check if system_user already exists for this professional or email
     if (professionalId) {
-      const { data: existingByProf } = await supabaseAdmin
+      const { data: existingByProf, error: profCheckError } = await supabaseAdmin
         .from('system_users')
         .select('id')
         .eq('professional_id', professionalId)
         .limit(1);
+      if (profCheckError) {
+        console.error('[POST /api/admin/users] profCheckError:', extractError(profCheckError));
+        return NextResponse.json(
+          { error: `Erro ao verificar profissional: ${extractError(profCheckError)}` },
+          { status: 500 }
+        );
+      }
       if (existingByProf && existingByProf.length > 0) {
         return NextResponse.json(
           { error: 'Já existe um usuário vinculado a este profissional' },
@@ -41,24 +72,43 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Check if email already exists in auth
-    const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
+    const { data: existingUsers, error: listUsersError } = await supabaseAdmin.auth.admin.listUsers();
+    if (listUsersError) {
+      console.error('[POST /api/admin/users] listUsersError:', extractError(listUsersError));
+      return NextResponse.json(
+        { error: `Erro ao listar usuários auth: ${extractError(listUsersError)}` },
+        { status: 500 }
+      );
+    }
     const existingUser = existingUsers?.users?.find(u => u.email === email);
 
-    let authUserId: string;
-    let userId: string;
+    if (existingUser) {
+      const { data: linked } = await supabaseAdmin
+        .from('system_users')
+        .select('id')
+        .eq('auth_user_id', existingUser.id)
+        .limit(1);
+      if (linked && linked.length > 0) {
+        return NextResponse.json(
+          { error: 'Este e-mail já possui um usuário do sistema vinculado' },
+          { status: 400 }
+        );
+      }
+    }
 
-    // Generate sequential ID: usr_1, usr_2, etc.
-    const { data: existingSysUsers } = await supabaseAdmin.from('system_users').select('id');
-    const numericIds = (existingSysUsers || []).map((u: any) => {
-      const match = u.id.match(/^usr_(\d+)$/);
-      return match ? parseInt(match[1], 10) : 0;
-    });
-    const nextIdNum = Math.max(...numericIds, 0) + 1;
-    userId = `usr_${nextIdNum}`;
+    const { data: nextId, error: rpcError } = await supabaseAdmin.rpc('next_system_user_id');
+    if (rpcError || !nextId) {
+      console.error('[POST /api/admin/users] rpcError:', extractError(rpcError));
+      return NextResponse.json(
+        { error: `Falha ao gerar ID de usuário: ${extractError(rpcError) || 'RPC retornou vazio'}` },
+        { status: 500 }
+      );
+    }
+    const userId: string = nextId;
+
+    let authUserId: string;
 
     if (existingUser) {
-      // User already exists in Auth, just create system_users entry
       authUserId = existingUser.id;
       const { error: insertError } = await supabaseAdmin.from('system_users').insert({
         id: userId,
@@ -71,10 +121,10 @@ export async function POST(req: NextRequest) {
         status: 'ativo',
       });
       if (insertError) {
-        return NextResponse.json({ error: insertError.message }, { status: 400 });
+        console.error('[POST /api/admin/users] insertError (existing auth user):', extractError(insertError));
+        return NextResponse.json({ error: `Erro ao inserir system_users: ${extractError(insertError)}` }, { status: 400 });
       }
     } else {
-      // Create new auth user
       const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
         email,
         password,
@@ -89,11 +139,24 @@ export async function POST(req: NextRequest) {
       });
 
       if (authError) {
-        return NextResponse.json({ error: authError.message }, { status: 400 });
+        console.error('[POST /api/admin/users] authError raw:', authError);
+        console.error('[POST /api/admin/users] authError msg:', (authError as any)?.message);
+        const errMsg = (authError as any)?.message || String(authError) || '';
+        let userMsg = 'Erro ao criar usuário na autenticação';
+        if (errMsg.includes('RetryableFetch') || errMsg.includes('fetch')) {
+          userMsg = 'Erro de conexão com o Supabase Auth. Verifique se o projeto está ativo no painel do Supabase.';
+        } else if (errMsg.includes('already') || errMsg.includes('registered')) {
+          userMsg = 'Este e-mail já está registrado no Supabase Auth.';
+        } else if (errMsg.includes('password') || errMsg.includes('Password')) {
+          userMsg = `Erro de senha: ${errMsg}`;
+        } else if (errMsg) {
+          userMsg = `Erro auth: ${errMsg}`;
+        }
+        return NextResponse.json({ error: userMsg }, { status: 400 });
       }
 
       authUserId = authData.user.id;
-      const { error: insertError } = await supabaseAdmin.from('system_users').insert({
+      const insertPayload = {
         id: userId,
         auth_user_id: authUserId,
         professional_id: professionalId || null,
@@ -102,10 +165,16 @@ export async function POST(req: NextRequest) {
         location,
         permissions: [],
         status: 'ativo',
-      });
+      };
+      console.log('[POST /api/admin/users] about to insert:', JSON.stringify(insertPayload));
+      const { error: insertError } = await supabaseAdmin.from('system_users').insert(insertPayload);
 
       if (insertError) {
-        console.error('Error inserting into system_users:', insertError);
+        console.error('[POST /api/admin/users] insertError:', extractError(insertError));
+        return NextResponse.json(
+          { error: `Auth criado, mas falhou ao inserir system_users: ${extractError(insertError)}` },
+          { status: 500 }
+        );
       }
     }
 
@@ -113,10 +182,10 @@ export async function POST(req: NextRequest) {
       user: { id: userId, auth_user_id: authUserId },
       message: existingUser ? 'Usuário vinculado ao Auth existente' : 'Usuário criado com sucesso no Supabase Auth',
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Create user error:', error);
     return NextResponse.json(
-      { error: error?.message || 'Erro interno do servidor' },
+      { error: extractError(error) || 'Erro interno do servidor' },
       { status: 500 }
     );
   }
@@ -130,15 +199,14 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: 'ID do usuário é obrigatório' }, { status: 400 });
     }
 
-    if (!supabaseServiceKey) {
-      return NextResponse.json({ error: 'SUPABASE_SERVICE_ROLE_KEY não configurado' }, { status: 500 });
+    if (!supabaseUrl || !supabaseServiceKey) {
+      return NextResponse.json({ error: 'Supabase URL ou Service Role Key não configurados' }, { status: 500 });
     }
 
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    // Update system_users table
     const { error: updateError } = await supabaseAdmin.from('system_users').update({
       ci,
       system_role: role,
@@ -148,20 +216,22 @@ export async function PUT(req: NextRequest) {
     }).eq('id', id);
 
     if (updateError) {
-      return NextResponse.json({ error: updateError.message }, { status: 400 });
+      return NextResponse.json({ error: extractError(updateError) }, { status: 400 });
     }
 
-    // Also update auth user if auth_user_id exists
     const { data: sysUser } = await supabaseAdmin.from('system_users').select('auth_user_id').eq('id', id).single();
     if (sysUser?.auth_user_id) {
       const updateData: any = { user_metadata: { full_name: name, role, location, ci } };
       if (password) updateData.password = password;
-      await supabaseAdmin.auth.admin.updateUserById(sysUser.auth_user_id, updateData);
+      const { error: authUpdateError } = await supabaseAdmin.auth.admin.updateUserById(sysUser.auth_user_id, updateData);
+      if (authUpdateError) {
+        console.error('[PUT /api/admin/users] authUpdateError:', extractError(authUpdateError));
+      }
     }
 
     return NextResponse.json({ message: 'Usuário atualizado com sucesso' });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Update user error:', error);
-    return NextResponse.json({ error: error?.message || 'Erro interno do servidor' }, { status: 500 });
+    return NextResponse.json({ error: extractError(error) || 'Erro interno do servidor' }, { status: 500 });
   }
 }

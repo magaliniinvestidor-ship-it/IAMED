@@ -4,6 +4,7 @@ import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { Patient, AsoExam, Cid10Code, Prescription, ExamRequest, Procedure, Anamnese, SoapNote, Diagnosis, PhysicalExam, VitalSigns, AllergyEntry, MedicationEntry, FamilyHistoryEntry, SurgicalEntry, ElectronicSignature, AccessControl, PatientTimelineEvent, DrugCatalogItem, nationalProcedures, sensitiveFieldConfig } from '@/lib/mockData';
 import { supabase } from '@/lib/supabaseClient';
 import { useI18n } from '@/lib/i18n/I18nContext';
+import { useModuleId } from '@/hooks/useModuleId';
 
 import {
   ClipboardList, Microscope, HeartPulse, ShieldAlert,
@@ -119,6 +120,26 @@ const ClinicalModuleContent = ({
   const [drugSearch, setDrugSearch] = useState('');
   const [showDrugDropdown, setShowDrugDropdown] = useState(false);
 
+  const searchDrugCatalog = useCallback(async (query: string) => {
+    if (!supabase) return;
+    if (!query.trim()) {
+      const { data } = await supabase
+        .from('drug_catalog')
+        .select('id, name, active_ingredient, presentation, manufacturer, category, controlled_category, requires_prescription, source, source_id, country, default_dosage, default_frequency, default_duration, route')
+        .order('name')
+        .limit(100);
+      if (data) setDrugCatalogItems(data as any);
+      return;
+    }
+    const { data } = await supabase
+      .from('drug_catalog')
+      .select('id, name, active_ingredient, presentation, manufacturer, category, controlled_category, requires_prescription, source, source_id, country, default_dosage, default_frequency, default_duration, route')
+      .or(`name.ilike.%${query}%,active_ingredient.ilike.%${query}%,name_es.ilike.%${query}%,name_pt.ilike.%${query}%,name_en.ilike.%${query}%`)
+      .order('name')
+      .limit(100);
+    if (data) setDrugCatalogItems(data as any);
+  }, [supabase]);
+
   // ─── EXAM REQUEST STATE ───
   const [examRequests, setExamRequests] = useState<ExamRequest[]>([]);
   const [examRequestForm, setExamRequestForm] = useState({
@@ -181,19 +202,7 @@ const ClinicalModuleContent = ({
   const patientsRef = React.useRef(patients);
   patientsRef.current = patients;
 
-  const genId = useCallback(async (prefix: string): Promise<string> => {
-    if (!supabase) {
-      return `${prefix}_${String(Date.now()).padStart(13, '0')}`;
-    }
-    try {
-      const { data, error } = await supabase.rpc('next_clinical_id', { p_prefix: prefix });
-      if (error) throw error;
-      return data as string;
-    } catch (err) {
-      console.error(`[genId] Falha ao gerar ID (${prefix}), usando fallback:`, err);
-      return `${prefix}_${String(Date.now()).padStart(13, '0')}`;
-    }
-  }, [supabase]);
+  const genId = useModuleId('next_clinical_id');
 
   // Load CID-10 codes from Supabase (server-side search)
   useEffect(() => {
@@ -205,32 +214,10 @@ const ClinicalModuleContent = ({
     loadCid10();
   }, [supabase]);
 
-  // Load drug catalog from Supabase
+  // Load drug catalog from Supabase (carrega top-100 ordenado por nome)
   useEffect(() => {
-    if (!supabase) return;
-    const loadDrugCatalog = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token ?? '';
-      const resp = await supabase.functions.invoke('search-drugs', {
-        body: { query: '', source: 'all', limit: 50 },
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (resp.data?.results) {
-        setDrugCatalogItems(resp.data.results.map((d: any) => ({
-          id: d.id, name: d.name, activeIngredient: d.active_ingredient, presentation: d.presentation,
-          manufacturer: d.manufacturer, category: d.category, controlledCategory: d.controlled_category,
-          requiresPrescription: d.requires_prescription, minAgeMonths: d.min_age_months,
-          pregnantCategory: d.pregnant_category, breastfeedingSafe: d.breastfeeding_safe,
-          commonDoseAdult: d.common_dose_adult, commonDosePediatric: d.common_dose_pediatric,
-          route: d.route, contraindications: d.contraindications ?? [], sideEffects: d.side_effects ?? [], interactions: d.interactions ?? [],
-          source: d.source, sourceId: d.source_id, country: d.country,
-          registrationNumber: d.registration_number, defaultDosage: d.default_dosage,
-          defaultFrequency: d.default_frequency, defaultDuration: d.default_duration,
-        })));
-      }
-    };
-    loadDrugCatalog();
-  }, [supabase]);
+    searchDrugCatalog('');
+  }, [searchDrugCatalog]);
 
   const searchCid10 = useCallback(async (query: string) => {
     if (!supabase) return;
@@ -740,7 +727,7 @@ const ClinicalModuleContent = ({
       documentId: docId,
       patientId: selectedPatient?.id || '',
       signatureHash: `SHA256:${Array.from({length: 64}, () => Math.floor(Math.random() * 16).toString(16)).join('')}`,
-      certificateSerial: `CERT-${Date.now()}`,
+      certificateSerial: `CERT-${crypto.randomUUID()}`,
       certificateIssuer: 'AC IAMED - Prestador Qualificado (PCSC)',
       signedAt: new Date().toISOString(),
       verificationCode: `VER-${Math.random().toString(36).substring(2, 10).toUpperCase()}`,
@@ -748,17 +735,17 @@ const ClinicalModuleContent = ({
       ipAddress: '192.168.1.1',
       userAgent: navigator.userAgent,
       timestampAuthority: 'IAMED-TSA',
-      timestampToken: `TSA-${Date.now()}`,
+      timestampToken: `TSA-${crypto.randomUUID()}`,
     };
     handleSaveSignature(sig);
     return sig;
   }, [selectedPatient, handleSaveSignature]);
 
   // ─── BREAK THE GLASS ───
-  const handleBreakGlass = useCallback(() => {
+  const handleBreakGlass = useCallback(async () => {
     if (!breakGlassJustification.trim()) return;
     const log: AccessControl = {
-      id: `ac_${Date.now()}`,
+      id: await genId('ac'),
       patientId: selectedPatient?.id || '',
       accessedBy: 'Operador Atual',
       accessedAt: new Date().toISOString(),
@@ -772,7 +759,7 @@ const ClinicalModuleContent = ({
     setBreakGlassActive(false);
     setBreakGlassJustification('');
     addAuditLog('Quebra de Vidro (Emergência)', `Paciente: ${selectedPatient?.name}`);
-  }, [breakGlassJustification, selectedPatient, addAuditLog, handleSaveAccessControl]);
+  }, [breakGlassJustification, selectedPatient, addAuditLog, handleSaveAccessControl, genId]);
 
   // ─── SAVE ANAMNESE ───
   const handleSaveAnamnese = async () => {
@@ -1631,10 +1618,10 @@ const ClinicalModuleContent = ({
                     </div>
                     <button type="button" onClick={() => {
                       const missing = [];
-                      if (!newAllergy.allergen.trim()) missing.push('Alérgeno');
-                      if (!newAllergy.severity) missing.push('Severidade');
+                      if (!newAllergy.allergen.trim()) missing.push(t('hce_allergen', 'app'));
+                      if (!newAllergy.severity) missing.push(t('hce_severity', 'app'));
                       if (missing.length > 0) {
-                        alert(`Preencha: ${missing.join(', ')}`);
+                        alert(`${t('clinical_alert_fill_fields', 'app')} ${missing.join(', ')}`);
                         return;
                       }
                       setAnamnese(p => ({ ...p, allergies: [...p.allergies, newAllergy] }));
@@ -1671,7 +1658,7 @@ const ClinicalModuleContent = ({
                         if (!newMedication.name.trim()) missing.push('Medicamento');
                         if (!newMedication.frequency.trim()) missing.push('Frequência');
                         if (missing.length > 0) {
-                          alert(`Preencha: ${missing.join(', ')}`);
+                          alert(`${t('clinical_alert_fill_fields', 'app')} ${missing.join(', ')}`);
                           return;
                         }
                         setAnamnese(p => ({ ...p, currentMedications: [...p.currentMedications, newMedication] }));
@@ -1703,7 +1690,7 @@ const ClinicalModuleContent = ({
                         if (!newFamily.relation.trim()) missing.push('Parentesco');
                         if (!newFamily.condition.trim()) missing.push('Condição');
                         if (missing.length > 0) {
-                          alert(`Preencha: ${missing.join(', ')}`);
+                          alert(`${t('clinical_alert_fill_fields', 'app')} ${missing.join(', ')}`);
                           return;
                         }
                         setAnamnese(p => ({ ...p, familyHistory: [...p.familyHistory, newFamily] }));
@@ -1732,7 +1719,7 @@ const ClinicalModuleContent = ({
                       <input type="text" placeholder={t('hce_hospital', 'app')} value={newSurgery.hospital} onChange={e => setNewSurgery(p => ({ ...p, hospital: e.target.value }))} className={inputCls} />
                       <button type="button" onClick={() => {
                         if (!newSurgery.procedure.trim()) {
-                          alert('Preencha: Procedimento');
+                          alert(`${t('clinical_alert_fill_fields', 'app')} ${t('hce_procedure', 'app')}`);
                           return;
                         }
                         setAnamnese(p => ({ ...p, surgicalHistory: [...p.surgicalHistory, newSurgery] }));
@@ -2458,40 +2445,30 @@ const ClinicalModuleContent = ({
                     <div className="border-t border-teal-200 p-4 space-y-3 bg-slate-50">
                       <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">{t('presc_add_title', 'app')}</p>
                       <div className="grid grid-cols-2 gap-2">
-                        <div className="relative">
+                        <div>
                           <label className={labelCls}>{t('presc_add_name', 'app')} *</label>
-                          <input type="text" value={prescriptionForm.drugName} onChange={e => { setPrescriptionForm(p => ({ ...p, drugName: e.target.value })); setDrugSearch(e.target.value); setShowDrugDropdown(true); }} onFocus={() => { setDrugSearch(prescriptionForm.drugName); setShowDrugDropdown(true); }} onBlur={() => setTimeout(() => setShowDrugDropdown(false), 200)} className={inputCls} placeholder={t('presc_placeholder_drug', 'app')} />
-                          {showDrugDropdown && drugCatalogItems.length > 0 && (
-                            <div className="absolute z-50 mt-1 w-full max-h-48 overflow-y-auto bg-white border border-slate-200 rounded-lg shadow-lg">
-                              {drugCatalogItems.filter(d => {
-                                const s = (drugSearch || prescriptionForm.drugName).toLowerCase();
-                                return !s || d.name.toLowerCase().includes(s) || d.activeIngredient.toLowerCase().includes(s);
-                              }).slice(0, 10).map(d => (
-                                <button key={d.id} type="button" className="w-full text-left px-3 py-2 hover:bg-teal-50 border-b border-slate-100 last:border-0 transition" onMouseDown={ev => ev.preventDefault()} onClick={() => {
-                                  setPrescriptionForm(p => ({ ...p, drugName: d.name, activeIngredient: d.activeIngredient, presentation: d.presentation || p.presentation, dosage: d.defaultDosage || p.dosage, frequency: d.defaultFrequency || p.frequency, route: d.route || p.route, duration: d.defaultDuration || p.duration }));
-                                  setShowDrugDropdown(false);
-                                }}>
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-semibold text-xs text-slate-800">{d.name}</span>
-                                    <span className={`px-1 py-0.5 rounded text-[8px] font-bold uppercase ${
-                                      d.source === 'dinavisa' ? 'bg-blue-100 text-blue-700' :
-                                      d.source === 'anvisa' ? 'bg-green-100 text-green-700' :
-                                      d.source === 'fda' ? 'bg-purple-100 text-purple-700' :
-                                      d.source === 'infarmed' ? 'bg-orange-100 text-orange-700' :
-                                      'bg-slate-100 text-slate-600'
-                                    }`}>{d.source === 'local' ? t('drug_source_local', 'app') : d.source.toUpperCase()}</span>
-                                  </div>
-                                  <p className="text-[10px] text-slate-400">{d.activeIngredient} — {d.presentation}</p>
-                                </button>
-                              ))}
-                              {drugCatalogItems.filter(d => {
-                                const s = (drugSearch || prescriptionForm.drugName).toLowerCase();
-                                return !s || d.name.toLowerCase().includes(s) || d.activeIngredient.toLowerCase().includes(s);
-                              }).length === 0 && (
-                                <p className="px-3 py-2 text-xs text-slate-400 italic">{t('drug_search_no_results', 'app')}</p>
-                              )}
-                            </div>
-                          )}
+                          <div className="relative">
+                            <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+                            <input type="text" value={prescriptionForm.drugName} onChange={e => { const v = e.target.value; setPrescriptionForm(p => ({ ...p, drugName: v })); setDrugSearch(v); searchDrugCatalog(v); }} placeholder={t('presc_placeholder_drug', 'app')} className={`${inputCls} pl-9`} />
+                          </div>
+                          <div className="max-h-[120px] overflow-y-auto border border-slate-100 rounded-xl divide-y divide-slate-50 mt-2 bg-white">
+                            {drugCatalogItems.length === 0 ? (
+                              <p className="px-3 py-2 text-xs text-slate-400 italic">{t('drug_search_no_results', 'app')}</p>
+                            ) : drugCatalogItems.slice(0, 10).map((d: any) => (
+                              <div key={d.id} onClick={() => setPrescriptionForm(p => ({ ...p, drugName: d.name, activeIngredient: d.active_ingredient ?? p.activeIngredient, presentation: d.presentation ?? p.presentation, dosage: d.default_dosage ?? p.dosage, frequency: d.default_frequency ?? p.frequency, route: d.route ?? p.route, duration: d.default_duration ?? p.duration }))}
+                                className="px-3 py-2.5 hover:bg-teal-50 cursor-pointer flex items-center gap-2 text-sm transition">
+                                <span className="font-bold text-teal-700 whitespace-nowrap text-xs">{d.name}</span>
+                                <span className="text-slate-600 flex-1 min-w-0 truncate text-xs">{d.active_ingredient}{d.presentation ? ` — ${d.presentation}` : ''}</span>
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap flex-shrink-0 font-bold uppercase ${
+                                  d.source === 'dinavisa' ? 'bg-blue-100 text-blue-700' :
+                                  d.source === 'anvisa' ? 'bg-green-100 text-green-700' :
+                                  d.source === 'fda' ? 'bg-purple-100 text-purple-700' :
+                                  d.source === 'infarmed' ? 'bg-orange-100 text-orange-700' :
+                                  'bg-slate-100 text-slate-600'
+                                }`}>{d.source?.toUpperCase() || ''}</span>
+                              </div>
+                            ))}
+                          </div>
                         </div>
                         <div>
                           <label className={labelCls}>{t('presc_active_ingredient', 'app')}</label>
@@ -3087,7 +3064,7 @@ const ClinicalModuleContent = ({
                       </h5>
                       <button onClick={() => setBreakGlassActive(!breakGlassActive)}
                         className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${breakGlassActive ? 'bg-rose-600 text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'}`}>
-                        {breakGlassActive ? 'ATIVADO' : 'ATIVAR'}
+                        {breakGlassActive ? t('hce_break_glass_activated', 'app') : t('hce_break_glass_activate', 'app')}
                       </button>
                     </div>
                     {breakGlassActive && (
@@ -3196,7 +3173,7 @@ const ClinicalModuleContent = ({
                 <textarea value={laboratoryNotes} onChange={e => setLaboratoryNotes(e.target.value)} rows={4} className={textareaCls}
                   placeholder="Ex: Área cardiopulmonar preservada..." />
               </div>
-              <button onClick={() => { addAuditLog('Emissão Laudo', `${selectedExamType} de ${selectedPatient?.name}`); alert('Laudo salvo!'); setLaboratoryNotes(''); }}
+              <button onClick={() => { addAuditLog('Emissão Laudo', `${selectedExamType} de ${selectedPatient?.name}`); alert(t('clinical_alert_report_saved', 'app')); setLaboratoryNotes(''); }}
                 className="w-full py-3 px-4 bg-slate-800 hover:bg-slate-900 text-white font-semibold rounded-lg text-xs">
                 Salvar Laudo
               </button>

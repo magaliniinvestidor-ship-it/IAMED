@@ -14,7 +14,9 @@ Deno.serve(async (req) => {
   try {
     const { query, source, limit = 10 } = await req.json();
 
-    if (!query || query.trim().length < 2) {
+    const trimmedQuery = (query ?? "").trim();
+
+    if (trimmedQuery.length > 0 && trimmedQuery.length < 2) {
       return new Response(JSON.stringify({ results: [] }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -29,9 +31,13 @@ Deno.serve(async (req) => {
     let localQuery = supabase
       .from("drug_catalog")
       .select("*")
-      .or(`name.ilike.%${query}%,active_ingredient.ilike.%${query}%,name_es.ilike.%${query}%,name_pt.ilike.%${query}%,name_en.ilike.%${query}%`)
       .order("name")
       .limit(limit);
+
+    if (trimmedQuery.length >= 2) {
+      const q = trimmedQuery.replace(/[%_]/g, "\\$&");
+      localQuery = localQuery.or(`name.ilike.%${q}%,active_ingredient.ilike.%${q}%,name_es.ilike.%${q}%,name_pt.ilike.%${q}%,name_en.ilike.%${q}%`);
+    }
 
     if (source && source !== "all") {
       localQuery = localQuery.eq("source", source);
@@ -48,8 +54,13 @@ Deno.serve(async (req) => {
 
     // Se não, buscar na API da FDA
     const fdaResults = [];
+    if (trimmedQuery.length < 2) {
+      return new Response(JSON.stringify({ results: localResults ?? [], source: "local" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     try {
-      const fdaUrl = `https://api.fda.gov/drug/drugsfda.json?search=openfda.brand_name:"${encodeURIComponent(query)}"+OR+openfda.generic_name:"${encodeURIComponent(query)}"&limit=${limit}`;
+      const fdaUrl = `https://api.fda.gov/drug/drugsfda.json?search=openfda.brand_name:"${encodeURIComponent(trimmedQuery)}"+OR+openfda.generic_name:"${encodeURIComponent(trimmedQuery)}"&limit=${limit}`;
       const fdaResp = await fetch(fdaUrl);
       const fdaData = await fdaResp.json();
 

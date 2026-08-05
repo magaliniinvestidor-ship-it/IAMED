@@ -31,18 +31,27 @@ Nunca escrever strings hardcoded em português (ou qualquer outro idioma) direta
    alert("Campo obrigatório não preenchido");
    ```
 
-### Convenções de Nomenclatura
+### Convenções de Nomenclatura por Módulo
 
-- Módulo **Agenda**: prefixo `agenda_` (ex: `agenda_save_changes`)
-- Módulo **Recepção**: prefixo `rcpt_` (ex: `rcpt_alert_required_phone`)
-- Chaves ficam em `lib/i18n/locales/*.json` na seção `app`
+- **Recepção**: prefixo `rcpt_` (ex: `rcpt_alert_required_phone`)
+- **Agenda**: prefixo `agenda_` (ex: `agenda_save_changes`)
+- **Prontuário (HCE)**: prefixo `hce_` ou `presc_`
+- **Medicina do Trabalho**: prefixo `medtrab_` (ex: `medtrab_tab_pcmso`)
+- **Internação e Centro Cirúrgico**: prefixo `intern_` (ex: `intern_tab_beds`)
+- **PACS / Diagnóstico por Imagem**: prefixo `diag_` (ex: `diag_tab_worklist`)
+- **Portal do Paciente / Telemedicina**: prefixo `portal_` (ex: `portal_payment_success`)
+- **CRM e Marketing**: prefixo `crm_`
+- **Estoque e Farmácia**: prefixo `pharm_`
+- **Gestão Financeira e SIFEN**: prefixo `fin_`
+
+> **Nota:** As chaves ficam em `lib/i18n/locales/*.json` na seção `app`.
 
 ### Exceções (NÃO traduzir)
 
-- Strings de console.log / console.error
-- Strings em addAuditLog() (logs de auditoria internos - opcional traduzir)
+- Strings de `console.log` / `console.error`
+- Strings em `addAuditLog()` (logs de auditoria internos - opcional traduzir)
 - Nomes de arquivos técnicos
-- Strings de comparação com banco de dados (devem bater com os values armazenados)
+- Strings de comparação com banco de dados (devem bater com os `values` armazenados)
 - Nomes de idiomas ("Español", "English") - ficam na forma nativa
 - Placeholders técnicos (ex: "120/80", "36.8")
 
@@ -67,16 +76,9 @@ const { t } = useI18n();
    - `lib/i18n/locales/es-AR.json`
    - `lib/i18n/locales/es-PY.json`
 
-2. Usar o prefixo correto do módulo
+2. Usar o prefixo correto do módulo em `snake_case`.
 
-3. Usar snake_case para as chaves
-
-## Outras Regras
-
-- Seguir o estilo de código existente
-- Não adicionar comentários desnecessários
-- Preferir edições em arquivos existentes
-- Nunca commitar senhas ou chaves secretas
+---
 
 ## Geração de IDs Sequenciais
 
@@ -90,59 +92,71 @@ const { t } = useI18n();
 
 ### Como funciona
 
-O Postgres tem sequences por tabela. O front chama funções RPC que usam `nextval()` atomicamente:
+O Postgres tem sequences atômicas por tabela. O front chama funções RPC que executam `nextval()` de forma isolada e transacional.
 
 ```tsx
 // ✅ CORRETO - chamada RPC atômica
 const { data: newId } = await supabase.rpc('next_patient_id');
 const { data: newId } = await supabase.rpc('next_clinical_id', { p_prefix: 'soap' });
+const { data: newId } = await supabase.rpc('next_module_id', { p_prefix: 'surg' });
 
-// ❌ ERRADO - lógica no front
+// ❌ ERRADO - lógica no front ou fallback com Date.now()
 const nextIdNum = Math.max(...numericIds) + 1;
 patientId = `PAC${String(nextIdNum).padStart(3, '0')}`;
+id = `surg_${Date.now()}`;
 ```
 
-### Tabela de funções RPC disponíveis
+### Tabela de Funções RPC Disponíveis
 
-| Função RPC | Prefixo/Formato | Tabela |
+| Função RPC | Prefixo/Formato | Módulo / Tabela |
 |---|---|---|
-| `next_patient_id()` | `PAC001`, `PAC002`... | `patients` |
-| `next_appointment_id()` | `CLI001`, `CLI002`... | `appointments` |
-| `next_location_id()` | `loc_1`, `loc_2`... | `locations` |
-| `next_room_id()` | `SALA001`, `SALA002`... | `clinical_rooms` |
-| `next_professional_id()` | `PRF001`, `PRF002`... | `professionals` |
-| `next_role_id()` | `role_01`, `role_02`... | `professional_roles` |
-| `next_clinical_id(p_prefix text)` | `presc_0001`, `soap_0001`... | módulo 3 |
+| `next_patient_id()` | `PAC001`, `PAC002`... | Pacientes (`patients`) |
+| `next_appointment_id()` | `CLI001`, `CLI002`... | Agendamentos (`appointments`) |
+| `next_location_id()` | `loc_1`, `loc_2`... | Locais de Atendimento (`locations`) |
+| `next_room_id()` | `SALA001`, `SALA002`... | Salas Clínicas (`clinical_rooms`) |
+| `next_professional_id()` | `PRF001`, `PRF002`... | Profissionais (`professionals`) |
+| `next_role_id()` | `role_01`, `role_02`... | Cargos (`professional_roles`) |
+| `next_clinical_id(p_prefix)` | `presc_0001`, `soap_0001`... | Módulo 3 (Atendimento Clínico HCE) |
+| `next_module_id(p_prefix)` | `surg_0001`, `emp_0001`... | Módulos 4 a 21 (Geral) |
 
-### Prefixos aceitos por `next_clinical_id()`
-
+### Prefixos Aceitos por `next_clinical_id(p_prefix text)`
 `presc`, `anam`, `soap`, `diag`, `exam`, `proc`, `att`, `sig`, `aso`
 
-### Padrão recomendado em componentes
+### Prefixos Aceitos por `next_module_id(p_prefix text)`
+
+| Módulo | Prefixos Suportados |
+|---|---|
+| **Internação & Centro Cirúrgico** | `surg` (Cirurgias), `hosp` (Internações), `bt` (Transferência Leito), `evol` (Evoluções), `nurs` (Registros Enfermagem), `check` (Checklists) |
+| **Estoque & Farmácia** | `pharm` (Produtos), `lot` (Lotes), `mov` (Movimentações), `ae` (Eventos Adversos), `qd` (Desvios Qualidade) |
+| **Medicina do Trabalho** | `emp` (Empresas), `trab` (Trabalhadores), `ex` (Exames Ocupacionais), `cal` (Calibrações), `rel` (Relatórios MTESS) |
+| **Portal do Paciente** | `pat_portal` (Pacientes Portal), `tel` (Teleconsultas), `app_portal` (Consultas App), `pay` (Pagamentos) |
+| **Diagnóstico (PACS/SADT)** | `rep` (Laudos), `hl7` (Mensagens HL7), `m` (Medições Laboratório) |
+| **CRM & BI Analyst** | `camp` (Campanhas), `lead` (Leads), `opp` (Oportunidades), `opt` (Opt-Outs), `nps` (Pesquisas NPS) |
+| **Financeiro, Faturamento & LGPD** | `dte` (Documentos Eletrônicos), `fin` (Lançamentos Financeiros), `stk` (Itens Estoque/Patrimônio), `ins` (Convênios), `sso` (Provedores SSO), `elig` (Consultas Elegibilidade), `sett` (Repasses/Liquidacões), `frn` (Faturamento Estrangeiro), `batch` (Lotes Faturamento) |
+
+### Padrão Recomendado nos Componentes
 
 ```tsx
+import { useModuleId } from '@/hooks/useModuleId';
+
+// Dentro do componente:
+const genModuleId = useModuleId(); // Módulos 4-21 (usa 'next_module_id')
+// Ou para o Módulo Clínico HCE (usa 'next_clinical_id'):
+// const genId = useModuleId('next_clinical_id');
+
 const handleSave = async () => {
-  if (!supabase) return;
-  const { data: newId, error } = await supabase.rpc('next_clinical_id', { p_prefix: 'soap' });
-  if (error || !newId) {
-    console.error('Erro ao gerar ID:', error?.message);
-    return;
-  }
-  await supabase.from('soap_notes').insert({ id: newId, ... });
+  const newId = await genModuleId('surg');
+  await supabase.from('surgeries').insert({ id: newId, ... });
 };
 ```
 
-### Migrações de sequence
+> **Atenção:** Em caso de falha de conexão ou ambiente de testes local sem banco, use SEMPRE um fallback estático como `${prefix}_0001`. **NUNCA usar `Date.now()`**.
 
-As sequences ficam em `scripts/0[1-3]_*.sql`. Para sincronizar uma sequence após mudar dados manualmente:
+---
 
-```sql
-select setval('seq_pacientes', 
-  coalesce((select max(
-    case when id ~ '^PAC[0-9]+$' 
-         then substring(id from '^PAC([0-9]+)$')::int 
-         else 0 end) from public.patients), 0) + 1,
-  true);
-```
+## Outras Regras
 
-NUNCA usar `Date.now()` como fallback em produção — manter consistência do formato.
+- Seguir o estilo de código existente no repositório.
+- Manter o código limpo, eliminando comentários desnecessários.
+- Preferir edições em arquivos existentes antes de criar arquivos duplicados.
+- Nunca commitar senhas, tokens ou chaves secretas.

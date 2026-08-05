@@ -939,8 +939,15 @@ const AgendaModuleContent = ({
   // ============================================================
   const handleBlockageSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    let blockId = '';
+    if (supabase) {
+      const { data } = await supabase.rpc('next_module_id', { p_prefix: 'blk' });
+      if (data) blockId = data as string;
+    }
+    if (!blockId) blockId = `blk_0001`;
+
     const newBlock: BlockedSlot = {
-      id: `block_${Date.now()}`,
+      id: blockId,
       doctor_name: blockForm.doctor_name || null,
       branch: blockForm.branch || null,
       start_date: blockForm.start_date,
@@ -1712,8 +1719,13 @@ const AgendaModuleContent = ({
   const handleClinicPatientSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // ID do paciente: ao editar usa o existente, ao criar gera um novo
-    const patientId = editingClinicPatient?.id || `cp_${Date.now()}`;
+    // ID do paciente: ao editar usa o existente, ao criar gera um novo via RPC
+    let patientId = editingClinicPatient?.id || '';
+    if (!patientId && supabase) {
+      const { data } = await supabase.rpc('next_patient_id');
+      if (data) patientId = data as string;
+    }
+    if (!patientId) patientId = 'PAC001';
 
     // Upload da foto se houver preview em base64 (camera/upload ainda nao salvou no storage)
     let finalPhotoUrl = cpForm.photo_url;
@@ -1758,20 +1770,14 @@ const AgendaModuleContent = ({
         }).eq('id', editingClinicPatient.id);
       }
     } else {
-      let tempId: string;
-      if (supabase) {
-        const { data, error } = await supabase.rpc('next_appointment_id');
-        if (error || !data) {
-          console.error('Erro ao gerar ID de agendamento:', error?.message);
-          return;
-        }
-        tempId = data;
-      } else {
-        const numericIds = clinicPatients.map(p => {
-          const match = p.id.match(/^CLI(\d+)$/);
-          return match ? parseInt(match[1], 10) : 0;
-        });
-        tempId = `CLI${String(Math.max(...numericIds, 0) + 1).padStart(3, '0')}`;
+      if (!supabase) {
+        console.error('Supabase não inicializado para gerar ID de agendamento');
+        return;
+      }
+      const { data: tempId, error: rpcErr } = await supabase.rpc('next_appointment_id');
+      if (rpcErr || !tempId) {
+        console.error('Erro ao gerar ID de agendamento via RPC:', rpcErr?.message);
+        return;
       }
       const newPatient: ClinicPatient = {
         id: tempId,
