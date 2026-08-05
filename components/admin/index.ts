@@ -8,3 +8,5 @@ export { ProfessionalsTab } from './ProfessionalsTab';
 export { UsersTab } from './UsersTab';
 export { FinancialTab } from './FinancialTab';
 export { AuditTab } from './AuditTab';
+export { SsoTab } from './SsoTab';
+export { PasswordPolicyTab } from './PasswordPolicyTab';
