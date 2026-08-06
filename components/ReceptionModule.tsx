@@ -5,7 +5,8 @@ import { Patient, Appointment, Professional } from '@/lib/mockData';
 import { supabase } from '@/lib/supabaseClient';
 import { useI18n } from '@/lib/i18n/I18nContext';
 import { useFormValidation, groupErrorsByPath } from '@/lib/validation';
-import { patientSchema, patientIdentificationSchema, patientContactAddressSchema, patientComplementarySchema, patientGuardianSchema } from '@/lib/validation/schemas';
+import { patientSchema, createAllPatientSchemas } from '@/lib/validation/schemas';
+import { getValidationMessages, type ValidationMessages } from '@/lib/validation/i18n-schemas';
 import { FormErrorSummary } from '@/components/forms';
 import { isValidPhoneNumber, parsePhoneNumber } from 'libphonenumber-js';
 import PhoneInput from '@/components/PhoneInput';
@@ -75,6 +76,10 @@ export default function ReceptionModule({
   const [admissionSearchFocused, setAdmissionSearchFocused] = useState(false);
 
   // Zod validation for patient form (per-tab validators and main submit)
+  const validationMessages: ValidationMessages = getValidationMessages(
+    (locale as 'pt-BR' | 'pt-PT' | 'en' | 'es' | 'es-AR' | 'es-PY') || 'pt-BR'
+  );
+  const patientSchemas = createAllPatientSchemas(validationMessages);
   const {
     errors: patientErrors,
     validate: validatePatient,
@@ -82,10 +87,10 @@ export default function ReceptionModule({
     setFieldError: setPatientFieldError,
     setErrors: setPatientErrors,
   } = useFormValidation(patientSchema);
-  const { validate: validateIdentification } = useFormValidation(patientIdentificationSchema);
-  const { validate: validateContactAddress } = useFormValidation(patientContactAddressSchema);
-  const { validate: validateComplementary } = useFormValidation(patientComplementarySchema);
-  const { validate: validateGuardian } = useFormValidation(patientGuardianSchema);
+  const { validate: validateIdentification } = useFormValidation(patientSchemas.identification);
+  const { validate: validateContactAddress } = useFormValidation(patientSchemas.contactAddress);
+  const { validate: validateComplementary } = useFormValidation(patientSchemas.complementary);
+  const { validate: validateGuardian } = useFormValidation(patientSchemas.guardian);
   // Mandatory fields
   const [newName, setNewName] = useState('');
   const [newBirthdate, setNewBirthdate] = useState('');
