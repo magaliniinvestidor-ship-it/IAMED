@@ -29,6 +29,8 @@ import type {
   PasswordPolicy,
   SSOProvider,
   Patient,
+  Location,
+  ClinicalRoom,
 } from '@/lib/mockData';
 
 export type {
@@ -62,6 +64,8 @@ export type {
   PasswordPolicy,
   SSOProvider,
   Patient,
+  Location,
+  ClinicalRoom,
 };
 
 export type Gateway = 'Bancard' | 'Pagopar' | 'Tigo Money' | 'Personal Pay' | 'Eko Network' | 'Transferência';

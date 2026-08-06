@@ -5,26 +5,10 @@ import { Building2, Edit2, Trash2 } from 'lucide-react';
 import { useI18n } from '@/lib/i18n/I18nContext';
 import { useModuleId } from '@/hooks/useModuleId';
 import { supabase } from '@/lib/supabaseClient';
-import { AdminFinanceModuleProps } from './AdminContext';
+import { AdminFinanceModuleProps, Location, ClinicalRoom } from './AdminContext';
 import { useFormValidation, groupErrorsByPath } from '@/lib/validation';
 import { locationSchema, clinicalRoomSchema } from '@/lib/validation/schemas';
 import { FormErrorSummary } from '@/components/forms';
-
-interface Location {
-  id: string;
-  name: string;
-  address?: string;
-  city?: string;
-  phone?: string;
-  status?: 'ativo' | 'inativo';
-}
-
-interface ClinicalRoom {
-  id: string;
-  name: string;
-  location_id?: string;
-  status?: string;
-}
 
 export function LocationsTab({
   locations,
@@ -102,14 +86,14 @@ export function LocationsTab({
     if (!result.success) return;
 
     if (editingRoomId) {
-      const updated: ClinicalRoom = { id: editingRoomId, name: roomName, location_id: roomLocation, status: roomStatus };
+      const updated: ClinicalRoom = { id: editingRoomId, name: roomName, type: 'consultório', location_id: roomLocation, status: roomStatus, capacity: 1, equipment: [] };
       setClinicalRooms((prev) => prev.map((r) => (r.id === editingRoomId ? updated : r)));
       if (supabase) {
         await supabase.from('clinical_rooms').update(updated as unknown as Record<string, unknown>).eq('id', editingRoomId);
       }
       addAuditLog('Atualizou Sala', roomName);
     } else {
-      const newRoom: ClinicalRoom = { id: await genModuleId('room'), name: roomName, location_id: roomLocation, status: roomStatus };
+      const newRoom: ClinicalRoom = { id: await genModuleId('room'), name: roomName, type: 'consultório', location_id: roomLocation, status: roomStatus, capacity: 1, equipment: [] };
       setClinicalRooms((prev) => [...prev, newRoom]);
       if (supabase) {
         await supabase.from('clinical_rooms').insert({ ...newRoom, created_at: new Date().toISOString() });
