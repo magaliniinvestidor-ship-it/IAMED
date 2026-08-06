@@ -74,8 +74,13 @@ export default function ReceptionModule({
   const [admissionSearch, setAdmissionSearch] = useState('');
   const [admissionSearchFocused, setAdmissionSearchFocused] = useState(false);
 
-  // Zod validation for patient form
-  const { errors: patientErrors, validate: validatePatient } = useFormValidation(patientSchema);
+  // Zod validation for patient form (per-tab validators and main submit)
+  const {
+    errors: patientErrors,
+    validate: validatePatient,
+    clearErrors: clearPatientErrors,
+    setFieldError: setPatientFieldError,
+  } = useFormValidation(patientSchema);
   // Mandatory fields
   const [newName, setNewName] = useState('');
   const [newBirthdate, setNewBirthdate] = useState('');
@@ -864,96 +869,102 @@ export default function ReceptionModule({
     }
   };
 
-  // Add Patient Submit
-  const handleAddPatient = async (e?: React.FormEvent | React.MouseEvent) => {
+  // Per-tab validators
+  const validateIdentificationTab = (): boolean => {
+    const result = validatePatient({
+      name: newName,
+      email: newEmail || '',
+      phone: newPhone,
+      birthdate: newBirthdate,
+      gender: (newGender || 'Masculino') as 'M' | 'F' | 'Outro',
+      document_type: documentType as 'CI' | 'RG' | 'Passaporte' | 'Outro' | undefined,
+      document_number: documentNumber,
+      place_of_birth: placeOfBirth,
+      nationality,
+      civil_status: civilStatus as 'Solteiro(a)' | 'Casado(a)' | 'Divorciado(a)' | 'Viúvo(a)' | 'União Estável' | undefined,
+      photo_url: photoUrl,
+    });
+    return result.success;
+  };
+
+  const validateContactAddressTab = (): boolean => {
+    clearPatientErrors();
+    let isValid = true;
+    if (!newPhone.trim()) {
+      setPatientFieldError('phone', t('rcpt_alert_required_phone', 'app'));
+      isValid = false;
+    } else if (!isPhoneValid) {
+      setPatientFieldError('phone', t('rcpt_alert_invalid_phone', 'app'));
+      isValid = false;
+    }
+    if (!newEmail.trim()) {
+      setPatientFieldError('email', t('rcpt_alert_required_email', 'app'));
+      isValid = false;
+    }
+    if (!addressDepartment.trim()) {
+      setPatientFieldError('address_department', t('rcpt_alert_required_department', 'app'));
+      isValid = false;
+    }
+    if (!addressCity.trim()) {
+      setPatientFieldError('address_city', t('rcpt_alert_required_city', 'app'));
+      isValid = false;
+    }
+    return isValid;
+  };
+
+  const validateComplementaryTab = (): boolean => {
+    const isEditing = !!selectedPatientId;
+    clearPatientErrors();
+    let isValid = true;
+    if (!isEditing && !allergies.trim()) {
+      setPatientFieldError('allergies', t('rcpt_alert_required_allergies', 'app'));
+      isValid = false;
+    }
+    if (healthInsuranceType !== 'Particular' && !healthInsuranceNumber.trim()) {
+      setPatientFieldError('health_insurance_number', t('rcpt_alert_required_insurance_number', 'app'));
+      isValid = false;
+    }
+    if (!isEditing && !employer.trim()) {
+      setPatientFieldError('employer', t('rcpt_alert_required_employer', 'app'));
+      isValid = false;
+    }
+    return isValid;
+  };
+
+  const handleNextTab = (
+    currentTab: 'identification' | 'contact_address' | 'complementary' | 'guardian',
+    nextTab: 'identification' | 'contact_address' | 'complementary' | 'guardian'
+  ) => {
+    let isValid = true;
+    if (currentTab === 'identification') {
+      isValid = validateIdentificationTab();
+    } else if (currentTab === 'contact_address') {
+      isValid = validateContactAddressTab();
+    } else if (currentTab === 'complementary') {
+      isValid = validateComplementaryTab();
+    }
+    if (isValid) {
+      clearPatientErrors();
+      setActiveFormTab(nextTab);
+    }
+  };
+
+  // Final save (called from guardian tab "Admitir para Triagem" button)
+  const handleSavePatient = async (e?: React.FormEvent | React.MouseEvent) => {
     if (e && 'preventDefault' in e) e.preventDefault();
 
     const isEditing = !!selectedPatientId;
 
-    const result = validatePatient({
-      name: newName,
-      email: newEmail,
-      phone: newPhone,
-      birthdate: newBirthdate,
-      gender: newGender,
-      document_type: documentType,
-      document_number: documentNumber,
-      place_of_birth: placeOfBirth,
-      nationality,
-      civil_status: civilStatus,
-      address_department: addressDepartment,
-      address_city: addressCity,
-      address_neighborhood: addressNeighborhood,
-      address_street: addressStreet,
-      address_number: addressNumber,
-      blood_type: bloodType,
-      allergies,
-      health_insurance_type: healthInsuranceType,
-      health_insurance_number: healthInsuranceNumber,
-      health_insurance_company: healthInsuranceCompany,
-      employer,
-      guardian_name: guardianName,
-      guardian_document: guardianDocument,
-      guardian_relationship: guardianRelationship,
-      guardian_phone: guardianPhone,
-      preferred_language: preferredLanguage,
-    });
-    if (!result.success) {
-      const firstError = result.errors[0];
-      if (firstError) {
-        if (['name', 'email', 'phone', 'birthdate', 'gender', 'document_type', 'document_number'].includes(firstError.path)) {
-          setActiveFormTab('identification');
-        } else if (['address_department', 'address_city', 'address_neighborhood', 'address_street', 'address_number'].includes(firstError.path)) {
-          setActiveFormTab('contact_address');
-        } else if (['blood_type', 'allergies', 'health_insurance_type', 'health_insurance_number', 'health_insurance_company', 'employer'].includes(firstError.path)) {
-          setActiveFormTab('complementary');
-        } else if (['guardian_name', 'guardian_document', 'guardian_relationship', 'guardian_phone'].includes(firstError.path)) {
-          setActiveFormTab('guardian');
-        }
-      }
+    // Re-validate all tabs before final save
+    if (!validateIdentificationTab()) {
+      setActiveFormTab('identification');
       return;
     }
-
-    // Contact/Address tab fields
-    if (!newPhone.trim()) {
-      alert(t('rcpt_alert_required_phone', 'app'));
+    if (!validateContactAddressTab()) {
       setActiveFormTab('contact_address');
       return;
     }
-    if (!isPhoneValid) {
-      alert(t('rcpt_alert_invalid_phone', 'app'));
-      setActiveFormTab('contact_address');
-      return;
-    }
-    if (!newEmail.trim()) {
-      alert(t('rcpt_alert_required_email', 'app'));
-      setActiveFormTab('contact_address');
-      return;
-    }
-    if (!addressDepartment.trim()) {
-      alert(t('rcpt_alert_required_department', 'app'));
-      setActiveFormTab('contact_address');
-      return;
-    }
-    if (!addressCity.trim()) {
-      alert(t('rcpt_alert_required_city', 'app'));
-      setActiveFormTab('contact_address');
-      return;
-    }
-
-    // Complementary tab fields (only required for new patients)
-    if (!isEditing && !allergies.trim()) {
-      alert(t('rcpt_alert_required_allergies', 'app'));
-      setActiveFormTab('complementary');
-      return;
-    }
-    if (healthInsuranceType !== 'Particular' && !healthInsuranceNumber.trim()) {
-      alert(t('rcpt_alert_required_insurance_number', 'app'));
-      setActiveFormTab('complementary');
-      return;
-    }
-    if (!isEditing && !employer.trim()) {
-      alert(t('rcpt_alert_required_employer', 'app'));
+    if (!validateComplementaryTab()) {
       setActiveFormTab('complementary');
       return;
     }
@@ -962,17 +973,14 @@ export default function ReceptionModule({
     if (isMinor) {
       if (!guardianName.trim()) {
         alert(t('rcpt_alert_required_guardian_name', 'app'));
-        setActiveFormTab('guardian');
         return;
       }
       if (!guardianDocument.trim()) {
         alert(t('rcpt_alert_required_guardian_doc', 'app'));
-        setActiveFormTab('guardian');
         return;
       }
       if (!guardianRelationship.trim()) {
         alert(t('rcpt_alert_required_guardian_relationship', 'app'));
-        setActiveFormTab('guardian');
         return;
       }
     }
@@ -2779,9 +2787,9 @@ if (hasAnyField) {
                       type="button"
                       data-testid="reception-next-tab"
                       onClick={() => {
-                        if (activeFormTab === 'identification') setActiveFormTab('contact_address');
-                        else if (activeFormTab === 'contact_address') setActiveFormTab('complementary');
-                        else if (activeFormTab === 'complementary') setActiveFormTab('guardian');
+                        if (activeFormTab === 'identification') handleNextTab('identification', 'contact_address');
+                        else if (activeFormTab === 'contact_address') handleNextTab('contact_address', 'complementary');
+                        else if (activeFormTab === 'complementary') handleNextTab('complementary', 'guardian');
                       }}
                       className="py-2 px-3 bg-slate-100 text-slate-700 hover:bg-slate-200 text-xs font-semibold rounded-lg flex items-center gap-1 cursor-pointer transition ml-auto"
                     >
@@ -2791,7 +2799,7 @@ if (hasAnyField) {
                     <button 
                       type="button" 
                       data-testid="reception-submit-admit"
-                      onClick={handleAddPatient}
+                      onClick={handleSavePatient}
                       className={`py-2 px-4 text-white text-xs font-bold rounded-lg shadow-sm flex items-center justify-center gap-1.5 cursor-pointer transition ${
                         isMinor && (!guardianName.trim() || !guardianDocument.trim() || !guardianRelationship.trim())
                           ? 'bg-slate-400 cursor-not-allowed opacity-60'
