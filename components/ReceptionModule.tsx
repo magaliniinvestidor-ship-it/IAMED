@@ -2227,6 +2227,10 @@ if (hasAnyField) {
                 )}
               </AnimatePresence>
 
+              {patientErrors.length > 0 && (
+                <FormErrorSummary errors={patientErrors} />
+              )}
+
               <form noValidate onKeyDown={e => { if (e.key === 'Enter') e.preventDefault(); }} className="space-y-4 text-sm">
                 
                 {/* 1. IDENTIFICAÇÃO TAB */}
