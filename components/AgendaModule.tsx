@@ -2420,7 +2420,7 @@ const AgendaModuleContent = ({
                     <input type="text" value={cpForm.insurance_number} onChange={e => setCpForm({ ...cpForm, insurance_number: e.target.value })}
                       disabled={cpForm.insurance_type === 'Particular'}
                       className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg disabled:opacity-50 disabled:bg-slate-100"
-                      required={cpForm.insurance_type !== 'Particular'} />
+                      />
                   </div>
                 </div>
                 <div>
@@ -2470,13 +2470,13 @@ const AgendaModuleContent = ({
                   <label className="block text-xs font-semibold text-slate-600 mb-1">{t('agenda_guardian_name', 'app')}{cpIsMinor ? ' *' : ''}</label>
                   <input type="text" value={cpForm.responsible_name} onChange={e => setCpForm({ ...cpForm, responsible_name: e.target.value })}
                     placeholder="" className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg"
-                    required={cpIsMinor} />
+                    />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-semibold text-slate-600 mb-1">{t('agenda_document_type', 'app')}{cpIsMinor ? ' *' : ''}</label>
                     <select value={cpForm.responsible_document_type} onChange={e => setCpForm({ ...cpForm, responsible_document_type: e.target.value })}
-                      className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs" required={cpIsMinor}>
+                      className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs">
                       <option value="">{t('agenda_select', 'app')}</option>
                       <option value="CI">{t('rcpt_doc_ci', 'app')}</option>
                       <option value="Pasaporte">{t('rcpt_doc_passport', 'app')}</option>
@@ -2489,7 +2489,7 @@ const AgendaModuleContent = ({
                     <div className="relative">
                       <input type="text" value={cpForm.responsible_document_number} onChange={e => setCpForm({ ...cpForm, responsible_document_number: e.target.value })}
                         placeholder="" className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg"
-                        required={cpIsMinor} />
+                        />
                       {guardianCalculatedDV !== null && (
                         <span className="absolute right-2 top-2 px-1.5 py-0.5 bg-teal-50 border border-teal-100 text-teal-800 font-bold text-[10px] rounded">
                           DV: {guardianCalculatedDV}
@@ -2502,12 +2502,12 @@ const AgendaModuleContent = ({
                   <label className="block text-xs font-semibold text-slate-600 mb-1">{t('agenda_guardian_phone', 'app')}</label>
                   <input type="tel" value={cpForm.responsible_phone} onChange={e => setCpForm({ ...cpForm, responsible_phone: e.target.value })}
                     placeholder="" className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg"
-                    required />
+                    />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1">{t('agenda_relationship', 'app')}{cpIsMinor ? ' *' : ''}</label>
                   <select value={cpForm.responsible_relationship} onChange={e => setCpForm({ ...cpForm, responsible_relationship: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs"
-                    required={cpIsMinor}>
+                    >
                     <option value="">{t('rcpt_guardian_select_vinculo', 'app')}</option>
                     <option value="Pai">{t('rcpt_guardian_father', 'app')}</option>
                     <option value="Mãe">{t('rcpt_guardian_mother', 'app')}</option>
@@ -3482,7 +3482,6 @@ const AgendaModuleContent = ({
                   onFocus={() => { setShowPatientDropdown(true); setPatientSearchQuery(''); }}
                   placeholder={t('agenda_search_patient', 'app')}
                   className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg"
-                  required={!newApptForm.patient_id}
                 />
                 {newApptForm.patient_id && (
                   <button type="button" onClick={() => { setNewApptForm({ ...newApptForm, patient_id: '', patient_name: '' }); setPatientSearchQuery(''); }}

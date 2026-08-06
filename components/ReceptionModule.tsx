@@ -2223,7 +2223,6 @@ if (hasAnyField) {
                         onChange={e => setNewName(e.target.value)}
                         placeholder=""
                         className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans"
-                        required
                       />
                     </div>
 
@@ -2234,7 +2233,6 @@ if (hasAnyField) {
                           value={documentType} 
                           onChange={e => setDocumentType(e.target.value as any)}
                           className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans"
-                          required
                         >
                           <option value="">{t('rcpt_select', 'app')}</option>
                           <option value="CI">{t('rcpt_doc_ci', 'app')}</option>
@@ -2252,7 +2250,6 @@ if (hasAnyField) {
                             onChange={e => setDocumentNumber(e.target.value)}
                             placeholder=""
                             className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans"
-                            required
                           />
                           {calculatedDV !== null && (
                             <span className="absolute right-2 top-2 px-1.5 py-0.5 bg-teal-50 border border-teal-100 text-teal-800 font-bold text-[10px] rounded">
@@ -2286,7 +2283,6 @@ if (hasAnyField) {
                           onChange={e => setPlaceOfBirth(e.target.value)}
                           placeholder=""
                           className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans"
-                          required
                         />
                       </div>
                     </div>
@@ -2298,7 +2294,6 @@ if (hasAnyField) {
                           value={newGender} 
                           onChange={e => setNewGender(e.target.value)}
                           className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans text-xs"
-                          required
                         >
                           <option value="">{t('rcpt_select', 'app')}</option>
                           <option value="Masculino">{t('rcpt_gender_male', 'app')}</option>
@@ -2314,7 +2309,6 @@ if (hasAnyField) {
                           onChange={e => setNationality(e.target.value)}
                           placeholder=""
                           className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans text-xs"
-                          required
                         />
                       </div>
                       <div>
@@ -2323,7 +2317,6 @@ if (hasAnyField) {
                           value={civilStatus} 
                           onChange={e => setCivilStatus(e.target.value as any)}
                           className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans text-xs"
-                          required
                         >
                           <option value="">{t('rcpt_select', 'app')}</option>
                           <option value="Solteiro(a)">{t('rcpt_civil_single', 'app')}</option>
@@ -2438,7 +2431,6 @@ if (hasAnyField) {
                         className={`w-full p-2.5 bg-slate-50 border rounded-lg focus:outline-teal-500 font-sans ${
                           !isEmailValid ? 'border-rose-400 bg-rose-50/20' : 'border-slate-200'
                         }`}
-                        required
                       />
                     </div>
 
@@ -2457,7 +2449,6 @@ if (hasAnyField) {
                             onChange={e => setAddressDepartment(e.target.value)}
                             placeholder=""
                             className="w-full p-2 bg-white border border-slate-200 rounded-md text-xs font-sans focus:outline-teal-500"
-                            required
                           />
                         </div>
                         <div>
@@ -2468,7 +2459,6 @@ if (hasAnyField) {
                             onChange={e => setAddressDistrict(e.target.value)}
                             placeholder=""
                             className="w-full p-2 bg-white border border-slate-200 rounded-md text-xs font-sans focus:outline-teal-500"
-                            required
                           />
                         </div>
                       </div>
@@ -2482,7 +2472,6 @@ if (hasAnyField) {
                             onChange={e => setAddressCity(e.target.value)}
                             placeholder=""
                             className="w-full p-2 bg-white border border-slate-200 rounded-md text-xs font-sans focus:outline-teal-500"
-                            required
                           />
                         </div>
                         <div>
@@ -2493,7 +2482,6 @@ if (hasAnyField) {
                             onChange={e => setAddressNeighborhood(e.target.value)}
                             placeholder=""
                             className="w-full p-2 bg-white border border-slate-200 rounded-md text-xs font-sans focus:outline-teal-500"
-                            required
                           />
                         </div>
                       </div>
@@ -2507,7 +2495,6 @@ if (hasAnyField) {
                             onChange={e => setAddressStreet(e.target.value)}
                             placeholder=""
                             className="w-full p-2 bg-white border border-slate-200 rounded-md text-xs font-sans focus:outline-teal-500"
-                            required
                           />
                         </div>
                         <div>
@@ -2518,7 +2505,6 @@ if (hasAnyField) {
                             onChange={e => setAddressNumber(e.target.value)}
                             placeholder=""
                             className="w-full p-2 bg-white border border-slate-200 rounded-md text-xs font-sans focus:outline-teal-500"
-                            required
                           />
                         </div>
                       </div>
@@ -2542,7 +2528,6 @@ if (hasAnyField) {
                           value={bloodType} 
                           onChange={e => setBloodType(e.target.value as any)}
                           className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans"
-                          required
                         >
                           <option value="">{t('rcpt_select', 'app')}</option>
                           <option value="A+">A+</option>
@@ -2562,7 +2547,6 @@ if (hasAnyField) {
                           value={preferredLanguage} 
                           onChange={e => setPreferredLanguage(e.target.value as any)}
                           className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans text-xs"
-                          required
                         >
                           <option value="">{t('rcpt_select', 'app')}</option>
                           <option value="pt-BR">🇧🇷 Português (Brasil)</option>
@@ -2585,7 +2569,6 @@ if (hasAnyField) {
                         placeholder=""
                         rows={2}
                         className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans text-xs"
-                        required
                       />
                     </div>
 
@@ -2602,7 +2585,6 @@ if (hasAnyField) {
                             value={healthInsuranceType} 
                             onChange={e => setHealthInsuranceType(e.target.value as any)}
                             className="w-full p-2 bg-white border border-slate-200 rounded-md text-xs font-sans focus:outline-teal-500"
-                            required
                           >
                             <option value="">{t('rcpt_select', 'app')}</option>
                             <option value="Particular">{t('rcpt_insurance_particular', 'app')}</option>
@@ -2622,7 +2604,6 @@ if (hasAnyField) {
                             placeholder=""
                             className="w-full p-2 bg-white border border-slate-200 rounded-md text-xs font-sans focus:outline-teal-500"
                             disabled={healthInsuranceType === 'Particular'}
-                            required={healthInsuranceType !== 'Particular'}
                           />
                         </div>
                       </div>
@@ -2648,7 +2629,6 @@ if (hasAnyField) {
                           onChange={e => setEmployer(e.target.value)}
                           placeholder=""
                           className="w-full p-2 bg-white border border-slate-200 rounded-md text-xs font-sans focus:outline-teal-500"
-                          required
                         />
                       </div>
                     </div>
@@ -2686,7 +2666,6 @@ if (hasAnyField) {
                         onChange={e => setGuardianName(e.target.value)}
                         placeholder=""
                         className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans"
-                        required={isMinor}
                       />
                     </div>
 
@@ -2697,7 +2676,6 @@ if (hasAnyField) {
                           value={guardianDocumentType} 
                           onChange={e => setGuardianDocumentType(e.target.value as any)}
                           className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans text-xs"
-                          required={isMinor}
                         >
                           <option value="">{t('rcpt_select', 'app')}</option>
                           <option value="CI">{t('rcpt_doc_ci', 'app')}</option>
@@ -2715,7 +2693,6 @@ if (hasAnyField) {
                             onChange={e => setGuardianDocument(e.target.value)}
                             placeholder={t('rcpt_label_number', 'app').replace(' *', '')} 
                             className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans"
-                            required={isMinor}
                           />
                           {calculatedGuardianDV !== null && (
                             <span className="absolute right-2 top-2 px-1.5 py-0.5 bg-teal-50 border border-teal-100 text-teal-800 font-bold text-[10px] rounded">
@@ -2734,7 +2711,6 @@ if (hasAnyField) {
                         onChange={e => setGuardianPhone(e.target.value)}
                         placeholder="" 
                         className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans"
-                        required
                       />
                     </div>
 
@@ -2744,7 +2720,6 @@ if (hasAnyField) {
                         value={guardianRelationship} 
                         onChange={e => setGuardianRelationship(e.target.value)}
                         className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans text-xs"
-                        required={isMinor}
                       >
                         <option value="">{t('rcpt_guardian_select_vinculo', 'app')}</option>
                         <option value="Pai">{t('rcpt_guardian_father', 'app')}</option>
