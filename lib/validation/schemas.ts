@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { ValidationMessages } from './i18n-schemas';
-import { getValidationMessages } from './i18n-schemas';
+import { getValidationMessages, createTriageSchema } from './i18n-schemas';
 
 export const createEmailSchema = (m: ValidationMessages) =>
   z.string().min(1, m.email).email(m.emailInvalid);
@@ -220,18 +220,7 @@ export const passwordChangeSchema = z.object({
 
 export type PasswordChangeData = z.infer<typeof passwordChangeSchema>;
 
-export const triageSchema = z.object({
-  triageColor: z.enum(['blue', 'green', 'yellow', 'orange', 'red']),
-  symptoms: nonEmptyString('Sintomas', 1000),
-  preliminaryDiagnosis: optionalString(500),
-  vitalSigns: z.object({
-    bp: optionalString(20),
-    temp: optionalString(10),
-    spo2: optionalString(10),
-    hr: optionalString(10),
-    rr: optionalString(10),
-  }).optional(),
-});
+export const triageSchema = createTriageSchema(ptBRMessages);
 
 export type TriageFormData = z.infer<typeof triageSchema>;
 

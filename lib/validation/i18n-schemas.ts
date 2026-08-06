@@ -180,6 +180,17 @@ export function createPatientComplementarySchema(m: ValidationMessages) {
   });
 }
 
+export function createTriageSchema(m: ValidationMessages) {
+  return z.object({
+    reason: z.string().min(1, m.required('Motivo da consulta')).max(2000, m.maxLength('Motivo da consulta', 2000)),
+    bp: z.string().min(1, m.required('PA')).max(20, m.maxLength('PA', 20)),
+    temp: z.string().min(1, m.required('Temperatura')).max(10, m.maxLength('Temperatura', 10)),
+    spo2: z.string().min(1, m.required('SpO2')).max(10, m.maxLength('SpO2', 10)),
+    hr: z.string().min(1, m.required('FC')).max(10, m.maxLength('FC', 10)),
+    rr: z.string().min(1, m.required('FR')).max(10, m.maxLength('FR', 10)),
+  });
+}
+
 export function createPatientGuardianSchema(m: ValidationMessages) {
   return z.object({
     guardian_name: z.string().max(200, m.maxLength('Nome', 200)).optional().or(z.literal('')),

@@ -5,8 +5,8 @@ import { Patient, Appointment, Professional } from '@/lib/mockData';
 import { supabase } from '@/lib/supabaseClient';
 import { useI18n } from '@/lib/i18n/I18nContext';
 import { useFormValidation, groupErrorsByPath } from '@/lib/validation';
-import { patientSchema, createAllPatientSchemas } from '@/lib/validation/schemas';
-import { getValidationMessages, type ValidationMessages } from '@/lib/validation/i18n-schemas';
+import { patientSchema, createAllPatientSchemas, triageSchema } from '@/lib/validation/schemas';
+import { getValidationMessages, createTriageSchema, type ValidationMessages } from '@/lib/validation/i18n-schemas';
 import { FormErrorSummary } from '@/components/forms';
 import { isValidPhoneNumber, parsePhoneNumber } from 'libphonenumber-js';
 import PhoneInput from '@/components/PhoneInput';
@@ -91,6 +91,12 @@ export default function ReceptionModule({
   const { validate: validateContactAddress } = useFormValidation(patientSchemas.contactAddress);
   const { validate: validateComplementary } = useFormValidation(patientSchemas.complementary);
   const { validate: validateGuardian } = useFormValidation(patientSchemas.guardian);
+  const {
+    errors: triageErrors,
+    validate: validateTriage,
+    clearErrors: clearTriageErrors,
+  } = useFormValidation(createTriageSchema(validationMessages));
+  const triageFieldErrors = groupErrorsByPath(triageErrors);
   // Mandatory fields
   const [newName, setNewName] = useState('');
   const [newBirthdate, setNewBirthdate] = useState('');
@@ -1545,6 +1551,12 @@ export default function ReceptionModule({
       // Excluir da lista de espera
       const { error: waitlistError } = await supabase.from('waiting_list').delete().eq('patient_id', id);
       if (waitlistError) console.error("[SUPABASE] DELETE waiting_list FAILED:", waitlistError.message);
+
+      // Excluir foto do Storage
+      const { error: photoError } = await supabase.storage
+        .from('patient-photos')
+        .remove([`patient_${id}.jpg`]);
+      if (photoError) console.error("[SUPABASE] DELETE photo FAILED:", photoError.message);
 
       // Excluir o paciente
       const { error } = await supabase.from('patients').delete().eq('id', id);
@@ -3807,6 +3819,12 @@ if (hasAnyField) {
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
 
+                {triageErrors.length > 0 && (
+                  <div className="lg:col-span-3">
+                    <FormErrorSummary errors={triageErrors} title={t('rcpt_triage_validation_title', 'app')} />
+                  </div>
+                )}
+
                 {/* LEFT COLUMN: Vital Signs */}
                 <div className="lg:col-span-2 space-y-5">
 
@@ -3815,11 +3833,14 @@ if (hasAnyField) {
                     <label className="block text-xs font-bold text-slate-700 mb-1">{t('rcpt_main_complaint', 'app')} *</label>
                     <textarea
                       value={triageReason}
-                      onChange={e => setTriageReason(e.target.value)}
+                      onChange={e => { setTriageReason(e.target.value); clearTriageErrors(); }}
                       placeholder={t('rcpt_triage_chief_complaint_placeholder', 'app')}
                       rows={2}
                       className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans"
                     />
+                    {triageFieldErrors.reason && (
+                      <p className="text-[10px] text-rose-600 font-medium mt-1">{triageFieldErrors.reason}</p>
+                    )}
                   </div>
 
                   {/* Sinais Vitais */}
@@ -3896,6 +3917,7 @@ if (hasAnyField) {
                           type="text"
                           value={triageBP}
                           onChange={e => {
+                            clearTriageErrors();
                             const raw = e.target.value.replace(/[^0-9/]/g, '');
                             const slashCount = (raw.match(/\//g) || []).length;
                             if (slashCount > 1) return;
@@ -3910,6 +3932,11 @@ if (hasAnyField) {
                           placeholder="120/80"
                           className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans"
                         />
+                        {triageFieldErrors.bp && (
+                          <p className="text-[10px] text-rose-600 font-medium mt-1 flex items-center gap-1">
+                            <AlertCircle className="w-3 h-3 shrink-0" /> {triageFieldErrors.bp}
+                          </p>
+                        )}
                         {triageBP && (() => {
                           const parts = triageBP.split('/');
                           const systolic = parseInt(parts[0]);
@@ -3936,6 +3963,7 @@ if (hasAnyField) {
                           type="text"
                           value={triageTemp}
                           onChange={e => {
+                            clearTriageErrors();
                             const raw = e.target.value.replace(/[^0-9.]/g, '');
                             const dotCount = (raw.match(/\./g) || []).length;
                             if (dotCount > 1) return;
@@ -3944,6 +3972,11 @@ if (hasAnyField) {
                           placeholder={t('rcpt_ph_temp', 'app')}
                           className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans"
                         />
+                        {triageFieldErrors.temp && (
+                          <p className="text-[10px] text-rose-600 font-medium mt-1 flex items-center gap-1">
+                            <AlertCircle className="w-3 h-3 shrink-0" /> {triageFieldErrors.temp}
+                          </p>
+                        )}
                         {triageTemp && (() => {
                           const temp = parseFloat(triageTemp);
                           if (!isNaN(temp)) {
@@ -3965,6 +3998,7 @@ if (hasAnyField) {
                           type="text"
                           value={triageSpo2}
                           onChange={e => {
+                            clearTriageErrors();
                             const raw = e.target.value.replace(/[^0-9.]/g, '');
                             const dotCount = (raw.match(/\./g) || []).length;
                             if (dotCount > 1) return;
@@ -3974,6 +4008,11 @@ if (hasAnyField) {
                           maxLength={5}
                           className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans"
                         />
+                        {triageFieldErrors.spo2 && (
+                          <p className="text-[10px] text-rose-600 font-medium mt-1 flex items-center gap-1">
+                            <AlertCircle className="w-3 h-3 shrink-0" /> {triageFieldErrors.spo2}
+                          </p>
+                        )}
                         {triageSpo2 && (() => {
                           const spo2 = Number(triageSpo2);
                           if (vitalsLimits.spo2.red(spo2)) {
@@ -3992,6 +4031,7 @@ if (hasAnyField) {
                           type="text"
                           value={triageHR}
                           onChange={e => {
+                            clearTriageErrors();
                             const raw = e.target.value.replace(/[^0-9.]/g, '');
                             const dotCount = (raw.match(/\./g) || []).length;
                             if (dotCount > 1) return;
@@ -4000,6 +4040,11 @@ if (hasAnyField) {
                           placeholder={t('rcpt_ph_hr', 'app')}
                           className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans"
                         />
+                        {triageFieldErrors.hr && (
+                          <p className="text-[10px] text-rose-600 font-medium mt-1 flex items-center gap-1">
+                            <AlertCircle className="w-3 h-3 shrink-0" /> {triageFieldErrors.hr}
+                          </p>
+                        )}
                         {triageHR && (() => {
                           const hr = parseInt(triageHR);
                           if (!isNaN(hr)) {
@@ -4024,6 +4069,7 @@ if (hasAnyField) {
                           type="text"
                           value={triageRR}
                           onChange={e => {
+                            clearTriageErrors();
                             const raw = e.target.value.replace(/[^0-9.]/g, '');
                             const dotCount = (raw.match(/\./g) || []).length;
                             if (dotCount > 1) return;
@@ -4032,6 +4078,11 @@ if (hasAnyField) {
                           placeholder={t('rcpt_ph_rr', 'app')}
                           className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans"
                         />
+                        {triageFieldErrors.rr && (
+                          <p className="text-[10px] text-rose-600 font-medium mt-1 flex items-center gap-1">
+                            <AlertCircle className="w-3 h-3 shrink-0" /> {triageFieldErrors.rr}
+                          </p>
+                        )}
                         {triageRR && (() => {
                           const rr = parseInt(triageRR);
                           if (!isNaN(rr)) {
@@ -4177,12 +4228,16 @@ if (hasAnyField) {
                   type="button"
                   data-testid="reception-save-triage"
                   onClick={async () => {
-                    if (!triagePatient || !triageReason.trim()) return;
-                    if (!triageBP.trim()) { alert(t('rcpt_triage_required_bp', 'app')); return; }
-                    if (!triageTemp.trim()) { alert(t('rcpt_triage_required_temp', 'app')); return; }
-                    if (!triageSpo2.trim()) { alert(t('rcpt_triage_required_spo2', 'app')); return; }
-                    if (!triageHR.trim()) { alert(t('rcpt_triage_required_hr', 'app')); return; }
-                    if (!triageRR.trim()) { alert(t('rcpt_triage_required_rr', 'app')); return; }
+                    if (!triagePatient) return;
+                    const triageResult = validateTriage({
+                      reason: triageReason,
+                      bp: triageBP,
+                      temp: triageTemp,
+                      spo2: triageSpo2,
+                      hr: triageHR,
+                      rr: triageRR,
+                    });
+                    if (!triageResult.success) return;
                     const bmi = triageWeight && triageHeight
                       ? (parseFloat(triageWeight) / Math.pow(parseFloat(triageHeight) / 100, 2)).toFixed(1)
                       : undefined;
