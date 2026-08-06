@@ -301,13 +301,19 @@ export type SystemUserFormData = z.infer<typeof systemUserSchema>;
 export const patientIdentificationSchema = z.object({
   name: nonEmptyString('Nome', 200),
   birthdate: dateSchema,
-  gender: z.enum(['M', 'F', 'Outro']),
-  document_type: z.enum(['CI', 'RG', 'Passaporte', 'Outro']).optional(),
+  gender: z.enum(['M', 'F', 'Outro'], {
+    message: 'Selecione um gênero',
+  }),
+  document_type: z.enum(['CI', 'RG', 'Passaporte', 'Outro'], {
+    message: 'Selecione um tipo de documento',
+  }).optional(),
   document_number: optionalString(30),
   place_of_birth: optionalString(100),
   nationality: optionalString(60),
   civil_status: z
-    .enum(['Solteiro(a)', 'Casado(a)', 'Divorciado(a)', 'Viúvo(a)', 'União Estável'])
+    .enum(['Solteiro(a)', 'Casado(a)', 'Divorciado(a)', 'Viúvo(a)', 'União Estável'], {
+      message: 'Selecione um estado civil',
+    })
     .optional(),
   photo_url: z.string().min(1, 'Foto do paciente é obrigatória').optional(),
 });
@@ -317,11 +323,11 @@ export type PatientIdentificationFormData = z.infer<typeof patientIdentification
 export const patientContactAddressSchema = z.object({
   email: emailSchema,
   phone: phoneSchema,
-  address_department: optionalString(60),
-  address_city: optionalString(60),
+  address_department: nonEmptyString('Departamento', 60),
+  address_city: nonEmptyString('Cidade', 60),
   address_neighborhood: optionalString(100),
-  address_street: optionalString(150),
-  address_number: optionalString(20),
+  address_street: nonEmptyString('Rua', 150),
+  address_number: nonEmptyString('Número', 20),
 });
 
 export type PatientContactAddressFormData = z.infer<typeof patientContactAddressSchema>;
