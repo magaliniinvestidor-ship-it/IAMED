@@ -1,33 +1,38 @@
 import { z } from 'zod';
+import type { ValidationMessages } from './i18n-schemas';
+import { getValidationMessages } from './i18n-schemas';
 
-const emailSchema = z
-  .string()
-  .min(1, 'E-mail obrigatório')
-  .email('E-mail inválido');
+export const createEmailSchema = (m: ValidationMessages) =>
+  z.string().min(1, m.email).email(m.emailInvalid);
 
-const phoneSchema = z
-  .string()
-  .min(8, 'Telefone deve ter pelo menos 8 dígitos')
-  .max(20, 'Telefone inválido')
-  .regex(/^[\d+\-\s()]+$/, 'Telefone contém caracteres inválidos');
-
-const dateSchema = z
-  .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Data deve estar no formato AAAA-MM-DD')
-  .refine((val) => !isNaN(Date.parse(val)), 'Data inválida');
-
-const nonEmptyString = (fieldName: string, max = 200) =>
+export const createPhoneSchema = (m: ValidationMessages) =>
   z
     .string()
-    .min(1, `${fieldName} é obrigatório`)
-    .max(max, `${fieldName} deve ter no máximo ${max} caracteres`);
+    .min(8, m.phoneMinLength)
+    .max(20, m.phoneInvalid)
+    .regex(/^[\d+\-\s()]+$/, m.phoneFormat);
 
-const optionalString = (max = 500) =>
+export const createDateSchema = (m: ValidationMessages) =>
   z
     .string()
-    .max(max, `Texto deve ter no máximo ${max} caracteres`)
-    .optional()
-    .or(z.literal(''));
+    .regex(/^\d{4}-\d{2}-\d{2}$/, m.dateFormat)
+    .refine((val) => !isNaN(Date.parse(val)), m.dateInvalid);
+
+export const createNonEmptyString = (m: ValidationMessages) =>
+  (fieldName: string, max = 200) =>
+    z.string().min(1, m.required(fieldName)).max(max, m.maxLength(fieldName, max));
+
+export const createOptionalString = (m: ValidationMessages) =>
+  (max = 500) =>
+    z.string().max(max, m.maxLength('Texto', max)).optional().or(z.literal(''));
+
+const ptBRMessages = getValidationMessages('pt-BR');
+
+export const emailSchema = createEmailSchema(ptBRMessages);
+export const phoneSchema = createPhoneSchema(ptBRMessages);
+export const dateSchema = createDateSchema(ptBRMessages);
+export const nonEmptyString = createNonEmptyString(ptBRMessages);
+export const optionalString = createOptionalString(ptBRMessages);
 
 export const patientSchema = z.object({
   name: nonEmptyString('Nome', 200),
@@ -298,66 +303,90 @@ export const systemUserSchema = z.object({
 
 export type SystemUserFormData = z.infer<typeof systemUserSchema>;
 
-export const patientIdentificationSchema = z.object({
-  name: nonEmptyString('Nome', 200),
-  birthdate: dateSchema,
-  gender: z.enum(['M', 'F', 'Outro'], {
-    message: 'Selecione um gênero',
-  }),
-  document_type: z.enum(['CI', 'RG', 'Passaporte', 'Outro'], {
-    message: 'Selecione um tipo de documento',
-  }).optional(),
-  document_number: optionalString(30),
-  place_of_birth: optionalString(100),
-  nationality: optionalString(60),
-  civil_status: z
-    .enum(['Solteiro(a)', 'Casado(a)', 'Divorciado(a)', 'Viúvo(a)', 'União Estável'], {
-      message: 'Selecione um estado civil',
-    })
-    .optional(),
-  photo_url: z
-    .string()
-    .refine((val) => Boolean(val) && val.length > 0 && val !== 'data:,', 'Foto do paciente é obrigatória')
-    .optional(),
+export const createPatientIdentificationSchema = (m: ValidationMessages) =>
+  z.object({
+    name: z.string().min(1, m.required('Nome')).max(200, m.maxLength('Nome', 200)),
+    birthdate: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, m.dateFormat)
+      .refine((val) => !isNaN(Date.parse(val)), m.dateInvalid),
+    gender: z.enum(['M', 'F', 'Outro'], { message: m.gender }),
+    document_type: z
+      .enum(['CI', 'RG', 'Passaporte', 'Outro'], { message: m.documentType })
+      .optional(),
+    document_number: z.string().max(30, m.maxLength('Documento', 30)).optional().or(z.literal('')),
+    place_of_birth: z.string().max(100, m.maxLength('Local', 100)).optional().or(z.literal('')),
+    nationality: z.string().max(60, m.maxLength('Nacionalidade', 60)).optional().or(z.literal('')),
+    civil_status: z
+      .enum(['Solteiro(a)', 'Casado(a)', 'Divorciado(a)', 'Viúvo(a)', 'União Estável'], {
+        message: m.civilStatus,
+      })
+      .optional(),
+    photo_url: z
+      .string()
+      .refine((val) => Boolean(val) && val.length > 0 && val !== 'data:,', m.photoRequired)
+      .optional(),
+  });
+
+export const createPatientContactAddressSchema = (m: ValidationMessages) =>
+  z.object({
+    email: z.string().min(1, m.email).email(m.emailInvalid),
+    phone: z
+      .string()
+      .min(8, m.phoneMinLength)
+      .max(20, m.phoneInvalid)
+      .regex(/^[\d+\-\s()]+$/, m.phoneFormat),
+    address_department: z.string().min(1, m.required('Departamento')).max(60, m.maxLength('Departamento', 60)),
+    address_city: z.string().min(1, m.required('Cidade')).max(60, m.maxLength('Cidade', 60)),
+    address_neighborhood: z.string().max(100, m.maxLength('Bairro', 100)).optional().or(z.literal('')),
+    address_street: z.string().min(1, m.required('Rua')).max(150, m.maxLength('Rua', 150)),
+    address_number: z.string().min(1, m.required('Número')).max(20, m.maxLength('Número', 20)),
+  });
+
+export const createPatientComplementarySchema = (m: ValidationMessages) =>
+  z.object({
+    blood_type: z
+      .enum(['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-', 'Não Informado', ''])
+      .optional(),
+    allergies: z.string().max(1000, m.maxLength('Alergias', 1000)).optional().or(z.literal('')),
+    health_insurance_type: z
+      .enum(['IPS', 'Sanidade Militar', 'Sanidade Policial', 'Pré-paga', 'Seguro Privado', 'Particular', ''])
+      .optional(),
+    health_insurance_number: z.string().max(50, m.maxLength('Número', 50)).optional().or(z.literal('')),
+    health_insurance_company: z.string().max(120, m.maxLength('Convênio', 120)).optional().or(z.literal('')),
+    employer: z.string().max(120, m.maxLength('Empregador', 120)).optional().or(z.literal('')),
+    preferred_language: z.enum(['es', 'es-AR', 'es-PY', 'gn', 'pt-BR', 'pt-PT', 'en', 'outros', '']).optional(),
+  });
+
+export const createPatientGuardianSchema = (m: ValidationMessages) =>
+  z.object({
+    guardian_name: z.string().max(200, m.maxLength('Nome', 200)).optional().or(z.literal('')),
+    guardian_document: z.string().max(30, m.maxLength('Documento', 30)).optional().or(z.literal('')),
+    guardian_relationship: z.string().max(60, m.maxLength('Parentesco', 60)).optional().or(z.literal('')),
+    guardian_phone: z
+      .string()
+      .max(20, m.phoneInvalid)
+      .regex(/^[\d+\-\s()]+$/, m.phoneFormat)
+      .optional()
+      .or(z.literal('')),
+  });
+
+export const createAllPatientSchemas = (m: ValidationMessages) => ({
+  identification: createPatientIdentificationSchema(m),
+  contactAddress: createPatientContactAddressSchema(m),
+  complementary: createPatientComplementarySchema(m),
+  guardian: createPatientGuardianSchema(m),
 });
+
+const defaultMessages = ptBRMessages;
+export const patientIdentificationSchema = createPatientIdentificationSchema(defaultMessages);
+export const patientContactAddressSchema = createPatientContactAddressSchema(defaultMessages);
+export const patientComplementarySchema = createPatientComplementarySchema(defaultMessages);
+export const patientGuardianSchema = createPatientGuardianSchema(defaultMessages);
 
 export type PatientIdentificationFormData = z.infer<typeof patientIdentificationSchema>;
-
-export const patientContactAddressSchema = z.object({
-  email: emailSchema,
-  phone: phoneSchema,
-  address_department: nonEmptyString('Departamento', 60),
-  address_city: nonEmptyString('Cidade', 60),
-  address_neighborhood: optionalString(100),
-  address_street: nonEmptyString('Rua', 150),
-  address_number: nonEmptyString('Número', 20),
-});
-
 export type PatientContactAddressFormData = z.infer<typeof patientContactAddressSchema>;
-
-export const patientComplementarySchema = z.object({
-  blood_type: z
-    .enum(['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-', 'Não Informado', ''])
-    .optional(),
-  allergies: optionalString(1000),
-  health_insurance_type: z
-    .enum(['IPS', 'Sanidade Militar', 'Sanidade Policial', 'Pré-paga', 'Seguro Privado', 'Particular', ''])
-    .optional(),
-  health_insurance_number: optionalString(50),
-  health_insurance_company: optionalString(120),
-  employer: optionalString(120),
-  preferred_language: z.enum(['es', 'es-AR', 'es-PY', 'gn', 'pt-BR', 'pt-PT', 'en', 'outros', '']).optional(),
-});
-
 export type PatientComplementaryFormData = z.infer<typeof patientComplementarySchema>;
-
-export const patientGuardianSchema = z.object({
-  guardian_name: optionalString(200),
-  guardian_document: optionalString(30),
-  guardian_relationship: optionalString(60),
-  guardian_phone: phoneSchema.optional().or(z.literal('')),
-});
-
 export type PatientGuardianFormData = z.infer<typeof patientGuardianSchema>;
 
 export const pharmacyItemSchema = z.object({
