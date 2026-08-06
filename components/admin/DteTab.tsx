@@ -7,6 +7,9 @@ import { useModuleId } from '@/hooks/useModuleId';
 import { supabase } from '@/lib/supabaseClient';
 import { Dte, DteItem, Patient, AdminFinanceModuleProps, PROCEDURES } from './AdminContext';
 import { STATUS_BADGE } from './AdminContext';
+import { useFormValidation, groupErrorsByPath } from '@/lib/validation';
+import { dteSchema } from '@/lib/validation/schemas';
+import { FormErrorSummary } from '@/components/forms';
 import { GS, generateCdc, generateXml } from './helpers';
 
 const DTE_TYPES = [
@@ -28,6 +31,7 @@ interface DteTabProps {
 export function DteTab({ dtes, setDtes, patients, addAuditLog, onShowKude }: DteTabProps) {
   const { t } = useI18n();
   const genModuleId = useModuleId();
+  const { errors, validate } = useFormValidation(dteSchema);
 
   const [dteEnv, setDteEnv] = useState<'homologacao' | 'producao'>('homologacao');
   const [timbrado, setTimbrado] = useState('12568942');
@@ -63,14 +67,15 @@ export function DteTab({ dtes, setDtes, patients, addAuditLog, onShowKude }: Dte
   };
 
   const handleEmitirDte = async () => {
-    if (!dtePatient.trim()) {
-      if (typeof window !== 'undefined') alert(t('fin_alert_required_patient_procedure', 'app'));
-      return;
-    }
-    if (dteItems.length === 0) {
-      if (typeof window !== 'undefined') alert(t('fin_alert_required_patient_procedure', 'app'));
-      return;
-    }
+    const result = validate({
+      type: dteType,
+      patient_name: dtePatient,
+      patient_email: dtePatientEmail,
+      patient_phone: dtePatientPhone,
+      ruc: '',
+      items: dteItems,
+    });
+    if (!result.success) return;
 
     const totals = calcTotals(dteItems);
     const seq = dtes.length + 1;

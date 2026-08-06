@@ -250,3 +250,49 @@ export const dteSchema = z.object({
 );
 
 export type DteFormData = z.infer<typeof dteSchema>;
+
+export const locationSchema = z.object({
+  name: nonEmptyString('Nome da Sede', 200),
+  address: nonEmptyString('Endereço', 300),
+  city: nonEmptyString('Cidade', 100),
+  phone: nonEmptyString('Telefone', 30),
+  status: z.enum(['ativo', 'inativo']).optional(),
+});
+
+export type LocationFormData = z.infer<typeof locationSchema>;
+
+export const clinicalRoomSchema = z.object({
+  name: nonEmptyString('Nome da Sala', 100),
+  location_id: nonEmptyString('Sede', 30),
+  status: z.enum(['ativo', 'inativo']).optional(),
+});
+
+export type ClinicalRoomFormData = z.infer<typeof clinicalRoomSchema>;
+
+export const systemUserSchema = z.object({
+  name: nonEmptyString('Nome', 200),
+  email: emailSchema.optional().or(z.literal('')),
+  ci: optionalString(30),
+  systemRole: z.enum([
+    'SuperAdmin', 'Administrador', 'Gestor', 'Diretor Clínico', 'Médico',
+    'Enfermeiro', 'Recepcionista', 'Financeiro', 'Farmacêutico', 'Visualizador',
+    'Auxiliar de Enfermagem', 'Anestesiologista', 'Cirurgião(ã)', 'Terapeuta Ocupacional',
+    'Educador Físico', 'Assistente Social', 'Fonoaudiólogo(a)', 'Dentista',
+    'Biomédico(a)', 'Técnico(a) em Radiologia', 'Técnico(a) em Farmácia',
+    'Técnico(a) de Laboratório', 'Nutricionista', 'Psicólogo(a)', 'Técnico(a) de Enfermagem',
+  ]),
+  location: optionalString(100),
+  status: z.enum(['ativo', 'inativo', 'bloqueado']),
+  twoFactorEnabled: z.boolean().optional(),
+  twoFactorMethod: z.enum(['totp', 'sms', 'email', 'none']).optional(),
+}).refine(
+  (data) => {
+    if (data.twoFactorEnabled && (data.twoFactorMethod === 'none' || !data.twoFactorMethod)) {
+      return false;
+    }
+    return true;
+  },
+  { message: 'Selecione um método de 2FA quando ativado', path: ['twoFactorMethod'] }
+);
+
+export type SystemUserFormData = z.infer<typeof systemUserSchema>;

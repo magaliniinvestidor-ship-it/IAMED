@@ -6,6 +6,9 @@ import { useI18n } from '@/lib/i18n/I18nContext';
 import { useModuleId } from '@/hooks/useModuleId';
 import { supabase } from '@/lib/supabaseClient';
 import { AdminFinanceModuleProps } from './AdminContext';
+import { useFormValidation, groupErrorsByPath } from '@/lib/validation';
+import { locationSchema, clinicalRoomSchema } from '@/lib/validation/schemas';
+import { FormErrorSummary } from '@/components/forms';
 
 interface Location {
   id: string;
@@ -66,14 +69,14 @@ export function LocationsTab({
     setRoomStatus('ativo');
   };
 
+  const { errors: locErrors, validate: validateLoc, clearErrors: clearLocErrors } = useFormValidation(locationSchema);
+  const { errors: roomErrors, validate: validateRoom, clearErrors: clearRoomErrors } = useFormValidation(clinicalRoomSchema);
+
   const handleSaveLocation = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!locName.trim() || !locAddress.trim() || !locCity.trim() || !locPhone.trim()) {
-      if (typeof window !== 'undefined') {
-        alert(t('admin_alert_required_loc_fields', 'app'));
-      }
-      return;
-    }
+    const result = validateLoc({ name: locName, address: locAddress, city: locCity, phone: locPhone, status: locStatus });
+    if (!result.success) return;
+
     if (editingLocId) {
       const updated: Location = { id: editingLocId, name: locName, address: locAddress, city: locCity, phone: locPhone, status: locStatus };
       setLocations((prev) => prev.map((l) => (l.id === editingLocId ? updated : l)));
@@ -90,16 +93,14 @@ export function LocationsTab({
       addAuditLog('Cadastrou Local', locName);
     }
     resetLocForm();
+    clearLocErrors();
   };
 
   const handleSaveRoom = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!roomName.trim() || !roomLocation) {
-      if (typeof window !== 'undefined') {
-        alert(t('admin_alert_required_room_fields', 'app'));
-      }
-      return;
-    }
+    const result = validateRoom({ name: roomName, location_id: roomLocation, status: roomStatus });
+    if (!result.success) return;
+
     if (editingRoomId) {
       const updated: ClinicalRoom = { id: editingRoomId, name: roomName, location_id: roomLocation, status: roomStatus };
       setClinicalRooms((prev) => prev.map((r) => (r.id === editingRoomId ? updated : r)));
@@ -116,7 +117,11 @@ export function LocationsTab({
       addAuditLog('Cadastrou Sala', roomName);
     }
     resetRoomForm();
+    clearRoomErrors();
   };
+
+  const locFieldErrors = groupErrorsByPath(locErrors);
+  const roomFieldErrors = groupErrorsByPath(roomErrors);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

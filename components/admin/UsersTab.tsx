@@ -8,6 +8,9 @@ import { useModuleId } from '@/hooks/useModuleId';
 import { supabase } from '@/lib/supabaseClient';
 import { SystemUser, AdminFinanceModuleProps } from './AdminContext';
 import type { SystemRole } from '@/lib/mockData';
+import { useFormValidation, groupErrorsByPath } from '@/lib/validation';
+import { systemUserSchema, passwordChangeSchema } from '@/lib/validation/schemas';
+import { FormErrorSummary } from '@/components/forms';
 
 const ROLES: SystemRole[] = [
   'SuperAdmin', 'Administrador', 'Gestor', 'Diretor Clínico', 'Médico',
@@ -28,6 +31,7 @@ interface UsersTabProps {
 export function UsersTab({ addAuditLog }: UsersTabProps) {
   const { t } = useI18n();
   const genModuleId = useModuleId();
+  const { errors, validate } = useFormValidation(systemUserSchema);
 
   const [users, setUsers] = useState<SystemUser[]>([]);
   const [search, setSearch] = useState('');
@@ -113,37 +117,30 @@ export function UsersTab({ addAuditLog }: UsersTabProps) {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!userName.trim()) {
-      if (typeof window !== 'undefined') alert(t('admin_alert_required_user_fields', 'app'));
-      return;
-    }
-
-    if (!editingId) {
-      if (!userPassword) {
-        if (typeof window !== 'undefined') alert(t('admin_alert_password_required', 'app'));
-        return;
-      }
-      if (userPassword !== userPasswordConfirm) {
-        if (typeof window !== 'undefined') alert(t('admin_alert_password_mismatch', 'app'));
-        return;
-      }
-      if (userPassword.length < 6) {
-        if (typeof window !== 'undefined') alert(t('admin_alert_password_short', 'app'));
-        return;
-      }
-    }
-
-    const userData: Partial<SystemUser> = {
+    const userData = {
       name: userName,
-      email: userEmail || undefined,
-      ci: userCi || undefined,
+      email: userEmail,
+      ci: userCi,
       systemRole: userRole,
-      location: userLocation || undefined,
+      location: userLocation,
       status: userStatus,
       twoFactorEnabled: user2FA,
       twoFactorMethod: user2FAMethod,
-      permissions: [],
     };
+
+    const result = validate(userData);
+    if (!result.success) return;
+
+    if (!editingId) {
+      const passResult = passwordChangeSchema.safeParse({ password: userPassword, confirmPassword: userPasswordConfirm });
+      if (!passResult.success) {
+        if (typeof window !== 'undefined') {
+          const firstError = passResult.error.issues[0];
+          alert(firstError?.message || 'Erro de senha');
+        }
+        return;
+      }
+    }
 
     if (editingId) {
       if (!supabase) return;
@@ -181,7 +178,7 @@ export function UsersTab({ addAuditLog }: UsersTabProps) {
           status: userData.status,
           two_factor_enabled: userData.twoFactorEnabled,
           two_factor_method: userData.twoFactorMethod,
-          permissions: userData.permissions,
+          permissions: [],
           created_at: new Date().toISOString(),
         });
       if (error) {
@@ -195,6 +192,8 @@ export function UsersTab({ addAuditLog }: UsersTabProps) {
     setShowForm(false);
     await loadUsers();
   };
+
+  const fieldErrors = groupErrorsByPath(errors);
 
   const handleToggleStatus = async (u: SystemUser) => {
     const nextStatus = u.status === 'ativo' ? 'inativo' : 'ativo';
@@ -345,6 +344,7 @@ export function UsersTab({ addAuditLog }: UsersTabProps) {
               </button>
             </div>
             <form onSubmit={handleSave} className="p-5 space-y-3 text-xs">
+              {errors.length > 0 && <FormErrorSummary errors={errors} />}
               <div>
                 <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Nome Completo *</label>
                 <input
