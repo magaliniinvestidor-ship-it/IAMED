@@ -82,6 +82,28 @@ export function AdmissionForm({ addAuditLog, onSuccess, initialPatient, onClose 
     reader.readAsDataURL(file);
   };
 
+  const uploadPhotoToStorage = async (dataUrl: string, fileName: string): Promise<string | null> => {
+    if (!supabase) return null;
+    try {
+      const res = await fetch(dataUrl);
+      const blob = await res.blob();
+      const { data, error } = await supabase.storage
+        .from('patient-photos')
+        .upload(fileName, blob, { contentType: 'image/jpeg', upsert: true });
+      if (error) {
+        console.warn('Upload failed:', error.message);
+        return null;
+      }
+      const { data: urlData } = supabase.storage
+        .from('patient-photos')
+        .getPublicUrl(data.path);
+      return urlData.publicUrl;
+    } catch (err) {
+      console.warn('Upload error:', err);
+      return null;
+    }
+  };
+
   const handleSave = async () => {
     const patientData = {
       name,
@@ -131,19 +153,30 @@ export function AdmissionForm({ addAuditLog, onSuccess, initialPatient, onClose 
     }
 
     const id = initialPatient?.id || (await genModuleId('next_patient_id'));
+
+    let finalPhotoUrl: string | undefined;
+    if (photoPreview && photoPreview.startsWith('data:')) {
+      const uploadFileName = `patient_${id}.jpg`;
+      const uploadedUrl = await uploadPhotoToStorage(photoPreview, uploadFileName);
+      if (uploadedUrl) finalPhotoUrl = uploadedUrl;
+    } else if (photoPreview) {
+      finalPhotoUrl = photoPreview;
+    }
+
     const newPatient: Patient = {
       ...patientData,
       id,
       priority: 'normal',
       status: 'aguardando',
       clinicalHistory: [],
-      photo_url: photoPreview || undefined,
+      photo_url: finalPhotoUrl,
     };
 
     if (supabase) {
       const { error } = await supabase.from('patients').upsert({
         ...newPatient,
         clinical_history: '[]',
+        photo_url: finalPhotoUrl || '',
         created_at: new Date().toISOString(),
       } as unknown as Record<string, unknown>);
       if (error && typeof window !== 'undefined') {

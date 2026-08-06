@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Patient, Appointment, Professional } from '@/lib/mockData';
 import { supabase } from '@/lib/supabaseClient';
 import { useI18n } from '@/lib/i18n/I18nContext';
-import { useFormValidation, groupErrorsByPath } from '@/lib/validation';
+import { useFormValidation } from '@/lib/validation';
 import { patientSchema, createAllPatientSchemas, triageSchema } from '@/lib/validation/schemas';
 import { getValidationMessages, createTriageSchema, type ValidationMessages } from '@/lib/validation/i18n-schemas';
 import { FormErrorSummary } from '@/components/forms';
@@ -87,7 +87,6 @@ export default function ReceptionModule({
     setFieldError: setPatientFieldError,
     setErrors: setPatientErrors,
   } = useFormValidation(patientSchema);
-  const patientFieldErrors = groupErrorsByPath(patientErrors);
   const { validate: validateIdentification } = useFormValidation(patientSchemas.identification);
   const { validate: validateContactAddress } = useFormValidation(patientSchemas.contactAddress);
   const { validate: validateComplementary } = useFormValidation(patientSchemas.complementary);
@@ -97,7 +96,6 @@ export default function ReceptionModule({
     validate: validateTriage,
     clearErrors: clearTriageErrors,
   } = useFormValidation(createTriageSchema(validationMessages));
-  const triageFieldErrors = groupErrorsByPath(triageErrors);
   // Mandatory fields
   const [newName, setNewName] = useState('');
   const [newBirthdate, setNewBirthdate] = useState('');
@@ -2309,11 +2307,7 @@ if (hasAnyField) {
                             </span>
                           )}
                         </div>
-                        {patientFieldErrors.document_number && (
-                          <p className="text-[10px] text-rose-600 font-medium mt-1 flex items-center gap-1">
-                            <AlertCircle className="w-3 h-3 shrink-0" /> {patientFieldErrors.document_number}
-                          </p>
-                        )}
+                        
                       </div>
                     </div>
 
@@ -2341,11 +2335,6 @@ if (hasAnyField) {
                           placeholder=""
                           className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans"
                         />
-                        {patientFieldErrors.place_of_birth && (
-                          <p className="text-[10px] text-rose-600 font-medium mt-1 flex items-center gap-1">
-                            <AlertCircle className="w-3 h-3 shrink-0" /> {patientFieldErrors.place_of_birth}
-                          </p>
-                        )}
                       </div>
                     </div>
 
@@ -2522,11 +2511,6 @@ if (hasAnyField) {
                             placeholder=""
                             className="w-full p-2 bg-white border border-slate-200 rounded-md text-xs font-sans focus:outline-teal-500"
                           />
-                          {patientFieldErrors.address_district && (
-                            <p className="text-[10px] text-rose-600 font-medium mt-1 flex items-center gap-1">
-                              <AlertCircle className="w-3 h-3 shrink-0" /> {patientFieldErrors.address_district}
-                            </p>
-                          )}
                         </div>
                       </div>
 
@@ -2550,11 +2534,6 @@ if (hasAnyField) {
                             placeholder=""
                             className="w-full p-2 bg-white border border-slate-200 rounded-md text-xs font-sans focus:outline-teal-500"
                           />
-                          {patientFieldErrors.address_neighborhood && (
-                            <p className="text-[10px] text-rose-600 font-medium mt-1 flex items-center gap-1">
-                              <AlertCircle className="w-3 h-3 shrink-0" /> {patientFieldErrors.address_neighborhood}
-                            </p>
-                          )}
                         </div>
                       </div>
 
@@ -2612,11 +2591,6 @@ if (hasAnyField) {
                           <option value="O-">O-</option>
                           <option value="Não Informado">{t('rcpt_blood_not_informed', 'app')}</option>
                         </select>
-                        {patientFieldErrors.blood_type && (
-                          <p className="text-[10px] text-rose-600 font-medium mt-1 flex items-center gap-1">
-                            <AlertCircle className="w-3 h-3 shrink-0" /> {patientFieldErrors.blood_type}
-                          </p>
-                        )}
                       </div>
                       <div>
                         <label className="block text-xs font-semibold text-slate-600 mb-1">{t('rcpt_label_preferred_language', 'app')}</label>
@@ -2635,11 +2609,6 @@ if (hasAnyField) {
                           <option value="en">🇺🇸 English (US/UK)</option>
                           <option value="outros">{t('rcpt_lang_other', 'app')}</option>
                         </select>
-                        {patientFieldErrors.preferred_language && (
-                          <p className="text-[10px] text-rose-600 font-medium mt-1 flex items-center gap-1">
-                            <AlertCircle className="w-3 h-3 shrink-0" /> {patientFieldErrors.preferred_language}
-                          </p>
-                        )}
                       </div>
                     </div>
 
@@ -2652,11 +2621,6 @@ if (hasAnyField) {
                         rows={2}
                         className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans text-xs"
                       />
-                      {patientFieldErrors.allergies && (
-                        <p className="text-[10px] text-rose-600 font-medium mt-1 flex items-center gap-1">
-                          <AlertCircle className="w-3 h-3 shrink-0" /> {patientFieldErrors.allergies}
-                        </p>
-                      )}
                     </div>
 
                     <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5">
@@ -3875,9 +3839,6 @@ if (hasAnyField) {
                       rows={2}
                       className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans"
                     />
-                    {triageFieldErrors.reason && (
-                      <p className="text-[10px] text-rose-600 font-medium mt-1">{triageFieldErrors.reason}</p>
-                    )}
                   </div>
 
                   {/* Sinais Vitais */}
@@ -3907,11 +3868,6 @@ if (hasAnyField) {
                           placeholder={t('rcpt_ph_weight', 'app')}
                           className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans font-bold"
                         />
-                        {triageFieldErrors.weight && (
-                          <p className="text-[10px] text-rose-600 font-medium mt-1 flex items-center gap-1">
-                            <AlertCircle className="w-3 h-3 shrink-0" /> {triageFieldErrors.weight}
-                          </p>
-                        )}
                       </div>
                       {/* Height */}
                       <div>
@@ -3929,11 +3885,6 @@ if (hasAnyField) {
                           placeholder={t('rcpt_ph_height', 'app')}
                           className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans font-bold"
                         />
-                        {triageFieldErrors.height && (
-                          <p className="text-[10px] text-rose-600 font-medium mt-1 flex items-center gap-1">
-                            <AlertCircle className="w-3 h-3 shrink-0" /> {triageFieldErrors.height}
-                          </p>
-                        )}
                       </div>
                       {/* BMI (auto-calculated) */}
                       <div>
@@ -3981,11 +3932,6 @@ if (hasAnyField) {
                           placeholder="120/80"
                           className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans"
                         />
-                        {triageFieldErrors.bp && (
-                          <p className="text-[10px] text-rose-600 font-medium mt-1 flex items-center gap-1">
-                            <AlertCircle className="w-3 h-3 shrink-0" /> {triageFieldErrors.bp}
-                          </p>
-                        )}
                         {triageBP && (() => {
                           const parts = triageBP.split('/');
                           const systolic = parseInt(parts[0]);
@@ -4021,11 +3967,6 @@ if (hasAnyField) {
                           placeholder={t('rcpt_ph_temp', 'app')}
                           className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans"
                         />
-                        {triageFieldErrors.temp && (
-                          <p className="text-[10px] text-rose-600 font-medium mt-1 flex items-center gap-1">
-                            <AlertCircle className="w-3 h-3 shrink-0" /> {triageFieldErrors.temp}
-                          </p>
-                        )}
                         {triageTemp && (() => {
                           const temp = parseFloat(triageTemp);
                           if (!isNaN(temp)) {
@@ -4057,11 +3998,6 @@ if (hasAnyField) {
                           maxLength={5}
                           className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans"
                         />
-                        {triageFieldErrors.spo2 && (
-                          <p className="text-[10px] text-rose-600 font-medium mt-1 flex items-center gap-1">
-                            <AlertCircle className="w-3 h-3 shrink-0" /> {triageFieldErrors.spo2}
-                          </p>
-                        )}
                         {triageSpo2 && (() => {
                           const spo2 = Number(triageSpo2);
                           if (vitalsLimits.spo2.red(spo2)) {
@@ -4089,11 +4025,6 @@ if (hasAnyField) {
                           placeholder={t('rcpt_ph_hr', 'app')}
                           className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans"
                         />
-                        {triageFieldErrors.hr && (
-                          <p className="text-[10px] text-rose-600 font-medium mt-1 flex items-center gap-1">
-                            <AlertCircle className="w-3 h-3 shrink-0" /> {triageFieldErrors.hr}
-                          </p>
-                        )}
                         {triageHR && (() => {
                           const hr = parseInt(triageHR);
                           if (!isNaN(hr)) {
@@ -4127,11 +4058,6 @@ if (hasAnyField) {
                           placeholder={t('rcpt_ph_rr', 'app')}
                           className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans"
                         />
-                        {triageFieldErrors.rr && (
-                          <p className="text-[10px] text-rose-600 font-medium mt-1 flex items-center gap-1">
-                            <AlertCircle className="w-3 h-3 shrink-0" /> {triageFieldErrors.rr}
-                          </p>
-                        )}
                         {triageRR && (() => {
                           const rr = parseInt(triageRR);
                           if (!isNaN(rr)) {

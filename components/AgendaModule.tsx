@@ -1840,6 +1840,12 @@ const AgendaModuleContent = ({
     setClinicPatients(prev => prev.filter(p => p.id !== patient.id));
     addAuditLog('Excluiu Paciente Clinico', patient.name);
     if (supabase) {
+      // Excluir foto do Storage
+      const { error: photoError } = await supabase.storage
+        .from('patient-photos')
+        .remove([`patient_${patient.id}.jpg`]);
+      if (photoError) console.error("[SUPABASE] DELETE photo FAILED:", photoError.message);
+
       await supabase.from('clinic_patients').delete().eq('id', patient.id);
     }
   };
