@@ -21,6 +21,9 @@ import { Button } from '@/components/ui/button';
 import PhoneInput from '@/components/PhoneInput';
 import I18nDatePicker from '@/components/I18nDatePicker';
 import { Badge } from '@/components/ui/badge';
+import { useFormValidation, groupErrorsByPath } from '@/lib/validation';
+import { appointmentSchema } from '@/lib/validation/schemas';
+import { FormErrorSummary } from '@/components/forms';
 
 // ==============================================================
 // INLINE MODAL (avoids Radix Dialog portal/focus issues)
@@ -523,6 +526,7 @@ const AgendaModuleContent = ({
   });
   const [minGapMinutes, setMinGapMinutes] = useState(30);
   const [schedulingConfig, setSchedulingConfig] = useState({ showConfig: false });
+  const { errors: apptErrors, validate: validateAppt } = useFormValidation(appointmentSchema);
 
   // Edit appointment modal
   const [showEditApptModal, setShowEditApptModal] = useState(false);
@@ -1535,14 +1539,15 @@ const AgendaModuleContent = ({
 
   const handleNewAppointment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newApptForm.patient_id) { alert(t('agenda_alert_select_patient', 'app')); return; }
-    if (!newApptForm.branch) { alert(t('agenda_alert_select_branch', 'app')); return; }
-    if (!newApptForm.room) { alert(t('agenda_alert_select_room', 'app')); return; }
-    if (!newApptForm.specialty) { alert(t('agenda_alert_select_specialty', 'app')); return; }
-    if (!newApptForm.doctor_name) { alert(t('agenda_alert_select_professional', 'app')); return; }
-    if (!newApptForm.date) { alert(t('agenda_alert_select_date', 'app')); return; }
-    if (!newApptForm.time) { alert(t('agenda_alert_select_time', 'app')); return; }
-    if (!newApptForm.insurance_type) { alert(t('agenda_alert_select_insurance', 'app')); return; }
+    const result = validateAppt({
+      patientId: newApptForm.patient_id,
+      patientName: patients.find(p => p.id === newApptForm.patient_id)?.name || '',
+      doctorName: newApptForm.doctor_name,
+      specialty: newApptForm.specialty,
+      date: newApptForm.date,
+      time: newApptForm.time,
+    });
+    if (!result.success) return;
     if (isBlocked(newApptForm.date, newApptForm.time, newApptForm.doctor_name, newApptForm.branch)) {
       alert(t('agenda_alert_slot_blocked_doctor_branch', 'app'));
       return;
@@ -3462,6 +3467,8 @@ const AgendaModuleContent = ({
             <div className="flex items-center justify-between">
               <h3 className="font-bold text-lg">{t('agenda_new_appointment_title', 'app')}</h3>
             </div>
+
+            {apptErrors.length > 0 && <FormErrorSummary errors={apptErrors} />}
 
 
             {/* Paciente (Busca em clinic_patients) */}
