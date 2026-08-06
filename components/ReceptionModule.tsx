@@ -1016,7 +1016,7 @@ export default function ReceptionModule({
       email: newEmail || 'sem-email@iamed.com',
       phone: newPhone,
       birthdate: newBirthdate,
-      gender: newGender || 'Masculino',
+      gender: newGender || 'M',
       priority: newPriority,
       status: 'aguardando',
       clinicalHistory: [],
@@ -2329,8 +2329,8 @@ if (hasAnyField) {
                           className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans text-xs"
                         >
                           <option value="">{t('rcpt_select', 'app')}</option>
-                          <option value="Masculino">{t('rcpt_gender_male', 'app')}</option>
-                          <option value="Feminino">{t('rcpt_gender_female', 'app')}</option>
+                          <option value="M">{t('rcpt_gender_male', 'app')}</option>
+                          <option value="F">{t('rcpt_gender_female', 'app')}</option>
                           <option value="Outro">{t('rcpt_gender_other', 'app')}</option>
                         </select>
                       </div>
