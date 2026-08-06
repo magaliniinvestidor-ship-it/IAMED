@@ -62,6 +62,7 @@ export function useFormValidation<T>(schema: ZodSchema<T>) {
     clearErrors,
     setFieldError,
     getFieldError,
+    setErrors,
   };
 }
 

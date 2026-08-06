@@ -5,7 +5,7 @@ import { Patient, Appointment, Professional } from '@/lib/mockData';
 import { supabase } from '@/lib/supabaseClient';
 import { useI18n } from '@/lib/i18n/I18nContext';
 import { useFormValidation, groupErrorsByPath } from '@/lib/validation';
-import { patientSchema } from '@/lib/validation/schemas';
+import { patientSchema, patientIdentificationSchema, patientContactAddressSchema, patientComplementarySchema, patientGuardianSchema } from '@/lib/validation/schemas';
 import { FormErrorSummary } from '@/components/forms';
 import { isValidPhoneNumber, parsePhoneNumber } from 'libphonenumber-js';
 import PhoneInput from '@/components/PhoneInput';
@@ -80,7 +80,12 @@ export default function ReceptionModule({
     validate: validatePatient,
     clearErrors: clearPatientErrors,
     setFieldError: setPatientFieldError,
+    setErrors: setPatientErrors,
   } = useFormValidation(patientSchema);
+  const { validate: validateIdentification } = useFormValidation(patientIdentificationSchema);
+  const { validate: validateContactAddress } = useFormValidation(patientContactAddressSchema);
+  const { validate: validateComplementary } = useFormValidation(patientComplementarySchema);
+  const { validate: validateGuardian } = useFormValidation(patientGuardianSchema);
   // Mandatory fields
   const [newName, setNewName] = useState('');
   const [newBirthdate, setNewBirthdate] = useState('');
@@ -871,12 +876,12 @@ export default function ReceptionModule({
 
   // Per-tab validators
   const validateIdentificationTab = (): boolean => {
-    const result = validatePatient({
+    const result = validateIdentification({
       name: newName,
-      email: newEmail || '',
+      email: newEmail,
       phone: newPhone,
       birthdate: newBirthdate,
-      gender: (newGender || 'Masculino') as 'M' | 'F' | 'Outro',
+      gender: newGender as 'M' | 'F' | 'Outro',
       document_type: documentType as 'CI' | 'RG' | 'Passaporte' | 'Outro' | undefined,
       document_number: documentNumber,
       place_of_birth: placeOfBirth,
@@ -884,51 +889,48 @@ export default function ReceptionModule({
       civil_status: civilStatus as 'Solteiro(a)' | 'Casado(a)' | 'Divorciado(a)' | 'Viúvo(a)' | 'União Estável' | undefined,
       photo_url: photoUrl,
     });
+    if (!result.success) {
+      setPatientErrors(result.errors);
+    } else {
+      setPatientErrors([]);
+    }
     return result.success;
   };
 
   const validateContactAddressTab = (): boolean => {
-    clearPatientErrors();
-    let isValid = true;
-    if (!newPhone.trim()) {
-      setPatientFieldError('phone', t('rcpt_alert_required_phone', 'app'));
-      isValid = false;
-    } else if (!isPhoneValid) {
-      setPatientFieldError('phone', t('rcpt_alert_invalid_phone', 'app'));
-      isValid = false;
+    const result = validateContactAddress({
+      email: newEmail,
+      phone: newPhone,
+      address_department: addressDepartment,
+      address_city: addressCity,
+      address_neighborhood: addressNeighborhood,
+      address_street: addressStreet,
+      address_number: addressNumber,
+    });
+    if (!result.success) {
+      setPatientErrors(result.errors);
+      return false;
     }
-    if (!newEmail.trim()) {
-      setPatientFieldError('email', t('rcpt_alert_required_email', 'app'));
-      isValid = false;
-    }
-    if (!addressDepartment.trim()) {
-      setPatientFieldError('address_department', t('rcpt_alert_required_department', 'app'));
-      isValid = false;
-    }
-    if (!addressCity.trim()) {
-      setPatientFieldError('address_city', t('rcpt_alert_required_city', 'app'));
-      isValid = false;
-    }
-    return isValid;
+    setPatientErrors([]);
+    return true;
   };
 
   const validateComplementaryTab = (): boolean => {
-    const isEditing = !!selectedPatientId;
-    clearPatientErrors();
-    let isValid = true;
-    if (!isEditing && !allergies.trim()) {
-      setPatientFieldError('allergies', t('rcpt_alert_required_allergies', 'app'));
-      isValid = false;
+    const result = validateComplementary({
+      blood_type: bloodType as 'A+' | 'A-' | 'B+' | 'B-' | 'AB+' | 'AB-' | 'O+' | 'O-' | 'Não Informado' | '' | undefined,
+      allergies,
+      health_insurance_type: healthInsuranceType as 'IPS' | 'Sanidade Militar' | 'Sanidade Policial' | 'Pré-paga' | 'Seguro Privado' | 'Particular' | '' | undefined,
+      health_insurance_number: healthInsuranceNumber,
+      health_insurance_company: healthInsuranceCompany,
+      employer,
+      preferred_language: preferredLanguage as 'es' | 'es-AR' | 'es-PY' | 'gn' | 'pt-BR' | 'pt-PT' | 'en' | 'outros' | '' | undefined,
+    });
+    if (!result.success) {
+      setPatientErrors(result.errors);
+      return false;
     }
-    if (healthInsuranceType !== 'Particular' && !healthInsuranceNumber.trim()) {
-      setPatientFieldError('health_insurance_number', t('rcpt_alert_required_insurance_number', 'app'));
-      isValid = false;
-    }
-    if (!isEditing && !employer.trim()) {
-      setPatientFieldError('employer', t('rcpt_alert_required_employer', 'app'));
-      isValid = false;
-    }
-    return isValid;
+    setPatientErrors([]);
+    return true;
   };
 
   const handleNextTab = (
