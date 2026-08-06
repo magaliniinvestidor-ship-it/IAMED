@@ -878,8 +878,6 @@ export default function ReceptionModule({
   const validateIdentificationTab = (): boolean => {
     const result = validateIdentification({
       name: newName,
-      email: newEmail,
-      phone: newPhone,
       birthdate: newBirthdate,
       gender: newGender as 'M' | 'F' | 'Outro',
       document_type: documentType as 'CI' | 'RG' | 'Passaporte' | 'Outro' | undefined,

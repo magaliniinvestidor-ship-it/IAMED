@@ -298,6 +298,59 @@ export const systemUserSchema = z.object({
 
 export type SystemUserFormData = z.infer<typeof systemUserSchema>;
 
+export const patientIdentificationSchema = z.object({
+  name: nonEmptyString('Nome', 200),
+  birthdate: dateSchema,
+  gender: z.enum(['M', 'F', 'Outro']),
+  document_type: z.enum(['CI', 'RG', 'Passaporte', 'Outro']).optional(),
+  document_number: optionalString(30),
+  place_of_birth: optionalString(100),
+  nationality: optionalString(60),
+  civil_status: z
+    .enum(['Solteiro(a)', 'Casado(a)', 'Divorciado(a)', 'Viúvo(a)', 'União Estável'])
+    .optional(),
+  photo_url: z.string().min(1, 'Foto do paciente é obrigatória').optional(),
+});
+
+export type PatientIdentificationFormData = z.infer<typeof patientIdentificationSchema>;
+
+export const patientContactAddressSchema = z.object({
+  email: emailSchema,
+  phone: phoneSchema,
+  address_department: optionalString(60),
+  address_city: optionalString(60),
+  address_neighborhood: optionalString(100),
+  address_street: optionalString(150),
+  address_number: optionalString(20),
+});
+
+export type PatientContactAddressFormData = z.infer<typeof patientContactAddressSchema>;
+
+export const patientComplementarySchema = z.object({
+  blood_type: z
+    .enum(['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-', 'Não Informado', ''])
+    .optional(),
+  allergies: optionalString(1000),
+  health_insurance_type: z
+    .enum(['IPS', 'Sanidade Militar', 'Sanidade Policial', 'Pré-paga', 'Seguro Privado', 'Particular', ''])
+    .optional(),
+  health_insurance_number: optionalString(50),
+  health_insurance_company: optionalString(120),
+  employer: optionalString(120),
+  preferred_language: z.enum(['es', 'es-AR', 'es-PY', 'gn', 'pt-BR', 'pt-PT', 'en', 'outros', '']).optional(),
+});
+
+export type PatientComplementaryFormData = z.infer<typeof patientComplementarySchema>;
+
+export const patientGuardianSchema = z.object({
+  guardian_name: optionalString(200),
+  guardian_document: optionalString(30),
+  guardian_relationship: optionalString(60),
+  guardian_phone: phoneSchema.optional().or(z.literal('')),
+});
+
+export type PatientGuardianFormData = z.infer<typeof patientGuardianSchema>;
+
 export const pharmacyItemSchema = z.object({
   name: nonEmptyString('Nome', 200),
   category: z.enum([
