@@ -2460,7 +2460,9 @@ const ClinicalModuleContent = ({
                       )}
                     </div>
 
-                    {/* Add Medication Form */}
+                     {/* Add Medication Form */}
+
+                    {prescErrors.length > 0 && <FormErrorSummary errors={prescErrors} />}
                     <div className="border-t border-teal-200 p-4 space-y-3 bg-slate-50">
                       <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">{t('presc_add_title', 'app')}</p>
                       <div className="grid grid-cols-2 gap-2">
