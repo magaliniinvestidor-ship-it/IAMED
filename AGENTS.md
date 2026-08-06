@@ -160,3 +160,149 @@ const handleSave = async () => {
 - Manter o código limpo, eliminando comentários desnecessários.
 - Preferir edições em arquivos existentes antes de criar arquivos duplicados.
 - Nunca commitar senhas, tokens ou chaves secretas.
+
+---
+
+## Validação de Formulários com Zod
+
+### Regra Obrigatória
+
+**TODA validação de formulário DEVE usar Zod (schemas centralizados em `lib/validation/schemas.ts`).**
+
+**PROIBIDO** usar validação HTML5 nativa (`required`, `type="email"`, `type="tel"`, `type="url"`) — sempre usar `type="text"` para evitar popups nativos do navegador.
+
+### Por quê
+
+- ✅ Erros aparecem **inline** (embaixo de cada campo), não em popups do navegador
+- ✅ Mensagens em **português** (consistente com i18n)
+- ✅ Valida regras complexas (menor de idade precisa de responsável, data no passado, etc.)
+- ✅ TypeScript automático — Zod gera os tipos
+- ✅ Mesma validação pode ser usada no front e no back
+
+### Como funciona
+
+**1. Schemas ficam em `lib/validation/schemas.ts`:**
+
+```ts
+export const patientSchema = z.object({
+  name: nonEmptyString('Nome', 200),
+  email: emailSchema,
+  birthdate: dateSchema,
+  // ...
+});
+```
+
+**2. Componente usa o hook `useFormValidation`:**
+
+```tsx
+import { useFormValidation, groupErrorsByPath } from '@/lib/validation';
+import { FormErrorSummary } from '@/components/forms';
+import { patientSchema } from '@/lib/validation/schemas';
+
+const { errors, validate } = useFormValidation(patientSchema);
+
+const handleSave = async () => {
+  const result = validate(formData);
+  if (!result.success) {
+    // Erros aparecem automaticamente via FormErrorSummary e FormField
+    return;
+  }
+  // ...salvar no banco
+};
+```
+
+**3. JSX usa `FormField` com `error`:**
+
+```tsx
+<FormField label="Nome Completo" required error={fieldErrors.name}>
+  <input
+    type="text"  // NUNCA type="email" ou required
+    value={name}
+    onChange={(e) => setName(e.target.value)}
+  />
+</FormField>
+```
+
+### Padrão Obrigatório para Novos Formulários
+
+Todo novo formulário DEVE seguir este checklist:
+
+- [ ] Schema criado em `lib/validation/schemas.ts`
+- [ ] Hook `useFormValidation` usado no componente
+- [ ] Todos os `<input>` com `type="text"` (nunca `type="email"`, `type="tel"`, `type="url"`)
+- [ ] Todos os `<input>` sem atributo `required`
+- [ ] Componente `FormErrorSummary` no topo do formulário
+- [ ] Componente `FormField` com prop `error` em cada campo
+- [ ] Helper `groupErrorsByPath` para acessar erros por campo
+- [ ] Função de submit chama `validate()` antes de salvar
+
+### Schemas Existentes
+
+| Schema | Uso | Arquivo |
+|---|---|---|
+| `patientSchema` | Pacientes (Recepção) | `lib/validation/schemas.ts` |
+| `appointmentSchema` | Agendamentos | `lib/validation/schemas.ts` |
+| `professionalSchema` | Profissionais | `lib/validation/schemas.ts` |
+| `insuranceSchema` | Convênios | `lib/validation/schemas.ts` |
+| `prescriptionSchema` | Prescrições | `lib/validation/schemas.ts` |
+| `dteSchema` | Documentos Fiscais Eletrônicos | `lib/validation/schemas.ts` |
+| `triageSchema` | Triagem Manchester | `lib/validation/schemas.ts` |
+| `passwordChangeSchema` | Mudança de senha | `lib/validation/schemas.ts` |
+| `locationSchema` | Locais/Sedes | `lib/validation/schemas.ts` |
+| `clinicalRoomSchema` | Salas Clínicas | `lib/validation/schemas.ts` |
+| `systemUserSchema` | Usuários do Sistema | `lib/validation/schemas.ts` |
+| `pharmacyItemSchema` | Itens de Estoque | `lib/validation/schemas.ts` |
+
+### Para Atualizações de Módulos Existentes
+
+Ao atualizar qualquer módulo (estoque, CRM, internação, diagnóstico, financeiro), o agente DEVE:
+
+1. Identificar todos os formulários do módulo
+2. Criar schema Zod correspondente em `lib/validation/schemas.ts`
+3. Refatorar o formulário para usar `useFormValidation` + `FormField` + `FormErrorSummary`
+4. Remover todos os `required` e mudar `type="email"/"tel"/"url"` para `type="text"`
+5. Validar com `npx tsc --noEmit` (0 erros) e `npx eslint` (0 erros)
+6. Commitar com mensagem: `validacao: integrar Zod em [NomeDoModulo]`
+
+### Exemplo Completo
+
+```tsx
+'use client';
+
+import { useFormValidation, groupErrorsByPath } from '@/lib/validation';
+import { patientSchema } from '@/lib/validation/schemas';
+import { FormField, FormErrorSummary } from '@/components/forms';
+
+export function MeuForm() {
+  const { errors, validate } = useFormValidation(patientSchema);
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const fieldErrors = groupErrorsByPath(errors);
+
+  const handleSave = () => {
+    const result = validate({ name, email });
+    if (!result.success) return;
+    // salvar...
+  };
+
+  return (
+    <form>
+      {errors.length > 0 && <FormErrorSummary errors={errors} />}
+      
+      <FormField label="Nome" required error={fieldErrors.name}>
+        <input type="text" value={name} onChange={(e) => setName(e.target.value)} />
+      </FormField>
+      
+      <FormField label="E-mail" required error={fieldErrors.email}>
+        <input type="text" value={email} onChange={(e) => setEmail(e.target.value)} />
+      </FormField>
+      
+      <button onClick={handleSave}>Salvar</button>
+    </form>
+  );
+}
+```
+
+### Exceção
+
+Se um módulo ainda não foi migrado para Zod (legado), ele PODE manter validação HTML5 temporariamente, mas DEVE ser migrado na próxima atualização do módulo.
