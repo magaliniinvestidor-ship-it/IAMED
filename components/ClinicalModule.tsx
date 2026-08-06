@@ -5,6 +5,9 @@ import { Patient, AsoExam, Cid10Code, Prescription, ExamRequest, Procedure, Anam
 import { supabase } from '@/lib/supabaseClient';
 import { useI18n } from '@/lib/i18n/I18nContext';
 import { useModuleId } from '@/hooks/useModuleId';
+import { useFormValidation } from '@/lib/validation';
+import { prescriptionSchema } from '@/lib/validation/schemas';
+import { FormErrorSummary } from '@/components/forms';
 
 import {
   ClipboardList, Microscope, HeartPulse, ShieldAlert,
@@ -203,6 +206,7 @@ const ClinicalModuleContent = ({
   patientsRef.current = patients;
 
   const genId = useModuleId('next_clinical_id');
+  const { errors: prescErrors, validate: validatePresc } = useFormValidation(prescriptionSchema);
 
   // Load CID-10 codes from Supabase (server-side search)
   useEffect(() => {
@@ -873,6 +877,21 @@ const ClinicalModuleContent = ({
 
   // ─── SAVE PRESCRIPTION ───
   const handleSavePrescription = async () => {
+    // Zod validation
+    const prescResult = validatePresc({
+      patientId: selectedPatient?.id || '',
+      drugName: prescriptionForm.drugName,
+      activeIngredient: prescriptionForm.activeIngredient || '',
+      dosage: prescriptionForm.dosage || '',
+      frequency: prescriptionForm.frequency || '',
+      route: prescriptionForm.route || '',
+      duration: prescriptionForm.duration || '',
+      quantity: Number(prescriptionForm.quantity) || 0,
+      unit: prescriptionForm.unit || '',
+      notes: prescriptionForm.notes || '',
+    });
+    if (!prescResult.success) return;
+
     if (!prescriptionForm.drugName.trim()) return;
     const presc: Prescription = {
       id: await genId('presc'),
