@@ -43,7 +43,7 @@ export const patientSchema = z.object({
   document_type: z.enum(['CI', 'RG', 'Passaporte', 'Outro']).optional(),
   document_number: optionalString(30),
   place_of_birth: optionalString(100),
-  nationality: optionalString(60),
+  nationality: nonEmptyString('Nacionalidade', 60),
   civil_status: z
     .enum(['Solteiro(a)', 'Casado(a)', 'Divorciado(a)', 'Viúvo(a)', 'União Estável'])
     .optional(),
@@ -316,7 +316,7 @@ export const createPatientIdentificationSchema = (m: ValidationMessages) =>
       .optional(),
     document_number: z.string().max(30, m.maxLength('Documento', 30)).optional().or(z.literal('')),
     place_of_birth: z.string().max(100, m.maxLength('Local', 100)).optional().or(z.literal('')),
-    nationality: z.string().max(60, m.maxLength('Nacionalidade', 60)).optional().or(z.literal('')),
+    nationality: z.string().min(1, m.required('Nacionalidade')).max(60, m.maxLength('Nacionalidade', 60)),
     civil_status: z
       .enum(['Solteiro(a)', 'Casado(a)', 'Divorciado(a)', 'Viúvo(a)', 'União Estável'], {
         message: m.civilStatus,
