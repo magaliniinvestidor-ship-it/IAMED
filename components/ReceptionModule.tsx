@@ -87,6 +87,7 @@ export default function ReceptionModule({
     setFieldError: setPatientFieldError,
     setErrors: setPatientErrors,
   } = useFormValidation(patientSchema);
+  const patientFieldErrors = groupErrorsByPath(patientErrors);
   const { validate: validateIdentification } = useFormValidation(patientSchemas.identification);
   const { validate: validateContactAddress } = useFormValidation(patientSchemas.contactAddress);
   const { validate: validateComplementary } = useFormValidation(patientSchemas.complementary);
@@ -911,6 +912,7 @@ export default function ReceptionModule({
       email: newEmail,
       phone: newPhone,
       address_department: addressDepartment,
+      address_district: addressDistrict,
       address_city: addressCity,
       address_neighborhood: addressNeighborhood,
       address_street: addressStreet,
@@ -2297,7 +2299,7 @@ if (hasAnyField) {
                           <input 
                             type="text" 
                             value={documentNumber} 
-                            onChange={e => setDocumentNumber(e.target.value)}
+                            onChange={e => { clearPatientErrors(); setDocumentNumber(e.target.value); }}
                             placeholder=""
                             className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans"
                           />
@@ -2307,6 +2309,11 @@ if (hasAnyField) {
                             </span>
                           )}
                         </div>
+                        {patientFieldErrors.document_number && (
+                          <p className="text-[10px] text-rose-600 font-medium mt-1 flex items-center gap-1">
+                            <AlertCircle className="w-3 h-3 shrink-0" /> {patientFieldErrors.document_number}
+                          </p>
+                        )}
                       </div>
                     </div>
 
@@ -2330,10 +2337,15 @@ if (hasAnyField) {
                         <input 
                           type="text" 
                           value={placeOfBirth} 
-                          onChange={e => setPlaceOfBirth(e.target.value)}
+                          onChange={e => { clearPatientErrors(); setPlaceOfBirth(e.target.value); }}
                           placeholder=""
                           className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans"
                         />
+                        {patientFieldErrors.place_of_birth && (
+                          <p className="text-[10px] text-rose-600 font-medium mt-1 flex items-center gap-1">
+                            <AlertCircle className="w-3 h-3 shrink-0" /> {patientFieldErrors.place_of_birth}
+                          </p>
+                        )}
                       </div>
                     </div>
 
@@ -2502,14 +2514,19 @@ if (hasAnyField) {
                           />
                         </div>
                         <div>
-                          <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">{t('rcpt_district', 'app')}</label>
+                          <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">{t('rcpt_state', 'app')}</label>
                           <input 
                             type="text" 
                             value={addressDistrict} 
-                            onChange={e => setAddressDistrict(e.target.value)}
+                            onChange={e => { clearPatientErrors(); setAddressDistrict(e.target.value); }}
                             placeholder=""
                             className="w-full p-2 bg-white border border-slate-200 rounded-md text-xs font-sans focus:outline-teal-500"
                           />
+                          {patientFieldErrors.address_district && (
+                            <p className="text-[10px] text-rose-600 font-medium mt-1 flex items-center gap-1">
+                              <AlertCircle className="w-3 h-3 shrink-0" /> {patientFieldErrors.address_district}
+                            </p>
+                          )}
                         </div>
                       </div>
 
@@ -2529,10 +2546,15 @@ if (hasAnyField) {
                           <input 
                             type="text" 
                             value={addressNeighborhood} 
-                            onChange={e => setAddressNeighborhood(e.target.value)}
+                            onChange={e => { clearPatientErrors(); setAddressNeighborhood(e.target.value); }}
                             placeholder=""
                             className="w-full p-2 bg-white border border-slate-200 rounded-md text-xs font-sans focus:outline-teal-500"
                           />
+                          {patientFieldErrors.address_neighborhood && (
+                            <p className="text-[10px] text-rose-600 font-medium mt-1 flex items-center gap-1">
+                              <AlertCircle className="w-3 h-3 shrink-0" /> {patientFieldErrors.address_neighborhood}
+                            </p>
+                          )}
                         </div>
                       </div>
 
@@ -2576,7 +2598,7 @@ if (hasAnyField) {
                         <label className="block text-xs font-semibold text-slate-600 mb-1">{t('rcpt_label_blood_type', 'app')}</label>
                         <select 
                           value={bloodType} 
-                          onChange={e => setBloodType(e.target.value as any)}
+                          onChange={e => { clearPatientErrors(); setBloodType(e.target.value as any); }}
                           className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans"
                         >
                           <option value="">{t('rcpt_select', 'app')}</option>
@@ -2590,12 +2612,17 @@ if (hasAnyField) {
                           <option value="O-">O-</option>
                           <option value="Não Informado">{t('rcpt_blood_not_informed', 'app')}</option>
                         </select>
+                        {patientFieldErrors.blood_type && (
+                          <p className="text-[10px] text-rose-600 font-medium mt-1 flex items-center gap-1">
+                            <AlertCircle className="w-3 h-3 shrink-0" /> {patientFieldErrors.blood_type}
+                          </p>
+                        )}
                       </div>
                       <div>
                         <label className="block text-xs font-semibold text-slate-600 mb-1">{t('rcpt_label_preferred_language', 'app')}</label>
                         <select 
                           value={preferredLanguage} 
-                          onChange={e => setPreferredLanguage(e.target.value as any)}
+                          onChange={e => { clearPatientErrors(); setPreferredLanguage(e.target.value as any); }}
                           className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans text-xs"
                         >
                           <option value="">{t('rcpt_select', 'app')}</option>
@@ -2608,6 +2635,11 @@ if (hasAnyField) {
                           <option value="en">🇺🇸 English (US/UK)</option>
                           <option value="outros">{t('rcpt_lang_other', 'app')}</option>
                         </select>
+                        {patientFieldErrors.preferred_language && (
+                          <p className="text-[10px] text-rose-600 font-medium mt-1 flex items-center gap-1">
+                            <AlertCircle className="w-3 h-3 shrink-0" /> {patientFieldErrors.preferred_language}
+                          </p>
+                        )}
                       </div>
                     </div>
 
@@ -2615,11 +2647,16 @@ if (hasAnyField) {
                       <label className="block text-xs font-semibold text-slate-600 mb-1">{t('rcpt_allergies', 'app')} *</label>
                       <textarea 
                         value={allergies} 
-                        onChange={e => setAllergies(e.target.value)}
+                        onChange={e => { clearPatientErrors(); setAllergies(e.target.value); }}
                         placeholder=""
                         rows={2}
                         className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-teal-500 font-sans text-xs"
                       />
+                      {patientFieldErrors.allergies && (
+                        <p className="text-[10px] text-rose-600 font-medium mt-1 flex items-center gap-1">
+                          <AlertCircle className="w-3 h-3 shrink-0" /> {patientFieldErrors.allergies}
+                        </p>
+                      )}
                     </div>
 
                     <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5">

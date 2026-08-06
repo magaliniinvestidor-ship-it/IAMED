@@ -933,6 +933,7 @@
     "rcpt_email": "Email *",
     "rcpt_address": "Full Address",
     "rcpt_department": "Department *",
+    "rcpt_state": "State *",
     "rcpt_district": "District *",
     "rcpt_city": "City *",
     "rcpt_neighborhood": "Neighborhood *",

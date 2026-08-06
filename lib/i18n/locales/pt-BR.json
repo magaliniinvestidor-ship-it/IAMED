@@ -1247,6 +1247,7 @@
     "rcpt_email": "E-mail *",
     "rcpt_address": "Endereço Completo",
     "rcpt_department": "Departamento *",
+    "rcpt_state": "Estado *",
     "rcpt_district": "Bairro *",
     "rcpt_city": "Cidade *",
     "rcpt_neighborhood": "Bairro *",

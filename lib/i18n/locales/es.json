@@ -553,6 +553,7 @@
     "rcpt_email": "Correo Electrónico *",
     "rcpt_address": "Dirección Completa",
     "rcpt_department": "Departamento *",
+    "rcpt_state": "Estado *",
     "rcpt_district": "Barrio *",
     "rcpt_city": "Ciudad *",
     "rcpt_neighborhood": "Barrio *",

@@ -16,6 +16,9 @@ export interface ValidationMessages {
   documentType: string;
   civilStatus: string;
   photoRequired: string;
+  bloodType: string;
+  preferredLanguage: string;
+  allergiesRequired: string;
   rucFormat: string;
   urlInvalid: string;
 }
@@ -36,6 +39,9 @@ export function getValidationMessages(locale: Locale): ValidationMessages {
       documentType: 'Selecione um tipo de documento',
       civilStatus: 'Selecione um estado civil',
       photoRequired: 'Foto do paciente é obrigatória',
+      bloodType: 'Selecione o tipo sanguíneo',
+      preferredLanguage: 'Selecione o idioma preferido',
+      allergiesRequired: 'Informe alergias / histórico clínico',
       rucFormat: 'RUC deve conter apenas números e hífens',
       urlInvalid: 'URL inválida',
     },
@@ -53,6 +59,9 @@ export function getValidationMessages(locale: Locale): ValidationMessages {
       documentType: 'Select a document type',
       civilStatus: 'Select a marital status',
       photoRequired: 'Patient photo is required',
+      bloodType: 'Select blood type',
+      preferredLanguage: 'Select preferred language',
+      allergiesRequired: 'Provide allergies / clinical history',
       rucFormat: 'RUC must contain only numbers and hyphens',
       urlInvalid: 'Invalid URL',
     },
@@ -70,6 +79,9 @@ export function getValidationMessages(locale: Locale): ValidationMessages {
       documentType: 'Seleccione un tipo de documento',
       civilStatus: 'Seleccione un estado civil',
       photoRequired: 'Foto del paciente es obligatoria',
+      bloodType: 'Seleccione el tipo de sangre',
+      preferredLanguage: 'Seleccione el idioma preferido',
+      allergiesRequired: 'Indique alergias / historial clínico',
       rucFormat: 'RUC debe contener solo números y guiones',
       urlInvalid: 'URL inválida',
     },
@@ -87,6 +99,9 @@ export function getValidationMessages(locale: Locale): ValidationMessages {
       documentType: 'Selecione um tipo de documento',
       civilStatus: 'Selecione um estado civil',
       photoRequired: 'Foto do paciente é obrigatória',
+      bloodType: 'Selecione o tipo sanguíneo',
+      preferredLanguage: 'Selecione o idioma preferido',
+      allergiesRequired: 'Indique alergias / histórico clínico',
       rucFormat: 'RUC deve conter apenas números e hífens',
       urlInvalid: 'URL inválida',
     },
@@ -104,6 +119,9 @@ export function getValidationMessages(locale: Locale): ValidationMessages {
       documentType: 'Seleccione un tipo de documento',
       civilStatus: 'Seleccione un estado civil',
       photoRequired: 'Foto del paciente es obligatoria',
+      bloodType: 'Seleccione el grupo de sangre',
+      preferredLanguage: 'Seleccione el idioma preferido',
+      allergiesRequired: 'Indique alergias / historial clínico',
       rucFormat: 'RUC debe contener solo números y guiones',
       urlInvalid: 'URL inválida',
     },
@@ -121,6 +139,9 @@ export function getValidationMessages(locale: Locale): ValidationMessages {
       documentType: 'Seleccione un tipo de documento',
       civilStatus: 'Seleccione un estado civil',
       photoRequired: 'Foto del paciente es obligatoria',
+      bloodType: 'Seleccione el grupo de sangre',
+      preferredLanguage: 'Seleccione el idioma preferido',
+      allergiesRequired: 'Indique alergias / historial clínico',
       rucFormat: 'RUC debe contener solo números y guiones',
       urlInvalid: 'URL inválida',
     },
@@ -135,9 +156,9 @@ export function createPatientIdentificationSchema(m: ValidationMessages) {
     birthdate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, m.dateFormat).refine((val) => !isNaN(Date.parse(val)), m.dateInvalid),
     gender: z.enum(['M', 'F', 'Outro'], { message: m.gender }),
     document_type: z.enum(['CI', 'RG', 'Passaporte', 'Outro'], { message: m.documentType }).optional(),
-    document_number: z.string().max(30, m.maxLength('Documento', 30)).optional().or(z.literal('')),
-    place_of_birth: z.string().max(100, m.maxLength('Local', 100)).optional().or(z.literal('')),
-    nationality: z.string().max(60, m.maxLength('Nacionalidade', 60)).optional().or(z.literal('')),
+    document_number: z.string().min(1, m.required('Documento')).max(30, m.maxLength('Documento', 30)),
+    place_of_birth: z.string().min(1, m.required('Local de nascimento')).max(100, m.maxLength('Local de nascimento', 100)),
+    nationality: z.string().min(1, m.required('Nacionalidade')).max(60, m.maxLength('Nacionalidade', 60)),
     civil_status: z
       .enum(['Solteiro(a)', 'Casado(a)', 'Divorciado(a)', 'Viúvo(a)', 'União Estável'], { message: m.civilStatus })
       .optional(),
@@ -157,8 +178,9 @@ export function createPatientContactAddressSchema(m: ValidationMessages) {
       .max(20, m.phoneInvalid)
       .regex(/^[\d+\-\s()]+$/, m.phoneFormat),
     address_department: z.string().min(1, m.required('Departamento')).max(60, m.maxLength('Departamento', 60)),
+    address_district: z.string().min(1, m.required('Estado')).max(60, m.maxLength('Estado', 60)),
     address_city: z.string().min(1, m.required('Cidade')).max(60, m.maxLength('Cidade', 60)),
-    address_neighborhood: z.string().max(100, m.maxLength('Bairro', 100)).optional().or(z.literal('')),
+    address_neighborhood: z.string().min(1, m.required('Bairro')).max(100, m.maxLength('Bairro', 100)),
     address_street: z.string().min(1, m.required('Rua')).max(150, m.maxLength('Rua', 150)),
     address_number: z.string().min(1, m.required('Número')).max(20, m.maxLength('Número', 20)),
   });
@@ -167,16 +189,22 @@ export function createPatientContactAddressSchema(m: ValidationMessages) {
 export function createPatientComplementarySchema(m: ValidationMessages) {
   return z.object({
     blood_type: z
-      .enum(['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-', 'Não Informado', ''])
-      .optional(),
-    allergies: z.string().max(1000, m.maxLength('Alergias', 1000)).optional().or(z.literal('')),
+      .enum(['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-', 'Não Informado', ''], {
+        message: m.bloodType,
+      })
+      .refine((val) => val !== '', { message: m.bloodType }),
+    allergies: z.string().min(1, m.allergiesRequired).max(1000, m.maxLength('Alergias', 1000)),
     health_insurance_type: z
       .enum(['IPS', 'Sanidade Militar', 'Sanidade Policial', 'Pré-paga', 'Seguro Privado', 'Particular', ''])
       .optional(),
     health_insurance_number: z.string().max(50, m.maxLength('Número', 50)).optional().or(z.literal('')),
     health_insurance_company: z.string().max(120, m.maxLength('Convênio', 120)).optional().or(z.literal('')),
     employer: z.string().max(120, m.maxLength('Empregador', 120)).optional().or(z.literal('')),
-    preferred_language: z.enum(['es', 'es-AR', 'es-PY', 'gn', 'pt-BR', 'pt-PT', 'en', 'outros', '']).optional(),
+    preferred_language: z
+      .enum(['es', 'es-AR', 'es-PY', 'gn', 'pt-BR', 'pt-PT', 'en', 'outros', ''], {
+        message: m.preferredLanguage,
+      })
+      .refine((val) => val !== '', { message: m.preferredLanguage }),
   });
 }
 
