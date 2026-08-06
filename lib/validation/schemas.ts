@@ -62,6 +62,7 @@ export const patientSchema = z.object({
   guardian_relationship: optionalString(60),
   guardian_phone: phoneSchema.optional().or(z.literal('')),
   preferred_language: z.enum(['es', 'es-AR', 'es-PY', 'gn', 'pt-BR', 'pt-PT', 'en', 'outros', '']).optional(),
+  photo_url: z.string().min(1, 'Foto do paciente é obrigatória').optional(),
 }).refine(
   (data) => {
     if (!data.birthdate) return true;
