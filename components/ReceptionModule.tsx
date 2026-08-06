@@ -885,7 +885,7 @@ export default function ReceptionModule({
       place_of_birth: placeOfBirth,
       nationality,
       civil_status: civilStatus as 'Solteiro(a)' | 'Casado(a)' | 'Divorciado(a)' | 'Viúvo(a)' | 'União Estável' | undefined,
-      photo_url: photoUrl,
+      photo_url: photoUrl || webcamPlaceholder || '',
     });
     if (!result.success) {
       setPatientErrors(result.errors);

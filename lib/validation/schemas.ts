@@ -315,7 +315,10 @@ export const patientIdentificationSchema = z.object({
       message: 'Selecione um estado civil',
     })
     .optional(),
-  photo_url: z.string().min(1, 'Foto do paciente é obrigatória').optional(),
+  photo_url: z
+    .string()
+    .refine((val) => Boolean(val) && val.length > 0 && val !== 'data:,', 'Foto do paciente é obrigatória')
+    .optional(),
 });
 
 export type PatientIdentificationFormData = z.infer<typeof patientIdentificationSchema>;
