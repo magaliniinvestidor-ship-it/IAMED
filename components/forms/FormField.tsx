@@ -49,9 +49,7 @@ export function FormErrorSummary({ errors, title = 'Corrija os seguintes erros:'
       </p>
       <ul className="space-y-0.5 ml-5 list-disc text-[11px] text-rose-600">
         {errors.map((err, idx) => (
-          <li key={idx}>
-            <b>{err.path}:</b> {err.message}
-          </li>
+          <li key={idx}>{err.message}</li>
         ))}
       </ul>
     </div>
