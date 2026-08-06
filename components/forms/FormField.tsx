@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, X } from 'lucide-react';
 
 export interface FormFieldProps {
   label?: string;
@@ -37,16 +37,29 @@ export function FormField({ label, error, required, hint, className = '', childr
 export interface FormErrorSummaryProps {
   errors: Array<{ path: string; message: string }>;
   title?: string;
+  onClose?: () => void;
 }
 
-export function FormErrorSummary({ errors, title = 'Corrija os seguintes erros:' }: FormErrorSummaryProps) {
+export function FormErrorSummary({ errors, title = 'Corrija os seguintes erros:', onClose }: FormErrorSummaryProps) {
   if (errors.length === 0) return null;
   return (
     <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg space-y-1.5">
-      <p className="text-xs font-bold text-rose-700 flex items-center gap-1.5">
-        <AlertCircle className="w-3.5 h-3.5" />
-        {title}
-      </p>
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-xs font-bold text-rose-700 flex items-center gap-1.5">
+          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+          {title}
+        </p>
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label={title}
+            className="text-rose-500 hover:text-rose-700 hover:bg-rose-100 rounded-md p-0.5 transition cursor-pointer shrink-0"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
       <ul className="space-y-0.5 ml-5 list-disc text-[11px] text-rose-600">
         {errors.map((err, idx) => (
           <li key={idx}>{err.message}</li>

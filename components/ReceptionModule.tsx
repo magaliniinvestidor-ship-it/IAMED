@@ -2177,7 +2177,7 @@ if (hasAnyField) {
                 <button
                   type="button"
                   data-testid="reception-tab-identification"
-                  onClick={() => setActiveFormTab('identification')}
+                  onClick={() => { clearPatientErrors(); setActiveFormTab('identification'); }}
                   className={`flex-1 min-w-[70px] py-1.5 px-2 rounded-md transition text-center cursor-pointer ${
                     activeFormTab === 'identification' 
                       ? 'bg-white text-teal-700 shadow-xs' 
@@ -2189,7 +2189,7 @@ if (hasAnyField) {
                 <button
                   type="button"
                   data-testid="reception-tab-contact"
-                  onClick={() => setActiveFormTab('contact_address')}
+                  onClick={() => { clearPatientErrors(); setActiveFormTab('contact_address'); }}
                   className={`flex-1 min-w-[70px] py-1.5 px-2 rounded-md transition text-center cursor-pointer ${
                     activeFormTab === 'contact_address' 
                       ? 'bg-white text-teal-700 shadow-xs' 
@@ -2201,7 +2201,7 @@ if (hasAnyField) {
                 <button
                   type="button"
                   data-testid="reception-tab-complementary"
-                  onClick={() => setActiveFormTab('complementary')}
+                  onClick={() => { clearPatientErrors(); setActiveFormTab('complementary'); }}
                   className={`flex-1 min-w-[70px] py-1.5 px-2 rounded-md transition text-center cursor-pointer ${
                     activeFormTab === 'complementary' 
                       ? 'bg-white text-teal-700 shadow-xs' 
@@ -2213,7 +2213,7 @@ if (hasAnyField) {
                 <button
                   type="button"
                   data-testid="reception-tab-guardian"
-                  onClick={() => setActiveFormTab('guardian')}
+                  onClick={() => { clearPatientErrors(); setActiveFormTab('guardian'); }}
                   className={`flex-1 min-w-[70px] py-1.5 px-2 rounded-md transition text-center cursor-pointer flex items-center justify-center gap-1 ${
                     isMinor ? 'border border-amber-300 text-amber-800 bg-amber-50/50' : ''
                   } ${
@@ -2253,7 +2253,7 @@ if (hasAnyField) {
               </AnimatePresence>
 
               {patientErrors.length > 0 && (
-                <FormErrorSummary errors={patientErrors} />
+                <FormErrorSummary errors={patientErrors} onClose={clearPatientErrors} />
               )}
 
               <form noValidate onKeyDown={e => { if (e.key === 'Enter') e.preventDefault(); }} className="space-y-4 text-sm">
@@ -3821,7 +3821,7 @@ if (hasAnyField) {
 
                 {triageErrors.length > 0 && (
                   <div className="lg:col-span-3">
-                    <FormErrorSummary errors={triageErrors} title={t('rcpt_triage_validation_title', 'app')} />
+                    <FormErrorSummary errors={triageErrors} title={t('rcpt_triage_validation_title', 'app')} onClose={clearTriageErrors} />
                   </div>
                 )}
 
