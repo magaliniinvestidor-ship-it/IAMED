@@ -7,6 +7,9 @@ import { useModuleId } from '@/hooks/useModuleId';
 import { supabase } from '@/lib/supabaseClient';
 import { Professional, AdminFinanceModuleProps } from './AdminContext';
 import type { ProfessionalCouncil, ProfessionalShift } from '@/lib/mockData';
+import { useFormValidation, groupErrorsByPath } from '@/lib/validation';
+import { professionalSchema } from '@/lib/validation/schemas';
+import { FormErrorSummary } from '@/components/forms';
 import I18nDatePicker from '@/components/I18nDatePicker';
 
 const ROLE_TO_COUNCIL: Record<string, ProfessionalCouncil> = {
@@ -80,6 +83,7 @@ export function ProfessionalsTab({
 }: ProfessionalsTabProps) {
   const { t } = useI18n();
   const genModuleId = useModuleId();
+  const { errors, validate } = useFormValidation(professionalSchema);
 
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -127,10 +131,21 @@ export function ProfessionalsTab({
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!profName.trim() || !profSpecialty.trim() || !profCouncilNumber.trim() || !profAdmission) {
-      if (typeof window !== 'undefined') {
-        alert(t('admin_alert_required_prof_fields', 'app'));
-      }
+
+    const result = validate({
+      name: profName,
+      role: profRole,
+      specialty: profSpecialty,
+      council: profCouncil,
+      councilNumber: profCouncilNumber,
+      shift: profShift,
+      email: profEmail,
+      phone: profPhone,
+      admissionDate: profAdmission,
+      status: 'ativo' as const,
+    });
+
+    if (!result.success) {
       return;
     }
 
@@ -164,6 +179,8 @@ export function ProfessionalsTab({
     resetForm();
     setShowForm(false);
   };
+
+  const fieldErrors = groupErrorsByPath(errors);
 
   const handleToggleStatus = async (prof: Professional) => {
     const newStatus = prof.status === 'ativo' ? 'inativo' : 'ativo';
@@ -213,6 +230,7 @@ export function ProfessionalsTab({
             </button>
           </div>
           <form onSubmit={handleSave} className="space-y-4 text-xs">
+            {errors.length > 0 && <FormErrorSummary errors={errors} />}
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1">{t('professional_name', 'app')} *</label>
               <input

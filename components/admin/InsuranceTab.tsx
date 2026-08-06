@@ -7,6 +7,9 @@ import { useModuleId } from '@/hooks/useModuleId';
 import { supabase } from '@/lib/supabaseClient';
 import { InsuranceCompany, PreAuthorization, FeeSchedule, AdminFinanceModuleProps } from './AdminContext';
 import type { InsuranceType } from '@/lib/mockData';
+import { useFormValidation, groupErrorsByPath } from '@/lib/validation';
+import { insuranceSchema } from '@/lib/validation/schemas';
+import { FormErrorSummary } from '@/components/forms';
 import { GS } from './helpers';
 
 interface InsuranceFormData {
@@ -64,6 +67,7 @@ export function InsuranceTab({
 }) {
   const { t } = useI18n();
   const genModuleId = useModuleId();
+  const { errors, validate } = useFormValidation(insuranceSchema);
 
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -101,10 +105,22 @@ export function InsuranceTab({
   };
 
   const handleSave = async () => {
-    if (!form.name.trim() || !form.ruc.trim()) {
-      if (typeof window !== 'undefined') {
-        alert(t('fin_alert_name_ruc_required', 'app'));
-      }
+    const result = validate({
+      name: form.name,
+      type: form.type,
+      ruc: form.ruc,
+      contact: form.contact,
+      phone: form.phone,
+      email: form.email,
+      copay_rules: form.copay_rules,
+      coverage_ceiling: form.coverage_ceiling,
+      has_webservice: form.has_webservice,
+      webservice_url: form.webservice_url,
+      requires_authorization: form.requires_authorization,
+      requires_pre_approval: form.requires_pre_approval,
+    });
+
+    if (!result.success) {
       return;
     }
 
@@ -239,6 +255,7 @@ export function InsuranceTab({
               </button>
             </div>
             <div className="p-5 space-y-3 text-xs">
+              {errors.length > 0 && <FormErrorSummary errors={errors} />}
               <div>
                 <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Nome *</label>
                 <input

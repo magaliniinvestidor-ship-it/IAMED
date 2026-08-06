@@ -9,8 +9,11 @@ import { useI18n } from '@/lib/i18n/I18nContext';
 import { useModuleId } from '@/hooks/useModuleId';
 import { supabase } from '@/lib/supabaseClient';
 import { Patient, ReceptionModuleProps, AdmissionFormTab, GENDER_OPTIONS, CIVIL_STATUS_OPTIONS, DOCUMENT_TYPES, BLOOD_TYPES, HEALTH_INSURANCE_OPTIONS, LANGUAGES } from './ReceptionContext';
+import { useFormValidation, groupErrorsByPath } from '@/lib/validation';
+import { patientSchema } from '@/lib/validation/schemas';
 import PhoneInput from '@/components/PhoneInput';
 import I18nDatePicker from '@/components/I18nDatePicker';
+import { FormField, FormErrorSummary } from '@/components/forms';
 
 interface AdmissionFormProps {
   addAuditLog: (action: string, target: string) => void;
@@ -29,6 +32,7 @@ const TABS: Array<{ key: AdmissionFormTab; label: string; icon: React.ElementTyp
 export function AdmissionForm({ addAuditLog, onSuccess, initialPatient, onClose }: AdmissionFormProps) {
   const { t } = useI18n();
   const genModuleId = useModuleId();
+  const { errors, validate, getFieldError, clearErrors } = useFormValidation(patientSchema);
 
   const [activeTab, setActiveTab] = useState<AdmissionFormTab>('identification');
 
@@ -79,52 +83,25 @@ export function AdmissionForm({ addAuditLog, onSuccess, initialPatient, onClose 
   };
 
   const handleSave = async () => {
-    if (!name.trim()) {
-      if (typeof window !== 'undefined') alert(t('rcpt_alert_required_name', 'app'));
-      setActiveTab('identification');
-      return;
-    }
-    if (!birthdate) {
-      if (typeof window !== 'undefined') alert(t('rcpt_alert_required_birthdate', 'app'));
-      setActiveTab('identification');
-      return;
-    }
-    if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      if (typeof window !== 'undefined') alert(t('rcpt_alert_required_email', 'app'));
-      setActiveTab('identification');
-      return;
-    }
-
-    if (isMinor && !guardianName.trim()) {
-      if (typeof window !== 'undefined') alert(t('rcpt_alert_required_guardian', 'app'));
-      setActiveTab('guardian');
-      return;
-    }
-
-    const id = initialPatient?.id || (await genModuleId('next_patient_id'));
-    const patientData: Patient = {
-      id,
+    const patientData = {
       name,
       email,
       phone,
       birthdate,
-      gender,
-      priority: 'normal',
-      status: 'aguardando',
-      clinicalHistory: [],
-      document_type: documentType,
+      gender: gender as 'M' | 'F' | 'Outro',
+      document_type: documentType as 'CI' | 'RG' | 'Passaporte' | 'Outro' | undefined,
       document_number: documentNumber,
       place_of_birth: placeOfBirth,
-      civil_status: civilStatus,
+      civil_status: civilStatus as 'Solteiro(a)' | 'Casado(a)' | 'Divorciado(a)' | 'Viúvo(a)' | 'União Estável' | undefined,
       nationality,
       address_department: addressDepartment,
       address_city: addressCity,
       address_neighborhood: addressNeighborhood,
       address_street: addressStreet,
       address_number: addressNumber,
-      blood_type: bloodType,
+      blood_type: bloodType as 'A+' | 'A-' | 'B+' | 'B-' | 'AB+' | 'AB-' | 'O+' | 'O-' | 'Não Informado' | '' | undefined,
       allergies,
-      health_insurance_type: healthInsurance,
+      health_insurance_type: healthInsurance as 'IPS' | 'Sanidade Militar' | 'Sanidade Policial' | 'Pré-paga' | 'Seguro Privado' | 'Particular' | '' | undefined,
       health_insurance_number: healthInsuranceNumber,
       health_insurance_company: healthInsuranceCompany,
       employer,
@@ -132,13 +109,40 @@ export function AdmissionForm({ addAuditLog, onSuccess, initialPatient, onClose 
       guardian_document: guardianDocument,
       guardian_relationship: guardianRelationship,
       guardian_phone: guardianPhone,
+      preferred_language: preferredLanguage as 'es' | 'es-AR' | 'es-PY' | 'gn' | 'pt-BR' | 'pt-PT' | 'en' | 'outros' | '' | undefined,
+    };
+
+    const result = validate(patientData);
+    if (!result.success) {
+      const grouped = groupErrorsByPath(result.errors);
+      const firstError = result.errors[0];
+      if (firstError) {
+        if (['name', 'email', 'phone', 'birthdate', 'gender', 'document_type', 'document_number'].includes(firstError.path)) {
+          setActiveTab('identification');
+        } else if (['address_department', 'address_city', 'address_neighborhood', 'address_street', 'address_number'].includes(firstError.path)) {
+          setActiveTab('contact_address');
+        } else if (['blood_type', 'allergies', 'health_insurance_type', 'health_insurance_number', 'health_insurance_company', 'employer'].includes(firstError.path)) {
+          setActiveTab('complementary');
+        } else if (['guardian_name', 'guardian_document', 'guardian_relationship', 'guardian_phone'].includes(firstError.path)) {
+          setActiveTab('guardian');
+        }
+      }
+      return;
+    }
+
+    const id = initialPatient?.id || (await genModuleId('next_patient_id'));
+    const newPatient: Patient = {
+      ...patientData,
+      id,
+      priority: 'normal',
+      status: 'aguardando',
+      clinicalHistory: [],
       photo_url: photoPreview || undefined,
-      preferred_language: preferredLanguage,
     };
 
     if (supabase) {
       const { error } = await supabase.from('patients').upsert({
-        ...patientData,
+        ...newPatient,
         clinical_history: '[]',
         created_at: new Date().toISOString(),
       } as unknown as Record<string, unknown>);
@@ -149,8 +153,10 @@ export function AdmissionForm({ addAuditLog, onSuccess, initialPatient, onClose 
     }
 
     addAuditLog(initialPatient ? t('rcpt_audit_update_patient', 'app') : t('rcpt_audit_new_patient', 'app'), name);
-    onSuccess(patientData);
+    onSuccess(newPatient);
   };
+
+  const fieldErrors = groupErrorsByPath(errors);
 
   const inputCls = 'w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs';
   const labelCls = 'block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1';
@@ -197,6 +203,10 @@ export function AdmissionForm({ addAuditLog, onSuccess, initialPatient, onClose 
 
       {/* Content */}
       <div className="p-5 space-y-4">
+        {errors.length > 0 && (
+          <FormErrorSummary errors={errors} title={t('rcpt_validation_errors', 'app') || 'Corrija os erros antes de salvar'} />
+        )}
+
         {activeTab === 'identification' && (
           <div className="space-y-4">
             {/* Photo Upload */}
@@ -216,56 +226,74 @@ export function AdmissionForm({ addAuditLog, onSuccess, initialPatient, onClose 
                   </span>
                 </label>
               </div>
-              <div className="flex-1 grid grid-cols-2 gap-3">
+                <div className="flex-1 grid grid-cols-2 gap-3">
                 <div className="col-span-2">
-                  <label className={labelCls}>{t('rcpt_label_name', 'app')} *</label>
-                  <input
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder={t('rcpt_ph_full_name', 'app')}
-                    className={inputCls}
+                  <FormField label={t('rcpt_label_name', 'app')} required error={fieldErrors.name}>
+                    <input
+                      type="text"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder={t('rcpt_ph_full_name', 'app')}
+                      className={`w-full p-2 bg-slate-50 border rounded-lg text-xs ${
+                        fieldErrors.name ? 'border-rose-300 bg-rose-50/30' : 'border-slate-200'
+                      }`}
+                      required
+                    />
+                  </FormField>
+                </div>
+                <FormField label={t('rcpt_label_birthdate', 'app')} required error={fieldErrors.birthdate}>
+                  <I18nDatePicker
+                    value={birthdate}
+                    onChange={setBirthdate}
+                    className={`w-full p-2 bg-slate-50 border rounded-lg text-xs ${
+                      fieldErrors.birthdate ? 'border-rose-300 bg-rose-50/30' : 'border-slate-200'
+                    }`}
                     required
                   />
-                </div>
-                <div>
-                  <label className={labelCls}>{t('rcpt_label_birthdate', 'app')} *</label>
-                  <I18nDatePicker value={birthdate} onChange={setBirthdate} className={inputCls} required />
-                </div>
-                <div>
-                  <label className={labelCls}>{t('rcpt_label_gender', 'app')}</label>
-                  <select value={gender} onChange={(e) => setGender(e.target.value)} className={inputCls}>
+                </FormField>
+                <FormField label={t('rcpt_label_gender', 'app')} error={fieldErrors.gender}>
+                  <select
+                    value={gender}
+                    onChange={(e) => setGender(e.target.value)}
+                    className={`w-full p-2 bg-slate-50 border rounded-lg text-xs ${
+                      fieldErrors.gender ? 'border-rose-300 bg-rose-50/30' : 'border-slate-200'
+                    }`}
+                  >
                     <option value="">—</option>
                     {GENDER_OPTIONS.map((g) => (
                       <option key={g.value} value={g.value}>{g.label}</option>
                     ))}
                   </select>
-                </div>
+                </FormField>
               </div>
             </div>
 
             <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className={labelCls}>{t('rcpt_label_document_type', 'app')}</label>
+              <FormField label={t('rcpt_label_document_type', 'app')} error={fieldErrors.document_type}>
                 <select
                   value={documentType || ''}
                   onChange={(e) => setDocumentType(e.target.value as Patient['document_type'])}
-                  className={inputCls}
+                  className={`w-full p-2 bg-slate-50 border rounded-lg text-xs ${
+                    fieldErrors.document_type ? 'border-rose-300 bg-rose-50/30' : 'border-slate-200'
+                  }`}
                 >
                   <option value="">—</option>
                   {DOCUMENT_TYPES.map((d) => (
                     <option key={d.value} value={d.value}>{d.label}</option>
                   ))}
                 </select>
-              </div>
+              </FormField>
               <div className="col-span-2">
-                <label className={labelCls}>{t('rcpt_label_document_number', 'app')}</label>
-                <input
-                  type="text"
-                  value={documentNumber}
-                  onChange={(e) => setDocumentNumber(e.target.value)}
-                  className={inputCls}
-                />
+                <FormField label={t('rcpt_label_document_number', 'app')} error={fieldErrors.document_number}>
+                  <input
+                    type="text"
+                    value={documentNumber}
+                    onChange={(e) => setDocumentNumber(e.target.value)}
+                    className={`w-full p-2 bg-slate-50 border rounded-lg text-xs ${
+                      fieldErrors.document_number ? 'border-rose-300 bg-rose-50/30' : 'border-slate-200'
+                    }`}
+                  />
+                </FormField>
               </div>
             </div>
 
