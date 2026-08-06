@@ -296,3 +296,22 @@ export const systemUserSchema = z.object({
 );
 
 export type SystemUserFormData = z.infer<typeof systemUserSchema>;
+
+export const pharmacyItemSchema = z.object({
+  name: nonEmptyString('Nome', 200),
+  category: z.enum([
+    'venda_livre', 'sob_receita', 'controlado', 'entorpecente',
+    'psicotropico', 'uso_hospitalar', 'biologico', 'insumo',
+    'descartavel', 'material',
+  ]),
+  presentation: optionalString(200),
+  manufacturer: optionalString(200),
+  minQuantity: z.number().int('Mínimo deve ser inteiro').min(0, 'Mínimo não pode ser negativo'),
+  unitCost: z.number().min(0, 'Custo não pode ser negativo'),
+  unitPrice: z.number().min(0, 'Preço não pode ser negativo'),
+}).refine(
+  (data) => data.unitPrice >= data.unitCost,
+  { message: 'Preço de venda deve ser maior ou igual ao custo', path: ['unitPrice'] }
+);
+
+export type PharmacyItemFormData = z.infer<typeof pharmacyItemSchema>;
