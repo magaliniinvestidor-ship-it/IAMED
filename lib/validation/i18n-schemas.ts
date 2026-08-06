@@ -183,6 +183,8 @@ export function createPatientComplementarySchema(m: ValidationMessages) {
 export function createTriageSchema(m: ValidationMessages) {
   return z.object({
     reason: z.string().min(1, m.required('Motivo da consulta')).max(2000, m.maxLength('Motivo da consulta', 2000)),
+    weight: z.string().min(1, m.required('Peso')).max(10, m.maxLength('Peso', 10)),
+    height: z.string().min(1, m.required('Altura')).max(10, m.maxLength('Altura', 10)),
     bp: z.string().min(1, m.required('PA')).max(20, m.maxLength('PA', 20)),
     temp: z.string().min(1, m.required('Temperatura')).max(10, m.maxLength('Temperatura', 10)),
     spo2: z.string().min(1, m.required('SpO2')).max(10, m.maxLength('SpO2', 10)),

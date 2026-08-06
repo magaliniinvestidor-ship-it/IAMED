@@ -3792,12 +3792,12 @@ if (hasAnyField) {
       {/* --- TRIAGE / VITAL SIGNS MODAL --- */}
       <AnimatePresence>
         {showTriageModal && triagePatient && (
-          <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs flex items-start justify-center p-4 z-50 overflow-y-auto">
             <motion.div
               initial={{ scale: 0.95, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-4xl w-full p-6 space-y-5 font-sans my-4"
+              className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-4xl w-full p-6 space-y-5 font-sans my-auto"
             >
               {/* Header */}
               <div className="flex items-center justify-between border-b border-slate-200 pb-4">
@@ -3861,6 +3861,7 @@ if (hasAnyField) {
                           type="text"
                           value={triageWeight}
                           onChange={e => {
+                            clearTriageErrors();
                             const raw = e.target.value.replace(/[^0-9.]/g, '');
                             const dotCount = (raw.match(/\./g) || []).length;
                             if (dotCount > 1) return;
@@ -3869,6 +3870,11 @@ if (hasAnyField) {
                           placeholder={t('rcpt_ph_weight', 'app')}
                           className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans font-bold"
                         />
+                        {triageFieldErrors.weight && (
+                          <p className="text-[10px] text-rose-600 font-medium mt-1 flex items-center gap-1">
+                            <AlertCircle className="w-3 h-3 shrink-0" /> {triageFieldErrors.weight}
+                          </p>
+                        )}
                       </div>
                       {/* Height */}
                       <div>
@@ -3877,6 +3883,7 @@ if (hasAnyField) {
                           type="text"
                           value={triageHeight}
                           onChange={e => {
+                            clearTriageErrors();
                             const raw = e.target.value.replace(/[^0-9.]/g, '');
                             const dotCount = (raw.match(/\./g) || []).length;
                             if (dotCount > 1) return;
@@ -3885,6 +3892,11 @@ if (hasAnyField) {
                           placeholder={t('rcpt_ph_height', 'app')}
                           className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans font-bold"
                         />
+                        {triageFieldErrors.height && (
+                          <p className="text-[10px] text-rose-600 font-medium mt-1 flex items-center gap-1">
+                            <AlertCircle className="w-3 h-3 shrink-0" /> {triageFieldErrors.height}
+                          </p>
+                        )}
                       </div>
                       {/* BMI (auto-calculated) */}
                       <div>
@@ -4231,6 +4243,8 @@ if (hasAnyField) {
                     if (!triagePatient) return;
                     const triageResult = validateTriage({
                       reason: triageReason,
+                      weight: triageWeight,
+                      height: triageHeight,
                       bp: triageBP,
                       temp: triageTemp,
                       spo2: triageSpo2,
