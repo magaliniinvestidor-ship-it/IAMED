@@ -7,6 +7,9 @@ import { useModuleId } from '@/hooks/useModuleId';
 import { supabase } from '@/lib/supabaseClient';
 import { SSOProvider, AdminFinanceModuleProps } from './AdminContext';
 import type { SystemRole } from '@/lib/mockData';
+import { useFormValidation, groupErrorsByPath } from '@/lib/validation';
+import { ssoProviderSchema } from '@/lib/validation/schemas';
+import { FormErrorSummary } from '@/components/forms';
 
 interface SsoTabProps {
   providers: SSOProvider[];
@@ -41,6 +44,7 @@ const EMPTY_PROVIDER: Omit<SSOProvider, 'id'> = {
 export function SsoTab({ providers, setProviders, addAuditLog }: SsoTabProps) {
   const { t } = useI18n();
   const genModuleId = useModuleId();
+  const { errors, validate, clearErrors } = useFormValidation(ssoProviderSchema);
 
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -74,12 +78,19 @@ export function SsoTab({ providers, setProviders, addAuditLog }: SsoTabProps) {
   };
 
   const handleSave = async () => {
-    if (!form.name.trim() || !form.issuerUrl.trim() || !form.clientId.trim()) {
-      if (typeof window !== 'undefined') {
-        alert(t('fin_alert_required_sso_fields', 'app'));
-      }
-      return;
-    }
+    const result = validate({
+      name: form.name,
+      type: form.type,
+      issuerUrl: form.issuerUrl,
+      clientId: form.clientId,
+      clientSecret: form.clientSecret,
+      metadataUrl: form.metadataUrl,
+      certificateFingerprint: form.certificateFingerprint,
+      defaultRole: form.defaultRole,
+      enabled: form.enabled,
+      active: form.active,
+    });
+    if (!result.success) return;
 
     if (editingId) {
       const updated: SSOProvider = { id: editingId, ...form };
@@ -97,6 +108,7 @@ export function SsoTab({ providers, setProviders, addAuditLog }: SsoTabProps) {
       addAuditLog('Cadastrou Provedor SSO', form.name);
     }
     resetForm();
+    clearErrors();
     setShowForm(false);
   };
 
@@ -209,6 +221,7 @@ export function SsoTab({ providers, setProviders, addAuditLog }: SsoTabProps) {
               </button>
             </div>
             <div className="p-5 space-y-3 text-xs">
+              {errors.length > 0 && <FormErrorSummary errors={errors} />}
               <div>
                 <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Nome do Provedor *</label>
                 <input

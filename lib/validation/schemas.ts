@@ -315,3 +315,18 @@ export const pharmacyItemSchema = z.object({
 );
 
 export type PharmacyItemFormData = z.infer<typeof pharmacyItemSchema>;
+
+export const ssoProviderSchema = z.object({
+  name: nonEmptyString('Nome do Provedor', 200),
+  type: z.enum(['saml', 'oauth2', 'oidc']),
+  issuerUrl: nonEmptyString('Issuer URL', 500).url('Issuer URL inválida'),
+  clientId: nonEmptyString('Client ID', 200),
+  clientSecret: optionalString(500),
+  metadataUrl: optionalString(500),
+  certificateFingerprint: optionalString(500),
+  defaultRole: z.string().min(1, 'Função padrão obrigatória'),
+  enabled: z.boolean().optional(),
+  active: z.boolean().optional(),
+});
+
+export type SsoProviderFormData = z.infer<typeof ssoProviderSchema>;
