@@ -4,6 +4,9 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Patient, Appointment, Professional } from '@/lib/mockData';
 import { supabase } from '@/lib/supabaseClient';
 import { useI18n } from '@/lib/i18n/I18nContext';
+import { useFormValidation, groupErrorsByPath } from '@/lib/validation';
+import { patientSchema } from '@/lib/validation/schemas';
+import { FormErrorSummary } from '@/components/forms';
 import { isValidPhoneNumber, parsePhoneNumber } from 'libphonenumber-js';
 import PhoneInput from '@/components/PhoneInput';
 import I18nDatePicker from '@/components/I18nDatePicker';
@@ -67,11 +70,12 @@ export default function ReceptionModule({
   const [patientSearch, setPatientSearch] = useState('');
   const [filterPriority, setFilterPriority] = useState<string>('todos');
 
-  // Admission form search (lookup existing patient)
+// Admission form search (lookup existing patient)
   const [admissionSearch, setAdmissionSearch] = useState('');
   const [admissionSearchFocused, setAdmissionSearchFocused] = useState(false);
-  
-  // --- Form States ---
+
+  // Zod validation for patient form
+  const { errors: patientErrors, validate: validatePatient } = useFormValidation(patientSchema);
   // Mandatory fields
   const [newName, setNewName] = useState('');
   const [newBirthdate, setNewBirthdate] = useState('');
@@ -866,30 +870,47 @@ export default function ReceptionModule({
 
     const isEditing = !!selectedPatientId;
 
-    // Identifytab Identification fields
-    if (!newName.trim()) {
-      alert(t('rcpt_alert_required_full_name', 'app'));
-      setActiveFormTab('identification');
-      return;
-    }
-    if (!documentNumber.trim()) {
-      alert(t('rcpt_alert_required_doc_number', 'app'));
-      setActiveFormTab('identification');
-      return;
-    }
-    if (!newBirthdate) {
-      alert(t('rcpt_alert_required_birthdate', 'app'));
-      setActiveFormTab('identification');
-      return;
-    }
-    if (!isEditing && !placeOfBirth.trim()) {
-      alert(t('rcpt_alert_required_place_of_birth', 'app'));
-      setActiveFormTab('identification');
-      return;
-    }
-    if (!isEditing && !nationality.trim()) {
-      alert(t('rcpt_alert_required_nationality', 'app'));
-      setActiveFormTab('identification');
+    const result = validatePatient({
+      name: newName,
+      email: newEmail,
+      phone: newPhone,
+      birthdate: newBirthdate,
+      gender: newGender,
+      document_type: documentType,
+      document_number: documentNumber,
+      place_of_birth: placeOfBirth,
+      nationality,
+      civil_status: civilStatus,
+      address_department: addressDepartment,
+      address_city: addressCity,
+      address_neighborhood: addressNeighborhood,
+      address_street: addressStreet,
+      address_number: addressNumber,
+      blood_type: bloodType,
+      allergies,
+      health_insurance_type: healthInsuranceType,
+      health_insurance_number: healthInsuranceNumber,
+      health_insurance_company: healthInsuranceCompany,
+      employer,
+      guardian_name: guardianName,
+      guardian_document: guardianDocument,
+      guardian_relationship: guardianRelationship,
+      guardian_phone: guardianPhone,
+      preferred_language: preferredLanguage,
+    });
+    if (!result.success) {
+      const firstError = result.errors[0];
+      if (firstError) {
+        if (['name', 'email', 'phone', 'birthdate', 'gender', 'document_type', 'document_number'].includes(firstError.path)) {
+          setActiveFormTab('identification');
+        } else if (['address_department', 'address_city', 'address_neighborhood', 'address_street', 'address_number'].includes(firstError.path)) {
+          setActiveFormTab('contact_address');
+        } else if (['blood_type', 'allergies', 'health_insurance_type', 'health_insurance_number', 'health_insurance_company', 'employer'].includes(firstError.path)) {
+          setActiveFormTab('complementary');
+        } else if (['guardian_name', 'guardian_document', 'guardian_relationship', 'guardian_phone'].includes(firstError.path)) {
+          setActiveFormTab('guardian');
+        }
+      }
       return;
     }
 
