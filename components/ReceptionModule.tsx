@@ -4178,6 +4178,11 @@ if (hasAnyField) {
                   data-testid="reception-save-triage"
                   onClick={async () => {
                     if (!triagePatient || !triageReason.trim()) return;
+                    if (!triageBP.trim()) { alert(t('rcpt_triage_required_bp', 'app')); return; }
+                    if (!triageTemp.trim()) { alert(t('rcpt_triage_required_temp', 'app')); return; }
+                    if (!triageSpo2.trim()) { alert(t('rcpt_triage_required_spo2', 'app')); return; }
+                    if (!triageHR.trim()) { alert(t('rcpt_triage_required_hr', 'app')); return; }
+                    if (!triageRR.trim()) { alert(t('rcpt_triage_required_rr', 'app')); return; }
                     const bmi = triageWeight && triageHeight
                       ? (parseFloat(triageWeight) / Math.pow(parseFloat(triageHeight) / 100, 2)).toFixed(1)
                       : undefined;
