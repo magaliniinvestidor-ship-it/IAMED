@@ -254,7 +254,7 @@ export function DteTab({ dtes, setDtes, patients, addAuditLog, onShowKude }: Dte
             <div>
               <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">E-mail</label>
               <input
-                type="email"
+                type="text"
                 value={dtePatientEmail}
                 onChange={(e) => setDtePatientEmail(e.target.value)}
                 className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg"

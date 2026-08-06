@@ -142,7 +142,6 @@ export function LocationsTab({
               onChange={(e) => setLocName(e.target.value)}
               placeholder="Ex: Sede Central"
               className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
-              required
             />
           </div>
           <div>
@@ -153,7 +152,6 @@ export function LocationsTab({
               onChange={(e) => setLocAddress(e.target.value)}
               placeholder="Av. Principal 1234"
               className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
-              required
             />
           </div>
           <div className="grid grid-cols-2 gap-2">
@@ -165,7 +163,6 @@ export function LocationsTab({
                 onChange={(e) => setLocCity(e.target.value)}
                 placeholder="Asunción"
                 className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
-                required
               />
             </div>
             <div>
@@ -176,7 +173,6 @@ export function LocationsTab({
                 onChange={(e) => setLocPhone(e.target.value)}
                 placeholder="+595 21 123456"
                 className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
-                required
               />
             </div>
           </div>
@@ -295,7 +291,7 @@ export function LocationsTab({
             <div className="grid grid-cols-3 gap-2">
               <div className="col-span-1">
                 <label className="block text-xs font-semibold text-slate-600 mb-1">Sede *</label>
-                <select value={roomLocation} onChange={(e) => setRoomLocation(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" required>
+                <select value={roomLocation} onChange={(e) => setRoomLocation(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs">
                   <option value="">Selecione...</option>
                   {locations
                     .filter((l) => l.status === 'ativo')
@@ -308,7 +304,7 @@ export function LocationsTab({
               </div>
               <div className="col-span-1">
                 <label className="block text-xs font-semibold text-slate-600 mb-1">Nome da Sala *</label>
-                <input type="text" value={roomName} onChange={(e) => setRoomName(e.target.value)} placeholder="Ex: Sala 101" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" required />
+                <input type="text" value={roomName} onChange={(e) => setRoomName(e.target.value)} placeholder="Ex: Sala 101" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
               </div>
               <div className="col-span-1">
                 <label className="block text-xs font-semibold text-slate-600 mb-1">Status</label>

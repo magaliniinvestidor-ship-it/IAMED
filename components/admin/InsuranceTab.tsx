@@ -312,7 +312,7 @@ export function InsuranceTab({
               <div>
                 <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">E-mail</label>
                 <input
-                  type="email"
+                  type="text"
                   value={form.email}
                   onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))}
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
@@ -361,7 +361,7 @@ export function InsuranceTab({
                 <div>
                   <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">URL do Web Service</label>
                   <input
-                    type="url"
+                    type="text"
                     value={form.webservice_url}
                     onChange={(e) => setForm((prev) => ({ ...prev, webservice_url: e.target.value }))}
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"

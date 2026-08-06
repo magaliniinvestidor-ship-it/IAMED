@@ -239,7 +239,6 @@ export function ProfessionalsTab({
                 onChange={(e) => setProfName(e.target.value)}
                 placeholder="Ex: Dra. Amanda Silva"
                 className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
-                required
               />
             </div>
 
@@ -254,7 +253,6 @@ export function ProfessionalsTab({
                     setProfCouncil(ROLE_TO_COUNCIL[role] || 'N/A');
                   }}
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg font-medium"
-                  required
                 >
                   {roleOptions.map((r) => (
                     <option key={r} value={r}>{r}</option>
@@ -270,7 +268,6 @@ export function ProfessionalsTab({
                   onChange={(e) => setProfSpecialty(e.target.value)}
                   placeholder="Ex: Cardiologia"
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
-                  required
                 />
               </div>
             </div>
@@ -282,7 +279,6 @@ export function ProfessionalsTab({
                   value={profCouncil}
                   onChange={(e) => setProfCouncil(e.target.value as ProfessionalCouncil)}
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg font-medium"
-                  required
                 >
                   {COUNCILS.map((c) => (
                     <option key={c} value={c}>{c}</option>
@@ -298,7 +294,6 @@ export function ProfessionalsTab({
                   onChange={(e) => setProfCouncilNumber(e.target.value)}
                   placeholder="Ex: CRM-SP 12345"
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
-                  required
                 />
               </div>
             </div>
@@ -310,7 +305,6 @@ export function ProfessionalsTab({
                   value={profShift}
                   onChange={(e) => setProfShift(e.target.value as ProfessionalShift)}
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg font-sans"
-                  required
                 >
                   {SHIFTS.map((s) => (
                     <option key={s} value={s}>{s}</option>
@@ -324,7 +318,6 @@ export function ProfessionalsTab({
                   value={profAdmission}
                   onChange={setProfAdmission}
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
-                  required
                 />
               </div>
             </div>
@@ -333,7 +326,7 @@ export function ProfessionalsTab({
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1">E-mail</label>
                 <input
-                  type="email"
+                  type="text"
                   value={profEmail}
                   onChange={(e) => setProfEmail(e.target.value)}
                   placeholder="email@hospital.com"

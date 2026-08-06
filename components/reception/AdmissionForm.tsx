@@ -237,7 +237,6 @@ export function AdmissionForm({ addAuditLog, onSuccess, initialPatient, onClose 
                       className={`w-full p-2 bg-slate-50 border rounded-lg text-xs ${
                         fieldErrors.name ? 'border-rose-300 bg-rose-50/30' : 'border-slate-200'
                       }`}
-                      required
                     />
                   </FormField>
                 </div>
@@ -248,7 +247,6 @@ export function AdmissionForm({ addAuditLog, onSuccess, initialPatient, onClose 
                     className={`w-full p-2 bg-slate-50 border rounded-lg text-xs ${
                       fieldErrors.birthdate ? 'border-rose-300 bg-rose-50/30' : 'border-slate-200'
                     }`}
-                    required
                   />
                 </FormField>
                 <FormField label={t('rcpt_label_gender', 'app')} error={fieldErrors.gender}>
@@ -340,11 +338,10 @@ export function AdmissionForm({ addAuditLog, onSuccess, initialPatient, onClose 
               <div>
                 <label className={labelCls}>{t('rcpt_label_email', 'app')} *</label>
                 <input
-                  type="email"
+                  type="text"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className={inputCls}
-                  required
                 />
               </div>
               <div>

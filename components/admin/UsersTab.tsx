@@ -353,14 +353,13 @@ export function UsersTab({ addAuditLog }: UsersTabProps) {
                   onChange={(e) => setUserName(e.target.value)}
                   placeholder="Ex: João da Silva"
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
-                  required
                 />
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">E-mail</label>
                   <input
-                    type="email"
+                    type="text"
                     value={userEmail}
                     onChange={(e) => setUserEmail(e.target.value)}
                     placeholder="usuario@hospital.com"
