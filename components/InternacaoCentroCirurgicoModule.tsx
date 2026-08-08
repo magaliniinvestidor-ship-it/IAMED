@@ -18,6 +18,12 @@ import {
 } from '@/lib/mockData';
 import { useI18n } from '@/lib/i18n/I18nContext';
 import { useModuleId } from '@/hooks/useModuleId';
+import { useFormValidation } from '@/lib/validation';
+import {
+  surgerySchema, admissionSchema, transferBedSchema,
+  evolutionSchema, nursingSheetSchema,
+} from '@/lib/validation/schemas';
+import { FormErrorSummary } from '@/components/forms';
 import {
   BedDouble, CalendarClock, Users, FileBarChart,
   Plus, Search, AlertTriangle, Check, X, RefreshCw,
@@ -135,6 +141,12 @@ export default function InternacaoCentroCirurgicoModule({
   const [search, setSearch] = useState('');
   const [sectorFilter, setSectorFilter] = useState<string>('todos');
   const [statusFilter, setStatusFilter] = useState<BedStatus | 'todos'>('todos');
+
+  const surgValidation = useFormValidation(surgerySchema);
+  const admitValidation = useFormValidation(admissionSchema);
+  const transferValidation = useFormValidation(transferBedSchema);
+  const evolValidation = useFormValidation(evolutionSchema);
+  const nursValidation = useFormValidation(nursingSheetSchema);
 
   // Data
   const [beds, setBeds] = useState<BedV2[]>(initialBedsV2);
@@ -263,6 +275,22 @@ export default function InternacaoCentroCirurgicoModule({
   }
 
   async function addSurgery() {
+    const res = surgValidation.validate({
+      patientName: surgForm.patientName,
+      surgeon: surgForm.surgeon,
+      room: surgForm.room,
+      procedureType: surgForm.procedureType,
+      estimatedDuration: surgForm.estimatedDuration,
+      scheduledDate: surgForm.scheduledDate,
+      scheduledTime: surgForm.scheduledTime,
+      preOpDiagnosis: surgForm.preOpDiagnosis,
+      notes: surgForm.notes,
+      anesthesiologist: surgForm.anesthesiologist,
+      instrumentator: surgForm.instrumentator,
+      circulator: surgForm.circulator,
+      assistants: surgForm.assistants,
+    });
+    if (!res.success) return;
     if (!surgForm.patientName || !surgForm.surgeon || !surgForm.scheduledDate) return;
     const newId = await genModuleId('surg');
     const newSurg: SurgerySchedule = {
@@ -298,6 +326,17 @@ export default function InternacaoCentroCirurgicoModule({
   }
 
   async function admitPatient() {
+    const res = admitValidation.validate({
+      patientName: admitForm.patientName,
+      responsibleDoctor: admitForm.responsibleDoctor,
+      bedId: admitForm.bedId,
+      reason: admitForm.reason,
+      initialDiagnosis: admitForm.initialDiagnosis,
+      initialCid10: admitForm.initialCid10,
+      coverageType: admitForm.coverageType,
+      coverageAuthorization: admitForm.coverageAuthorization,
+    });
+    if (!res.success) return;
     if (!admitForm.patientName || !admitForm.responsibleDoctor || !admitForm.bedId) return;
     const bed = beds.find(b => b.id === admitForm.bedId);
     if (!bed) return;
@@ -333,6 +372,12 @@ export default function InternacaoCentroCirurgicoModule({
   }
 
   async function transferBed() {
+    const res = transferValidation.validate({
+      bedToId: transferForm.bedToId,
+      reason: transferForm.reason,
+      notes: transferForm.notes,
+    });
+    if (!res.success) return;
     if (!transferForm.bedToId || !transferForm.reason) return;
     const bedFrom = beds.find(b => b.id === transferForm.bedFromId);
     const bedTo = beds.find(b => b.id === transferForm.bedToId);
@@ -382,6 +427,13 @@ export default function InternacaoCentroCirurgicoModule({
   }
 
   async function addEvolution(hosp: HospitalizationEpisode) {
+    const res = evolValidation.validate({
+      subjective: evolForm.subjective,
+      objective: evolForm.objective,
+      assessment: evolForm.assessment,
+      plan: evolForm.plan,
+    });
+    if (!res.success) return;
     const newId = await genModuleId('evol');
     const newEvol: MedicalEvolution = {
       id: newId,
@@ -404,6 +456,12 @@ export default function InternacaoCentroCirurgicoModule({
   }
 
   async function addNursingSheet(hosp: HospitalizationEpisode) {
+    const res = nursValidation.validate({
+      intake: nursForm.intake,
+      output: nursForm.output,
+      observations: nursForm.observations,
+    });
+    if (!res.success) return;
     const newId = await genModuleId('nurs');
     const newSheet: NursingSheet = {
       id: newId,
@@ -896,7 +954,7 @@ export default function InternacaoCentroCirurgicoModule({
                 <thead>
                   <tr className="bg-slate-50 text-slate-600 font-bold">
                     <th className="p-2 text-left">Setor</th>
-                    <th className="p-2 text-right">Total</th>
+                    <th className="p-2 text-right">{t('intern_th_total', 'app')}</th>
                     <th className="p-2 text-right">Ocupados</th>
                     <th className="p-2 text-right">Livres</th>
                     <th className="p-2 text-right">Taxa</th>
@@ -1052,6 +1110,7 @@ export default function InternacaoCentroCirurgicoModule({
           {/* Surgery Form */}
           {modalContent === 'surgeryForm' && (
             <div className="space-y-3 text-xs">
+              {surgValidation.errors.length > 0 && <FormErrorSummary errors={surgValidation.errors} />}
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label className="text-[10px] font-bold">Paciente</Label>
@@ -1075,7 +1134,7 @@ export default function InternacaoCentroCirurgicoModule({
                 </div>
                 <div className="space-y-1">
                   <Label className="text-[10px] font-bold">Duração Estimada (min)</Label>
-                  <Input type="number" value={surgForm.estimatedDuration} onChange={e => setSurgForm(p => ({ ...p, estimatedDuration: Number(e.target.value) }))} className="text-xs h-9" />
+                  <Input type="text" inputMode="numeric" value={surgForm.estimatedDuration} onChange={e => setSurgForm(p => ({ ...p, estimatedDuration: Number(e.target.value) }))} className="text-xs h-9" />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-[10px] font-bold">Tipo de Anestesia</Label>
@@ -1087,7 +1146,7 @@ export default function InternacaoCentroCirurgicoModule({
                   </select>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-[10px] font-bold">Data</Label>
+                  <Label className="text-[10px] font-bold">{t('intern_lbl_data', 'app')}</Label>
                   <I18nDatePicker value={surgForm.scheduledDate} onChange={v => setSurgForm(p => ({ ...p, scheduledDate: v }))} className="text-xs h-9" />
                 </div>
                 <div className="space-y-1">
@@ -1112,7 +1171,7 @@ export default function InternacaoCentroCirurgicoModule({
                 </div>
               </div>
               <div className="flex justify-end gap-2 pt-2">
-                <Button variant="outline" size="sm" onClick={() => setShowModal(false)} className="text-xs">Cancelar</Button>
+                <Button variant="outline" size="sm" onClick={() => setShowModal(false)} className="text-xs">{t('intern_btn_cancel', 'app')}</Button>
                 <Button size="sm" onClick={addSurgery} className="bg-violet-600 hover:bg-violet-700 text-xs font-bold">Agendar Cirurgia</Button>
               </div>
             </div>
@@ -1121,6 +1180,7 @@ export default function InternacaoCentroCirurgicoModule({
           {/* Admission Form */}
           {modalContent === 'admissionForm' && (
             <div className="space-y-3 text-xs">
+              {admitValidation.errors.length > 0 && <FormErrorSummary errors={admitValidation.errors} />}
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label className="text-[10px] font-bold">Paciente</Label>
@@ -1167,7 +1227,7 @@ export default function InternacaoCentroCirurgicoModule({
                 </div>
               </div>
               <div className="flex justify-end gap-2 pt-2">
-                <Button variant="outline" size="sm" onClick={() => setShowModal(false)} className="text-xs">Cancelar</Button>
+                <Button variant="outline" size="sm" onClick={() => setShowModal(false)} className="text-xs">{t('intern_btn_cancel', 'app')}</Button>
                 <Button size="sm" onClick={admitPatient} className="bg-blue-600 hover:bg-blue-700 text-xs font-bold">Admitir Paciente</Button>
               </div>
             </div>
@@ -1176,6 +1236,7 @@ export default function InternacaoCentroCirurgicoModule({
           {/* Transfer Form */}
           {modalContent === 'transferForm' && selectedItem && (
             <div className="space-y-3 text-xs">
+              {transferValidation.errors.length > 0 && <FormErrorSummary errors={transferValidation.errors} />}
               <p className="font-semibold text-slate-700">Paciente: {selectedItem.patientName}</p>
               <p className="text-slate-500">Leito atual: {selectedItem.bedName}</p>
               <div className="space-y-1">
@@ -1193,7 +1254,7 @@ export default function InternacaoCentroCirurgicoModule({
                 <textarea value={transferForm.reason} onChange={e => setTransferForm(p => ({ ...p, reason: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs" rows={2} />
               </div>
               <div className="flex justify-end gap-2">
-                <Button variant="outline" size="sm" onClick={() => setShowModal(false)} className="text-xs">Cancelar</Button>
+                <Button variant="outline" size="sm" onClick={() => setShowModal(false)} className="text-xs">{t('intern_btn_cancel', 'app')}</Button>
                 <Button size="sm" onClick={() => {
                   setTransferForm({
                     patientId: selectedItem.patientId || '',
@@ -1259,6 +1320,7 @@ export default function InternacaoCentroCirurgicoModule({
           {/* Evolution Form */}
           {modalContent === 'evolutionForm' && selectedItem && (
             <div className="space-y-3 text-xs">
+              {evolValidation.errors.length > 0 && <FormErrorSummary errors={evolValidation.errors} />}
               <p className="font-semibold text-slate-700">{t('hce_patient', 'app')}: {selectedItem.patientName}</p>
               <div className="grid grid-cols-4 gap-2">
                 {[{ key: 'bp', label: t('hce_bp_short', 'app') }, { key: 'hr', label: t('hce_hr_short', 'app') }, { key: 'rr', label: t('hce_rr_short', 'app') }, { key: 'temp', label: t('hce_temp_short', 'app') }, { key: 'spo2', label: 'SpO2' }].map(f => (
@@ -1315,11 +1377,11 @@ export default function InternacaoCentroCirurgicoModule({
                 ))}
               </div>
               <div className="space-y-1">
-                <Label className="text-[10px] font-bold">Observações</Label>
+                <Label className="text-[10px] font-bold">{t('intern_lbl_observacoes', 'app')}</Label>
                 <textarea value={checkForm.notes} onChange={e => setCheckForm(p => ({ ...p, notes: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs" rows={2} />
               </div>
               <div className="flex justify-end gap-2 pt-2">
-                <Button variant="outline" size="sm" onClick={() => setShowModal(false)} className="text-xs">Cancelar</Button>
+                <Button variant="outline" size="sm" onClick={() => setShowModal(false)} className="text-xs">{t('intern_btn_cancel', 'app')}</Button>
                 <Button size="sm" onClick={() => completeChecklist(selectedItem)} className="bg-purple-600 hover:bg-purple-700 text-xs font-bold">Completar Checklist</Button>
               </div>
             </div>
@@ -1328,10 +1390,11 @@ export default function InternacaoCentroCirurgicoModule({
           {/* Nursing Form */}
           {modalContent === 'nursingForm' && selectedItem && (
             <div className="space-y-3 text-xs">
+              {nursValidation.errors.length > 0 && <FormErrorSummary errors={nursValidation.errors} />}
               <p className="font-semibold text-slate-700">Paciente: {selectedItem.patientName}</p>
               <div className="grid grid-cols-3 gap-3">
                 <div className="space-y-1">
-                  <Label className="text-[10px] font-bold">Data</Label>
+                  <Label className="text-[10px] font-bold">{t('intern_lbl_data', 'app')}</Label>
                   <I18nDatePicker value={nursForm.date} onChange={v => setNursForm(p => ({ ...p, date: v }))} className="text-xs h-9" />
                 </div>
                 <div className="space-y-1">
@@ -1344,9 +1407,9 @@ export default function InternacaoCentroCirurgicoModule({
                 <div className="space-y-1">
                   <Label className="text-[10px] font-bold">Balanço Hídrico</Label>
                   <div className="flex items-center gap-1">
-                    <Input type="number" value={nursForm.intake || ''} onChange={e => setNursForm(p => ({ ...p, intake: Number(e.target.value) }))} placeholder="Ingesta" className="text-xs h-9 w-full" />
+                    <Input type="text" inputMode="decimal" value={nursForm.intake || ''} onChange={e => setNursForm(p => ({ ...p, intake: Number(e.target.value) }))} placeholder="Ingesta" className="text-xs h-9 w-full" />
                     <span className="text-slate-400">/</span>
-                    <Input type="number" value={nursForm.output || ''} onChange={e => setNursForm(p => ({ ...p, output: Number(e.target.value) }))} placeholder="Perda" className="text-xs h-9 w-full" />
+                    <Input type="text" inputMode="decimal" value={nursForm.output || ''} onChange={e => setNursForm(p => ({ ...p, output: Number(e.target.value) }))} placeholder="Perda" className="text-xs h-9 w-full" />
                   </div>
                 </div>
               </div>
@@ -1355,7 +1418,7 @@ export default function InternacaoCentroCirurgicoModule({
                 <textarea value={nursForm.observations} onChange={e => setNursForm(p => ({ ...p, observations: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs" rows={3} />
               </div>
               <div className="flex justify-end gap-2 pt-2">
-                <Button variant="outline" size="sm" onClick={() => setShowModal(false)} className="text-xs">Cancelar</Button>
+                <Button variant="outline" size="sm" onClick={() => setShowModal(false)} className="text-xs">{t('intern_btn_cancel', 'app')}</Button>
                 <Button size="sm" onClick={() => addNursingSheet(selectedItem)} className="bg-teal-600 hover:bg-teal-700 text-xs font-bold">Registrar Folha</Button>
               </div>
             </div>
@@ -1498,7 +1561,7 @@ export default function InternacaoCentroCirurgicoModule({
               )}
               {selectedItem.notes && (
                 <div className="bg-amber-50 rounded-lg p-3">
-                  <p className="text-[9px] font-bold text-amber-600 uppercase">Observações</p>
+                  <p className="text-[9px] font-bold text-amber-600 uppercase">{t('intern_lbl_observacoes', 'app')}</p>
                   <p>{selectedItem.notes}</p>
                 </div>
               )}

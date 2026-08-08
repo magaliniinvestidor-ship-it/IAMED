@@ -154,6 +154,43 @@ const handleSave = async () => {
 
 ---
 
+## Otimização de Imagens (next/image)
+
+### Regra Obrigatória
+
+**TODA imagem em JSX DEVE usar `<Image>` de `next/image`, nunca `<img>` cru.**
+
+### Por quê
+
+- ✅ Redimensionamento automático (não baixa arquivo gigante para mostrar 32×32).
+- ✅ Conversão para WebP, lazy loading, otimização de LCP.
+- ✅ Cumpre automaticamente o lint `@next/next/no-img-element`.
+
+### Como funciona
+
+```tsx
+import Image from 'next/image';
+
+// ✅ Tamanho fixo conhecido
+<Image src={patient.photo_url} alt={patient.name} width={80} height={80} className="rounded-full object-cover" />
+
+// ✅ Imagem que preenche o parent (ex.: avatar em card circular)
+<div className="relative w-20 h-20 overflow-hidden">
+  <Image src={photo} alt="Foto" fill className="object-cover" />
+</div>
+
+// ❌ ERRADO
+<img src={photo} alt="Foto" className="w-20 h-20 rounded-full object-cover" />
+```
+
+### Pontos de atenção
+
+- Ao usar `fill`, o **pai precisa ter `position: relative`** (e tamanho definido).
+- Domínios externos de imagens devem estar em `next.config.ts` → `images.remotePatterns` (já tem `picsum.photos` e `images.unsplash.com`).
+- Para imagens do Supabase Storage, adicionar o domínio `*.supabase.co` no mesmo local.
+
+---
+
 ## Outras Regras
 
 - Seguir o estilo de código existente no repositório.

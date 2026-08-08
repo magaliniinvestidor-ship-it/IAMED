@@ -334,7 +334,7 @@ export function ProfessionalsTab({
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Telefone</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">{t('rcpt_label_phone', 'app')}</label>
                 <input
                   type="text"
                   value={profPhone}

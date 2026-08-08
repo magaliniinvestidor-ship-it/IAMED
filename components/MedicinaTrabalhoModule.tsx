@@ -13,6 +13,11 @@ import {
 import { supabase } from '@/lib/supabaseClient';
 import { useI18n } from '@/lib/i18n/I18nContext';
 import { useModuleId } from '@/hooks/useModuleId';
+import { useFormValidation } from '@/lib/validation';
+import {
+  empresaSchema, trabalhadorSchema, exameOcupacionalSchema,
+} from '@/lib/validation/schemas';
+import { FormErrorSummary } from '@/components/forms';
 import I18nDatePicker from '@/components/I18nDatePicker';
 import {
   Building2, Users, Stethoscope, FileCheck, AlertTriangle,
@@ -41,6 +46,10 @@ export default function MedicinaTrabalhoModule({
 
   // ─── SEQUENTIAL ID GENERATION (Postgres RPC) ───
   const genModuleId = useModuleId();
+
+  const empresaValidation = useFormValidation(empresaSchema);
+  const trablValidation = useFormValidation(trabalhadorSchema);
+  const exameValidation = useFormValidation(exameOcupacionalSchema);
 
   // ─── Data State ───
   const [empresas, setEmpresas] = useState<Empresa[]>(initialEmpresas);
@@ -142,6 +151,21 @@ export default function MedicinaTrabalhoModule({
   };
 
   const handleSaveEmpresa = async () => {
+    const res = empresaValidation.validate({
+      nome: empresaForm.nome || '',
+      ruc: empresaForm.ruc || '',
+      nomeFantasia: empresaForm.nomeFantasia,
+      endereco: empresaForm.endereco,
+      cidade: empresaForm.cidade,
+      departamento: empresaForm.departamento,
+      telefone: empresaForm.telefone,
+      email: empresaForm.email,
+      atividadeEconomica: empresaForm.atividadeEconomica,
+      setor: empresaForm.setor || 'Serviços',
+      porte: empresaForm.porte || 'Pequena',
+      nroFuncionarios: empresaForm.nroFuncionarios || 0,
+    });
+    if (!res.success) return;
     if (!empresaForm.nome || !empresaForm.ruc) return;
     const nova: Empresa = {
       id: await genModuleId('emp'),
@@ -169,6 +193,19 @@ export default function MedicinaTrabalhoModule({
   };
 
   const handleSaveTrabalhador = async () => {
+    const res = trablValidation.validate({
+      nome: trabForm.nome || '',
+      ci: trabForm.ci || '',
+      dataNascimento: trabForm.dataNascimento || '',
+      genero: trabForm.genero || 'Masculino',
+      nacionalidade: trabForm.nacionalidade || 'Paraguaya',
+      funcao: trabForm.funcao,
+      empresaId: trabForm.empresaId || '',
+      telefone: trabForm.telefone,
+      email: trabForm.email,
+      dataAdmissao: trabForm.dataAdmissao,
+    });
+    if (!res.success) return;
     if (!trabForm.nome || !trabForm.ci || !trabForm.empresaId) return;
     const novoTrab: Trabalhador = {
       id: await genModuleId('trab'),
@@ -191,6 +228,12 @@ export default function MedicinaTrabalhoModule({
   };
 
   const handleRealizarExame = async () => {
+    const res = exameValidation.validate({
+      trabalhadorId: exameForm.trabalhadorId,
+      empresaId: exameForm.empresaId,
+      examesSelecionados: exameForm.examesSelecionados,
+    });
+    if (!res.success) return;
     if (!exameForm.trabalhadorId || !exameForm.empresaId || exameForm.examesSelecionados.length === 0) return;
     const novoExame: ExameOcupacional = {
       id: await genModuleId('ex'),
@@ -419,6 +462,7 @@ export default function MedicinaTrabalhoModule({
             </div>
             {showForm === 'empresa' && (
               <div className="space-y-2.5 text-xs border-t border-slate-100 pt-3 mt-3">
+                {empresaValidation.errors.length > 0 && <FormErrorSummary errors={empresaValidation.errors} />}
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className={labelCls}>{t('medtrab_label_name', 'app')} *</label>
@@ -454,7 +498,7 @@ export default function MedicinaTrabalhoModule({
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className={labelCls}>{t('medtrab_label_num_employees', 'app')}</label>
-                    <input type="number" value={empresaForm.nroFuncionarios || ''} onChange={e => setEmpresaForm(p => ({ ...p, nroFuncionarios: parseInt(e.target.value) || 0 }))} className={inputCls} />
+                    <input type="text" inputMode="numeric" value={empresaForm.nroFuncionarios || ''} onChange={e => setEmpresaForm(p => ({ ...p, nroFuncionarios: parseInt(e.target.value) || 0 }))} className={inputCls} />
                   </div>
                   <div>
                     <label className={labelCls}>{t('medtrab_label_representative', 'app')}</label>
@@ -573,6 +617,7 @@ export default function MedicinaTrabalhoModule({
             </div>
             {showForm === 'trabalhador' && (
               <div className="space-y-2.5 text-xs border-t border-slate-100 pt-3 mt-3">
+                {trablValidation.errors.length > 0 && <FormErrorSummary errors={trablValidation.errors} />}
                 <div>
                   <label className={labelCls}>{t('medtrab_label_company', 'app')} *</label>
                   <select value={trabForm.empresaId} onChange={e => setTrabForm(p => ({ ...p, empresaId: e.target.value }))} className={inputCls}>
@@ -620,7 +665,7 @@ export default function MedicinaTrabalhoModule({
                   </div>
                   <div>
                     <label className={labelCls}>{t('medtrab_label_email', 'app')}</label>
-                    <input type="email" value={trabForm.email || ''} onChange={e => setTrabForm(p => ({ ...p, email: e.target.value }))} className={inputCls} />
+                    <input type="text" value={trabForm.email || ''} onChange={e => setTrabForm(p => ({ ...p, email: e.target.value }))} className={inputCls} />
                   </div>
                 </div>
                 <button onClick={handleSaveTrabalhador} className={btnCls + ' w-full'}>{t('medtrab_btn_register_worker', 'app')}</button>
@@ -697,6 +742,7 @@ export default function MedicinaTrabalhoModule({
             </div>
             {showForm === 'exame' && (
               <div className="space-y-2.5 text-xs border-t border-slate-100 pt-3 mt-3">
+                {exameValidation.errors.length > 0 && <FormErrorSummary errors={exameValidation.errors} />}
                 <div>
                   <label className={labelCls}>{t('medtrab_label_company', 'app')}</label>
                   <select value={exameForm.empresaId} onChange={e => setExameForm(p => ({ ...p, empresaId: e.target.value, trabalhadorId: '' }))} className={inputCls}>

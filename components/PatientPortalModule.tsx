@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import Image from 'next/image';
 import {
   Patient, Appointment, Dte,
   initialPatients, initialAppointments,
@@ -10,6 +11,11 @@ import {
 import { supabase } from '@/lib/supabaseClient';
 import { useI18n } from '@/lib/i18n/I18nContext';
 import { useModuleId } from '@/hooks/useModuleId';
+import { useFormValidation } from '@/lib/validation';
+import {
+  portalRegisterSchema, portalBookingSchema, portalTelemedicineSchema, portalPaymentSchema,
+} from '@/lib/validation/schemas';
+import { FormErrorSummary } from '@/components/forms';
 import I18nDatePicker from '@/components/I18nDatePicker';
 import {
   Smartphone, CalendarDays, ClipboardList, FileText, Receipt,
@@ -94,6 +100,11 @@ export default function PatientPortalModule({
 }: PatientPortalModuleProps) {
   const { t } = useI18n();
   const genModuleId = useModuleId();
+
+  const registerValidation = useFormValidation(portalRegisterSchema);
+  const bookingValidation = useFormValidation(portalBookingSchema);
+  const telValidation = useFormValidation(portalTelemedicineSchema);
+  const paymentValidation = useFormValidation(portalPaymentSchema);
 
   // Auth state
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -199,6 +210,17 @@ export default function PatientPortalModule({
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setRegError('');
+    const res = registerValidation.validate({
+      name: regForm.name,
+      ci: regForm.ci,
+      email: regForm.email,
+      phone: regForm.phone,
+      password: regForm.password,
+      confirmPassword: regForm.confirmPassword,
+      birthdate: regForm.birthdate,
+      gender: regForm.gender,
+    });
+    if (!res.success) return;
     if (regForm.password !== regForm.confirmPassword) {
       setRegError('Senhas não conferem.');
       return;
@@ -265,6 +287,13 @@ export default function PatientPortalModule({
   }, [isCallActive, stream, loggedPatient, addAuditLog]);
 
   const handleRequestTelemedicine = async () => {
+    const res = telValidation.validate({
+      specialty: telForm.specialty,
+      date: telForm.date,
+      time: telForm.time,
+      notes: telForm.notes,
+    });
+    if (!res.success) return;
     if (!telForm.specialty || !telForm.date || !telForm.time) return;
     setTelLoading(true);
     const doctor = DOCTORS[telForm.specialty]?.[0];
@@ -289,6 +318,15 @@ export default function PatientPortalModule({
 
   // ─── Booking ───
   const handleBookAppointment = async () => {
+    const res = bookingValidation.validate({
+      specialty: bookingForm.specialty,
+      doctorId: bookingForm.doctorId,
+      doctorName: bookingForm.doctorName,
+      date: bookingForm.date,
+      time: bookingForm.time,
+      modality: bookingForm.modality,
+    });
+    if (!res.success) return;
     if (!bookingForm.specialty || !bookingForm.doctorId || !bookingForm.date || !bookingForm.time) return;
     setBookingLoading(true);
     const newApp: Appointment = {
@@ -325,6 +363,11 @@ export default function PatientPortalModule({
 
   // ─── Payment ───
   const handleMakePayment = async () => {
+    const res = paymentValidation.validate({
+      amount: paymentForm.amount,
+      method: paymentForm.method,
+    });
+    if (!res.success) return;
     setPaymentProcessing(true);
     setTimeout(async () => {
       const txId = `PIX-${typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID().replace(/-/g, '').toUpperCase().slice(0, 16) : Date.now().toString(36).toUpperCase()}`;
@@ -453,41 +496,42 @@ export default function PatientPortalModule({
             ) : (
               <>
                 <h3 className="text-sm font-bold text-slate-800 mb-4">{t('portal_register_title', 'app')}</h3>
-                <form onSubmit={handleRegister} className="space-y-4">
+                <form onSubmit={handleRegister} noValidate className="space-y-4">
+                  {registerValidation.errors.length > 0 && <FormErrorSummary errors={registerValidation.errors} />}
                   <div className="grid grid-cols-2 gap-3">
                     <div className="col-span-2">
                       <label className="text-[10px] font-bold text-slate-500 uppercase">{t('patient', 'app')}</label>
-                      <input type="text" value={regForm.name} onChange={e => setRegForm(p => ({ ...p, name: e.target.value }))} required
+                      <input type="text" value={regForm.name} onChange={e => setRegForm(p => ({ ...p, name: e.target.value }))}
                         className="w-full p-2.5 border border-slate-200 rounded-lg text-xs mt-1 focus:ring-2 focus:ring-indigo-500 outline-none" />
                     </div>
                     <div>
                       <label className="text-[10px] font-bold text-slate-500 uppercase">{t('portal_ci', 'app')}</label>
-                      <input type="text" value={regForm.ci} onChange={e => setRegForm(p => ({ ...p, ci: e.target.value }))} required
+                      <input type="text" value={regForm.ci} onChange={e => setRegForm(p => ({ ...p, ci: e.target.value }))}
                         className="w-full p-2.5 border border-slate-200 rounded-lg text-xs mt-1 focus:ring-2 focus:ring-indigo-500 outline-none" />
                     </div>
                     <div>
                       <label className="text-[10px] font-bold text-slate-500 uppercase">{t('date_of_birth', 'terms')}</label>
-                      <I18nDatePicker value={regForm.birthdate} onChange={v => setRegForm(p => ({ ...p, birthdate: v }))} required
+                      <I18nDatePicker value={regForm.birthdate} onChange={v => setRegForm(p => ({ ...p, birthdate: v }))}
                         className="w-full p-2.5 border border-slate-200 rounded-lg text-xs mt-1 focus:ring-2 focus:ring-indigo-500 outline-none" />
                     </div>
                     <div className="col-span-2">
                       <label className="text-[10px] font-bold text-slate-500 uppercase">{t('address', 'app')}</label>
-                      <input type="email" value={regForm.email} onChange={e => setRegForm(p => ({ ...p, email: e.target.value }))} required
+                      <input type="text" value={regForm.email} onChange={e => setRegForm(p => ({ ...p, email: e.target.value }))}
                         className="w-full p-2.5 border border-slate-200 rounded-lg text-xs mt-1 focus:ring-2 focus:ring-indigo-500 outline-none" />
                     </div>
                     <div className="col-span-2">
                       <label className="text-[10px] font-bold text-slate-500 uppercase">{t('phone', 'app')}</label>
-                      <input type="tel" value={regForm.phone} onChange={e => setRegForm(p => ({ ...p, phone: e.target.value }))} required
+                      <input type="text" inputMode="tel" value={regForm.phone} onChange={e => setRegForm(p => ({ ...p, phone: e.target.value }))}
                         className="w-full p-2.5 border border-slate-200 rounded-lg text-xs mt-1 focus:ring-2 focus:ring-indigo-500 outline-none" />
                     </div>
                     <div>
                       <label className="text-[10px] font-bold text-slate-500 uppercase">{t('password', 'login')}</label>
-                      <input type="password" value={regForm.password} onChange={e => setRegForm(p => ({ ...p, password: e.target.value }))} required
+                      <input type="password" value={regForm.password} onChange={e => setRegForm(p => ({ ...p, password: e.target.value }))}
                         className="w-full p-2.5 border border-slate-200 rounded-lg text-xs mt-1 focus:ring-2 focus:ring-indigo-500 outline-none" />
                     </div>
                     <div>
                       <label className="text-[10px] font-bold text-slate-500 uppercase">{t('portal_confirm_password', 'app')}</label>
-                      <input type="password" value={regForm.confirmPassword} onChange={e => setRegForm(p => ({ ...p, confirmPassword: e.target.value }))} required
+                      <input type="password" value={regForm.confirmPassword} onChange={e => setRegForm(p => ({ ...p, confirmPassword: e.target.value }))}
                         className="w-full p-2.5 border border-slate-200 rounded-lg text-xs mt-1 focus:ring-2 focus:ring-indigo-500 outline-none" />
                     </div>
                   </div>
@@ -1041,6 +1085,7 @@ export default function PatientPortalModule({
                 </div>
               ) : (
                 <>
+                  {paymentValidation.errors.length > 0 && <FormErrorSummary errors={paymentValidation.errors} />}
                   <div className="space-y-3">
                     <div>
                       <label className="text-[10px] font-bold text-slate-500 uppercase">{t('portal_payment_method', 'app')}</label>
@@ -1057,13 +1102,13 @@ export default function PatientPortalModule({
                       <label className="text-[10px] font-bold text-slate-500 uppercase">{t('portal_payment_amount', 'app')}</label>
                       <div className="relative mt-1">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">R$</span>
-                        <input type="number" step="0.01" value={paymentForm.amount}
+                        <input type="text" inputMode="decimal" value={paymentForm.amount}
                           onChange={e => setPaymentForm(p => ({ ...p, amount: parseFloat(e.target.value) || 0 }))}
                           className="w-full p-2.5 pl-9 border border-slate-200 rounded-lg text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none" />
                       </div>
                     </div>
                   </div>
-                  <button onClick={handleMakePayment} disabled={paymentProcessing || paymentForm.amount <= 0}
+                  <button onClick={handleMakePayment} disabled={paymentProcessing}
                     className="w-full py-3 mt-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer">
                     {paymentProcessing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Shield className="w-3.5 h-3.5" />}
                     {paymentProcessing ? t('portal_payment_processing', 'app') : t('portal_pay', 'app')}
@@ -1153,8 +1198,8 @@ export default function PatientPortalModule({
                         <p className="text-[10px] text-slate-600">{t('portal_secure_communication', 'app')}</p>
                       </div>
                     )}
-                    <div className="absolute bottom-3 right-3 w-20 h-28 bg-slate-900 border-2 border-white rounded-lg overflow-hidden shadow-md">
-                        <img src="https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&q=80&w=200" alt={t('portal_doctor_alt', 'app')} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    <div className="absolute bottom-3 right-3 w-20 h-28 bg-slate-900 border-2 border-white rounded-lg overflow-hidden shadow-md relative">
+                        <Image src="https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&q=80&w=200" alt={t('portal_doctor_alt', 'app')} className="object-cover" fill referrerPolicy="no-referrer" />
                         <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-1 py-0.5 text-[8px] text-white text-center">{t('portal_doctor_label', 'app')}</div>
                     </div>
                   </div>
@@ -1179,6 +1224,7 @@ export default function PatientPortalModule({
         <div className="bg-white border border-slate-200 rounded-xl p-5 max-w-lg">
           <h3 className="text-sm font-bold text-slate-800 mb-4">{t('portal_telemedicine_request', 'app')}</h3>
           <div className="space-y-3">
+            {telValidation.errors.length > 0 && <FormErrorSummary errors={telValidation.errors} />}
             <div>
               <label className="text-[10px] font-bold text-slate-500 uppercase">{t('portal_select_specialty', 'app')}</label>
               <select value={telForm.specialty} onChange={e => {
@@ -1216,7 +1262,7 @@ export default function PatientPortalModule({
               <textarea value={telForm.notes} onChange={e => setTelForm(p => ({ ...p, notes: e.target.value }))}
                 className="w-full p-2.5 border border-slate-200 rounded-lg text-xs mt-1 focus:ring-2 focus:ring-purple-500 outline-none" rows={2} />
             </div>
-            <button onClick={handleRequestTelemedicine} disabled={telLoading || !telForm.specialty || !telForm.date || !telForm.time}
+            <button onClick={handleRequestTelemedicine} disabled={telLoading}
               className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-lg disabled:opacity-50 cursor-pointer">
               {telLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin mx-auto" /> : t('portal_telemedicine_request', 'app')}
             </button>
@@ -1412,6 +1458,7 @@ export default function PatientPortalModule({
             </div>
           ) : (
             <div className="space-y-4">
+              {bookingValidation.errors.length > 0 && <FormErrorSummary errors={bookingValidation.errors} />}
               <div>
                 <label className="text-[10px] font-bold text-slate-500 uppercase">{t('portal_select_specialty', 'app')}</label>
                 <select value={bookingForm.specialty} onChange={e => {
@@ -1468,7 +1515,7 @@ export default function PatientPortalModule({
                   ))}
                 </div>
               </div>
-              <button onClick={handleBookAppointment} disabled={bookingLoading || !bookingForm.specialty || !bookingForm.doctorId || !bookingForm.date || !bookingForm.time}
+              <button onClick={handleBookAppointment} disabled={bookingLoading}
                 className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer">
                 {bookingLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CalendarDays className="w-4 h-4" />}
                 {bookingLoading ? t('syncing', 'app') : t('create_appointment', 'app')}

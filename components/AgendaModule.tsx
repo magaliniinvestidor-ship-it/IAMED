@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import Image from 'next/image';
 import { supabase } from '@/lib/supabaseClient';
 import { useI18n } from '@/lib/i18n/I18nContext';
 import { Patient, Appointment, Professional } from '@/lib/mockData';
@@ -22,7 +23,7 @@ import PhoneInput from '@/components/PhoneInput';
 import I18nDatePicker from '@/components/I18nDatePicker';
 import { Badge } from '@/components/ui/badge';
 import { useFormValidation, groupErrorsByPath } from '@/lib/validation';
-import { appointmentSchema } from '@/lib/validation/schemas';
+import { appointmentSchema, clinicPatientSchema } from '@/lib/validation/schemas';
 import { FormErrorSummary } from '@/components/forms';
 
 // ==============================================================
@@ -64,7 +65,7 @@ function ClinicPatientCard({
     <div className="p-4 bg-white rounded-xl border border-slate-200 hover:shadow-md transition-all">
       <div className="flex items-start gap-3">
         {cp.photo_url ? (
-          <img src={cp.photo_url} alt={cp.name} className="w-20 h-20 rounded-full object-cover border-2 border-slate-200" />
+          <Image src={cp.photo_url} alt={cp.name} className="rounded-full object-cover border-2 border-slate-200" width={80} height={80} />
         ) : (
           <div className="w-20 h-20 rounded-full bg-teal-100 flex items-center justify-center text-teal-700 font-bold text-sm">
             {cp.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
@@ -468,23 +469,14 @@ const AgendaModuleContent = ({
   const [callDateView, setCallDateView] = useState<'day' | 'week' | 'month'>('day');
   const [callSelectedDate, setCallSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
   const callCounterRef = useRef(0);
-  const apptCounterRef = useRef(0);
   const waitlistCounterRef = useRef(0);
   const reminderCounterRef = useRef(0);
 
   // Initialize counters from existing data to avoid duplicate IDs
   useEffect(() => {
-    let maxApptId = 0;
     let maxWlId = 0;
     let maxRemId = 0;
     let maxCallId = 0;
-    appointments.forEach(a => {
-      const match = a.id.match(/^agenda_(\d+)$/);
-      if (match) {
-        const num = parseInt(match[1], 10);
-        if (num > maxApptId) maxApptId = num;
-      }
-    });
     waitlist.forEach(w => {
       const match = w.id.match(/^wl_(\d+)$/);
       if (match) {
@@ -506,7 +498,6 @@ const AgendaModuleContent = ({
         if (num > maxCallId) maxCallId = num;
       }
     });
-    if (maxApptId > apptCounterRef.current) apptCounterRef.current = maxApptId;
     if (maxWlId > waitlistCounterRef.current) waitlistCounterRef.current = maxWlId;
     if (maxRemId > reminderCounterRef.current) reminderCounterRef.current = maxRemId;
     if (maxCallId > callCounterRef.current) callCounterRef.current = maxCallId;
@@ -527,6 +518,7 @@ const AgendaModuleContent = ({
   const [minGapMinutes, setMinGapMinutes] = useState(30);
   const [schedulingConfig, setSchedulingConfig] = useState({ showConfig: false });
   const { errors: apptErrors, validate: validateAppt } = useFormValidation(appointmentSchema);
+  const { errors: cpErrors, validate: validateCp, setErrors: setCpErrors } = useFormValidation(clinicPatientSchema);
 
   // Edit appointment modal
   const [showEditApptModal, setShowEditApptModal] = useState(false);
@@ -1290,8 +1282,17 @@ const AgendaModuleContent = ({
     }
     // Create pending appointment to block the time slot
     if (consultDate && consultTime && notifyEntry.doctor_name) {
+      let pendingApptId = '';
+      if (supabase) {
+        const { data: rpcAppId, error: rpcErr } = await supabase.rpc('next_appointment_id');
+        if (!rpcErr && rpcAppId) pendingApptId = rpcAppId;
+      }
+      if (!pendingApptId) {
+        console.error('Falha ao gerar ID de agendamento via RPC next_appointment_id');
+        return;
+      }
       const pendingAppt: Appointment = {
-        id: `agenda_${++apptCounterRef.current}`,
+        id: pendingApptId,
         patientId: notifyEntry.patient_id,
         patientName: notifyEntry.patient_name,
         doctorName: notifyEntry.doctor_name,
@@ -1344,8 +1345,17 @@ const AgendaModuleContent = ({
   const handleAllocateSubmit = async () => {
     if (!allocateEntry || !allocateDate || !allocateTime || !allocateDoctor) return;
     const doc = professionals.find(p => p.name === allocateDoctor);
+    let newApptId = '';
+    if (supabase) {
+      const { data: rpcAppId, error: rpcErr } = await supabase.rpc('next_appointment_id');
+      if (!rpcErr && rpcAppId) newApptId = rpcAppId;
+    }
+    if (!newApptId) {
+      console.error('Falha ao gerar ID de agendamento via RPC next_appointment_id');
+      return;
+    }
     const newAppointment: Appointment = {
-      id: `agenda_${++apptCounterRef.current}`,
+      id: newApptId,
       patientId: allocateEntry.patient_id,
       patientName: allocateEntry.patient_name,
       doctorName: allocateDoctor,
@@ -1574,8 +1584,15 @@ const AgendaModuleContent = ({
         return;
       }
     }
-    apptCounterRef.current += 1;
-    const apptId = `agenda_${apptCounterRef.current}`;
+    let apptId = '';
+    if (supabase) {
+      const { data: rpcAppId, error: rpcErr } = await supabase.rpc('next_appointment_id');
+      if (!rpcErr && rpcAppId) apptId = rpcAppId;
+    }
+    if (!apptId) {
+      console.error('Falha ao gerar ID de agendamento via RPC next_appointment_id');
+      return;
+    }
     const newApp: Appointment = {
       id: apptId,
       patientId: newApptForm.patient_id,
@@ -1724,6 +1741,36 @@ const AgendaModuleContent = ({
   const handleClinicPatientSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    const cpResult = validateCp({
+      name: cpForm.name,
+      document_type: cpForm.document_type as 'CI' | 'RG' | 'Passaporte' | 'DNI / Outro' | undefined,
+      document_number: cpForm.document_number,
+      birth_date: cpForm.birth_date,
+      gender: cpForm.gender as 'Masculino' | 'Feminino' | 'Outro',
+      nationality: cpForm.nationality,
+      civil_status: cpForm.civil_status as 'Solteiro(a)' | 'Casado(a)' | 'Divorciado(a)' | 'Viúvo(a)' | 'União Estável' | undefined,
+      phone: cpForm.phone,
+      email: cpForm.email,
+      address_department: cpForm.address_department,
+      address_district: cpForm.address_district,
+      address_city: cpForm.address_city,
+      address_neighborhood: cpForm.address_neighborhood,
+      address_street: cpForm.address_street,
+      address_number: cpForm.address_number,
+      country: cpForm.country,
+      insurance_type: cpForm.insurance_type,
+      preferred_language: cpForm.preferred_language,
+      allergies: cpForm.allergies,
+      responsible_name: cpForm.responsible_name,
+      responsible_document_number: cpForm.responsible_document_number,
+      responsible_phone: cpForm.responsible_phone,
+      responsible_relationship: cpForm.responsible_relationship,
+    });
+    if (!cpResult.success) {
+      setCpErrors(cpResult.errors);
+      return;
+    }
+
     // ID do paciente: ao editar usa o existente, ao criar gera um novo via RPC
     let patientId = editingClinicPatient?.id || '';
     if (!patientId && supabase) {
@@ -1775,17 +1822,8 @@ const AgendaModuleContent = ({
         }).eq('id', editingClinicPatient.id);
       }
     } else {
-      if (!supabase) {
-        console.error('Supabase não inicializado para gerar ID de agendamento');
-        return;
-      }
-      const { data: tempId, error: rpcErr } = await supabase.rpc('next_appointment_id');
-      if (rpcErr || !tempId) {
-        console.error('Erro ao gerar ID de agendamento via RPC:', rpcErr?.message);
-        return;
-      }
       const newPatient: ClinicPatient = {
-        id: tempId,
+        id: patientId,
         ...cpForm,
         photo_url: '',
         status: 'ativo',
@@ -1813,7 +1851,7 @@ const AgendaModuleContent = ({
         }).select('id').single();
         if (data) {
           const realId = data.id;
-          setClinicPatients(prev => prev.map(p => p.id === tempId ? { ...p, id: realId } : p));
+          setClinicPatients(prev => prev.map(p => p.id === patientId ? { ...p, id: realId } : p));
           // Upload da foto com o ID correto do Supabase
           if (hasNewPhoto) {
             const fileName = `patient_${realId}.jpg`;
@@ -2212,7 +2250,7 @@ const AgendaModuleContent = ({
       {/* ==================== NEW CLINIC PATIENT MODAL ==================== */}
       <InlineModal open={showNewPatientModal} onClose={() => { setShowNewPatientModal(false); resetCpForm(); }} className="max-w-2xl">
         <div className="p-6">
-          <form onSubmit={handleClinicPatientSubmit} className="space-y-4">
+          <form onSubmit={handleClinicPatientSubmit} className="space-y-4" noValidate>
             <div className="flex items-center justify-between">
               <h3 className="font-bold text-lg">{editingClinicPatient ? t('agenda_edit_clinic_patient', 'app') : t('agenda_checkin_admission', 'app')}</h3>
             </div>
@@ -2225,12 +2263,14 @@ const AgendaModuleContent = ({
                 { id: 'complementary' as const, label: t('agenda_complementary', 'app') },
                 ...(cpIsMinor ? [{ id: 'guardian' as const, label: t('agenda_guardian', 'app') }] : []),
               ]).map(tab => (
-                <button key={tab.id} type="button" onClick={() => setClinicPatientFormTab(tab.id)}
+                <button key={tab.id} type="button" onClick={() => { setCpErrors([]); setClinicPatientFormTab(tab.id); }}
                   className={`px-4 py-2 text-sm font-semibold border-b-2 transition ${
                     clinicPatientFormTab === tab.id ? 'border-teal-600 text-teal-600' : 'border-transparent text-slate-500 hover:text-slate-700'
                   }`}>{tab.label}</button>
               ))}
             </div>
+
+            {cpErrors.length > 0 && <FormErrorSummary errors={cpErrors} onClose={() => setCpErrors([])} />}
 
             {/* Aba Identificacao */}
             {clinicPatientFormTab === 'identification' && (
@@ -2299,9 +2339,9 @@ const AgendaModuleContent = ({
                 <div>
                   <label className="block text-sm font-medium text-slate-600 mb-2">{t('agenda_patient_photo', 'app')}</label>
                   <div className="flex items-center gap-4">
-                    <div className="w-20 h-20 rounded-full bg-slate-100 border-2 border-slate-200 flex items-center justify-center overflow-hidden">
+                    <div className="w-20 h-20 rounded-full bg-slate-100 border-2 border-slate-200 flex items-center justify-center overflow-hidden relative">
                       {cpWebcamPlaceholder ? (
-                        <img src={cpWebcamPlaceholder} alt={t('rcpt_alt_patient_capture', 'app')} className="w-full h-full object-cover" />
+                        <Image src={cpWebcamPlaceholder} alt={t('rcpt_alt_patient_capture', 'app')} className="object-cover" fill />
                       ) : (
                         <User className="w-8 h-8 text-slate-300" />
                       )}
@@ -3469,7 +3509,7 @@ const AgendaModuleContent = ({
       {/* New Appointment Modal */}
       <InlineModal open={showNewApptModal} onClose={() => { setShowNewApptModal(false); resetNewApptForm(); }} className="max-w-2xl">
         <div className="p-6">
-        <form onSubmit={handleNewAppointment} className="space-y-4">
+        <form onSubmit={handleNewAppointment} className="space-y-4" noValidate>
             <div className="flex items-center justify-between">
               <h3 className="font-bold text-lg">{t('agenda_new_appointment_title', 'app')}</h3>
             </div>
@@ -3516,7 +3556,7 @@ const AgendaModuleContent = ({
                       onClick={() => { setNewApptForm({ ...newApptForm, patient_id: cp.id, patient_name: cp.name }); setShowPatientDropdown(false); setPatientSearchQuery(''); }}
                       className="w-full px-4 py-3 text-left hover:bg-teal-50 flex items-center gap-3 border-b border-slate-100 last:border-0 transition">
                       {cp.photo_url ? (
-                        <img src={cp.photo_url} alt="" className="w-8 h-8 rounded-full object-cover" />
+                        <Image src={cp.photo_url} alt="" className="rounded-full object-cover" width={32} height={32} />
                       ) : (
                         <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center text-teal-700 text-xs font-bold">
                           {cp.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
@@ -3728,7 +3768,7 @@ const AgendaModuleContent = ({
       {/* Edit Appointment Modal */}
       <InlineModal open={showEditApptModal} onClose={() => { setShowEditApptModal(false); setEditingAppt(null); }} className="max-w-2xl">
         <div className="p-6">
-          <form onSubmit={handleUpdateAppointment} className="space-y-4">
+          <form onSubmit={handleUpdateAppointment} className="space-y-4" noValidate>
             <h3 className="font-bold text-lg">{t('agenda_edit_appointment', 'app')}</h3>
 
             {/* Status */}
@@ -3835,7 +3875,7 @@ const AgendaModuleContent = ({
       {/* Blockage Modal */}
       <InlineModal open={showBlockageModal} onClose={() => setShowBlockageModal(false)} className="max-w-md">
         <div className="p-6">
-          <form onSubmit={handleBlockageSubmit} className="space-y-4">
+          <form onSubmit={handleBlockageSubmit} className="space-y-4" noValidate>
             <h3 className="font-bold text-lg">{t('agenda_new_block_title', 'app')}</h3>
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -3897,7 +3937,7 @@ const AgendaModuleContent = ({
       {/* WhatsApp Reminder Modal */}
       <InlineModal open={showReminderModal} onClose={() => { setShowReminderModal(false); setReminderForm({ patient_id: '', patient_name: '', patient_phone: '', appointment_id: '', language: '', template_id: '' }); }} className="max-w-md">
         <div className="p-6">
-          <form onSubmit={handleReminderSubmit} className="space-y-4">
+          <form onSubmit={handleReminderSubmit} className="space-y-4" noValidate>
             <h3 className="font-bold text-lg">{t('agenda_schedule_reminder_title', 'app')}</h3>
             <div>
               <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_patient', 'app')}</label>
@@ -3972,7 +4012,7 @@ const AgendaModuleContent = ({
       {/* Waitlist Modal */}
       <InlineModal open={showWaitlistModal} onClose={() => { setShowWaitlistModal(false); setWaitlistForm({ patient_id: '', patient_name: '', phone: '', branch: '', specialty: '', doctor_name: '', priority_criteria: 'arrival', preferred_days: [], preferred_hours: [] }); }} className="max-w-md">
         <div className="p-6">
-          <form onSubmit={handleWaitlistSubmit} className="space-y-4">
+          <form onSubmit={handleWaitlistSubmit} className="space-y-4" noValidate>
             <h3 className="font-bold text-lg">{t('agenda_add_to_waitlist_title', 'app')}</h3>
             <div>
               <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_patient', 'app')}</label>
@@ -4328,7 +4368,7 @@ const AgendaModuleContent = ({
       {/* Call Center Modal */}
       <InlineModal open={showCallModal} onClose={() => { setShowCallModal(false); setCallForm({ operator_name: activeOperator, patient_id: '', patient_name: '', patient_phone: '', type: '', reason: '', notes: '', duration_seconds: 0 }); }} className="max-w-md">
         <div className="p-6">
-          <form onSubmit={handleCallSubmit} className="space-y-4">
+          <form onSubmit={handleCallSubmit} className="space-y-4" noValidate>
             <h3 className="font-bold text-lg">{t('agenda_register_call_title', 'app')}</h3>
             <div>
               <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_patient', 'app')}</label>

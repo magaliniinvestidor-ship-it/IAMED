@@ -5,6 +5,9 @@ import { Patient, Bed, FinancialPosting, initialBeds, Campaign, Lead, Commercial
 import { supabase } from '@/lib/supabaseClient';
 import { useI18n } from '@/lib/i18n/I18nContext';
 import { useModuleId } from '@/hooks/useModuleId';
+import { useFormValidation } from '@/lib/validation';
+import { campaignSchema, leadSchema, opportunitySchema } from '@/lib/validation/schemas';
+import { FormErrorSummary } from '@/components/forms';
 import {
   Megaphone, BedDouble, BarChart3, Smartphone, Sparkles, Send,
   MessageSquare, Video, Check, AlertCircle, RefreshCw, Star, X,
@@ -40,6 +43,10 @@ export default function CrmBiModule({
 
   // ─── SEQUENTIAL ID GENERATION (Postgres RPC) ───
   const genModuleId = useModuleId();
+
+  const campaignValidation = useFormValidation(campaignSchema);
+  const leadValidation = useFormValidation(leadSchema);
+  const oppValidation = useFormValidation(opportunitySchema);
 
   // ─── CRM DATA ───
   const [campaigns, setCampaigns] = useState<Campaign[]>(initialCampaigns);
@@ -138,6 +145,14 @@ export default function CrmBiModule({
   };
 
   const handleSaveCampaign = async () => {
+    const res = campaignValidation.validate({
+      nome: campForm.nome,
+      tipo: campForm.tipo,
+      template: campForm.template,
+      segmentoAlvo: campForm.segmentoAlvo,
+      mensagem: campForm.mensagem,
+    });
+    if (!res.success) return;
     if (!campForm.nome || !campForm.mensagem) return;
     const nova: Campaign = {
       id: await genModuleId('camp'),
@@ -165,6 +180,15 @@ export default function CrmBiModule({
   };
 
   const handleSaveLead = async () => {
+    const res = leadValidation.validate({
+      nome: leadForm.nome,
+      email: leadForm.email,
+      telefone: leadForm.telefone,
+      origem: leadForm.origem,
+      interesse: leadForm.interesse,
+      observacoes: leadForm.observacoes,
+    });
+    if (!res.success) return;
     if (!leadForm.nome) return;
     const novo: Lead = {
       id: await genModuleId('lead'),
@@ -188,6 +212,16 @@ export default function CrmBiModule({
   };
 
   const handleSaveOpportunity = async () => {
+    const res = oppValidation.validate({
+      pacienteNome: oppForm.pacienteNome,
+      pacienteTelefone: oppForm.pacienteTelefone,
+      tipo: oppForm.tipo,
+      descricao: oppForm.descricao,
+      valorEstimado: oppForm.valorEstimado,
+      probabilidade: oppForm.probabilidade,
+      responsavel: oppForm.responsavel,
+    });
+    if (!res.success) return;
     if (!oppForm.pacienteNome || !oppForm.descricao) return;
     const nova: CommercialOpportunity = {
       id: await genModuleId('opp'),
@@ -692,6 +726,7 @@ export default function CrmBiModule({
                 </div>
                 {showForm === 'campanha' && (
                   <div className="space-y-2.5 text-xs border-t border-slate-100 pt-3 mt-3">
+                    {campaignValidation.errors.length > 0 && <FormErrorSummary errors={campaignValidation.errors} />}
                     <div>
                       <label className={labelCls}>Nome da Campanha *</label>
                       <input type="text" value={campForm.nome} onChange={e => setCampForm(p => ({ ...p, nome: e.target.value }))} className={inputCls} placeholder="Ex: Lembrete Consultas Julho" />
@@ -829,13 +864,14 @@ export default function CrmBiModule({
                 </div>
                 {showForm === 'oportunidade' && (
                   <div className="space-y-2.5 text-xs border-t border-slate-100 pt-3 mt-3">
+                    {oppValidation.errors.length > 0 && <FormErrorSummary errors={oppValidation.errors} />}
                     <div className="grid grid-cols-2 gap-2">
                       <div>
                         <label className={labelCls}>Paciente *</label>
                         <input type="text" value={oppForm.pacienteNome} onChange={e => setOppForm(p => ({ ...p, pacienteNome: e.target.value }))} className={inputCls} />
                       </div>
                       <div>
-                        <label className={labelCls}>Telefone</label>
+                        <label className={labelCls}>{t('crm_label_phone', 'app')}</label>
                         <input type="text" value={oppForm.pacienteTelefone} onChange={e => setOppForm(p => ({ ...p, pacienteTelefone: e.target.value }))} className={inputCls} />
                       </div>
                     </div>
@@ -858,11 +894,11 @@ export default function CrmBiModule({
                     <div className="grid grid-cols-2 gap-2">
                       <div>
                         <label className={labelCls}>Valor Estimado (Gs.)</label>
-                        <input type="number" value={oppForm.valorEstimado || ''} onChange={e => setOppForm(p => ({ ...p, valorEstimado: parseInt(e.target.value) || 0 }))} className={inputCls} />
+                        <input type="text" inputMode="decimal" value={oppForm.valorEstimado || ''} onChange={e => setOppForm(p => ({ ...p, valorEstimado: parseInt(e.target.value) || 0 }))} className={inputCls} />
                       </div>
                       <div>
                         <label className={labelCls}>Probabilidade (%)</label>
-                        <input type="number" min={0} max={100} value={oppForm.probabilidade} onChange={e => setOppForm(p => ({ ...p, probabilidade: parseInt(e.target.value) || 0 }))} className={inputCls} />
+                        <input type="text" inputMode="numeric" value={oppForm.probabilidade} onChange={e => setOppForm(p => ({ ...p, probabilidade: parseInt(e.target.value) || 0 }))} className={inputCls} />
                       </div>
                     </div>
                     <div>
@@ -1002,9 +1038,10 @@ export default function CrmBiModule({
                 <div className="mt-3">
                   <h5 className="font-bold text-slate-700 text-xs mb-2">Lead Manual</h5>
                   <div className="space-y-2 text-xs">
+                    {leadValidation.errors.length > 0 && <FormErrorSummary errors={leadValidation.errors} />}
                     <input type="text" value={leadForm.nome} onChange={e => setLeadForm(p => ({ ...p, nome: e.target.value }))} className={inputCls} placeholder="Nome *" />
                     <div className="grid grid-cols-2 gap-2">
-                      <input type="email" value={leadForm.email} onChange={e => setLeadForm(p => ({ ...p, email: e.target.value }))} className={inputCls} placeholder="Email" />
+                      <input type="text" value={leadForm.email} onChange={e => setLeadForm(p => ({ ...p, email: e.target.value }))} className={inputCls} placeholder="Email" />
                       <input type="text" value={leadForm.telefone} onChange={e => setLeadForm(p => ({ ...p, telefone: e.target.value }))} className={inputCls} placeholder="Telefone" />
                     </div>
                     <select value={leadForm.origem} onChange={e => setLeadForm(p => ({ ...p, origem: e.target.value as Lead['origem'] }))} className={inputCls}>
@@ -1252,7 +1289,7 @@ export default function CrmBiModule({
                       <Info className="w-4 h-4 text-slate-600" />
                       Detalhes: {kpiDefinitions.find(k => k.key === biSelectedKpi)?.label}
                     </h4>
-                    <button onClick={() => setBiSelectedKpi(null)} className="text-xs text-slate-400 hover:text-slate-600 cursor-pointer">Fechar</button>
+                    <button onClick={() => setBiSelectedKpi(null)} className="text-xs text-slate-400 hover:text-slate-600 cursor-pointer">{t('crm_btn_close', 'app')}</button>
                   </div>
                   <div className="text-xs text-slate-600 space-y-2">
                     {biSelectedKpi === 'occupancyRate' && (

@@ -79,12 +79,12 @@ export const patientSchema = z.object({
   { message: 'Data de nascimento inválida', path: ['birthdate'] }
 ).refine(
   (data) => {
-    if (!data.birthdate || !data.guardian_name) return true;
+    if (!data.birthdate) return true;
     const birth = new Date(data.birthdate);
     const now = new Date();
     const age = now.getFullYear() - birth.getFullYear();
-    if (age < 18 && !data.guardian_name.trim()) {
-      return false;
+    if (age < 18) {
+      return !!data.guardian_name && data.guardian_name.trim().length > 0;
     }
     return true;
   },
@@ -385,6 +385,35 @@ export type PatientContactAddressFormData = z.infer<typeof patientContactAddress
 export type PatientComplementaryFormData = z.infer<typeof patientComplementarySchema>;
 export type PatientGuardianFormData = z.infer<typeof patientGuardianSchema>;
 
+export const clinicPatientSchema = z.object({
+  name: nonEmptyString('Nome', 200),
+  document_type: z.enum(['CI', 'RG', 'Passaporte', 'DNI / Outro']).optional(),
+  document_number: nonEmptyString('Documento', 30),
+  birth_date: dateSchema,
+  gender: z.enum(['Masculino', 'Feminino', 'Outro']),
+  nationality: nonEmptyString('Nacionalidade', 60),
+  civil_status: z
+    .enum(['Solteiro(a)', 'Casado(a)', 'Divorciado(a)', 'Viúvo(a)', 'União Estável'])
+    .optional(),
+  phone: createPhoneSchema(ptBRMessages),
+  email: emailSchema,
+  address_department: optionalString(60),
+  address_district: optionalString(60),
+  address_city: optionalString(60),
+  address_neighborhood: optionalString(100),
+  address_street: optionalString(150),
+  address_number: optionalString(20),
+  country: optionalString(60),
+  insurance_type: optionalString(60),
+  preferred_language: optionalString(30),
+  allergies: optionalString(1000),
+  responsible_name: optionalString(200),
+  responsible_document_number: optionalString(30),
+  responsible_phone: optionalString(20),
+  responsible_relationship: optionalString(60),
+});
+export type ClinicPatientFormData = z.infer<typeof clinicPatientSchema>;
+
 export const pharmacyItemSchema = z.object({
   name: nonEmptyString('Nome', 200),
   category: z.enum([
@@ -418,3 +447,247 @@ export const ssoProviderSchema = z.object({
 });
 
 export type SsoProviderFormData = z.infer<typeof ssoProviderSchema>;
+
+export const stockEntrySchema = z.object({
+  itemId: nonEmptyString('Item', 200),
+  lotNumber: nonEmptyString('Nº do Lote', 200),
+  quantity: z.number().int('Quantidade deve ser inteira').min(1, 'Quantidade deve ser maior que zero'),
+  costPerUnit: z.number().min(0, 'Custo não pode ser negativo').optional(),
+  serialNumber: optionalString(200),
+  dteEntryNumber: optionalString(100),
+  expiryDate: createDateSchema(ptBRMessages).optional().or(z.literal('')),
+  manufactureDate: createDateSchema(ptBRMessages).optional().or(z.literal('')),
+});
+
+export type StockEntryFormData = z.infer<typeof stockEntrySchema>;
+
+export const stockExitSchema = z.object({
+  itemId: nonEmptyString('Item', 200),
+  lotId: nonEmptyString('Lote', 200),
+  quantity: z.number().int('Quantidade deve ser um inteiro').min(1, 'Quantidade deve ser maior que zero'),
+  patientName: optionalString(200),
+  procedureName: optionalString(200),
+  sector: optionalString(200),
+  room: optionalString(200),
+  doctorName: optionalString(200),
+  notes: optionalString(500),
+});
+
+export type StockExitFormData = z.infer<typeof stockExitSchema>;
+
+export const adverseEventSchema = z.object({
+  patientName: nonEmptyString('Paciente', 200),
+  medicationName: nonEmptyString('Medicamento', 200),
+  adverseReaction: nonEmptyString('Reação', 200),
+  itemId: optionalString(200),
+  lotId: optionalString(200),
+  severity: z.string().min(1, 'Severidade obrigatória'),
+  outcome: optionalString(100),
+  startDate: createDateSchema(ptBRMessages).optional().or(z.literal('')),
+  description: optionalString(2000),
+  notifier: optionalString(200),
+});
+
+export type AdverseEventFormData = z.infer<typeof adverseEventSchema>;
+
+export const qualityDeviationSchema = z.object({
+  itemId: nonEmptyString('Item', 200),
+  lotId: nonEmptyString('Lote', 200),
+  deviationType: z.string().min(1, 'Tipo de desvio obrigatório'),
+  severity: z.string().min(1, 'Severidade obrigatória'),
+  affectedQuantity: z.number().int('Quantidade deve ser inteiro').min(0, 'Quantidade não pode ser negativa').optional(),
+  description: nonEmptyString('Descrição', 2000),
+  reporter: optionalString(200),
+});
+
+export type QualityDeviationFormData = z.infer<typeof qualityDeviationSchema>;
+
+export const empresaSchema = z.object({
+  nome: nonEmptyString('Nome', 200),
+  ruc: nonEmptyString('RUC', 50),
+  nomeFantasia: optionalString(200),
+  endereco: optionalString(300),
+  cidade: optionalString(100),
+  departamento: optionalString(100),
+  telefone: optionalString(30),
+  email: optionalString(200),
+  atividadeEconomica: optionalString(200),
+  setor: z.string().min(1, 'Setor obrigatório'),
+  porte: z.string().min(1, 'Porte obrigatório'),
+  nroFuncionarios: z.number().int('Funcionários deve ser inteiro').min(0, 'Funcionários não pode ser negativo'),
+});
+
+export type EmpresaFormData = z.infer<typeof empresaSchema>;
+
+export const trabalhadorSchema = z.object({
+  nome: nonEmptyString('Nome', 200),
+  ci: nonEmptyString('CI', 20),
+  dataNascimento: createDateSchema(ptBRMessages).optional().or(z.literal('')),
+  genero: z.string().min(1, 'Gênero obrigatório'),
+  nacionalidade: optionalString(100),
+  funcao: optionalString(200),
+  empresaId: nonEmptyString('Empresa', 200),
+  telefone: optionalString(30),
+  email: optionalString(200),
+  dataAdmissao: createDateSchema(ptBRMessages).optional().or(z.literal('')),
+});
+
+export type TrabalhadorFormData = z.infer<typeof trabalhadorSchema>;
+
+export const exameOcupacionalSchema = z.object({
+  trabalhadorId: nonEmptyString('Trabalhador', 200),
+  empresaId: nonEmptyString('Empresa', 200),
+  examesSelecionados: z.array(z.string()).min(1, 'Selecione ao menos um exame'),
+});
+
+export type ExameOcupacionalFormData = z.infer<typeof exameOcupacionalSchema>;
+
+export const campaignSchema = z.object({
+  nome: nonEmptyString('Nome', 200),
+  tipo: z.string().min(1, 'Tipo obrigatório'),
+  template: optionalString(200),
+  segmentoAlvo: optionalString(200),
+  mensagem: nonEmptyString('Mensagem', 2000),
+});
+
+export type CampaignFormData = z.infer<typeof campaignSchema>;
+
+export const leadSchema = z.object({
+  nome: nonEmptyString('Nome', 200),
+  email: optionalString(200),
+  telefone: optionalString(30),
+  origem: z.string().min(1, 'Origem obrigatória'),
+  interesse: optionalString(200),
+  observacoes: optionalString(500),
+});
+
+export type LeadFormData = z.infer<typeof leadSchema>;
+
+export const opportunitySchema = z.object({
+  pacienteNome: nonEmptyString('Paciente', 200),
+  pacienteTelefone: optionalString(30),
+  tipo: z.string().min(1, 'Tipo obrigatório'),
+  descricao: nonEmptyString('Descrição', 500),
+  valorEstimado: z.number().min(0, 'Valor estimado não pode ser negativo'),
+  probabilidade: z.number().int('Probabilidade deve ser inteiro').min(0).max(100, 'Probabilidade entre 0 e 100'),
+  responsavel: optionalString(200),
+});
+
+export type OpportunityFormData = z.infer<typeof opportunitySchema>;
+
+export const surgerySchema = z.object({
+  patientName: nonEmptyString('Paciente', 200),
+  surgeon: nonEmptyString('Cirurgião', 200),
+  room: optionalString(100),
+  procedureType: nonEmptyString('Tipo de Procedimento', 200),
+  estimatedDuration: z.number().int('Duração deve ser inteiro').min(1, 'Duração deve ser maior que zero'),
+  scheduledDate: createDateSchema(ptBRMessages).min(1, 'Data obrigatória'),
+  scheduledTime: optionalString(10),
+  preOpDiagnosis: optionalString(500),
+  notes: optionalString(1000),
+  anesthesiologist: optionalString(200),
+  instrumentator: optionalString(200),
+  circulator: optionalString(200),
+  assistants: optionalString(500),
+});
+
+export type SurgeryFormData = z.infer<typeof surgerySchema>;
+
+export const admissionSchema = z.object({
+  patientName: nonEmptyString('Paciente', 200),
+  responsibleDoctor: nonEmptyString('Médico Responsável', 200),
+  bedId: nonEmptyString('Leito', 200),
+  reason: optionalString(500),
+  initialDiagnosis: optionalString(500),
+  initialCid10: optionalString(20),
+  coverageType: z.string().min(1, 'Cobertura obrigatória'),
+  coverageAuthorization: optionalString(100),
+});
+
+export type AdmissionFormData = z.infer<typeof admissionSchema>;
+
+export const transferBedSchema = z.object({
+  bedToId: nonEmptyString('Leito de Destino', 200),
+  reason: nonEmptyString('Motivo', 500),
+  notes: optionalString(500),
+});
+
+export type TransferBedFormData = z.infer<typeof transferBedSchema>;
+
+export const evolutionSchema = z.object({
+  subjective: optionalString(2000),
+  objective: optionalString(2000),
+  assessment: optionalString(2000),
+  plan: optionalString(2000),
+});
+
+export type EvolutionFormData = z.infer<typeof evolutionSchema>;
+
+export const nursingSheetSchema = z.object({
+  intake: z.number().min(0, 'Ingesta não pode ser negativa'),
+  output: z.number().min(0, 'Perda não pode ser negativa'),
+  observations: optionalString(2000),
+});
+
+export type NursingSheetFormData = z.infer<typeof nursingSheetSchema>;
+
+export const portalRegisterSchema = z.object({
+  name: nonEmptyString('Nome', 200),
+  ci: nonEmptyString('Documento', 30),
+  email: emailSchema,
+  phone: phoneSchema,
+  password: z.string().min(4, 'A senha deve ter pelo menos 4 caracteres'),
+  confirmPassword: z.string().min(1, 'Confirme a senha'),
+  birthdate: dateSchema,
+  gender: z.string().min(1, 'Gênero obrigatório').optional().or(z.literal('')),
+}).refine((d) => d.password === d.confirmPassword, {
+  message: 'Senhas não conferem',
+  path: ['confirmPassword'],
+});
+
+export type PortalRegisterFormData = z.infer<typeof portalRegisterSchema>;
+
+export const portalBookingSchema = z.object({
+  specialty: nonEmptyString('Especialidade', 100),
+  doctorId: optionalString(100),
+  doctorName: optionalString(200),
+  date: createDateSchema(ptBRMessages).min(1, 'Data obrigatória'),
+  time: nonEmptyString('Horário', 10),
+  modality: z.string().min(1, 'Modalidade obrigatória'),
+});
+
+export type PortalBookingFormData = z.infer<typeof portalBookingSchema>;
+
+export const portalTelemedicineSchema = z.object({
+  specialty: nonEmptyString('Especialidade', 100),
+  date: createDateSchema(ptBRMessages).min(1, 'Data obrigatória'),
+  time: nonEmptyString('Horário', 10),
+  notes: optionalString(500),
+});
+
+export type PortalTelemedicineFormData = z.infer<typeof portalTelemedicineSchema>;
+
+export const portalPaymentSchema = z.object({
+  amount: z.number().min(1, 'Valor deve ser maior que zero'),
+  method: z.string().min(1, 'Método de pagamento obrigatório'),
+});
+
+export type PortalPaymentFormData = z.infer<typeof portalPaymentSchema>;
+
+export const financialPostingSchema = z.object({
+  description: nonEmptyString('Descrição', 200),
+  type: z.enum(['receita', 'despesa']),
+  category: nonEmptyString('Categoria', 100),
+  amount: z.number().min(1, 'Valor deve ser maior que zero'),
+});
+
+export type FinancialPostingFormData = z.infer<typeof financialPostingSchema>;
+
+export const financeStockItemSchema = z.object({
+  name: nonEmptyString('Nome', 200),
+  category: nonEmptyString('Categoria', 100),
+  quantity: z.number().int('Quantidade deve ser inteiro').min(0, 'Quantidade não pode ser negativa'),
+  unit: nonEmptyString('Unidade', 30),
+});
+
+export type FinanceStockItemFormData = z.infer<typeof financeStockItemSchema>;

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import Image from 'next/image';
 import { Patient, AsoExam, Cid10Code, Prescription, ExamRequest, Procedure, Anamnese, SoapNote, Diagnosis, PhysicalExam, VitalSigns, AllergyEntry, MedicationEntry, FamilyHistoryEntry, SurgicalEntry, ElectronicSignature, AccessControl, PatientTimelineEvent, DrugCatalogItem, nationalProcedures, sensitiveFieldConfig } from '@/lib/mockData';
 import { supabase } from '@/lib/supabaseClient';
 import { useI18n } from '@/lib/i18n/I18nContext';
@@ -1636,16 +1637,11 @@ const ClinicalModuleContent = ({
                       </div>
                     </div>
                     <button type="button" onClick={() => {
-                      const missing = [];
-                      if (!newAllergy.allergen.trim()) missing.push(t('hce_allergen', 'app'));
-                      if (!newAllergy.severity) missing.push(t('hce_severity', 'app'));
-                      if (missing.length > 0) {
-                        alert(`${t('clinical_alert_fill_fields', 'app')} ${missing.join(', ')}`);
-                        return;
-                      }
+                      if (!newAllergy.allergen.trim()) return;
+                      if (!newAllergy.severity) return;
                       setAnamnese(p => ({ ...p, allergies: [...p.allergies, newAllergy] }));
                       setNewAllergy({ allergen: '', type: '', severity: '' as any, reaction: '' });
-                    }} className="text-xs text-teal-600 font-bold flex items-center gap-1 cursor-pointer hover:text-teal-800">
+                    }} disabled={!newAllergy.allergen.trim() || !newAllergy.severity} className="text-xs text-teal-600 font-bold flex items-center gap-1 cursor-pointer hover:text-teal-800 disabled:opacity-40 disabled:cursor-not-allowed">
                       <Plus className="w-3 h-3" /> {t('hce_add_allergy', 'app')}
                     </button>
                     {anamnese.allergies.length > 0 && (
@@ -1673,16 +1669,11 @@ const ClinicalModuleContent = ({
                       <input type="text" placeholder={t('hce_route', 'app')} value={newMedication.route} onChange={e => setNewMedication(p => ({ ...p, route: e.target.value }))} className={inputCls} />
                       <input type="text" placeholder={t('hce_since', 'app')} value={newMedication.since} onChange={e => setNewMedication(p => ({ ...p, since: e.target.value }))} className={inputCls} />
                       <button type="button" onClick={() => {
-                        const missing = [];
-                        if (!newMedication.name.trim()) missing.push(t('hce_medication', 'app'));
-                        if (!newMedication.frequency.trim()) missing.push(t('hce_frequency', 'app'));
-                        if (missing.length > 0) {
-                          alert(`${t('clinical_alert_fill_fields', 'app')} ${missing.join(', ')}`);
-                          return;
-                        }
+                        if (!newMedication.name.trim()) return;
+                        if (!newMedication.frequency.trim()) return;
                         setAnamnese(p => ({ ...p, currentMedications: [...p.currentMedications, newMedication] }));
                         setNewMedication({ name: '', dosage: '', frequency: '', route: '', since: '' });
-                      }} className="bg-slate-800 hover:bg-slate-900 text-white text-xs px-3 rounded-lg font-bold flex items-center justify-center gap-1"><Plus className="w-3 h-3" /> {t('hce_add', 'app')}</button>
+                      }} disabled={!newMedication.name.trim() || !newMedication.frequency.trim()} className="bg-slate-800 hover:bg-slate-900 text-white text-xs px-3 rounded-lg font-bold flex items-center justify-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"><Plus className="w-3 h-3" /> {t('hce_add', 'app')}</button>
                     </div>
                     {anamnese.currentMedications.length > 0 && (
                       <div className="space-y-1">
@@ -1705,16 +1696,11 @@ const ClinicalModuleContent = ({
                       <input type="text" placeholder={t('hce_condition', 'app')} value={newFamily.condition} onChange={e => setNewFamily(p => ({ ...p, condition: e.target.value }))} className={inputCls} />
                       <input type="number" placeholder={t('hce_age', 'app')} value={newFamily.age || ''} onChange={e => setNewFamily(p => ({ ...p, age: parseInt(e.target.value) || undefined }))} className={inputCls} />
                       <button type="button" onClick={() => {
-                        const missing = [];
-                        if (!newFamily.relation.trim()) missing.push(t('hce_relation', 'app'));
-                        if (!newFamily.condition.trim()) missing.push(t('hce_condition', 'app'));
-                        if (missing.length > 0) {
-                          alert(`${t('clinical_alert_fill_fields', 'app')} ${missing.join(', ')}`);
-                          return;
-                        }
+                        if (!newFamily.relation.trim()) return;
+                        if (!newFamily.condition.trim()) return;
                         setAnamnese(p => ({ ...p, familyHistory: [...p.familyHistory, newFamily] }));
                         setNewFamily({ relation: '', condition: '', age: undefined, deceased: false });
-                      }} className="bg-slate-800 hover:bg-slate-900 text-white text-xs px-3 rounded-lg font-bold flex items-center justify-center gap-1"><Plus className="w-3 h-3" /> {t('hce_add', 'app')}</button>
+                      }} disabled={!newFamily.relation.trim() || !newFamily.condition.trim()} className="bg-slate-800 hover:bg-slate-900 text-white text-xs px-3 rounded-lg font-bold flex items-center justify-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"><Plus className="w-3 h-3" /> {t('hce_add', 'app')}</button>
                     </div>
                     {anamnese.familyHistory.length > 0 && (
                       <div className="space-y-1">
@@ -1737,13 +1723,10 @@ const ClinicalModuleContent = ({
                       <I18nDatePicker value={newSurgery.date} onChange={v => setNewSurgery(p => ({ ...p, date: v }))} className={inputCls} />
                       <input type="text" placeholder={t('hce_hospital', 'app')} value={newSurgery.hospital} onChange={e => setNewSurgery(p => ({ ...p, hospital: e.target.value }))} className={inputCls} />
                       <button type="button" onClick={() => {
-                        if (!newSurgery.procedure.trim()) {
-                          alert(`${t('clinical_alert_fill_fields', 'app')} ${t('hce_procedure', 'app')}`);
-                          return;
-                        }
+                        if (!newSurgery.procedure.trim()) return;
                         setAnamnese(p => ({ ...p, surgicalHistory: [...p.surgicalHistory, newSurgery] }));
                         setNewSurgery({ procedure: '', date: '', hospital: '', complications: '' });
-                      }} className="bg-slate-800 hover:bg-slate-900 text-white text-xs px-3 rounded-lg font-bold flex items-center justify-center gap-1"><Plus className="w-3 h-3" /> {t('hce_add', 'app')}</button>
+                      }} disabled={!newSurgery.procedure.trim()} className="bg-slate-800 hover:bg-slate-900 text-white text-xs px-3 rounded-lg font-bold flex items-center justify-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"><Plus className="w-3 h-3" /> {t('hce_add', 'app')}</button>
                     </div>
                     {anamnese.surgicalHistory.length > 0 && (
                       <div className="space-y-1">
@@ -3212,10 +3195,9 @@ const ClinicalModuleContent = ({
               </div>
             </div>
             <div className="relative bg-black rounded-lg flex items-center justify-center overflow-hidden border border-slate-800 h-[320px]">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={selectedImageUrl} alt="PACS" referrerPolicy="no-referrer"
+              <Image src={selectedImageUrl} alt="PACS" referrerPolicy="no-referrer"
                 style={{ filter: `contrast(${imageContrast}%) brightness(${imageBrightness}%) grayscale(100%)` }}
-                className="object-cover max-h-full max-w-full transition duration-150" />
+                className="object-cover max-h-full max-w-full transition duration-150" fill />
               <div className="absolute top-3 left-3 bg-black/70 p-2 rounded-md font-mono text-[9px] text-teal-400 space-y-0.5 pointer-events-none">
                 <p>{t('hce_name_label', 'app')}: {selectedPatient?.name.toUpperCase()}</p>
                 <p>{t('hce_exam_label', 'app')}: {selectedExamType.toUpperCase()}</p>
@@ -3251,10 +3233,10 @@ const ClinicalModuleContent = ({
                 <h3 className="font-semibold text-slate-800 text-base">{t('hce_register_aso', 'app')}</h3>
               </div>
             </div>
-            <form onSubmit={handleCreateAso} className="space-y-4 text-xs">
+            <form onSubmit={handleCreateAso} className="space-y-4 text-xs" noValidate>
               <div>
                 <label className={labelCls}>{t('hce_employee', 'app')} *</label>
-                <input type="text" value={asoPatient} onChange={e => setAsoPatient(e.target.value)} placeholder={t('hce_full_name', 'app')} className={inputCls} required />
+                <input type="text" value={asoPatient} onChange={e => setAsoPatient(e.target.value)} placeholder={t('hce_full_name', 'app')} className={inputCls} />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -3320,10 +3302,10 @@ const ClinicalModuleContent = ({
               <ShieldAlert className="w-5 h-5 text-teal-600" />
               <h3 className="font-semibold text-slate-800 text-base">{t('hce_issue_cat', 'app')}</h3>
             </div>
-            <form onSubmit={handleRegisterCat} className="space-y-4 text-xs">
+            <form onSubmit={handleRegisterCat} className="space-y-4 text-xs" noValidate>
               <div>
                 <label className={labelCls}>{t('hce_injured_worker', 'app')} *</label>
-                <input type="text" value={catEmployee} onChange={e => setCatEmployee(e.target.value)} placeholder={t('hce_full_name', 'app')} className={inputCls} required />
+                <input type="text" value={catEmployee} onChange={e => setCatEmployee(e.target.value)} placeholder={t('hce_full_name', 'app')} className={inputCls} />
               </div>
               <div>
                 <label className={labelCls}>{t('hce_incident_date', 'app')}</label>
@@ -3331,7 +3313,7 @@ const ClinicalModuleContent = ({
               </div>
               <div>
                 <label className={labelCls}>{t('hce_injury_nature', 'app')}</label>
-                <textarea value={catNotes} onChange={e => setCatNotes(e.target.value)} rows={4} className={textareaCls} placeholder={t('hce_describe_placeholder', 'app')} required />
+                <textarea value={catNotes} onChange={e => setCatNotes(e.target.value)} rows={4} className={textareaCls} placeholder={t('hce_describe_placeholder', 'app')} />
               </div>
               <button type="submit" className="w-full py-3 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-lg">
                 {t('hce_register_cat', 'app')}

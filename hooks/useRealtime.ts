@@ -1,4 +1,4 @@
-/* eslint-disable react-hooks/set-state-in-effect */
+ 
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
@@ -32,13 +32,13 @@ export function useRealtime<T = unknown>(
     if (!supabase || !enabled) return;
 
     const filterStr = filter ? `${filter.column}=eq.${filter.value}` : undefined;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const channel = (supabase as any)
       .channel(`${table}_changes`)
       .on(
         'postgres_changes',
         { event, schema: 'public', table, filter: filterStr },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         (payload: any) => {
           handleInsert({
             eventType: payload.eventType,
@@ -52,7 +52,7 @@ export function useRealtime<T = unknown>(
       });
 
     return () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (supabase as any).removeChannel(channel);
       setIsConnected(false);
     };

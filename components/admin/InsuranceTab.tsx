@@ -300,7 +300,7 @@ export function InsuranceTab({
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Telefone</label>
+                  <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">{t('rcpt_label_phone', 'app')}</label>
                   <input
                     type="text"
                     value={form.phone}

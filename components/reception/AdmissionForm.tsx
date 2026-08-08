@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Image from 'next/image';
 import {
   UserPlus, Check, Upload, Camera, Shield, Languages,
   ChevronRight, AlertCircle,
@@ -246,7 +247,7 @@ export function AdmissionForm({ addAuditLog, onSuccess, initialPatient, onClose 
             <div className="flex items-start gap-4">
               <div className="flex-shrink-0">
                 {photoPreview ? (
-                  <img src={photoPreview} alt="Foto" className="w-24 h-24 rounded-xl object-cover border-2 border-teal-200" />
+                  <Image src={photoPreview} alt="Foto" className="rounded-xl object-cover border-2 border-teal-200" width={96} height={96} />
                 ) : (
                   <div className="w-24 h-24 rounded-xl bg-slate-100 border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400">
                     <Camera className="w-8 h-8" />

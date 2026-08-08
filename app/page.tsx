@@ -155,7 +155,7 @@ function HomeContent() {
   const [lockedUntil, setLockedUntil] = useState<string | null>(null);
 
   // Session Timeout / Inactivity
-  // eslint-disable-next-line react-hooks/purity
+   
   const lastActivityRef = useRef(typeof window !== 'undefined' ? parseInt(localStorage.getItem('iamed_last_activity') || '0', 10) || Date.now() : Date.now());
   const showInactivityWarningRef = useRef(false);
   const lastWarningDismissedAtRef = useRef(0);
@@ -917,7 +917,7 @@ function HomeContent() {
 
   useEffect(() => {
     if (session) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+       
       loadAllData();
     }
   }, [session, loadAllData]);
@@ -925,7 +925,7 @@ function HomeContent() {
   // ──────────────────────────────────────────────
   // 4. Audit log writer — persists to Supabase
   // ──────────────────────────────────────────────
-  // eslint-disable-next-line react-hooks/preserve-manual-memoization
+   
   const addAuditLog = useCallback(async (action: string, target: string) => {
     const newLog: AuditLog = {
       id: crypto.randomUUID(),

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useI18n } from '@/lib/i18n/I18nContext';
 import { TrendingUp, Wallet, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import {
   AccountPayable,
@@ -47,6 +48,7 @@ export function FinancialTab({
   bankReconciliations,
   financePostings,
 }: FinancialTabProps) {
+  const { t } = useI18n();
   const [subTab, setSubTab] = useState<FinSubTab>('dashboard');
 
   const totalAP = accountsPayable.reduce((s, ap) => s + ap.amount, 0);
@@ -150,7 +152,7 @@ export function FinancialTab({
                   <tr className="bg-slate-50 text-slate-400 font-bold uppercase text-[9px] tracking-wide border-b border-slate-100">
                     <th className="px-3 py-2.5 text-left">Descrição</th>
                     <th className="px-3 py-2.5 text-left">Fornecedor</th>
-                    <th className="px-3 py-2.5 text-right">Valor</th>
+                    <th className="px-3 py-2.5 text-right">{t('fin_th_valor', 'app')}</th>
                     <th className="px-3 py-2.5 text-center">Vencimento</th>
                     <th className="px-3 py-2.5 text-center">Dias</th>
                     <th className="px-3 py-2.5 text-center">Status</th>
@@ -194,7 +196,7 @@ export function FinancialTab({
                   <tr className="bg-slate-50 text-slate-400 font-bold uppercase text-[9px] tracking-wide border-b border-slate-100">
                     <th className="px-3 py-2.5 text-left">Descrição</th>
                     <th className="px-3 py-2.5 text-left">Paciente</th>
-                    <th className="px-3 py-2.5 text-right">Valor</th>
+                    <th className="px-3 py-2.5 text-right">{t('fin_th_valor', 'app')}</th>
                     <th className="px-3 py-2.5 text-center">Vencimento</th>
                     <th className="px-3 py-2.5 text-center">Dias</th>
                     <th className="px-3 py-2.5 text-center">Status</th>
@@ -252,7 +254,7 @@ export function FinancialTab({
             <table className="w-full text-xs">
               <thead>
                 <tr className="bg-slate-50 text-slate-400 font-bold uppercase text-[9px] tracking-wide border-b border-slate-100">
-                  <th className="px-4 py-2.5 text-left">Data</th>
+                  <th className="px-4 py-2.5 text-left">{t('fin_th_data', 'app')}</th>
                   <th className="px-4 py-2.5 text-center">Tipo</th>
                   <th className="px-4 py-2.5 text-right">Receitas</th>
                   <th className="px-4 py-2.5 text-right">Despesas</th>

@@ -707,8 +707,8 @@ const DiagnosticModuleContent = ({
                     ))}
                   </div>
                   <div className="flex gap-2">
-                    <button onClick={handleDistributeReport} className="py-2 px-4 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-[10px] font-bold">Confirmar envío</button>
-                    <button onClick={() => setShowDistributeDialog(false)} className="py-2 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-[10px] font-bold">Cancelar</button>
+                    <button onClick={handleDistributeReport} className="py-2 px-4 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-[10px] font-bold">{t('diag_btn_confirm_send', 'app')}</button>
+                    <button onClick={() => setShowDistributeDialog(false)} className="py-2 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-[10px] font-bold">{t('diag_btn_cancel', 'app')}</button>
                   </div>
                 </div>
               )}

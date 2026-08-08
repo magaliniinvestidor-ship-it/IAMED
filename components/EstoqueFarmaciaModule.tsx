@@ -5,6 +5,11 @@ import { PharmacyItem, LotControl, StockMovement, InventoryCount, AdverseEvent, 
 import { supabase } from '@/lib/supabaseClient';
 import { useI18n } from '@/lib/i18n/I18nContext';
 import { useModuleId } from '@/hooks/useModuleId';
+import { useFormValidation } from '@/lib/validation';
+import {
+  stockEntrySchema, stockExitSchema, adverseEventSchema, qualityDeviationSchema, pharmacyItemSchema,
+} from '@/lib/validation/schemas';
+import { FormErrorSummary } from '@/components/forms';
 import I18nDatePicker from '@/components/I18nDatePicker';
 import {
   Pill, Plus, AlertTriangle, X, Check, Search, Package,
@@ -90,6 +95,12 @@ export default function EstoqueFarmaciaModule({
   // ─── SEQUENTIAL ID GENERATION (Postgres RPC) ───
   const genModuleId = useModuleId();
   const [tab, setTab] = useState<'dashboard' | 'items' | 'entries' | 'exits' | 'movements' | 'lots' | 'inventory' | 'reports' | 'alerts' | 'pharmacovigilance'>('dashboard');
+
+  const entryValidation = useFormValidation(stockEntrySchema);
+  const exitValidation = useFormValidation(stockExitSchema);
+  const aeValidation = useFormValidation(adverseEventSchema);
+  const qdValidation = useFormValidation(qualityDeviationSchema);
+  const itemValidation = useFormValidation(pharmacyItemSchema);
 
   const pharmacyItems = pharmacyItemsProp;
   const canPerformStock = activeRole !== 'Usuário' && activeRole !== 'Recepcionista';
@@ -184,6 +195,16 @@ export default function EstoqueFarmaciaModule({
   const handleNewItem = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canPerformStock) { alert(t('pharm_perm_denied_new', 'app')); return; }
+    const itemRes = itemValidation.validate({
+      name: newItemName,
+      category: newItemCategory,
+      presentation: newItemPresentation,
+      manufacturer: newItemManufacturer,
+      minQuantity: newItemMin,
+      unitCost: newItemCost,
+      unitPrice: newItemPrice,
+    });
+    if (!itemRes.success) return;
     if (!newItemName.trim()) return;
     const newId = await genModuleId('pharm');
     const newLot: LotControl = {
@@ -241,6 +262,17 @@ export default function EstoqueFarmaciaModule({
   const handleEntry = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canPerformStock) { alert(t('pharm_perm_denied_entry', 'app')); return; }
+    const entryRes = entryValidation.validate({
+      itemId: entryItemId,
+      lotNumber: entryLotNumber,
+      quantity: entryQty,
+      costPerUnit: entryCost,
+      serialNumber: entrySerial,
+      dteEntryNumber: entryDte,
+      expiryDate: entryExpiry,
+      manufactureDate: EntryMfg,
+    });
+    if (!entryRes.success) return;
     if (!entryItemId || !entryQty || !entryLotNumber) return;
     const item = pharmacyItems.find(i => i.id === entryItemId);
     if (!item) return;
@@ -316,6 +348,18 @@ export default function EstoqueFarmaciaModule({
   const handleExit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canPerformStock) { alert(t('pharm_perm_denied_exit', 'app')); return; }
+    const exitRes = exitValidation.validate({
+      itemId: exitItemId,
+      lotId: exitLotId,
+      quantity: exitQty,
+      patientName: exitPatient,
+      procedureName: exitProcedure,
+      sector: exitSector,
+      room: exitRoom,
+      doctorName: exitDoctor,
+      notes: exitNotes,
+    });
+    if (!exitRes.success) return;
     if (!exitItemId || !exitLotId || !exitQty) return;
     const item = pharmacyItems.find(i => i.id === exitItemId);
     if (!item) return;
@@ -411,6 +455,19 @@ export default function EstoqueFarmaciaModule({
   const handleNewAdverseEvent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canPerformStock) { alert(t('pharm_perm_denied_ae', 'app')); return; }
+    const aeRes = aeValidation.validate({
+      patientName: aePatient,
+      medicationName: aeMedication,
+      adverseReaction: aeReaction,
+      itemId: aeItemId,
+      lotId: aeLotId,
+      severity: aeSeverity,
+      outcome: aeOutcome,
+      startDate: aeStart,
+      description: aeDescription,
+      notifier: aeNotifier,
+    });
+    if (!aeRes.success) return;
     if (!aePatient.trim() || !aeMedication.trim() || !aeReaction.trim()) return;
     const item = pharmacyItems.find(i => i.id === aeItemId);
     const lot = item?.lots.find(l => l.id === aeLotId);
@@ -454,6 +511,16 @@ export default function EstoqueFarmaciaModule({
   const handleNewQualityDeviation = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canPerformStock) { alert(t('pharm_perm_denied_qd', 'app')); return; }
+    const qdRes = qdValidation.validate({
+      itemId: qdItemId,
+      lotId: qdLotId,
+      deviationType: qdType,
+      severity: qdSeverity,
+      affectedQuantity: qdQty,
+      description: qdDesc,
+      reporter: qdReporter,
+    });
+    if (!qdRes.success) return;
     if (!qdItemId || !qdLotId || !qdDesc.trim()) return;
     const item = pharmacyItems.find(i => i.id === qdItemId);
     const lot = item?.lots.find(l => l.id === qdLotId);
@@ -808,7 +875,7 @@ export default function EstoqueFarmaciaModule({
                   <div>
                     <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_inventory_counted', 'app')}</label>
                     <div className="flex gap-2">
-                      <input type="number" value={invCounted} onChange={e => setInvCounted(Number(e.target.value))} className="flex-1 p-2 bg-white border border-slate-200 rounded-lg text-xs" placeholder="0" />
+                      <input type="text" inputMode="numeric" value={invCounted} onChange={e => setInvCounted(Number(e.target.value))} className="flex-1 p-2 bg-white border border-slate-200 rounded-lg text-xs" placeholder="0" />
                       <button onClick={handleInventorySubmit} disabled={!invItemId || !invLotId} className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-40 text-white font-bold rounded-lg text-xs flex items-center gap-2"><QrCode className="w-4 h-4" /> {t('pharm_inventory_register', 'app')}</button>
                     </div>
                   </div>
@@ -1386,11 +1453,12 @@ export default function EstoqueFarmaciaModule({
               <p className="text-xs font-bold uppercase tracking-widest opacity-75">{t('pharm_item_new', 'app')}</p>
               <h3 className="font-black text-lg mt-0.5">{t('pharm_item_list_title', 'app')}</h3>
             </div>
-            <form onSubmit={handleNewItem} className="p-5 space-y-3 text-xs">
+            <form onSubmit={handleNewItem} noValidate className="p-5 space-y-3 text-xs">
+              {itemValidation.errors.length > 0 && <FormErrorSummary errors={itemValidation.errors} />}
               <div className="grid grid-cols-2 gap-3">
                 <div className="col-span-2">
                   <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_item_name', 'app')} *</label>
-                  <input data-testid="new-item-name" value={newItemName} onChange={e => setNewItemName(e.target.value)} required className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" placeholder={t('pharm_item_name', 'app')} />
+                  <input data-testid="new-item-name" value={newItemName} onChange={e => setNewItemName(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" placeholder={t('pharm_item_name', 'app')} />
                 </div>
                 <div>
                   <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_item_category', 'app')} *</label>
@@ -1418,15 +1486,15 @@ export default function EstoqueFarmaciaModule({
                 </div>
                 <div>
                   <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_item_dinavisa', 'app')} *</label>
-                  <input data-testid="new-item-dinavisa" value={newItemDinavisa} onChange={e => setNewItemDinavisa(e.target.value)} required className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" placeholder={t('pharm_item_dinavisa', 'app')} />
+                  <input data-testid="new-item-dinavisa" value={newItemDinavisa} onChange={e => setNewItemDinavisa(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" placeholder={t('pharm_item_dinavisa', 'app')} />
                 </div>
                 <div>
                   <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_item_initial_qty', 'app')}</label>
-                  <input data-testid="new-item-qty" type="number" value={newItemQty || ''} onChange={e => setNewItemQty(Number(e.target.value))} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
+                  <input data-testid="new-item-qty" type="text" inputMode="numeric" value={newItemQty || ''} onChange={e => setNewItemQty(Number(e.target.value))} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
                 </div>
                 <div>
                   <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_item_min_qty', 'app')}</label>
-                  <input data-testid="new-item-min" type="number" value={newItemMin || ''} onChange={e => setNewItemMin(Number(e.target.value))} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
+                  <input data-testid="new-item-min" type="text" inputMode="numeric" value={newItemMin || ''} onChange={e => setNewItemMin(Number(e.target.value))} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
                 </div>
                 <div>
                   <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_item_storage', 'app')}</label>
@@ -1434,11 +1502,11 @@ export default function EstoqueFarmaciaModule({
                 </div>
                 <div>
                   <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_item_unit_cost', 'app')}</label>
-                  <input data-testid="new-item-cost" type="number" value={newItemCost || ''} onChange={e => setNewItemCost(Number(e.target.value))} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
+                  <input data-testid="new-item-cost" type="text" inputMode="decimal" value={newItemCost || ''} onChange={e => setNewItemCost(Number(e.target.value))} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
                 </div>
                 <div>
                   <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_item_unit_price', 'app')}</label>
-                  <input data-testid="new-item-price" type="number" value={newItemPrice || ''} onChange={e => setNewItemPrice(Number(e.target.value))} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
+                  <input data-testid="new-item-price" type="text" inputMode="decimal" value={newItemPrice || ''} onChange={e => setNewItemPrice(Number(e.target.value))} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
                 </div>
               </div>
               <div className="flex gap-2 pt-2">
@@ -1456,18 +1524,19 @@ export default function EstoqueFarmaciaModule({
               <p className="text-xs font-bold uppercase tracking-widest opacity-75">{t('pharm_entry_title', 'app')}</p>
               <h3 className="font-black text-lg mt-0.5">{t('pharm_entry_register', 'app')}</h3>
             </div>
-            <form onSubmit={handleEntry} className="p-5 space-y-3 text-xs">
+            <form onSubmit={handleEntry} noValidate className="p-5 space-y-3 text-xs">
+              {entryValidation.errors.length > 0 && <FormErrorSummary errors={entryValidation.errors} />}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_item_name', 'app')} *</label>
-                  <select data-testid="entry-item-id" value={entryItemId} onChange={e => setEntryItemId(e.target.value)} required className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                  <select data-testid="entry-item-id" value={entryItemId} onChange={e => setEntryItemId(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
                     <option value="">{t('pharm_modal_select', 'app')}</option>
                     {pharmacyItems.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_entry_lot', 'app')} *</label>
-                  <input data-testid="entry-lot-number" value={entryLotNumber} onChange={e => setEntryLotNumber(e.target.value)} required className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" placeholder={t('pharm_entry_lot', 'app')} />
+                  <input data-testid="entry-lot-number" value={entryLotNumber} onChange={e => setEntryLotNumber(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" placeholder={t('pharm_entry_lot', 'app')} />
                 </div>
                 <div>
                   <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_entry_serial', 'app')}</label>
@@ -1475,15 +1544,15 @@ export default function EstoqueFarmaciaModule({
                 </div>
                 <div>
                   <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_entry_qty', 'app')} *</label>
-                  <input data-testid="entry-qty" type="number" value={entryQty || ''} onChange={e => setEntryQty(Number(e.target.value))} required min={1} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
+                  <input data-testid="entry-qty" type="text" inputMode="numeric" value={entryQty || ''} onChange={e => setEntryQty(Number(e.target.value))} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
                 </div>
                 <div>
                   <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_entry_cost', 'app')}</label>
-                  <input data-testid="entry-cost" type="number" value={entryCost || ''} onChange={e => setEntryCost(Number(e.target.value))} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
+                  <input data-testid="entry-cost" type="text" inputMode="decimal" value={entryCost || ''} onChange={e => setEntryCost(Number(e.target.value))} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
                 </div>
                 <div>
                   <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_entry_expiry', 'app')} *</label>
-                  <I18nDatePicker value={entryExpiry} onChange={setEntryExpiry} required className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
+                  <I18nDatePicker value={entryExpiry} onChange={setEntryExpiry} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
                 </div>
                 <div>
                   <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_entry_mfg', 'app')}</label>
@@ -1499,7 +1568,7 @@ export default function EstoqueFarmaciaModule({
                 </div>
               </div>
               <div className="flex gap-2 pt-2">
-                <button type="submit" data-testid="entry-register-submit" aria-label={t('pharm_entry_register', 'app')} disabled={!entryItemId || !entryQty || !entryLotNumber} className="flex-1 py-3 bg-teal-600 hover:bg-teal-700 disabled:opacity-40 text-white font-bold rounded-lg text-xs transition">{t('pharm_entry_register', 'app')}</button>
+                <button type="submit" data-testid="entry-register-submit" aria-label={t('pharm_entry_register', 'app')} className="flex-1 py-3 bg-teal-600 hover:bg-teal-700 disabled:opacity-40 text-white font-bold rounded-lg text-xs transition">{t('pharm_entry_register', 'app')}</button>
                 <button type="button" data-testid="entry-register-cancel" aria-label={t('pharm_modal_cancel', 'app')} onClick={() => setShowEntryForm(false)} className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs transition">{t('pharm_modal_cancel', 'app')}</button>
               </div>
             </form>
@@ -1513,18 +1582,19 @@ export default function EstoqueFarmaciaModule({
               <p className="text-xs font-bold uppercase tracking-widest opacity-75">{t('pharm_exit_title', 'app')}</p>
               <h3 className="font-black text-lg mt-0.5">{t('pharm_exit_register', 'app')}</h3>
             </div>
-            <form onSubmit={handleExit} className="p-5 space-y-3 text-xs">
+            <form onSubmit={handleExit} noValidate className="p-5 space-y-3 text-xs">
+              {exitValidation.errors.length > 0 && <FormErrorSummary errors={exitValidation.errors} />}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_item_name', 'app')} *</label>
-                  <select data-testid="exit-item-id" value={exitItemId} onChange={e => { setExitItemId(e.target.value); setExitLotId(''); }} required className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                  <select data-testid="exit-item-id" value={exitItemId} onChange={e => { setExitItemId(e.target.value); setExitLotId(''); }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
                     <option value="">{t('pharm_modal_select', 'app')}</option>
                     {pharmacyItems.filter(i => i.totalQuantity > 0).map(i => <option key={i.id} value={i.id}>{i.name} ({t('pharm_lot_status_disponivel', 'app').toLowerCase()}: {i.totalQuantity})</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_lot_lot', 'app')} *</label>
-                  <select data-testid="exit-lot-id" value={exitLotId} onChange={e => setExitLotId(e.target.value)} required className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                  <select data-testid="exit-lot-id" value={exitLotId} onChange={e => setExitLotId(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
                     <option value="">{t('pharm_modal_select', 'app')}</option>
                     {pharmacyItems.find(i => i.id === exitItemId)?.lots.filter(l => l.quantity > 0).map(l => (
                       <option key={l.id} value={l.id}>{l.lotNumber} ({t('pharm_lot_status_disponivel', 'app').toLowerCase()}: {l.quantity}, {t('pharm_lot_expiry', 'app').toLowerCase()}: {l.expiryDate})</option>
@@ -1533,7 +1603,7 @@ export default function EstoqueFarmaciaModule({
                 </div>
                 <div>
                   <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_exit_qty', 'app')} *</label>
-                  <input data-testid="exit-qty" type="number" value={exitQty || ''} onChange={e => setExitQty(Number(e.target.value))} required min={1} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
+                  <input data-testid="exit-qty" type="text" inputMode="numeric" value={exitQty || ''} onChange={e => setExitQty(Number(e.target.value))} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
                 </div>
                 <div>
                   <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_exit_patient', 'app')}</label>
@@ -1562,7 +1632,7 @@ export default function EstoqueFarmaciaModule({
                 <textarea data-testid="exit-notes" value={exitNotes} onChange={e => setExitNotes(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" rows={2} />
               </div>
               <div className="flex gap-2 pt-2">
-                <button type="submit" data-testid="exit-register-submit" aria-label={t('pharm_exit_register', 'app')} disabled={!exitItemId || !exitLotId || !exitQty} className="flex-1 py-3 bg-amber-600 hover:bg-amber-700 disabled:opacity-40 text-white font-bold rounded-lg text-xs transition">{t('pharm_exit_register', 'app')}</button>
+                <button type="submit" data-testid="exit-register-submit" aria-label={t('pharm_exit_register', 'app')} className="flex-1 py-3 bg-amber-600 hover:bg-amber-700 disabled:opacity-40 text-white font-bold rounded-lg text-xs transition">{t('pharm_exit_register', 'app')}</button>
                 <button type="button" data-testid="exit-register-cancel" aria-label={t('pharm_modal_cancel', 'app')} onClick={() => setShowExitForm(false)} className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs transition">{t('pharm_modal_cancel', 'app')}</button>
               </div>
             </form>
@@ -1576,16 +1646,17 @@ export default function EstoqueFarmaciaModule({
               <p className="text-xs font-bold uppercase tracking-widest opacity-75">{t('pharm_pv_title', 'app')}</p>
               <h3 className="font-black text-lg mt-0.5">{t('pharm_pv_ae_new', 'app')}</h3>
             </div>
-            <form onSubmit={handleNewAdverseEvent} className="p-5 space-y-3 text-xs">
+            <form onSubmit={handleNewAdverseEvent} noValidate className="p-5 space-y-3 text-xs">
+              {aeValidation.errors.length > 0 && <FormErrorSummary errors={aeValidation.errors} />}
               <div className="grid grid-cols-2 gap-3">
                 <div className="col-span-2">
                   <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_pv_ae_patient', 'app')} *</label>
-                  <input data-testid="ae-patient" list="ae-patients" value={aePatient} onChange={e => setAePatient(e.target.value)} required className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" placeholder={t('pharm_pv_ae_patient', 'app')} />
+                  <input data-testid="ae-patient" list="ae-patients" value={aePatient} onChange={e => setAePatient(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" placeholder={t('pharm_pv_ae_patient', 'app')} />
                   <datalist id="ae-patients">{patients.map((p: any) => <option key={p.id} value={p.name} />)}</datalist>
                 </div>
                 <div className="col-span-2">
                   <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_pv_ae_medication', 'app')} *</label>
-                  <input data-testid="ae-medication" value={aeMedication} onChange={e => setAeMedication(e.target.value)} required className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" placeholder={t('pharm_pv_ae_medication', 'app')} />
+                  <input data-testid="ae-medication" value={aeMedication} onChange={e => setAeMedication(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" placeholder={t('pharm_pv_ae_medication', 'app')} />
                 </div>
                 <div>
                   <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_item_name', 'app')}</label>
@@ -1605,7 +1676,7 @@ export default function EstoqueFarmaciaModule({
                 </div>
                 <div className="col-span-2">
                   <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_pv_ae_reaction', 'app')} *</label>
-                  <input data-testid="ae-reaction" value={aeReaction} onChange={e => setAeReaction(e.target.value)} required className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" placeholder={t('pharm_pv_ae_reaction', 'app')} />
+                  <input data-testid="ae-reaction" value={aeReaction} onChange={e => setAeReaction(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" placeholder={t('pharm_pv_ae_reaction', 'app')} />
                 </div>
                 <div>
                   <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_pv_ae_severity', 'app')}</label>
@@ -1632,11 +1703,11 @@ export default function EstoqueFarmaciaModule({
                 </div>
                 <div className="col-span-2">
                   <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_pv_ae_description', 'app')} *</label>
-                  <textarea data-testid="ae-description" value={aeDescription} onChange={e => setAeDescription(e.target.value)} required className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" rows={3} placeholder={t('pharm_pv_ae_description', 'app')} />
+                  <textarea data-testid="ae-description" value={aeDescription} onChange={e => setAeDescription(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" rows={3} placeholder={t('pharm_pv_ae_description', 'app')} />
                 </div>
               </div>
               <div className="flex gap-2 pt-2">
-                <button type="submit" data-testid="ae-submit" disabled={!aePatient.trim() || !aeMedication.trim() || !aeReaction.trim() || !aeDescription.trim()}
+                <button type="submit" data-testid="ae-submit"
                   className="flex-1 py-3 bg-rose-600 hover:bg-rose-700 disabled:opacity-40 text-white font-bold rounded-lg text-xs transition">{t('pharm_pv_ae_register', 'app')}</button>
                 <button type="button" onClick={() => setShowAeForm(false)} className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs transition">{t('pharm_modal_cancel', 'app')}</button>
               </div>
@@ -1651,18 +1722,19 @@ export default function EstoqueFarmaciaModule({
               <p className="text-xs font-bold uppercase tracking-widest opacity-75">{t('pharm_pv_qd_type', 'app')}</p>
               <h3 className="font-black text-lg mt-0.5">{t('pharm_pv_qd_new', 'app')}</h3>
             </div>
-            <form onSubmit={handleNewQualityDeviation} className="p-5 space-y-3 text-xs">
+            <form onSubmit={handleNewQualityDeviation} noValidate className="p-5 space-y-3 text-xs">
+              {qdValidation.errors.length > 0 && <FormErrorSummary errors={qdValidation.errors} />}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_item_name', 'app')} *</label>
-                  <select data-testid="qd-item-id" value={qdItemId} onChange={e => { setQdItemId(e.target.value); setQdLotId(''); }} required className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                  <select data-testid="qd-item-id" value={qdItemId} onChange={e => { setQdItemId(e.target.value); setQdLotId(''); }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
                     <option value="">{t('pharm_modal_select', 'app')}</option>
                     {pharmacyItems.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_lot_lot', 'app')} *</label>
-                  <select data-testid="qd-lot-id" value={qdLotId} onChange={e => setQdLotId(e.target.value)} required className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                  <select data-testid="qd-lot" value={qdLotId} onChange={e => setQdLotId(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
                     <option value="">{t('pharm_modal_select', 'app')}</option>
                     {pharmacyItems.find(i => i.id === qdItemId)?.lots.map(l => (
                       <option key={l.id} value={l.id}>{l.lotNumber}</option>
@@ -1687,7 +1759,7 @@ export default function EstoqueFarmaciaModule({
                 </div>
                 <div>
                   <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_lot_qty', 'app')}</label>
-                  <input data-testid="qd-qty" type="number" value={qdQty || ''} onChange={e => setQdQty(Number(e.target.value))} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
+                  <input data-testid="qd-qty" type="text" inputMode="numeric" value={qdQty || ''} onChange={e => setQdQty(Number(e.target.value))} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
                 </div>
                 <div>
                   <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_pv_ae_notifier', 'app')}</label>
@@ -1695,11 +1767,11 @@ export default function EstoqueFarmaciaModule({
                 </div>
                 <div className="col-span-2">
                   <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_pv_ae_description', 'app')} *</label>
-                  <textarea data-testid="qd-description" value={qdDesc} onChange={e => setQdDesc(e.target.value)} required className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" rows={3} />
+                  <textarea data-testid="qd-description" value={qdDesc} onChange={e => setQdDesc(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" rows={3} />
                 </div>
               </div>
               <div className="flex gap-2 pt-2">
-                <button type="submit" data-testid="qd-submit" disabled={!qdItemId || !qdLotId || !qdDesc.trim()}
+                <button type="submit" data-testid="qd-submit"
                   className="flex-1 py-3 bg-amber-600 hover:bg-amber-700 disabled:opacity-40 text-white font-bold rounded-lg text-xs transition">{t('pharm_pv_qd_new', 'app')}</button>
                 <button type="button" onClick={() => setShowQdForm(false)} className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs transition">{t('pharm_modal_cancel', 'app')}</button>
               </div>

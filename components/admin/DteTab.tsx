@@ -366,11 +366,11 @@ export function DteTab({ dtes, setDtes, patients, addAuditLog, onShowKude }: Dte
               <tr className="bg-slate-50 text-slate-400 font-bold uppercase text-[9px] tracking-wide border-b border-slate-100">
                 <th className="px-4 py-2.5 text-left">Número</th>
                 <th className="px-4 py-2.5 text-left">Tipo</th>
-                <th className="px-4 py-2.5 text-left">Paciente</th>
-                <th className="px-4 py-2.5 text-right">Total</th>
-                <th className="px-4 py-2.5 text-center">Status</th>
-                <th className="px-4 py-2.5 text-center">Pagamento</th>
-                <th className="px-4 py-2.5 text-center">Ações</th>
+                <th className="px-4 py-2.5 text-left">{t('fin_th_paciente', 'app')}</th>
+                <th className="px-4 py-2.5 text-right">{t('fin_th_total', 'app')}</th>
+                <th className="px-4 py-2.5 text-center">{t('fin_th_status', 'app')}</th>
+                <th className="px-4 py-2.5 text-center">{t('fin_th_pagamento', 'app')}</th>
+                <th className="px-4 py-2.5 text-center">{t('fin_th_acoes', 'app')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">

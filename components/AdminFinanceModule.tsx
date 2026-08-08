@@ -26,6 +26,9 @@ import { FinancialPosting, StockItem, AuditLog, Dte, DteItem, Patient, Professio
 import { supabase } from '@/lib/supabaseClient';
 import { useI18n } from '@/lib/i18n/I18nContext';
 import { useModuleId } from '@/hooks/useModuleId';
+import { useFormValidation } from '@/lib/validation';
+import { financialPostingSchema, financeStockItemSchema, ssoProviderSchema } from '@/lib/validation/schemas';
+import { FormErrorSummary } from '@/components/forms';
 import I18nDatePicker from '@/components/I18nDatePicker';
 import RolesTab from './RolesTab';
 import {
@@ -279,6 +282,10 @@ export default function AdminFinanceModule({
   // ─── SEQUENTIAL ID GENERATION (Postgres RPC) ───
   const genModuleId = useModuleId();
 
+  const postingValidation = useFormValidation(financialPostingSchema);
+  const stockItemValidation = useFormValidation(financeStockItemSchema);
+  const ssoValidation = useFormValidation(ssoProviderSchema);
+
   // Financial tabs
   const [finTab, setFinTab] = useState<'dashboard' | 'ap_ar' | 'cashflow' | 'reconciliation' | 'cost_centers' | 'dre' | 'tax' | 'books' | 'multicurrency' | 'chart_accounts' | 'accounting_entries'>('dashboard');
 
@@ -292,19 +299,19 @@ export default function AdminFinanceModule({
   const [foreignBillings, setForeignBillings] = useState<ForeignBilling[]>(foreignBillingsProp || initialForeignBillings);
 
   // Sync local state up when props change
-  // eslint-disable-next-line react-hooks/set-state-in-effect
+   
   React.useEffect(() => { if (insurancesProp) setInsurances(insurancesProp); }, [insurancesProp]);
-  // eslint-disable-next-line react-hooks/set-state-in-effect
+   
   React.useEffect(() => { if (feeSchedulesProp) setFeeSchedules(feeSchedulesProp); }, [feeSchedulesProp]);
-  // eslint-disable-next-line react-hooks/set-state-in-effect
+   
   React.useEffect(() => { if (preAuthsProp) setPreAuthorizations(preAuthsProp); }, [preAuthsProp]);
-  // eslint-disable-next-line react-hooks/set-state-in-effect
+   
   React.useEffect(() => { if (batchInvoicesProp) setBatchInvoices(batchInvoicesProp); }, [batchInvoicesProp]);
-  // eslint-disable-next-line react-hooks/set-state-in-effect
+   
   React.useEffect(() => { if (eligProp) setEligibilityChecks(eligProp); }, [eligProp]);
-  // eslint-disable-next-line react-hooks/set-state-in-effect
+   
   React.useEffect(() => { if (settlementsProp) setSettlements(settlementsProp); }, [settlementsProp]);
-  // eslint-disable-next-line react-hooks/set-state-in-effect
+   
   React.useEffect(() => { if (foreignBillingsProp) setForeignBillings(foreignBillingsProp); }, [foreignBillingsProp]);
 
   const [accountsPayable, setAccountsPayable] = useState<AccountPayable[]>(accountsPayableProp || initialAccountsPayable);
@@ -338,29 +345,29 @@ export default function AdminFinanceModule({
     coverage_ceiling: 0,
   });
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
+   
   React.useEffect(() => { if (accountsPayableProp) setAccountsPayable(accountsPayableProp); }, [accountsPayableProp]);
-  // eslint-disable-next-line react-hooks/set-state-in-effect
+   
   React.useEffect(() => { if (accountsReceivableProp) setAccountsReceivable(accountsReceivableProp); }, [accountsReceivableProp]);
-  // eslint-disable-next-line react-hooks/set-state-in-effect
+   
   React.useEffect(() => { if (cashFlowsProp) setCashFlows(cashFlowsProp); }, [cashFlowsProp]);
-  // eslint-disable-next-line react-hooks/set-state-in-effect
+   
   React.useEffect(() => { if (bankReconciliationsProp) setBankReconciliations(bankReconciliationsProp); }, [bankReconciliationsProp]);
-  // eslint-disable-next-line react-hooks/set-state-in-effect
+   
   React.useEffect(() => { if (costCentersProp) setCostCenters(costCentersProp); }, [costCentersProp]);
-  // eslint-disable-next-line react-hooks/set-state-in-effect
+   
   React.useEffect(() => { if (incomeStatementsProp) setIncomeStatements(incomeStatementsProp); }, [incomeStatementsProp]);
-  // eslint-disable-next-line react-hooks/set-state-in-effect
+   
   React.useEffect(() => { if (taxCalculationsProp) setTaxCalculations(taxCalculationsProp); }, [taxCalculationsProp]);
-  // eslint-disable-next-line react-hooks/set-state-in-effect
+   
   React.useEffect(() => { if (purchaseBookProp) setPurchaseBook(purchaseBookProp); }, [purchaseBookProp]);
-  // eslint-disable-next-line react-hooks/set-state-in-effect
+   
   React.useEffect(() => { if (salesBookProp) setSalesBook(salesBookProp); }, [salesBookProp]);
-  // eslint-disable-next-line react-hooks/set-state-in-effect
+   
   React.useEffect(() => { if (exchangeRatesProp) setExchangeRates(exchangeRatesProp); }, [exchangeRatesProp]);
-  // eslint-disable-next-line react-hooks/set-state-in-effect
+   
   React.useEffect(() => { if (chartOfAccountsProp) setChartOfAccounts(chartOfAccountsProp); }, [chartOfAccountsProp]);
-  // eslint-disable-next-line react-hooks/set-state-in-effect
+   
   React.useEffect(() => { if (accountingEntriesProp) setAccountingEntries(accountingEntriesProp); }, [accountingEntriesProp]);
 
   // ── Admin tab (submodule 14) ────────────────────────────────────────────────────────
@@ -371,9 +378,9 @@ export default function AdminFinanceModule({
   const [locations, setLocations] = useState<Location[]>(locationsProp || initialLocations);
   const [clinicalRooms, setClinicalRooms] = useState<ClinicalRoom[]>(clinicalRoomsProp || initialClinicalRooms);
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
+   
   React.useEffect(() => { if (locationsProp) setLocations(locationsProp); }, [locationsProp]);
-  // eslint-disable-next-line react-hooks/set-state-in-effect
+   
   React.useEffect(() => { if (clinicalRoomsProp) setClinicalRooms(clinicalRoomsProp); }, [clinicalRoomsProp]);
 
   const [systemUsers, setSystemUsers] = useState<SystemUser[]>([]);
@@ -421,7 +428,7 @@ export default function AdminFinanceModule({
   };
 
   React.useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+     
     loadSystemUsersFromSupabase();
   }, []);
 
@@ -711,6 +718,13 @@ const resetProfForm = () => {
 
   const handleAddPosting = async (e: React.FormEvent) => {
     e.preventDefault();
+    const res = postingValidation.validate({
+      description: finDescription,
+      type: finType,
+      category: finCategory,
+      amount: finAmount,
+    });
+    if (!res.success) return;
     if (!finDescription.trim()) return;
     const newPosting: FinancialPosting = {
       id: await genModuleId('fin'),
@@ -740,6 +754,13 @@ const resetProfForm = () => {
 
   const handleAddStockItem = async (e: React.FormEvent) => {
     e.preventDefault();
+    const res = stockItemValidation.validate({
+      name: newStockName,
+      category: newStockCat,
+      quantity: newStockQty,
+      unit: newStockUnit,
+    });
+    if (!res.success) return;
     if (!newStockName.trim()) return;
     const newItem: StockItem = {
       id: await genModuleId('stk'),
@@ -915,7 +936,7 @@ const resetProfForm = () => {
                       {insurances.filter(i => i.active).map(ins => <option key={ins.id} value={ins.id}>{ins.name}</option>)}
                     </select></div>
                   <div><label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">Valor Base (Gs.)</label>
-                    <input type="number" className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs" placeholder="150000" id="copay-base-input" /></div>
+                    <input type="text" inputMode="numeric" className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs" placeholder="150000" id="copay-base-input" /></div>
                 </div>
                 <button onClick={() => {
                   const sel = (document.getElementById('copay-insurance-select') as HTMLSelectElement)?.value;
@@ -1151,7 +1172,7 @@ const resetProfForm = () => {
                 </div>
                 <div>
                   <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">Valor Facturado (Gs.)</label>
-                  <input type="number" className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs" placeholder="Ej: 3500000" id="settle-gross-input" />
+                  <input type="text" inputMode="numeric" className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs" placeholder="Ej: 3500000" id="settle-gross-input" />
                 </div>
                 <div>
                   <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">% Repasse</label>
@@ -1206,7 +1227,7 @@ const resetProfForm = () => {
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">Paciente</label>
-                      <input list="frn-patients" className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs" placeholder="Nombre" id="frn-patient-input" />
+                      <input list="frn-patients" className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs" placeholder={t('fin_placeholder_name', 'app')} id="frn-patient-input" />
                       <datalist id="frn-patients">{patients.map(p => <option key={p.id} value={p.name} />)}</datalist>
                     </div>
                     <div>
@@ -1225,12 +1246,12 @@ const resetProfForm = () => {
                     </div>
                     <div>
                       <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">Tasa de Cambio</label>
-                      <input type="number" className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs" placeholder="7500" id="frn-rate-input" value="7500" />
+                      <input type="text" inputMode="numeric" className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs" placeholder="7500" id="frn-rate-input" value="7500" />
                     </div>
                   </div>
                   <div>
                     <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">Monto Local (Gs.)</label>
-                    <input type="number" className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs" placeholder="450000" id="frn-amount-input" />
+                    <input type="text" inputMode="numeric" className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs" placeholder="450000" id="frn-amount-input" />
                   </div>
                 </div>
                 <button onClick={async () => {
@@ -1340,10 +1361,11 @@ const resetProfForm = () => {
                   <TrendingUp className="w-5 h-5 text-teal-600" />
                   <h3 className="font-semibold text-slate-800 text-base">Registrar Fluxo de Caixa</h3>
                 </div>
-                <form onSubmit={handleAddPosting} className="space-y-4 text-xs">
+                <form onSubmit={handleAddPosting} noValidate className="space-y-4 text-xs">
+                  {postingValidation.errors.length > 0 && <FormErrorSummary errors={postingValidation.errors} />}
                   <div>
                     <label className="block text-xs font-semibold text-slate-600 mb-1">Descrição</label>
-                    <input type="text" value={finDescription} onChange={e => setFinDescription(e.target.value)} placeholder="Ex: Compra de insumos" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg" required />
+                    <input type="text" value={finDescription} onChange={e => setFinDescription(e.target.value)} placeholder="Ex: Compra de insumos" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg" />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
@@ -1355,7 +1377,7 @@ const resetProfForm = () => {
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-slate-600 mb-1">Valor (Gs.)</label>
-                      <input type="number" value={finAmount} onChange={e => setFinAmount(Number(e.target.value))} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg" required />
+                      <input type="text" inputMode="decimal" value={finAmount} onChange={e => setFinAmount(Number(e.target.value))} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg" />
                     </div>
                   </div>
                   <div>
@@ -1837,7 +1859,8 @@ const resetProfForm = () => {
               <h3 className="font-semibold text-slate-800 text-base">{t('fin_new_supply', 'app')}</h3>
             </div>
 
-            <form onSubmit={handleAddStockItem} className="space-y-4 text-xs">
+            <form onSubmit={handleAddStockItem} noValidate className="space-y-4 text-xs">
+              {stockItemValidation.errors.length > 0 && <FormErrorSummary errors={stockItemValidation.errors} />}
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1">Nome do Item / Medicamento</label>
                 <input
@@ -1846,7 +1869,6 @@ const resetProfForm = () => {
                   onChange={e => setNewStockName(e.target.value)}
                   placeholder="Ex: Paracetamol suspensão 15ml"
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
-                  required
                 />
               </div>
 
@@ -1867,7 +1889,7 @@ const resetProfForm = () => {
                     type="text"
                     value={newStockUnit}
                     onChange={e => setNewStockUnit(e.target.value)}
-                    placeholder="ampolas"
+                    placeholder={t('fin_placeholder_ampoules', 'app')}
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
                   />
                 </div>
@@ -1876,11 +1898,11 @@ const resetProfForm = () => {
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1">Quantidade em Registro Inicial</label>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
                   value={newStockQty}
                   onChange={e => setNewStockQty(Number(e.target.value))}
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
-                  required
                 />
               </div>
 
@@ -2003,12 +2025,12 @@ const resetProfForm = () => {
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs font-semibold text-slate-600 mb-1">Expiração (dias)</label>
-                      <input type="number" min={0} max={365} value={passwordPolicy.expirationDays} onChange={e => setPasswordPolicy(prev => ({ ...prev, expirationDays: Number(e.target.value) }))} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
+                      <input type="text" inputMode="numeric" value={passwordPolicy.expirationDays} onChange={e => setPasswordPolicy(prev => ({ ...prev, expirationDays: Number(e.target.value) }))} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
                       {passwordPolicy.expirationDays === 0 && <p className="text-[9px] text-amber-600 font-medium mt-0.5">0 = sem expiração</p>}
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-slate-600 mb-1">Histórico (senhas anteriores)</label>
-                      <input type="number" min={0} max={24} value={passwordPolicy.historyCount} onChange={e => setPasswordPolicy(prev => ({ ...prev, historyCount: Number(e.target.value) }))} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
+                      <input type="text" inputMode="numeric" value={passwordPolicy.historyCount} onChange={e => setPasswordPolicy(prev => ({ ...prev, historyCount: Number(e.target.value) }))} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
                     </div>
                   </div>
 
@@ -2199,10 +2221,11 @@ const resetProfForm = () => {
                   <Globe className="w-5 h-5 text-teal-600" />
                   <h3 className="font-semibold text-slate-800 text-base">{editingSsoId ? t('fin_edit_sso_provider', 'app') : t('fin_new_sso_provider', 'app')}</h3>
                 </div>
-                <form onSubmit={async (e) => { e.preventDefault(); if (!ssoName.trim() || !ssoIssuer.trim() || !ssoClientId.trim()) return; if (editingSsoId) { setSSOProviders(prev => prev.map(p => p.id === editingSsoId ? { ...p, name: ssoName, type: ssoType, issuerUrl: ssoIssuer, clientId: ssoClientId, clientSecret: ssoClientSecret, metadataUrl: ssoMetadataUrl, certificateFingerprint: ssoCertFingerprint, defaultRole: ssoDefaultRole, enabled: ssoEnabled } : p)); addAuditLog('Editou Provedor SSO', ssoName); } else { const ssoId = await genModuleId('sso'); setSSOProviders(prev => [...prev, { id: ssoId, name: ssoName, type: ssoType, enabled: ssoEnabled, issuerUrl: ssoIssuer, clientId: ssoClientId, clientSecret: ssoClientSecret, metadataUrl: ssoMetadataUrl, certificateFingerprint: ssoCertFingerprint, defaultRole: ssoDefaultRole, active: ssoEnabled }]); addAuditLog('Cadastrou Provedor SSO', ssoName); } setSsoFormOpen(false); setEditingSsoId(null); setSsoName(''); }} className="space-y-3 text-xs font-sans">
+                <form onSubmit={async (e) => { e.preventDefault(); const ssoRes = ssoValidation.validate({ name: ssoName, type: ssoType, issuerUrl: ssoIssuer, clientId: ssoClientId, clientSecret: ssoClientSecret, metadataUrl: ssoMetadataUrl, certificateFingerprint: ssoCertFingerprint, defaultRole: ssoDefaultRole, enabled: ssoEnabled }); if (!ssoRes.success) return; if (editingSsoId) { setSSOProviders(prev => prev.map(p => p.id === editingSsoId ? { ...p, name: ssoName, type: ssoType, issuerUrl: ssoIssuer, clientId: ssoClientId, clientSecret: ssoClientSecret, metadataUrl: ssoMetadataUrl, certificateFingerprint: ssoCertFingerprint, defaultRole: ssoDefaultRole, enabled: ssoEnabled } : p)); addAuditLog('Editou Provedor SSO', ssoName); } else { const ssoId = await genModuleId('sso'); setSSOProviders(prev => [...prev, { id: ssoId, name: ssoName, type: ssoType, enabled: ssoEnabled, issuerUrl: ssoIssuer, clientId: ssoClientId, clientSecret: ssoClientSecret, metadataUrl: ssoMetadataUrl, certificateFingerprint: ssoCertFingerprint, defaultRole: ssoDefaultRole, active: ssoEnabled }]); addAuditLog('Cadastrou Provedor SSO', ssoName); } setSsoFormOpen(false); setEditingSsoId(null); setSsoName(''); }} noValidate className="space-y-3 text-xs font-sans">
+                  {ssoValidation.errors.length > 0 && <FormErrorSummary errors={ssoValidation.errors} />}
                   <div>
                     <label className="block text-xs font-semibold text-slate-600 mb-1">{t('fin_sso_provider_name', 'app')}</label>
-                    <input type="text" value={ssoName} onChange={e => setSsoName(e.target.value)} placeholder="Azure AD" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" required />
+                    <input type="text" value={ssoName} onChange={e => setSsoName(e.target.value)} placeholder="Azure AD" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-slate-600 mb-1">{t('fin_sso_type', 'app')}</label>
@@ -2214,12 +2237,12 @@ const resetProfForm = () => {
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-slate-600 mb-1">Issuer URL *</label>
-                    <input type="url" value={ssoIssuer} onChange={e => setSsoIssuer(e.target.value)} placeholder="https://login.microsoftonline.com/tenant/v2.0" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" required />
+                    <input type="text" value={ssoIssuer} onChange={e => setSsoIssuer(e.target.value)} placeholder="https://login.microsoftonline.com/tenant/v2.0" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <label className="block text-xs font-semibold text-slate-600 mb-1">Client ID *</label>
-                      <input type="text" value={ssoClientId} onChange={e => setSsoClientId(e.target.value)} placeholder="app_client_id" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" required />
+                      <input type="text" value={ssoClientId} onChange={e => setSsoClientId(e.target.value)} placeholder="app_client_id" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-slate-600 mb-1">Client Secret</label>
@@ -2228,7 +2251,7 @@ const resetProfForm = () => {
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-slate-600 mb-1">Metadata URL</label>
-                    <input type="url" value={ssoMetadataUrl} onChange={e => setSsoMetadataUrl(e.target.value)} placeholder="https://.../.well-known/openid-configuration" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
+                    <input type="text" value={ssoMetadataUrl} onChange={e => setSsoMetadataUrl(e.target.value)} placeholder="https://.../.well-known/openid-configuration" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
                   </div>
                   {ssoType === 'saml' && (
                     <div>

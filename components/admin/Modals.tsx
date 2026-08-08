@@ -68,7 +68,7 @@ export function KudeModal({ dte, onClose }: { dte: Dte; onClose: () => void }) {
                 <th className="p-2 text-center">Qtd</th>
                 <th className="p-2 text-right">P. Unit.</th>
                 <th className="p-2 text-center">IVA %</th>
-                <th className="p-2 text-right rounded-tr-lg">Total</th>
+                <th className="p-2 text-right rounded-tr-lg">{t('fin_th_total', 'app')}</th>
               </tr>
             </thead>
             <tbody>

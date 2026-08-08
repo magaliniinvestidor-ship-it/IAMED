@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useI18n } from '@/lib/i18n/I18nContext';
 import { AlertCircle, X } from 'lucide-react';
 
 export interface FormFieldProps {
@@ -40,20 +41,22 @@ export interface FormErrorSummaryProps {
   onClose?: () => void;
 }
 
-export function FormErrorSummary({ errors, title = 'Corrija os seguintes erros:', onClose }: FormErrorSummaryProps) {
+export function FormErrorSummary({ errors, title, onClose }: FormErrorSummaryProps) {
+  const { t } = useI18n();
+  const resolvedTitle = title ?? t('form_error_summary_title', 'app');
   if (errors.length === 0) return null;
   return (
-    <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg space-y-1.5">
+    <div role="alert" aria-live="assertive" className="p-3 bg-rose-50 border border-rose-200 rounded-lg space-y-1.5">
       <div className="flex items-start justify-between gap-2">
         <p className="text-xs font-bold text-rose-700 flex items-center gap-1.5">
           <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-          {title}
+          {resolvedTitle}
         </p>
         {onClose && (
           <button
             type="button"
             onClick={onClose}
-            aria-label={title}
+            aria-label={resolvedTitle}
             className="text-rose-500 hover:text-rose-700 hover:bg-rose-100 rounded-md p-0.5 transition cursor-pointer shrink-0"
           >
             <X className="w-3.5 h-3.5" />

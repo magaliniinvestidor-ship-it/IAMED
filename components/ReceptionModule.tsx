@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import Image from 'next/image';
 import { Patient, Appointment, Professional } from '@/lib/mockData';
 import { supabase } from '@/lib/supabaseClient';
 import { useI18n } from '@/lib/i18n/I18nContext';
@@ -996,7 +997,7 @@ export default function ReceptionModule({
       }
     }
 
-    // eslint-disable-next-line react-hooks/purity
+     
     let patientId: string;
     if (isEditing) {
       patientId = selectedPatientId;
@@ -2385,7 +2386,7 @@ if (hasAnyField) {
                       <div className="flex items-center gap-4">
                         <div className="w-20 h-20 bg-slate-100 rounded-full border-2 border-slate-200 overflow-hidden flex items-center justify-center relative">
                           {webcamPlaceholder ? (
-                            <img src={webcamPlaceholder} className="w-full h-full object-cover" alt={t('rcpt_alt_patient_capture', 'app')} />
+                            <Image src={webcamPlaceholder} className="object-cover" fill alt={t('rcpt_alt_patient_capture', 'app')} />
                           ) : (
                             <User className="w-8 h-8 text-slate-300" />
                           )}
@@ -2475,7 +2476,7 @@ if (hasAnyField) {
                         )}
                       </label>
                       <input 
-                        type="email" 
+                        type="text" 
                         value={newEmail} 
                         onChange={e => setNewEmail(e.target.value)}
                         placeholder=""
@@ -3039,9 +3040,9 @@ if (hasAnyField) {
                       </div>
 
                       <div className="flex flex-col items-center gap-2 shrink-0">
-                        <div className="w-20 h-20 rounded-xl border-2 border-slate-200 bg-white overflow-hidden flex items-center justify-center shadow-md">
+                        <div className="w-20 h-20 rounded-xl border-2 border-slate-200 bg-white overflow-hidden flex items-center justify-center shadow-md relative">
                           {p.photo_url ? (
-                            <img src={p.photo_url} className="w-full h-full object-cover" alt={t('rcpt_alt_profile', 'app')} />
+                            <Image src={p.photo_url} className="object-cover" fill alt={t('rcpt_alt_profile', 'app')} />
                           ) : (
                             <User className="w-10 h-10 text-slate-300" />
                           )}
@@ -3120,7 +3121,7 @@ if (hasAnyField) {
                   <div key={p.id} className="bg-slate-50 border border-slate-200 rounded-lg p-3">
                     <div className="flex items-start gap-3 mb-2">
                       {p.photo_url ? (
-                        <img src={p.photo_url} alt={p.name} className="w-10 h-10 rounded-full object-cover border border-slate-200" />
+                        <Image src={p.photo_url} alt={p.name} className="rounded-full object-cover border border-slate-200" width={40} height={40} />
                       ) : (
                         <div className="w-10 h-10 rounded-full bg-teal-100 flex items-center justify-center text-teal-700 font-bold text-xs flex-shrink-0">
                           {p.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
@@ -4170,9 +4171,9 @@ if (hasAnyField) {
                     <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl">
                       <p className="text-xs font-bold text-slate-700 pb-1 border-b border-slate-200 mb-3">{t('rcpt_patient_photo', 'app')}</p>
                       <div className="flex flex-col items-center gap-2">
-                        <div className="w-32 h-32 rounded-lg border border-slate-200 bg-white overflow-hidden flex items-center justify-center shadow-xs">
+                        <div className="w-32 h-32 rounded-lg border border-slate-200 bg-white overflow-hidden flex items-center justify-center shadow-xs relative">
                           {triagePatient.photo_url ? (
-                            <img src={triagePatient.photo_url} className="w-full h-full object-cover" alt={t('rcpt_alt_patient_photo', 'app')} />
+                            <Image src={triagePatient.photo_url} className="object-cover" fill alt={t('rcpt_alt_patient_photo', 'app')} />
                           ) : (
                             <User className="w-16 h-16 text-slate-300" />
                           )}
@@ -4439,7 +4440,7 @@ if (hasAnyField) {
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-3">
                     {timelinePatient.photo_url ? (
-                      <img src={timelinePatient.photo_url} alt={timelinePatient.name} className="w-12 h-12 rounded-full object-cover border border-slate-200" />
+                      <Image src={timelinePatient.photo_url} alt={timelinePatient.name} className="rounded-full object-cover border border-slate-200" width={48} height={48} />
                     ) : (
                       <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center text-green-700 font-bold text-sm flex-shrink-0">
                         {timelinePatient.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
