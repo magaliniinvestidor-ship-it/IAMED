@@ -5,10 +5,10 @@ import Image from 'next/image';
 import { Patient, Appointment, Professional } from '@/lib/mockData';
 import { supabase } from '@/lib/supabaseClient';
 import { useI18n } from '@/lib/i18n/I18nContext';
-import { useFormValidation } from '@/lib/validation';
+import { useFormValidation, groupErrorsByPath, validateForm } from '@/lib/validation';
 import { patientSchema, createAllPatientSchemas, triageSchema } from '@/lib/validation/schemas';
-import { getValidationMessages, createTriageSchema, type ValidationMessages } from '@/lib/validation/i18n-schemas';
-import { FormErrorSummary } from '@/components/forms';
+import { getValidationMessages, createTriageSchema, createMedicalConsultationSchema, createMedicalConsultationFinalizeSchema, type ValidationMessages } from '@/lib/validation/i18n-schemas';
+import { FormField, FormErrorSummary } from '@/components/forms';
 import { isValidPhoneNumber, parsePhoneNumber } from 'libphonenumber-js';
 import PhoneInput from '@/components/PhoneInput';
 import I18nDatePicker from '@/components/I18nDatePicker';
@@ -70,7 +70,7 @@ export default function ReceptionModule({
 
   // Search & List states
   const [patientSearch, setPatientSearch] = useState('');
-  const [filterPriority, setFilterPriority] = useState<string>('todos');
+  const [filterStatus, setFilterStatus] = useState<string>('todos');
 
 // Admission form search (lookup existing patient)
   const [admissionSearch, setAdmissionSearch] = useState('');
@@ -97,6 +97,12 @@ export default function ReceptionModule({
     validate: validateTriage,
     clearErrors: clearTriageErrors,
   } = useFormValidation(createTriageSchema(validationMessages));
+  const {
+    errors: medConsultationErrors,
+    validate: validateMedicalConsultation,
+    clearErrors: clearMedConsultationErrors,
+    setErrors: setMedConsultationErrors,
+  } = useFormValidation(createMedicalConsultationSchema(validationMessages));
   // Mandatory fields
   const [newName, setNewName] = useState('');
   const [newBirthdate, setNewBirthdate] = useState('');
@@ -446,7 +452,7 @@ export default function ReceptionModule({
       fr: { red: (v: number) => v < 8, orange: (v: number) => v > 30, yellow: (v: number) => v >= 21 && v <= 30 },
       temp: { orange: (v: number) => v >= 41.0 || v <= 35.0, yellow: (v: number) => v >= 38.5 && v <= 40.9 },
     };
-  }, [patientAgeMonths]);
+  }, [patientAgeMonths, t]);
 
 
   // --- Handlers & Helpers ---
@@ -992,12 +998,20 @@ export default function ReceptionModule({
         alert(t('rcpt_alert_required_guardian_name', 'app'));
         return;
       }
+      if (!guardianDocumentType.trim()) {
+        alert(t('rcpt_alert_required_guardian_doc_type', 'app'));
+        return;
+      }
       if (!guardianDocument.trim()) {
         alert(t('rcpt_alert_required_guardian_doc', 'app'));
         return;
       }
       if (!guardianRelationship.trim()) {
         alert(t('rcpt_alert_required_guardian_relationship', 'app'));
+        return;
+      }
+      if (!guardianPhone.trim()) {
+        alert(t('rcpt_alert_required_guardian_phone', 'app'));
         return;
       }
     }
@@ -1115,6 +1129,7 @@ export default function ReceptionModule({
       guardian_document_type: newPatient.guardian_document_type,
       guardian_document: newPatient.guardian_document,
       guardian_relationship: newPatient.guardian_relationship,
+      guardian_phone: newPatient.guardian_phone,
       photo_url: newPatient.photo_url,
       preferred_language: newPatient.preferred_language,
       admitted_at: new Date().toISOString(),
@@ -1256,6 +1271,7 @@ export default function ReceptionModule({
       guardian_document_type: mergeSelections.guardian_document_type || duplicatePatient.guardian_document_type,
       guardian_document: mergeSelections.guardian_document || duplicatePatient.guardian_document,
       guardian_relationship: mergeSelections.guardian_relationship || duplicatePatient.guardian_relationship,
+      guardian_phone: mergeSelections.guardian_phone || duplicatePatient.guardian_phone,
       photo_url: mergeSelections.photo_url || photoUrl || duplicatePatient.photo_url,
       preferred_language: mergeSelections.preferred_language || duplicatePatient.preferred_language,
     };
@@ -1298,6 +1314,7 @@ export default function ReceptionModule({
       guardian_document_type: mergedPatient.guardian_document_type,
       guardian_document: mergedPatient.guardian_document,
       guardian_relationship: mergedPatient.guardian_relationship,
+      guardian_phone: mergedPatient.guardian_phone,
       photo_url: mergedPatient.photo_url,
       preferred_language: mergedPatient.preferred_language
     }).eq('id', duplicatePatient.id);
@@ -1558,7 +1575,8 @@ export default function ReceptionModule({
     setOnlinePatientId('');
   };
 
-  const handleDeletePatient = async (id: string, patientName: string) => {
+  const handleDeletePatient = async (patient: Patient) => {
+    const { id, name: patientName, photo_url } = patient;
     if (!confirm(t('rcpt_confirm_delete_patient', 'app').replace('{name}', patientName))) return;
 
     setPatients(prev => prev.filter(p => p.id !== id));
@@ -1585,10 +1603,25 @@ export default function ReceptionModule({
       const { error: waitlistError } = await supabase.from('waiting_list').delete().eq('patient_id', id);
       if (waitlistError) console.error("[SUPABASE] DELETE waiting_list FAILED:", waitlistError.message);
 
-      // Excluir foto do Storage
+      // Excluir foto do Storage (caminho real extraído da URL + fallback legado sem timestamp)
+      const photoPaths: string[] = [];
+      if (photo_url && photo_url.startsWith('http')) {
+        try {
+          const oldUrl = new URL(photo_url);
+          const marker = '/storage/v1/object/public/patient-photos/';
+          const idx = oldUrl.pathname.indexOf(marker);
+          if (idx !== -1) {
+            const oldPath = decodeURIComponent(oldUrl.pathname.slice(idx + marker.length));
+            if (oldPath) photoPaths.push(oldPath);
+          }
+        } catch (e) {
+          console.warn('[SUPABASE] DELETE photo parse error:', e);
+        }
+      }
+      photoPaths.push(`patient_${id}.jpg`);
       const { error: photoError } = await supabase.storage
         .from('patient-photos')
-        .remove([`patient_${id}.jpg`]);
+        .remove(photoPaths);
       if (photoError) console.error("[SUPABASE] DELETE photo FAILED:", photoError.message);
 
       // Excluir o paciente
@@ -1628,6 +1661,7 @@ export default function ReceptionModule({
     setGuardianDocumentType((patient.guardian_document_type as 'CI' | 'Passaporte' | 'RG' | 'Outro') || 'CI');
     setGuardianDocument(patient.guardian_document || '');
     setGuardianRelationship(patient.guardian_relationship || '');
+    setGuardianPhone(patient.guardian_phone || '');
     setPhotoUrl(patient.photo_url || '');
     setWebcamPlaceholder(patient.photo_url || null);
     setPreferredLanguage((patient.preferred_language as any) || 'es');
@@ -2042,8 +2076,13 @@ if (hasAnyField) {
     const matchesSearch = p.name.toLowerCase().includes(searchVal) || 
                           p.phone.includes(searchVal) ||
                           docNum.includes(searchVal);
-    const matchesPriority = filterPriority === 'todos' || p.priority === filterPriority;
-    return matchesSearch && matchesPriority;
+    const matchesStatus =
+      filterStatus === 'todos'
+        ? true
+        : filterStatus === 'triado'
+          ? p.status === 'triado' || p.status === 'atendimento'
+          : p.status === filterStatus;
+    return matchesSearch && matchesStatus;
   }).sort((a, b) => {
     const dateA = (a as any).admitted_at ? new Date((a as any).admitted_at).getTime() : ((a as any).created_at ? new Date((a as any).created_at).getTime() : 0);
     const dateB = (b as any).admitted_at ? new Date((b as any).admitted_at).getTime() : ((b as any).created_at ? new Date((b as any).created_at).getTime() : 0);
@@ -2074,7 +2113,7 @@ if (hasAnyField) {
             <button
               type="button"
               onClick={() => setActiveReceptionTab('distribuicao')}
-              className={`flex-1 min-w-[80px] py-2 px-3 rounded-md transition text-center cursor-pointer ${
+              className={`relative flex-1 min-w-[80px] py-2 px-3 rounded-md transition text-center cursor-pointer ${
                 activeReceptionTab === 'distribuicao' 
                   ? 'bg-teal-600 text-white shadow-sm' 
                   : 'text-slate-600 hover:text-slate-800 hover:bg-slate-200'
@@ -2082,6 +2121,11 @@ if (hasAnyField) {
             >
               <MapPin className="w-4 h-4 inline mr-1" />
               {t('rcpt_tab_attendances', 'app')}
+              {triagedPatients.length > 0 && (
+                <span className="absolute top-0.5 right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold shadow-sm flex items-center justify-center">
+                  {triagedPatients.length}
+                </span>
+              )}
             </button>
             <button
               type="button"
@@ -2692,7 +2736,7 @@ if (hasAnyField) {
                         </div>
                       </div>
 
-                      {healthInsuranceType === 'Pré-paga' && (
+                      {healthInsuranceType && healthInsuranceType !== 'Particular' && (
                         <div>
                           <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">{t('rcpt_label_insurance_company', 'app')}</label>
                           <input 
@@ -2788,7 +2832,7 @@ if (hasAnyField) {
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">{t('rcpt_phone', 'app')}</label>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">{t('rcpt_phone', 'app')} {isMinor && '*'}</label>
                       <input 
                         type="tel" 
                         value={guardianPhone} 
@@ -2852,11 +2896,11 @@ if (hasAnyField) {
                       data-testid="reception-submit-admit"
                       onClick={handleSavePatient}
                       className={`py-2 px-4 text-white text-xs font-bold rounded-lg shadow-sm flex items-center justify-center gap-1.5 cursor-pointer transition ${
-                        isMinor && (!guardianName.trim() || !guardianDocument.trim() || !guardianRelationship.trim())
+                        isMinor && (!guardianName.trim() || !guardianDocumentType.trim() || !guardianDocument.trim() || !guardianRelationship.trim() || !guardianPhone.trim())
                           ? 'bg-slate-400 cursor-not-allowed opacity-60'
                           : 'bg-teal-600 hover:bg-teal-700'
                       }`}
-                      disabled={isMinor && (!guardianName.trim() || !guardianDocument.trim() || !guardianRelationship.trim())}
+                      disabled={isMinor && (!guardianName.trim() || !guardianDocumentType.trim() || !guardianDocument.trim() || !guardianRelationship.trim() || !guardianPhone.trim())}
                     >
                       {selectedPatientId ? (
                         <><Check className="w-4 h-4" /> {t('rcpt_label_save_edit', 'app')}</>
@@ -2910,20 +2954,19 @@ if (hasAnyField) {
               <div className="flex items-center gap-2">
                 <Filter className="w-4 h-4 text-slate-400" />
                 <select 
-                  value={filterPriority}
-                  onChange={e => setFilterPriority(e.target.value)}
+                  value={filterStatus}
+                  onChange={e => setFilterStatus(e.target.value)}
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans"
                 >
-                  <option value="todos">{t('rcpt_all_priorities', 'app')}</option>
-                  <option value="normal">{t('rcpt_priority_normal', 'app')}</option>
-                  <option value="preferencial">{t('rcpt_priority_preferential', 'app')}</option>
-                  <option value="emergência">{t('rcpt_priority_emergency', 'app')}</option>
+                  <option value="todos">{t('rcpt_filter_all', 'app')}</option>
+                  <option value="aguardando">{t('rcpt_list_waiting_triage', 'app')}</option>
+                  <option value="triado">{t('rcpt_list_triaged', 'app')}</option>
                 </select>
               </div>
             </div>
 
             {/* Lista dos Pacientes Cadastrados */}
-            <div className="max-h-[460px] overflow-y-auto space-y-3 pr-1">
+            <div className="max-h-[620px] min-h-[200px] overflow-y-auto space-y-3 pr-1">
               {filteredPatients.length === 0 ? (
                 <div className="text-center py-12 text-slate-400 text-xs">
                   {t('rcpt_list_empty', 'app')}
@@ -3089,7 +3132,7 @@ if (hasAnyField) {
                             <Pencil className="w-3.5 h-3.5" />
                           </button>
                           <button
-                            onClick={() => handleDeletePatient(p.id, p.name)}
+                            onClick={() => handleDeletePatient(p)}
                             data-testid="delete-patient"
                             className="bg-red-500 hover:bg-red-600 text-white w-8 h-8 rounded-lg font-semibold shadow-sm transition cursor-pointer flex items-center justify-center"
                             title={t('rcpt_list_delete_patient', 'app')}
@@ -4892,7 +4935,7 @@ if (hasAnyField) {
                       <p className="text-xs text-slate-500">{locationTypeLabel[selectedLocation.type]}</p>
                     </div>
                   </div>
-                   <button onClick={() => { setShowLocationDetail(false); setSelectedLocation(null); setSelectedDetailPatientId(null); setMedDiagnosis(''); setMedCid10(''); setMedPrescription(''); setMedNotes(''); setPrevMedDiagnosis(''); setPrevMedCid10(''); setPrevMedPrescription(''); setPrevMedNotes(''); setIsEditingTriage(false); }} className="text-slate-400 hover:text-slate-600 cursor-pointer">
+                   <button onClick={() => { setShowLocationDetail(false); setSelectedLocation(null); setSelectedDetailPatientId(null); setMedDiagnosis(''); setMedCid10(''); setMedPrescription(''); setMedNotes(''); setPrevMedDiagnosis(''); setPrevMedCid10(''); setPrevMedPrescription(''); setPrevMedNotes(''); setIsEditingTriage(false); clearMedConsultationErrors(); }} className="text-slate-400 hover:text-slate-600 cursor-pointer">
                     <X className="w-5 h-5" />
                   </button>
                 </div>
@@ -4933,6 +4976,7 @@ if (hasAnyField) {
                     const colorDot: Record<string, string> = {
                       red: 'bg-red-500', orange: 'bg-orange-500', yellow: 'bg-amber-400', green: 'bg-green-500', blue: 'bg-blue-500',
                     };
+                    const medFieldErrors = groupErrorsByPath(medConsultationErrors);
                     return (
                       <div className="space-y-4">
                         {/* Patient Info */}
@@ -5017,34 +5061,31 @@ if (hasAnyField) {
                           {prevMedDiagnosis || prevMedCid10 || prevMedPrescription || prevMedNotes ? (
                             <p className="text-[10px] italic text-slate-500">{t('rcpt_detail_previous_data_legend', 'app')}</p>
                           ) : null}
-                          <div>
-                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_detail_diagnosis', 'app')} *</label>
+                          {medConsultationErrors.length > 0 && <FormErrorSummary errors={medConsultationErrors} title={t('rcpt_med_consultation_validation_title', 'app')} onClose={clearMedConsultationErrors} />}
+                          <FormField label={t('rcpt_detail_diagnosis', 'app')} required error={medFieldErrors.diagnosis}>
                             {prevMedDiagnosis && (
                               <div className="w-full p-2 bg-slate-100 border border-slate-200 rounded-lg text-xs text-slate-500 whitespace-pre-wrap mb-1">{prevMedDiagnosis}</div>
                             )}
                             <input type="text" value={medDiagnosis} onChange={e => setMedDiagnosis(e.target.value)} placeholder={t('rcpt_ph_add_below', 'app')} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
-                          </div>
-                          <div>
-                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_detail_cid10', 'app')}</label>
+                          </FormField>
+                          <FormField label={t('rcpt_detail_cid10', 'app')} error={medFieldErrors.cid10}>
                             {prevMedCid10 && (
                               <div className="w-full p-2 bg-slate-100 border border-slate-200 rounded-lg text-xs text-slate-500 whitespace-pre-wrap mb-1">{prevMedCid10}</div>
                             )}
                             <input type="text" value={medCid10} onChange={e => setMedCid10(e.target.value)} placeholder={t('rcpt_ph_add_below', 'app')} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
-                          </div>
-                          <div>
-                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_detail_prescription', 'app')}</label>
+                          </FormField>
+                          <FormField label={t('rcpt_detail_prescription', 'app')} required error={medFieldErrors.prescriptions}>
                             {prevMedPrescription && (
                               <div className="w-full p-2 bg-slate-100 border border-slate-200 rounded-lg text-xs text-slate-500 whitespace-pre-wrap mb-1">{prevMedPrescription}</div>
                             )}
                             <textarea value={medPrescription} onChange={e => setMedPrescription(e.target.value)} placeholder={t('rcpt_ph_add_below', 'app')} rows={3} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
-                          </div>
-                          <div>
-                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_detail_medical_notes', 'app')}</label>
+                          </FormField>
+                          <FormField label={t('rcpt_detail_medical_notes', 'app')} error={medFieldErrors.notes}>
                             {prevMedNotes && (
                               <div className="w-full p-2 bg-slate-100 border border-slate-200 rounded-lg text-xs text-slate-500 whitespace-pre-wrap mb-1">{prevMedNotes}</div>
                             )}
                             <textarea value={medNotes} onChange={e => setMedNotes(e.target.value)} placeholder={t('rcpt_ph_add_below', 'app')} rows={2} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
-                          </div>
+                          </FormField>
                         </div>
                       </div>
                     );
@@ -5065,6 +5106,7 @@ if (hasAnyField) {
                     const colorDot: Record<string, string> = {
                       red: 'bg-red-500', orange: 'bg-orange-500', yellow: 'bg-amber-400', green: 'bg-green-500', blue: 'bg-blue-500',
                     };
+                    const medFieldErrors = groupErrorsByPath(medConsultationErrors);
                     return (
                       <div className="space-y-4">
                         <button onClick={() => setSelectedDetailPatientId(null)} className="text-xs text-teal-600 hover:text-teal-800 font-bold cursor-pointer flex items-center gap-1">
@@ -5152,34 +5194,31 @@ if (hasAnyField) {
                           {prevMedDiagnosis || prevMedCid10 || prevMedPrescription || prevMedNotes ? (
                             <p className="text-[10px] italic text-slate-500">{t('rcpt_detail_previous_data_legend', 'app')}</p>
                           ) : null}
-                          <div>
-                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_detail_diagnosis', 'app')} *</label>
+                          {medConsultationErrors.length > 0 && <FormErrorSummary errors={medConsultationErrors} title={t('rcpt_med_consultation_validation_title', 'app')} onClose={clearMedConsultationErrors} />}
+                          <FormField label={t('rcpt_detail_diagnosis', 'app')} required error={medFieldErrors.diagnosis}>
                             {prevMedDiagnosis && (
                               <div className="w-full p-2 bg-slate-100 border border-slate-200 rounded-lg text-xs text-slate-500 whitespace-pre-wrap mb-1">{prevMedDiagnosis}</div>
                             )}
                             <input type="text" value={medDiagnosis} onChange={e => setMedDiagnosis(e.target.value)} placeholder={t('rcpt_ph_add_below', 'app')} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
-                          </div>
-                          <div>
-                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_detail_cid10', 'app')}</label>
+                          </FormField>
+                          <FormField label={t('rcpt_detail_cid10', 'app')} error={medFieldErrors.cid10}>
                             {prevMedCid10 && (
                               <div className="w-full p-2 bg-slate-100 border border-slate-200 rounded-lg text-xs text-slate-500 whitespace-pre-wrap mb-1">{prevMedCid10}</div>
                             )}
                             <input type="text" value={medCid10} onChange={e => setMedCid10(e.target.value)} placeholder={t('rcpt_ph_add_below', 'app')} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
-                          </div>
-                          <div>
-                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_detail_prescription', 'app')}</label>
+                          </FormField>
+                          <FormField label={t('rcpt_detail_prescription', 'app')} required error={medFieldErrors.prescriptions}>
                             {prevMedPrescription && (
                               <div className="w-full p-2 bg-slate-100 border border-slate-200 rounded-lg text-xs text-slate-500 whitespace-pre-wrap mb-1">{prevMedPrescription}</div>
                             )}
                             <textarea value={medPrescription} onChange={e => setMedPrescription(e.target.value)} placeholder={t('rcpt_ph_add_below', 'app')} rows={3} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
-                          </div>
-                          <div>
-                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_detail_medical_notes', 'app')}</label>
+                          </FormField>
+                          <FormField label={t('rcpt_detail_medical_notes', 'app')} error={medFieldErrors.notes}>
                             {prevMedNotes && (
                               <div className="w-full p-2 bg-slate-100 border border-slate-200 rounded-lg text-xs text-slate-500 whitespace-pre-wrap mb-1">{prevMedNotes}</div>
                             )}
                             <textarea value={medNotes} onChange={e => setMedNotes(e.target.value)} placeholder={t('rcpt_ph_add_below', 'app')} rows={2} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500" />
-                          </div>
+                          </FormField>
                         </div>
                       </div>
                     );
@@ -5243,12 +5282,21 @@ if (hasAnyField) {
                   (() => {
                     const pid = selectedLocation.capacity === 1 ? selectedLocation.currentPatients[0] : selectedDetailPatientId!;
                     return (
+                      <>
+                      {isEditingTriage && (
+                        <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center gap-2 mb-2">
+                          <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                          <p className="text-xs font-medium text-amber-700">{t('rcpt_triage_editing_notice', 'app')}</p>
+                        </div>
+                      )}
                       <div className="flex gap-2">
                         <button
+                          disabled={isEditingTriage}
                           onClick={() => {
-                            if (isEditingTriage) { alert(t('rcpt_alert_save_triage_before_action', 'app')); return; }
+                            const medResult = validateMedicalConsultation({ diagnosis: medDiagnosis, cid10: medCid10, prescriptions: medPrescription, notes: medNotes });
+                            if (!medResult.success) return;
                             const pat = patientsRef.current.find(p => p.id === pid);
-                            const triages = pat?.clinicalHistory?.filter((h: any) => h.type?.includes('Triagem')) || [];
+                            const triages = pat?.clinicalHistory?.filter((h: any) => h.type?.includes('Triagem')) ?? [];
                     const triage = [...triages].sort((a: any, b: any) => {
                       const dateA = new Date(a.triaged_at || a.created_at || a.date || 0).getTime();
                       const dateB = new Date(b.triaged_at || b.created_at || b.date || 0).getTime();
@@ -5293,15 +5341,20 @@ if (hasAnyField) {
                             const patFinal = patientsRef.current.find(p => p.id === pid);
                             if (patFinal) { setRedirectPatient(patFinal); setShowRedirectModal(true); setShowLocationDetail(false); setSelectedDetailPatientId(null); setIsEditingTriage(false); setHasTriageEdits(false); }
                           }}
-                          className="flex-1 py-2.5 text-sm font-bold rounded-lg transition cursor-pointer bg-blue-100 text-blue-700 hover:bg-blue-200 flex items-center justify-center gap-1"
+                          className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition flex items-center justify-center gap-1 ${isEditingTriage ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'cursor-pointer bg-blue-100 text-blue-700 hover:bg-blue-200'}`}
                         >
                           <ChevronRight className="w-4 h-4" /> {t('rcpt_detail_redirect', 'app')}
                         </button>
                         <button
+                          disabled={isEditingTriage}
                           onClick={async () => {
-                            if (isEditingTriage) { alert(t('rcpt_alert_save_triage_before_action', 'app')); return; }
-                            if (!medDiagnosis.trim()) { alert(t('rcpt_alert_fill_diagnosis', 'app')); return; }
-                            if (!confirm(t('rcpt_confirm_finalize', 'app'))) return;
+                            const finalizeSchema = createMedicalConsultationFinalizeSchema(validationMessages);
+                            const medResult = validateForm(finalizeSchema, { diagnosis: medDiagnosis, cid10: medCid10, prescriptions: medPrescription, notes: medNotes });
+                            if (!medResult.success) {
+                              setMedConsultationErrors(medResult.errors);
+                              return;
+                            }
+                            clearMedConsultationErrors();
                             const pat = patientsRef.current.find(p => p.id === pid);
                             const triages = pat?.clinicalHistory?.filter((h: any) => h.type?.includes('Triagem')) || [];
                     const triage = [...triages].sort((a: any, b: any) => {
@@ -5378,11 +5431,12 @@ if (hasAnyField) {
                             setSelectedDetailPatientId(null);
                             setMedDiagnosis(''); setMedCid10(''); setMedPrescription(''); setMedNotes(''); setPrevMedDiagnosis(''); setPrevMedCid10(''); setPrevMedPrescription(''); setPrevMedNotes(''); setIsEditingTriage(false); pendingMedDataRef.current = null;
                           }}
-                          className="flex-1 py-2.5 text-sm font-bold rounded-lg transition cursor-pointer bg-green-600 text-white hover:bg-green-700 flex items-center justify-center gap-1"
+                          className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition flex items-center justify-center gap-1 ${isEditingTriage ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'cursor-pointer bg-green-600 text-white hover:bg-green-700'}`}
                         >
                           <CheckCircle2 className="w-4 h-4" /> {t('rcpt_detail_finalize', 'app')}
                         </button>
                       </div>
+                      </>
                     );
                   })()
                 ) : null}

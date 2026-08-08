@@ -87,12 +87,12 @@ function HomeContent() {
   const [langDropdownOpen, setLangDropdownOpen] = useState(false);
 
   const LANGUAGES = [
-    { code: 'pt-BR', name: 'Português (Brasil)', flag: '🇧🇷', term: 'Celular / Tela' },
-    { code: 'pt-PT', name: 'Português (Portugal)', flag: '🇵🇹', term: 'Telemóvel / Ecrã' },
-    { code: 'es-AR', name: 'Español (Argentina)', flag: '🇦🇷', term: 'Celular / Pantalla' },
-    { code: 'es-PY', name: 'Español (Paraguay)', flag: '🇵🇾', term: 'Celular / Cédula' },
-    { code: 'es', name: 'Español (Geral)', flag: '🇪🇸', term: 'Móvil / Pantalla' },
-    { code: 'en', name: 'English (US/UK)', flag: '🇺🇸', term: 'Mobile / Screen' }
+    { code: 'pt-BR', name: 'Português (Brasil)', flag: '🇧🇷' },
+    { code: 'pt-PT', name: 'Português (Portugal)', flag: '🇵🇹' },
+    { code: 'es-AR', name: 'Español (Argentina)', flag: '🇦🇷' },
+    { code: 'es-PY', name: 'Español (Paraguay)', flag: '🇵🇾' },
+    { code: 'es', name: 'Español (Geral)', flag: '🇪🇸' },
+    { code: 'en', name: 'English (US/UK)', flag: '🇺🇸' }
   ] as const;
 
   const currentLang = LANGUAGES.find(l => l.code === locale) || LANGUAGES[0];
@@ -259,50 +259,6 @@ function HomeContent() {
       if (pendingSignOut) clearTimeout(pendingSignOut);
     };
   }, []);
-
-  // ──────────────────────────────────────────────
-  // 1b. Inactivity / Session Timeout Tracker
-  // ──────────────────────────────────────────────
-  useEffect(() => {
-    if (!session) return;
-
-    const handleUserActivity = () => {
-      updateLastActivityTime();
-      if (showInactivityWarningRef.current) {
-        showInactivityWarningRef.current = false;
-        setShowInactivityWarning(false);
-      }
-    };
-
-    window.addEventListener('mousemove', handleUserActivity);
-    window.addEventListener('keydown', handleUserActivity);
-    window.addEventListener('click', handleUserActivity);
-    window.addEventListener('touchstart', handleUserActivity);
-
-    const interval = setInterval(() => {
-      const currentLastActivity = getLastActivityTime();
-      const elapsed = Date.now() - currentLastActivity;
-      // Grace period: if warning was dismissed in the last 5 seconds, skip logout check
-      const dismissedRecently = Date.now() - lastWarningDismissedAtRef.current < 5000;
-      if (elapsed >= SESSION_TIMEOUT_MS && !dismissedRecently) {
-        // eslint-disable-next-line react-hooks/immutability
-        addAuditLog('Sessão Expirada por Inatividade', activeOperator);
-        // eslint-disable-next-line react-hooks/immutability
-        handleLogout();
-      } else if (elapsed >= INACTIVITY_WARNING_MS && !showInactivityWarningRef.current) {
-        showInactivityWarningRef.current = true;
-        setShowInactivityWarning(true);
-      }
-    }, 10000);
-
-    return () => {
-      window.removeEventListener('mousemove', handleUserActivity);
-      window.removeEventListener('keydown', handleUserActivity);
-      window.removeEventListener('click', handleUserActivity);
-      window.removeEventListener('touchstart', handleUserActivity);
-      clearInterval(interval);
-    };
-  }, [session]);
 
   // ──────────────────────────────────────────────
   // 2. Load profile once session is available
@@ -904,15 +860,6 @@ function HomeContent() {
     setForeignBillings, setAccountsPayable, setAccountsReceivable, setCashFlows,
     setBankReconciliations, setCostCenters, setIncomeStatements, setTaxCalculations,
     setPurchaseBook, setSalesBook, setExchangeRates, setChartOfAccounts, setAccountingEntries,
-    initialPatients, initialAppointments, initialBeds, initialLogs, initialFinance, initialStock,
-    initialAsos, initialDtes, initialProfessionals, initialPharmacyItems, initialStockMovements,
-    initialInventoryCounts, initialAdverseEvents, initialQualityDeviations, initialBatchRecalls,
-    initialInsurances, initialFeeSchedules, initialPreAuthorizations, initialBatchInvoices,
-    initialEligibilityChecks, initialSettlements, initialForeignBillings, initialAccountsPayable,
-    initialAccountsReceivable, initialCashFlows, initialBankReconciliations, initialCostCenters,
-    initialIncomeStatements, initialTaxCalculations, initialPurchaseBook, initialSalesBook,
-    initialExchangeRates, initialChartOfAccounts, initialAccountingEntries,
-    initialLocations, initialClinicalRooms,
   ]);
 
   useEffect(() => {
@@ -1010,7 +957,7 @@ function HomeContent() {
     }
   };
 
-  const handleLogout = async () => {
+  const handleLogout = useCallback(async () => {
     await addAuditLog('Logout do Sistema', activeOperator);
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
     const isPlaceholder = supabaseUrl.includes('your-supabase-url') || supabaseUrl === '';
@@ -1027,7 +974,49 @@ function HomeContent() {
     setAsos([]);
     setProfile(null);
     setActiveSubmodule(null);
-  };
+  }, [addAuditLog, activeOperator]);
+
+  // ──────────────────────────────────────────────
+  // 1b. Inactivity / Session Timeout Tracker
+  // ──────────────────────────────────────────────
+  useEffect(() => {
+    if (!session) return;
+
+    const handleUserActivity = () => {
+      updateLastActivityTime();
+      if (showInactivityWarningRef.current) {
+        showInactivityWarningRef.current = false;
+        setShowInactivityWarning(false);
+      }
+    };
+
+    window.addEventListener('mousemove', handleUserActivity);
+    window.addEventListener('keydown', handleUserActivity);
+    window.addEventListener('click', handleUserActivity);
+    window.addEventListener('touchstart', handleUserActivity);
+
+    const interval = setInterval(() => {
+      const currentLastActivity = getLastActivityTime();
+      const elapsed = Date.now() - currentLastActivity;
+      // Grace period: if warning was dismissed in the last 5 seconds, skip logout check
+      const dismissedRecently = Date.now() - lastWarningDismissedAtRef.current < 5000;
+      if (elapsed >= SESSION_TIMEOUT_MS && !dismissedRecently) {
+        addAuditLog('Sessão Expirada por Inatividade', activeOperator);
+        handleLogout();
+      } else if (elapsed >= INACTIVITY_WARNING_MS && !showInactivityWarningRef.current) {
+        showInactivityWarningRef.current = true;
+        setShowInactivityWarning(true);
+      }
+    }, 10000);
+
+    return () => {
+      window.removeEventListener('mousemove', handleUserActivity);
+      window.removeEventListener('keydown', handleUserActivity);
+      window.removeEventListener('click', handleUserActivity);
+      window.removeEventListener('touchstart', handleUserActivity);
+      clearInterval(interval);
+    };
+  }, [session, SESSION_TIMEOUT_MS, INACTIVITY_WARNING_MS, activeOperator, addAuditLog, handleLogout]);
 
   // ──────────────────────────────────────────────
   // Submodule config
@@ -1038,27 +1027,27 @@ function HomeContent() {
   };
 
   const cards = [
-    { id: 1, title: "1. Recepção e Admissão", icon: Users2, color: "border-teal-500 text-teal-600 bg-teal-50/50" },
-    { id: 2, title: "2. Agenda e Atendimento", icon: CalendarDays, color: "border-teal-500 text-teal-600 bg-teal-50/50" },
-    { id: 3, title: "3. Histórico Clínico Eletrônico (HCE)", icon: ClipboardList, color: "border-sky-500 text-sky-600 bg-sky-50/50" },
-    { id: 4, title: "4. Diagnóstico por Imagens e Laboratório", icon: Microscope, color: "border-sky-500 text-sky-600 bg-sky-50/50" },
-    { id: 5, title: "5. Faturamento Eletrônico (SIFEN/DNIT)", icon: Receipt, color: "border-emerald-500 text-emerald-600 bg-emerald-50/50" },
-    { id: 6, title: "6. Gestão Financeira e Contábil", icon: TrendingUp, color: "border-emerald-500 text-emerald-600 bg-emerald-50/50" },
-    { id: 7, title: "7. Estoque e Farmácia", icon: Pill, color: "border-indigo-500 text-indigo-600 bg-indigo-50/50" },
-    { id: 8, title: "8. Medicina do Trabalho (ASO)", icon: HeartPulse, color: "border-rose-500 text-rose-600 bg-rose-50/50" },
-    { id: 9, title: "9. Medicina do Trabalho / Saúde Ocupacional (PY)", icon: ShieldAlert, color: "border-rose-500 text-rose-600 bg-rose-50/50" },
-    { id: 10, title: "10. Marketing e CRM de Pacientes", icon: Megaphone, color: "border-teal-500 text-teal-600 bg-teal-50/50" },
-    { id: 11, title: "11. Internação e Centro Cirúrgico", icon: BedDouble, color: "border-violet-500 text-violet-600 bg-violet-50/50" },
-    { id: 12, title: "12. Inteligência de Negócio (BI)", icon: BarChart3, color: "border-slate-500 text-slate-600 bg-slate-50/50" },
-    { id: 13, title: "13. Portal do Paciente e App Móvel", icon: Smartphone, color: "border-indigo-500 text-indigo-600 bg-indigo-50/50" },
-    { id: 14, title: "14. Administração do Sistema e Segurança", icon: Settings, color: "border-slate-500 text-slate-600 bg-slate-50/50" },
-    { id: 15, title: "15. Convênios e Cobertura", icon: Building2, color: "border-emerald-500 text-emerald-600 bg-emerald-50/50" },
-    { id: 16, title: "16. Tabela de Honorários", icon: Hash, color: "border-teal-500 text-teal-600 bg-teal-50/50" },
-    { id: 17, title: "17. Coparticipação e Tetos", icon: AlertCircle, color: "border-amber-500 text-amber-600 bg-amber-50/50" },
-    { id: 18, title: "18. Lotes Massivos", icon: Send, color: "border-indigo-500 text-indigo-600 bg-indigo-50/50" },
-    { id: 19, title: "19. Elegibilidade On-line", icon: Wifi, color: "border-cyan-500 text-cyan-600 bg-cyan-50/50" },
-    { id: 20, title: "20. Honorários e Repasse", icon: Banknote, color: "border-violet-500 text-violet-600 bg-violet-50/50" },
-    { id: 21, title: "21. Pacientes Estrangeiros", icon: Globe, color: "border-blue-500 text-blue-600 bg-blue-50/50" },
+    { id: 1, icon: Users2, color: "border-teal-500 text-teal-600 bg-teal-50/50" },
+    { id: 2, icon: CalendarDays, color: "border-teal-500 text-teal-600 bg-teal-50/50" },
+    { id: 3, icon: ClipboardList, color: "border-sky-500 text-sky-600 bg-sky-50/50" },
+    { id: 4, icon: Microscope, color: "border-sky-500 text-sky-600 bg-sky-50/50" },
+    { id: 5, icon: Receipt, color: "border-emerald-500 text-emerald-600 bg-emerald-50/50" },
+    { id: 6, icon: TrendingUp, color: "border-emerald-500 text-emerald-600 bg-emerald-50/50" },
+    { id: 7, icon: Pill, color: "border-indigo-500 text-indigo-600 bg-indigo-50/50" },
+    { id: 8, icon: HeartPulse, color: "border-rose-500 text-rose-600 bg-rose-50/50" },
+    { id: 9, icon: ShieldAlert, color: "border-rose-500 text-rose-600 bg-rose-50/50" },
+    { id: 10, icon: Megaphone, color: "border-teal-500 text-teal-600 bg-teal-50/50" },
+    { id: 11, icon: BedDouble, color: "border-violet-500 text-violet-600 bg-violet-50/50" },
+    { id: 12, icon: BarChart3, color: "border-slate-500 text-slate-600 bg-slate-50/50" },
+    { id: 13, icon: Smartphone, color: "border-indigo-500 text-indigo-600 bg-indigo-50/50" },
+    { id: 14, icon: Settings, color: "border-slate-500 text-slate-600 bg-slate-50/50" },
+    { id: 15, icon: Building2, color: "border-emerald-500 text-emerald-600 bg-emerald-50/50" },
+    { id: 16, icon: Hash, color: "border-teal-500 text-teal-600 bg-teal-50/50" },
+    { id: 17, icon: AlertCircle, color: "border-amber-500 text-amber-600 bg-amber-50/50" },
+    { id: 18, icon: Send, color: "border-indigo-500 text-indigo-600 bg-indigo-50/50" },
+    { id: 19, icon: Wifi, color: "border-cyan-500 text-cyan-600 bg-cyan-50/50" },
+    { id: 20, icon: Banknote, color: "border-violet-500 text-violet-600 bg-violet-50/50" },
+    { id: 21, icon: Globe, color: "border-blue-500 text-blue-600 bg-blue-50/50" },
   ];
 
   // ──────────────────────────────────────────────
@@ -1345,7 +1334,7 @@ function HomeContent() {
           ) : (
             <Badge variant="outline" className="bg-slate-50 text-slate-400 border-slate-200 gap-1 flex items-center text-[10px] font-bold uppercase py-1 px-2.5">
               <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-spin" />
-              {locale === 'en' ? 'Connecting...' : 'Conectando...'}
+              {t('connecting', 'app')}
             </Badge>
           )}
 
@@ -1354,7 +1343,7 @@ function HomeContent() {
             <button
               onClick={() => { setShowLogDropdown(!showLogDropdown); setShowHelpModal(false); }}
               className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg shrink-0 transition relative cursor-pointer"
-              title="Audit Logs"
+              title={t('audit_logs_tooltip', 'app')}
             >
               <Bell className="w-5 h-5" />
               {logs.length > 0 && <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full animate-pulse" />}
@@ -1364,9 +1353,9 @@ function HomeContent() {
               <div className="absolute right-0 mt-2.5 w-80 bg-white border border-slate-200 rounded-xl shadow-lg z-30 p-4 space-y-3 font-sans">
                 <div className="flex justify-between items-center pb-2 border-b border-slate-100">
                   <h4 className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
-                    <ShieldCheck className="w-4 h-4 text-teal-600" /> Registro de Atividade Clínico (LGPD)
+                    <ShieldCheck className="w-4 h-4 text-teal-600" /> {t('audit_logs_title', 'app')}
                   </h4>
-                  <span className="text-[9px] bg-slate-100 text-slate-500 py-0.5 px-2 rounded-full font-bold">Ao Vivo</span>
+                  <span className="text-[9px] bg-slate-100 text-slate-500 py-0.5 px-2 rounded-full font-bold">{t('audit_live', 'app')}</span>
                 </div>
                 <div className="space-y-2 max-h-[220px] overflow-y-auto">
                   {logs.slice(0, 5).map(log => (
@@ -1386,7 +1375,7 @@ function HomeContent() {
           <button
             onClick={() => { setShowHelpModal(true); setShowLogDropdown(false); }}
             className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg shrink-0 transition cursor-pointer"
-            title="Manual Operacional"
+            title={t('manual_operational', 'app')}
           >
             <HelpCircle className="w-5 h-5" />
           </button>
@@ -1474,7 +1463,7 @@ function HomeContent() {
               <div className="bg-slate-100/50 p-1.5 rounded-2xl border border-slate-200/65">
                 {activeSubmodule === 1 && (
                   <PermissionGate view="reception" userPermissions={profile?.permissions}>
-                    <ErrorBoundary moduleName="Recepção">
+                    <ErrorBoundary moduleName={t('mod_name_reception', 'app')}>
                     <ReceptionModule
                       patients={patients}
                       appointments={appointments}
@@ -1492,7 +1481,7 @@ function HomeContent() {
                 )}
                 {activeSubmodule === 2 && (
                   <PermissionGate view="agenda" userPermissions={profile?.permissions}>
-                    <ErrorBoundary moduleName="Agenda">
+                    <ErrorBoundary moduleName={t('mod_name_agenda', 'app')}>
                     <AgendaModule
                       patients={patients}
                       appointments={appointments}
@@ -1509,7 +1498,7 @@ function HomeContent() {
                 )}
                 {(activeSubmodule === 3 || activeSubmodule === 8) && (
                   <PermissionGate view="hce" userPermissions={profile?.permissions}>
-                    <ErrorBoundary moduleName="Prontuário Eletrônico">
+                    <ErrorBoundary moduleName={t('mod_name_clinical', 'app')}>
                     <ClinicalModule
                       patients={patients}
                       setPatients={setPatients}
@@ -1525,7 +1514,7 @@ function HomeContent() {
                 )}
                 {activeSubmodule === 9 && (
                   <PermissionGate view="med_work" userPermissions={profile?.permissions}>
-                    <ErrorBoundary moduleName="Medicina do Trabalho">
+                    <ErrorBoundary moduleName={t('mod_name_medwork', 'app')}>
                     <MedicinaTrabalhoModule
                       activeSubmodule={activeSubmodule}
                       addAuditLog={addAuditLog}
@@ -1537,7 +1526,7 @@ function HomeContent() {
                 )}
                 {activeSubmodule === 4 && (
                   <PermissionGate view="diagnostic" userPermissions={profile?.permissions}>
-                    <ErrorBoundary moduleName="Diagnóstico">
+                    <ErrorBoundary moduleName={t('mod_name_diag', 'app')}>
                     <DiagnosticModule
                       patients={patients}
                       activeSubmodule={activeSubmodule}
@@ -1549,7 +1538,7 @@ function HomeContent() {
                 )}
                 {activeSubmodule === 7 && (
                   <PermissionGate view="stock" userPermissions={profile?.permissions}>
-                    <ErrorBoundary moduleName="Estoque e Farmácia">
+                    <ErrorBoundary moduleName={t('mod_name_stock', 'app')}>
                     <EstoqueFarmaciaModule
                       addAuditLog={addAuditLog}
                       patients={patients}
@@ -1575,7 +1564,7 @@ function HomeContent() {
                   activeSubmodule === 15 || activeSubmodule === 16 || activeSubmodule === 17 ||
                   activeSubmodule === 18 || activeSubmodule === 19 || activeSubmodule === 20 || activeSubmodule === 21) && (
                   <PermissionGate view="security" userPermissions={profile?.permissions}>
-                    <ErrorBoundary moduleName="Administração e Finanças">
+                    <ErrorBoundary moduleName={t('mod_name_admin', 'app')}>
                     <AdminFinanceModule
                     activeSubmodule={activeSubmodule}
                     addAuditLog={addAuditLog}
@@ -1640,7 +1629,7 @@ function HomeContent() {
                   </PermissionGate>
                 )}
                 {activeSubmodule === 11 && (
-                  <ErrorBoundary moduleName="Internação e Centro Cirúrgico">
+                  <ErrorBoundary moduleName={t('mod_name_intern', 'app')}>
                   <InternacaoCentroCirurgicoModule
                     activeSubmodule={activeSubmodule}
                     addAuditLog={addAuditLog}
@@ -1650,7 +1639,7 @@ function HomeContent() {
                   </ErrorBoundary>
                 )}
                 {(activeSubmodule === 10 || activeSubmodule === 12) && (
-                  <ErrorBoundary moduleName="CRM e BI">
+                  <ErrorBoundary moduleName={t('mod_name_crm', 'app')}>
                   <CrmBiModule
                     activeSubmodule={activeSubmodule}
                     addAuditLog={addAuditLog}
@@ -1662,7 +1651,7 @@ function HomeContent() {
                   </ErrorBoundary>
                 )}
                 {activeSubmodule === 13 && (
-                  <ErrorBoundary moduleName="Portal do Paciente">
+                  <ErrorBoundary moduleName={t('mod_name_portal', 'app')}>
                   <PatientPortalModule
                     patients={patients}
                     setPatients={setPatients}
@@ -1684,24 +1673,24 @@ function HomeContent() {
       <Dialog open={showHelpModal} onOpenChange={setShowHelpModal}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-sm">
-              <Info className="w-5 h-5 text-teal-600" /> MANUAL OPERACIONAL — IAMED CRM
+<DialogTitle className="flex items-center gap-2 text-sm">
+              <Info className="w-5 h-5 text-teal-600" /> {t('help_modal_title', 'app')}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1 text-xs text-slate-600 leading-relaxed">
-            <p className="font-bold text-slate-800">Aplicações e Simulações disponíveis:</p>
+            <p className="font-bold text-slate-800">{t('help_modal_subtitle', 'app')}</p>
             <ul className="list-disc pl-5 space-y-1.5 font-medium text-slate-600">
-              <li><b>Admissão e Triagem (1)</b>: Registre e priorize pacientes na fila de triagem.</li>
-              <li><b>Agenda Médica (2)</b>: Agende consultas e controle horários dos profissionais.</li>
-              <li><b>HCE (3)</b>: Evolua anamneses clínicas e solicite ao <b>Co-Piloto AI Gemini (Dr. IA)</b> resumos do prontuário.</li>
-              <li><b>Visualizador PACS (4)</b>: Modifique contraste e brilho e laude exames radiológicos.</li>
-              <li><b>SIFEN Tributário (5)</b>: Gere faturamentos e notas fiscais XML automatizadas.</li>
-              <li><b>Financeiro Contábil (6)</b>: Adicione receitas e despesas e monitore o fluxo de caixa.</li>
-              <li><b>Farmácia / Estoque (7)</b>: Monitore medicamentos e realize dispensações.</li>
-              <li><b>Telemedicina (13)</b>: Ative vídeo-consultas integradas usando a webcam do navegador.</li>
+              <li>{t('help_item_1', 'app')}</li>
+              <li>{t('help_item_2', 'app')}</li>
+              <li>{t('help_item_3', 'app')}</li>
+              <li>{t('help_item_4', 'app')}</li>
+              <li>{t('help_item_5', 'app')}</li>
+              <li>{t('help_item_6', 'app')}</li>
+              <li>{t('help_item_7', 'app')}</li>
+              <li>{t('help_item_8', 'app')}</li>
             </ul>
           </div>
-          <p className="text-[10px] text-slate-400 pt-2">Desenvolvido sob normas da LGPD, CFM e SIFEN.</p>
+          <p className="text-[10px] text-slate-400 pt-2">{t('help_footer', 'app')}</p>
         </DialogContent>
       </Dialog>
 
@@ -1712,25 +1701,24 @@ function HomeContent() {
             <div className="bg-gradient-to-r from-amber-500 to-orange-500 p-4 text-white">
               <div className="flex items-center gap-2">
                 <Clock className="w-5 h-5" />
-                <h3 className="font-black text-sm">Sessão Prestes a Expirar</h3>
+                <h3 className="font-black text-sm">{t('session_warning_title', 'app')}</h3>
               </div>
             </div>
             <div className="p-5 space-y-4">
               <p className="text-xs text-slate-600 leading-relaxed">
-                Sua sessão será encerrada em aproximadamente <b className="text-amber-700">1 minuto</b> devido à inatividade.
-                Qualquer movimento (mouse, teclado ou toque) renovará automaticamente sua sessão.
+                {t('session_warning_body', 'app')}
               </p>
               <div className="flex items-center gap-3 p-3 bg-amber-50 rounded-xl border border-amber-200">
                 <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
                 <p className="text-[10px] text-amber-800 font-medium">
-                  Por segurança, sessões inativas são automaticamente encerradas após 10 minutos.
+                  {t('session_warning_note', 'app')}
                 </p>
               </div>
               <button
                 onClick={() => { setShowInactivityWarning(false); updateLastActivityTime(); showInactivityWarningRef.current = false; lastWarningDismissedAtRef.current = Date.now(); }}
                 className="w-full py-3 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-xs cursor-pointer transition"
               >
-                Continuar Sessão
+                {t('session_continue', 'app')}
               </button>
             </div>
           </div>

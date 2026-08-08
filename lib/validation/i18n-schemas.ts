@@ -187,25 +187,37 @@ export function createPatientContactAddressSchema(m: ValidationMessages) {
 }
 
 export function createPatientComplementarySchema(m: ValidationMessages) {
-  return z.object({
-    blood_type: z
-      .enum(['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-', 'Não Informado', ''], {
-        message: m.bloodType,
-      })
-      .refine((val) => val !== '', { message: m.bloodType }),
-    allergies: z.string().min(1, m.allergiesRequired).max(1000, m.maxLength('Alergias', 1000)),
-    health_insurance_type: z
-      .enum(['IPS', 'Sanidade Militar', 'Sanidade Policial', 'Pré-paga', 'Seguro Privado', 'Particular', ''])
-      .optional(),
-    health_insurance_number: z.string().max(50, m.maxLength('Número', 50)).optional().or(z.literal('')),
-    health_insurance_company: z.string().max(120, m.maxLength('Convênio', 120)).optional().or(z.literal('')),
-    employer: z.string().max(120, m.maxLength('Empregador', 120)).optional().or(z.literal('')),
-    preferred_language: z
-      .enum(['es', 'es-AR', 'es-PY', 'gn', 'pt-BR', 'pt-PT', 'en', 'outros', ''], {
-        message: m.preferredLanguage,
-      })
-      .refine((val) => val !== '', { message: m.preferredLanguage }),
-  });
+  return z
+    .object({
+      blood_type: z
+        .enum(['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-', 'Não Informado', ''], {
+          message: m.bloodType,
+        })
+        .refine((val) => val !== '', { message: m.bloodType }),
+      allergies: z.string().min(1, m.allergiesRequired).max(1000, m.maxLength('Alergias', 1000)),
+      health_insurance_type: z
+        .enum(['IPS', 'Sanidade Militar', 'Sanidade Policial', 'Pré-paga', 'Seguro Privado', 'Particular', ''], {
+          message: m.required('Plano de Saúde'),
+        })
+        .refine((val) => val !== '', { message: m.required('Plano de Saúde') }),
+      health_insurance_number: z.string().max(50, m.maxLength('Número', 50)).optional().or(z.literal('')),
+      health_insurance_company: z.string().max(120, m.maxLength('Convênio', 120)).optional().or(z.literal('')),
+      employer: z.string().min(1, m.required('Empregador')).max(120, m.maxLength('Empregador', 120)),
+      preferred_language: z
+        .enum(['es', 'pt-BR', 'pt-PT', 'en', 'es-AR', 'es-PY', 'gn', 'outros', ''], {
+          message: m.preferredLanguage,
+        })
+        .refine((val) => val !== '', { message: m.preferredLanguage }),
+    })
+    .refine(
+      (data) => {
+        if (data.health_insurance_type && data.health_insurance_type !== 'Particular') {
+          return !!(data.health_insurance_number && data.health_insurance_number.trim().length > 0);
+        }
+        return true;
+      },
+      { message: m.required('Número da Apólice'), path: ['health_insurance_number'] }
+    );
 }
 
 export function createTriageSchema(m: ValidationMessages) {
@@ -218,6 +230,24 @@ export function createTriageSchema(m: ValidationMessages) {
     spo2: z.string().min(1, m.required('SpO2')).max(10, m.maxLength('SpO2', 10)),
     hr: z.string().min(1, m.required('FC')).max(10, m.maxLength('FC', 10)),
     rr: z.string().min(1, m.required('FR')).max(10, m.maxLength('FR', 10)),
+  });
+}
+
+export function createMedicalConsultationSchema(m: ValidationMessages) {
+  return z.object({
+    diagnosis: z.string().min(1, m.required('Diagnóstico')).max(2000, m.maxLength('Diagnóstico', 2000)),
+    cid10: z.string().max(20, m.maxLength('CID-10', 20)).optional().or(z.literal('')),
+    prescriptions: z.string().min(1, m.required('Prescrição/Receita')).max(5000, m.maxLength('Prescrição/Receita', 5000)),
+    notes: z.string().max(2000, m.maxLength('Observações', 2000)).optional().or(z.literal('')),
+  });
+}
+
+export function createMedicalConsultationFinalizeSchema(m: ValidationMessages) {
+  return z.object({
+    diagnosis: z.string().min(1, m.required('Diagnóstico')).max(2000, m.maxLength('Diagnóstico', 2000)),
+    cid10: z.string().min(1, m.required('CID-10')).max(20, m.maxLength('CID-10', 20)),
+    prescriptions: z.string().min(1, m.required('Prescrição/Receita')).max(5000, m.maxLength('Prescrição/Receita', 5000)),
+    notes: z.string().min(1, m.required('Observações')).max(2000, m.maxLength('Observações', 2000)),
   });
 }
 

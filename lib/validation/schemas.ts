@@ -334,25 +334,37 @@ export const createPatientContactAddressSchema = (m: ValidationMessages) =>
   });
 
 export const createPatientComplementarySchema = (m: ValidationMessages) =>
-  z.object({
-    blood_type: z
-      .enum(['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-', 'Não Informado', ''], {
-        message: m.bloodType,
-      })
-      .refine((val) => val !== '', { message: m.bloodType }),
-    allergies: z.string().min(1, m.allergiesRequired).max(1000, m.maxLength('Alergias', 1000)),
-    health_insurance_type: z
-      .enum(['IPS', 'Sanidade Militar', 'Sanidade Policial', 'Pré-paga', 'Seguro Privado', 'Particular', ''])
-      .optional(),
-    health_insurance_number: z.string().max(50, m.maxLength('Número', 50)).optional().or(z.literal('')),
-    health_insurance_company: z.string().max(120, m.maxLength('Convênio', 120)).optional().or(z.literal('')),
-    employer: z.string().max(120, m.maxLength('Empregador', 120)).optional().or(z.literal('')),
-    preferred_language: z
-      .enum(['es', 'es-AR', 'es-PY', 'gn', 'pt-BR', 'pt-PT', 'en', 'outros', ''], {
-        message: m.preferredLanguage,
-      })
-      .refine((val) => val !== '', { message: m.preferredLanguage }),
-  });
+  z
+    .object({
+      blood_type: z
+        .enum(['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-', 'Não Informado', ''], {
+          message: m.bloodType,
+        })
+        .refine((val) => val !== '', { message: m.bloodType }),
+      allergies: z.string().min(1, m.allergiesRequired).max(1000, m.maxLength('Alergias', 1000)),
+      health_insurance_type: z
+        .enum(['IPS', 'Sanidade Militar', 'Sanidade Policial', 'Pré-paga', 'Seguro Privado', 'Particular', ''], {
+          message: m.required('Plano de Saúde'),
+        })
+        .refine((val) => val !== '', { message: m.required('Plano de Saúde') }),
+      health_insurance_number: z.string().max(50, m.maxLength('Número', 50)).optional().or(z.literal('')),
+      health_insurance_company: z.string().max(120, m.maxLength('Convênio', 120)).optional().or(z.literal('')),
+      employer: z.string().min(1, m.required('Empregador')).max(120, m.maxLength('Empregador', 120)),
+      preferred_language: z
+        .enum(['es', 'pt-BR', 'pt-PT', 'en', 'es-AR', 'es-PY', 'gn', 'outros', ''], {
+          message: m.preferredLanguage,
+        })
+        .refine((val) => val !== '', { message: m.preferredLanguage }),
+    })
+    .refine(
+      (data) => {
+        if (data.health_insurance_type && data.health_insurance_type !== 'Particular') {
+          return !!(data.health_insurance_number && data.health_insurance_number.trim().length > 0);
+        }
+        return true;
+      },
+      { message: m.required('Número da Apólice'), path: ['health_insurance_number'] }
+    );
 
 export const createPatientGuardianSchema = (m: ValidationMessages) =>
   z.object({
