@@ -752,7 +752,7 @@ export default function ReceptionModule({
       if (!supabase) return;
       try {
         const { data: locations, error: locError } = await supabase.from('hospital_locations').select('*').order('name');
-        if (!locError && locations && locations.length > 0) {
+        if (!locError && locations) {
           setHospitalLocations(locations.map((l: any) => ({
             id: l.id,
             name: l.name,
