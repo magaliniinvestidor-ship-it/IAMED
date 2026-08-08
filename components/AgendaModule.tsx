@@ -23,8 +23,10 @@ import PhoneInput from '@/components/PhoneInput';
 import I18nDatePicker from '@/components/I18nDatePicker';
 import { Badge } from '@/components/ui/badge';
 import { useFormValidation, groupErrorsByPath } from '@/lib/validation';
-import { appointmentSchema, clinicPatientSchema } from '@/lib/validation/schemas';
-import { FormErrorSummary } from '@/components/forms';
+import { appointmentSchema, createAllClinicPatientSchemas } from '@/lib/validation/schemas';
+import { getValidationMessages } from '@/lib/validation/i18n-schemas';
+import { FormField, FormErrorSummary } from '@/components/forms';
+import { PatientAvatar } from '@/components/PatientAvatar';
 
 // ==============================================================
 // INLINE MODAL (avoids Radix Dialog portal/focus issues)
@@ -64,13 +66,7 @@ function ClinicPatientCard({
   return (
     <div className="p-4 bg-white rounded-xl border border-slate-200 hover:shadow-md transition-all">
       <div className="flex items-start gap-3">
-        {cp.photo_url ? (
-          <Image src={cp.photo_url} alt={cp.name} className="rounded-full object-cover border-2 border-slate-200" width={80} height={80} />
-        ) : (
-          <div className="w-20 h-20 rounded-full bg-teal-100 flex items-center justify-center text-teal-700 font-bold text-sm">
-            {cp.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
-          </div>
-        )}
+        <PatientAvatar key={cp.updated_at || cp.id} src={cp.photo_url} name={cp.name} size={80} className="border-2 border-slate-200" />
         <div className="flex-1 min-w-0">
           <p className="font-bold text-sm text-slate-800 truncate">{cp.name}</p>
           {cp.birth_date && (() => {
@@ -115,6 +111,7 @@ interface AgendaModuleProps {
   professionals: Professional[];
   activeRole?: string;
   activeOperator?: string;
+  userId?: string;
   userPermissions?: string[];
 }
 
@@ -128,6 +125,9 @@ interface BlockedSlot {
   end_time: string | null;
   reason: 'feriado' | 'férias' | 'capacitação' | 'emergência';
   description: string;
+  created_at?: string;
+  created_by?: string;
+  updated_at?: string;
 }
 
 interface WaitlistEntry {
@@ -352,6 +352,7 @@ const AgendaModuleContent = ({
   professionals,
   activeRole = 'Recepcionista',
   activeOperator = 'Operador',
+  userId,
 }: AgendaModuleProps) => {
   const { locale, t } = useI18n();
   const userPermissions = useUserPermissions();
@@ -513,12 +514,20 @@ const AgendaModuleContent = ({
     branch: '', room: '', type: 'primeira_vez' as string,
     modality: 'Presencial' as 'Presencial' | 'Virtual',
     insurance: '', insurance_type: '' as string | undefined,
+    insurance_number: '',
     duration_minutes: 30,
   });
   const [minGapMinutes, setMinGapMinutes] = useState(30);
   const [schedulingConfig, setSchedulingConfig] = useState({ showConfig: false });
-  const { errors: apptErrors, validate: validateAppt } = useFormValidation(appointmentSchema);
-  const { errors: cpErrors, validate: validateCp, setErrors: setCpErrors } = useFormValidation(clinicPatientSchema);
+  const { errors: apptErrors, validate: validateAppt, setErrors: setApptErrors, clearErrors: clearApptErrors } = useFormValidation(appointmentSchema);
+  const apptFieldErrors = groupErrorsByPath(apptErrors);
+  const validationMessages = useMemo(() => getValidationMessages(locale as 'pt-BR' | 'pt-PT' | 'en' | 'es' | 'es-AR' | 'es-PY'), [locale]);
+  const cpSchemas = useMemo(() => createAllClinicPatientSchemas(validationMessages), [validationMessages]);
+  const { errors: cpIdErrors, validate: validateCpId, setErrors: setCpIdErrors, clearErrors: clearCpIdErrors } = useFormValidation(cpSchemas.identification);
+  const { errors: cpContactErrors, validate: validateCpContact, setErrors: setCpContactErrors, clearErrors: clearCpContactErrors } = useFormValidation(cpSchemas.contact);
+  const { errors: cpCompErrors, validate: validateCpComp, setErrors: setCpCompErrors, clearErrors: clearCpCompErrors } = useFormValidation(cpSchemas.complementary);
+  const { errors: cpGuardErrors, validate: validateCpGuard, setErrors: setCpGuardErrors, clearErrors: clearCpGuardErrors } = useFormValidation(cpSchemas.guardian);
+  const [cpErrors, setCpErrors] = useState<typeof cpIdErrors>([]);
 
   // Edit appointment modal
   const [showEditApptModal, setShowEditApptModal] = useState(false);
@@ -636,7 +645,7 @@ const AgendaModuleContent = ({
       groups[k].sort((a, b) => a.time.localeCompare(b.time));
     });
     return groups;
-  }, [filteredAppointments, calendarGroupBy, locations]);
+  }, [filteredAppointments, calendarGroupBy, locations, t]);
 
   const isBlocked = useCallback((date: string, time?: string, doctor?: string, branch?: string) => {
     return blockedSlots.some(b => {
@@ -952,10 +961,28 @@ const AgendaModuleContent = ({
       end_time: blockForm.end_time || null,
       reason: blockForm.reason,
       description: blockForm.description,
+      created_at: new Date().toISOString(),
+      created_by: userId || activeOperator,
+      updated_at: new Date().toISOString(),
     };
     setBlockedSlots(prev => [...prev, newBlock]);
     addAuditLog('Registrou Bloqueio', `${blockForm.reason} - ${blockForm.description}`);
-    if (supabase) await supabase.from('blocked_slots').insert(newBlock);
+    if (supabase) {
+      const { error } = await supabase.from('blocked_slots').insert({
+        id: newBlock.id,
+        doctor_name: newBlock.doctor_name,
+        branch: newBlock.branch,
+        start_date: newBlock.start_date,
+        end_date: newBlock.end_date,
+        start_time: newBlock.start_time,
+        end_time: newBlock.end_time,
+        reason: newBlock.reason,
+        description: newBlock.description,
+        created_by: newBlock.created_by,
+        updated_at: newBlock.updated_at,
+      });
+      if (error) console.warn('[SUPABASE] INSERT blocked_slots FAILED:', error.message);
+    }
     setShowBlockageModal(false);
     setBlockForm({ doctor_name: '', branch: '', start_date: '', end_date: '', start_time: '', end_time: '', reason: 'feriado', description: '' });
   };
@@ -1551,13 +1578,26 @@ const AgendaModuleContent = ({
     e.preventDefault();
     const result = validateAppt({
       patientId: newApptForm.patient_id,
-      patientName: patients.find(p => p.id === newApptForm.patient_id)?.name || '',
+      patientName:
+        newApptForm.patient_name ||
+        clinicPatients.find(cp => cp.id === newApptForm.patient_id)?.name ||
+        patients.find(p => p.id === newApptForm.patient_id)?.name ||
+        '',
       doctorName: newApptForm.doctor_name,
       specialty: newApptForm.specialty,
       date: newApptForm.date,
       time: newApptForm.time,
+      branch: newApptForm.branch,
+      room: newApptForm.room,
+      modality: newApptForm.modality,
+      insurance_type: (newApptForm.insurance_type || '') as 'IPS' | 'Sanidade Militar' | 'Sanidade Policial' | 'Pré-paga' | 'Seguro Privado' | 'Particular' | '',
+      insurance_number: newApptForm.insurance_number || '',
     });
-    if (!result.success) return;
+    if (!result.success) {
+      setApptErrors(result.errors);
+      return;
+    }
+    clearApptErrors();
     if (isBlocked(newApptForm.date, newApptForm.time, newApptForm.doctor_name, newApptForm.branch)) {
       alert(t('agenda_alert_slot_blocked_doctor_branch', 'app'));
       return;
@@ -1607,6 +1647,7 @@ const AgendaModuleContent = ({
       modality: newApptForm.modality,
       insurance: newApptForm.insurance,
       insurance_type: newApptForm.insurance_type,
+      insurance_number: newApptForm.insurance_number,
       duration_minutes: newApptForm.duration_minutes,
       booked_via: 'recepcao',
       status: 'agendado',
@@ -1642,7 +1683,7 @@ const AgendaModuleContent = ({
     setNewApptForm({
       patient_id: '', patient_name: '', doctor_name: '', specialty: '', date: '', time: '',
       branch: '', room: '', type: 'primeira_vez',
-      modality: 'Presencial', insurance: '', insurance_type: undefined, duration_minutes: 30,
+      modality: 'Presencial', insurance: '', insurance_type: undefined, insurance_number: '', duration_minutes: 30,
     });
   };
 
@@ -1736,19 +1777,97 @@ const AgendaModuleContent = ({
     setCpWebcamPlaceholder(null);
     setEditingClinicPatient(null);
     setClinicPatientFormTab('identification');
+    setCpErrors([]);
+    clearCpIdErrors();
+    clearCpContactErrors();
+    clearCpCompErrors();
+    clearCpGuardErrors();
   };
+
+  const validateCpTab = (
+    tab: 'identification' | 'contact' | 'complementary' | 'guardian'
+  ): boolean => {
+    if (tab === 'identification') {
+      const result = validateCpId({
+        name: cpForm.name,
+        document_type: (cpForm.document_type || undefined) as 'CI' | 'RG' | 'Passaporte' | 'DNI / Outro' | undefined,
+        document_number: cpForm.document_number,
+        birth_date: cpForm.birth_date,
+        gender: cpForm.gender as 'Masculino' | 'Feminino' | 'Outro',
+        nationality: cpForm.nationality,
+        civil_status: cpForm.civil_status as 'Solteiro(a)' | 'Casado(a)' | 'Divorciado(a)' | 'Viúvo(a)' | 'União Estável' | undefined,
+        photo_url: cpForm.photo_url,
+      });
+      if (!result.success) { setCpIdErrors(result.errors); return false; }
+      clearCpIdErrors();
+      return true;
+    }
+    if (tab === 'contact') {
+      const result = validateCpContact({
+        phone: cpForm.phone,
+        email: cpForm.email,
+        address_department: cpForm.address_department,
+        address_district: cpForm.address_district,
+        address_city: cpForm.address_city,
+        address_neighborhood: cpForm.address_neighborhood,
+        address_street: cpForm.address_street,
+        address_number: cpForm.address_number,
+      });
+      if (!result.success) { setCpContactErrors(result.errors); return false; }
+      clearCpContactErrors();
+      return true;
+    }
+    if (tab === 'complementary') {
+      const result = validateCpComp({
+        insurance_type: cpForm.insurance_type as 'IPS' | 'Sanidade Militar' | 'Sanidade Policial' | 'Pré-paga' | 'Seguro Privado' | 'Particular' | '',
+        insurance_number: cpForm.insurance_number,
+        preferred_language: cpForm.preferred_language as 'pt-BR' | 'pt-PT' | 'es-AR' | 'es-PY' | 'es' | 'en' | 'outros' | '',
+        allergies: cpForm.allergies,
+      });
+      if (!result.success) { setCpCompErrors(result.errors); return false; }
+      clearCpCompErrors();
+      return true;
+    }
+    const result = validateCpGuard({
+      responsible_name: cpForm.responsible_name,
+      responsible_document_type: cpForm.responsible_document_type,
+      responsible_document_number: cpForm.responsible_document_number,
+      responsible_phone: cpForm.responsible_phone,
+      responsible_relationship: cpForm.responsible_relationship,
+    });
+    if (!result.success) { setCpGuardErrors(result.errors); return false; }
+    clearCpGuardErrors();
+    return true;
+  };
+
+  const handleCpNextTab = (
+    currentTab: 'identification' | 'contact' | 'complementary' | 'guardian',
+    nextTab: 'identification' | 'contact' | 'complementary' | 'guardian'
+  ) => {
+    if (!validateCpTab(currentTab)) return;
+    setCpErrors([]);
+    setClinicPatientFormTab(nextTab);
+  };
+
+  const cpIdFieldErrors = groupErrorsByPath(cpIdErrors);
+  const cpContactFieldErrors = groupErrorsByPath(cpContactErrors);
+  const cpCompFieldErrors = groupErrorsByPath(cpCompErrors);
+  const cpGuardFieldErrors = groupErrorsByPath(cpGuardErrors);
 
   const handleClinicPatientSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const cpResult = validateCp({
+    const idResult = validateCpId({
       name: cpForm.name,
-      document_type: cpForm.document_type as 'CI' | 'RG' | 'Passaporte' | 'DNI / Outro' | undefined,
+      document_type: (cpForm.document_type || undefined) as 'CI' | 'RG' | 'Passaporte' | 'DNI / Outro' | undefined,
       document_number: cpForm.document_number,
       birth_date: cpForm.birth_date,
       gender: cpForm.gender as 'Masculino' | 'Feminino' | 'Outro',
       nationality: cpForm.nationality,
       civil_status: cpForm.civil_status as 'Solteiro(a)' | 'Casado(a)' | 'Divorciado(a)' | 'Viúvo(a)' | 'União Estável' | undefined,
+      photo_url: cpForm.photo_url,
+    });
+    const contactResult = validateCpContact({
       phone: cpForm.phone,
       email: cpForm.email,
       address_department: cpForm.address_department,
@@ -1757,43 +1876,48 @@ const AgendaModuleContent = ({
       address_neighborhood: cpForm.address_neighborhood,
       address_street: cpForm.address_street,
       address_number: cpForm.address_number,
-      country: cpForm.country,
-      insurance_type: cpForm.insurance_type,
-      preferred_language: cpForm.preferred_language,
+    });
+    const compResult = validateCpComp({
+      insurance_type: cpForm.insurance_type as 'IPS' | 'Sanidade Militar' | 'Sanidade Policial' | 'Pré-paga' | 'Seguro Privado' | 'Particular' | '',
+      insurance_number: cpForm.insurance_number,
+      preferred_language: cpForm.preferred_language as 'pt-BR' | 'pt-PT' | 'es-AR' | 'es-PY' | 'es' | 'en' | 'outros' | '',
       allergies: cpForm.allergies,
+    });
+    const guardResult = validateCpGuard({
       responsible_name: cpForm.responsible_name,
+      responsible_document_type: cpForm.responsible_document_type,
       responsible_document_number: cpForm.responsible_document_number,
       responsible_phone: cpForm.responsible_phone,
       responsible_relationship: cpForm.responsible_relationship,
     });
-    if (!cpResult.success) {
-      setCpErrors(cpResult.errors);
+
+    const allErrors = [
+      ...idResult.errors,
+      ...contactResult.errors,
+      ...compResult.errors,
+      ...guardResult.errors,
+    ];
+    if (!idResult.success || !contactResult.success || !compResult.success || !guardResult.success) {
+      setCpErrors(allErrors);
+      if (!idResult.success) { setCpIdErrors(idResult.errors); setClinicPatientFormTab('identification'); }
+      else if (!contactResult.success) { setCpContactErrors(contactResult.errors); setClinicPatientFormTab('contact'); }
+      else if (!compResult.success) { setCpCompErrors(compResult.errors); setClinicPatientFormTab('complementary'); }
+      else if (!guardResult.success) { setCpGuardErrors(guardResult.errors); setClinicPatientFormTab('guardian'); }
       return;
     }
 
     // ID do paciente: ao editar usa o existente, ao criar gera um novo via RPC
     let patientId = editingClinicPatient?.id || '';
     if (!patientId && supabase) {
-      const { data } = await supabase.rpc('next_patient_id');
+      const { data } = await supabase.rpc('next_clinic_patient_id');
       if (data) patientId = data as string;
     }
-    if (!patientId) patientId = 'PAC001';
+    if (!patientId) patientId = 'CLI001';
 
-    // Upload da foto se houver preview em base64 (camera/upload ainda nao salvou no storage)
+    // Foto ja foi enviada ao Supabase Storage no momento da captura/upload (igual ao Modulo 1).
+    // Se por algum motivo o upload falhou, mantemos o Base64 como fallback.
     let finalPhotoUrl = cpForm.photo_url;
-    const hasNewPhoto = cpWebcamPlaceholder && cpWebcamPlaceholder.startsWith('data:');
-    if (hasNewPhoto) {
-      const fileName = `patient_${patientId}.jpg`;
-      try {
-        const res = await fetch(cpWebcamPlaceholder);
-        const blob = await res.blob();
-        const { data } = await supabase.storage.from('patient-photos').upload(fileName, blob, { contentType: 'image/jpeg', upsert: true });
-        if (data) {
-          const { data: urlData } = supabase.storage.from('patient-photos').getPublicUrl(data.path);
-          finalPhotoUrl = urlData.publicUrl;
-        }
-      } catch (err) { console.warn('Upload error:', err); }
-    }
+    const previousPhotoUrl = editingClinicPatient?.photo_url || '';
 
     if (editingClinicPatient) {
       const updated: ClinicPatient = {
@@ -1820,12 +1944,35 @@ const AgendaModuleContent = ({
           responsible_document_number: cpForm.responsible_document_number, responsible_phone: cpForm.responsible_phone,
           responsible_relationship: cpForm.responsible_relationship, whatsapp_verified: cpForm.whatsapp_verified, notes: cpForm.notes,
         }).eq('id', editingClinicPatient.id);
+        if (error) console.warn('[SUPABASE] UPDATE clinic_patients FAILED:', error.message);
+      }
+
+      if (
+        previousPhotoUrl &&
+        previousPhotoUrl !== finalPhotoUrl &&
+        previousPhotoUrl.startsWith('http') &&
+        supabase
+      ) {
+        try {
+          const oldUrl = new URL(previousPhotoUrl);
+          const marker = '/storage/v1/object/public/patient-photos/';
+          const idx = oldUrl.pathname.indexOf(marker);
+          if (idx !== -1) {
+            const oldPath = decodeURIComponent(oldUrl.pathname.slice(idx + marker.length));
+            if (oldPath) {
+              const { error: rmError } = await supabase.storage.from('patient-photos').remove([oldPath]);
+              if (rmError) console.warn('[SUPABASE] REMOVE old photo FAILED:', rmError.message);
+            }
+          }
+        } catch (e) {
+          console.warn('[SUPABASE] REMOVE old photo parse error:', e);
+        }
       }
     } else {
       const newPatient: ClinicPatient = {
         id: patientId,
         ...cpForm,
-        photo_url: '',
+        photo_url: finalPhotoUrl,
         status: 'ativo',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -1834,9 +1981,10 @@ const AgendaModuleContent = ({
       addAuditLog('Cadastrou Paciente Clinico', cpForm.name);
       if (supabase) {
         const { data, error } = await supabase.from('clinic_patients').insert({
+          id: patientId,
           name: cpForm.name, document_type: cpForm.document_type, document_number: cpForm.document_number,
           birth_date: cpForm.birth_date, gender: cpForm.gender, nationality: cpForm.nationality,
-          civil_status: cpForm.civil_status, photo_url: '',
+          civil_status: cpForm.civil_status, photo_url: finalPhotoUrl,
           phone: cpForm.phone, email: cpForm.email,
           address_department: cpForm.address_department, address_district: cpForm.address_district,
           address_city: cpForm.address_city, address_neighborhood: cpForm.address_neighborhood,
@@ -1852,20 +2000,6 @@ const AgendaModuleContent = ({
         if (data) {
           const realId = data.id;
           setClinicPatients(prev => prev.map(p => p.id === patientId ? { ...p, id: realId } : p));
-          // Upload da foto com o ID correto do Supabase
-          if (hasNewPhoto) {
-            const fileName = `patient_${realId}.jpg`;
-            try {
-              const res = await fetch(cpWebcamPlaceholder!);
-              const blob = await res.blob();
-              const { data: uploadData } = await supabase.storage.from('patient-photos').upload(fileName, blob, { contentType: 'image/jpeg', upsert: true });
-              if (uploadData) {
-                const { data: urlData } = supabase.storage.from('patient-photos').getPublicUrl(uploadData.path);
-                await supabase.from('clinic_patients').update({ photo_url: urlData.publicUrl }).eq('id', realId);
-                setClinicPatients(prev => prev.map(p => p.id === realId ? { ...p, photo_url: urlData.publicUrl } : p));
-              }
-            } catch (err) { console.warn('Upload error:', err); }
-          }
         }
       }
     }
@@ -1878,13 +2012,29 @@ const AgendaModuleContent = ({
     setClinicPatients(prev => prev.filter(p => p.id !== patient.id));
     addAuditLog('Excluiu Paciente Clinico', patient.name);
     if (supabase) {
-      // Excluir foto do Storage
+      const photoPaths: string[] = [];
+      if (patient.photo_url && patient.photo_url.startsWith('http')) {
+        try {
+          const oldUrl = new URL(patient.photo_url);
+          const marker = '/storage/v1/object/public/patient-photos/';
+          const idx = oldUrl.pathname.indexOf(marker);
+          if (idx !== -1) {
+            const oldPath = decodeURIComponent(oldUrl.pathname.slice(idx + marker.length));
+            if (oldPath) photoPaths.push(oldPath);
+          }
+        } catch (e) {
+          console.warn('[SUPABASE] DELETE photo parse error:', e);
+        }
+      }
+      photoPaths.push(`patient_${patient.id}.jpg`);
+
       const { error: photoError } = await supabase.storage
         .from('patient-photos')
-        .remove([`patient_${patient.id}.jpg`]);
+        .remove(photoPaths);
       if (photoError) console.error("[SUPABASE] DELETE photo FAILED:", photoError.message);
 
-      await supabase.from('clinic_patients').delete().eq('id', patient.id);
+      const { error: deleteError } = await supabase.from('clinic_patients').delete().eq('id', patient.id);
+      if (deleteError) console.error("[SUPABASE] DELETE clinic_patients FAILED:", deleteError.message);
     }
   };
 
@@ -1942,7 +2092,32 @@ const AgendaModuleContent = ({
     }, 1000);
   };
 
+  const cpUploadPhotoToStorage = async (dataUrl: string, fileName: string): Promise<string | null> => {
+    if (!supabase) return null;
+    try {
+      const res = await fetch(dataUrl);
+      const blob = await res.blob();
+      const { data, error } = await supabase.storage
+        .from('patient-photos')
+        .upload(fileName, blob, { contentType: 'image/jpeg', upsert: true });
+      if (error) {
+        console.warn('[PHOTO] upload error:', error.message);
+        return null;
+      }
+      const { data: urlData } = supabase.storage
+        .from('patient-photos')
+        .getPublicUrl(data.path);
+      return urlData.publicUrl;
+    } catch (err) {
+      console.warn('[PHOTO] upload error:', err);
+      return null;
+    }
+  };
+
   const cpCapturePhoto = async () => {
+    const fileName = editingClinicPatient?.id
+      ? `patient_${editingClinicPatient.id}_${Date.now()}.jpg`
+      : `patient_${++cpPhotoCounterRef.current}_${Date.now()}.jpg`;
     if (cpVideoRef.current && cpCanvasRef.current) {
       const canvas = cpCanvasRef.current;
       const video = cpVideoRef.current;
@@ -1953,6 +2128,12 @@ const AgendaModuleContent = ({
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         const photoData = canvas.toDataURL('image/jpeg', 0.8);
         setCpWebcamPlaceholder(photoData);
+        const uploadedUrl = await cpUploadPhotoToStorage(photoData, fileName);
+        if (uploadedUrl) {
+          setCpForm(prev => ({ ...prev, photo_url: uploadedUrl }));
+        } else {
+          setCpForm(prev => ({ ...prev, photo_url: photoData }));
+        }
       }
     }
     cpStopCamera();
@@ -1979,10 +2160,19 @@ const AgendaModuleContent = ({
   const cpHandleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const fileName = editingClinicPatient?.id
+      ? `patient_${editingClinicPatient.id}_${Date.now()}.jpg`
+      : `patient_${++cpPhotoCounterRef.current}_${Date.now()}.jpg`;
     const reader = new FileReader();
-    reader.onload = (ev) => {
-      const dataUrl = ev.target?.result as string;
+    reader.onloadend = async () => {
+      const dataUrl = reader.result as string;
       setCpWebcamPlaceholder(dataUrl);
+      const uploadedUrl = await cpUploadPhotoToStorage(dataUrl, fileName);
+      if (uploadedUrl) {
+        setCpForm(prev => ({ ...prev, photo_url: uploadedUrl }));
+      } else {
+        setCpForm(prev => ({ ...prev, photo_url: dataUrl }));
+      }
     };
     reader.readAsDataURL(file);
   };
@@ -2270,62 +2460,54 @@ const AgendaModuleContent = ({
               ))}
             </div>
 
-            {cpErrors.length > 0 && <FormErrorSummary errors={cpErrors} onClose={() => setCpErrors([])} />}
-
             {/* Aba Identificacao */}
             {clinicPatientFormTab === 'identification' && (
               <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_full_name', 'app')}</label>
+                {cpIdErrors.length > 0 && <FormErrorSummary errors={cpIdErrors} onClose={clearCpIdErrors} />}
+                <FormField label={t('agenda_full_name', 'app')} required error={cpIdFieldErrors.name}>
                   <input type="text" value={cpForm.name} onChange={e => setCpForm({ ...cpForm, name: e.target.value })}
-                    placeholder="" className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required />
-                </div>
+                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
+                </FormField>
                 <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_document_type', 'app')}</label>
-                    <select value={cpForm.document_type} onChange={e => setCpForm({ ...cpForm, document_type: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
+                  <FormField label={t('agenda_document_type', 'app')} error={cpIdFieldErrors.document_type}>
+                    <select value={cpForm.document_type} onChange={e => setCpForm({ ...cpForm, document_type: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
                       <option value="">{t('agenda_select', 'app')}</option>
                       <option value="CI">{t('rcpt_doc_ci', 'app')}</option>
                       <option value="Pasaporte">{t('rcpt_doc_passport', 'app')}</option>
                       <option value="RG">{t('rcpt_doc_rg', 'app')}</option>
                       <option value="DNI / Outro">{t('rcpt_doc_other', 'app')}</option>
                     </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_document_number', 'app')}</label>
+                  </FormField>
+                  <FormField label={t('agenda_document_number', 'app')} required error={cpIdFieldErrors.document_number}>
                     <div className="flex gap-1">
                       <input type="text" value={cpForm.document_number} onChange={e => setCpForm({ ...cpForm, document_number: e.target.value })}
-                        placeholder="" className="flex-1 p-2 bg-slate-50 border border-slate-200 rounded-lg" required />
+                        className="flex-1 p-2 bg-slate-50 border border-slate-200 rounded-lg" />
                       {cpCalculatedDV !== null && cpForm.document_type === 'CI' && (
                         <span className="px-2 py-1 bg-teal-100 text-teal-700 text-xs font-bold rounded-lg self-center">DV: {cpCalculatedDV}</span>
                       )}
                     </div>
-                  </div>
+                  </FormField>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_birth_date_field', 'app')}</label>
-                    <I18nDatePicker value={cpForm.birth_date} onChange={v => setCpForm({ ...cpForm, birth_date: v })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required />
+                  <FormField label={t('agenda_birth_date_field', 'app')} required error={cpIdFieldErrors.birth_date}>
+                    <I18nDatePicker value={cpForm.birth_date} onChange={v => setCpForm({ ...cpForm, birth_date: v })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
                     {cpForm.birth_date && <p className="text-xs text-slate-400 mt-1">{cpAge} {t('agenda_years', 'app')}{cpIsMinor ? ` (${t('agenda_minor_guardian_required', 'app')})` : ''}</p>}
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_gender_field', 'app')}</label>
-                    <select value={cpForm.gender} onChange={e => setCpForm({ ...cpForm, gender: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
+                  </FormField>
+                  <FormField label={t('agenda_gender_field', 'app')} required error={cpIdFieldErrors.gender}>
+                    <select value={cpForm.gender} onChange={e => setCpForm({ ...cpForm, gender: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
                       <option value="">{t('agenda_select', 'app')}</option>
                       <option value="Masculino">{t('rcpt_gender_male', 'app')}</option>
                       <option value="Feminino">{t('rcpt_gender_female', 'app')}</option>
                       <option value="Outro">{t('rcpt_gender_other', 'app')}</option>
                     </select>
-                  </div>
+                  </FormField>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_nationality', 'app')}</label>
-                    <input type="text" value={cpForm.nationality} onChange={e => setCpForm({ ...cpForm, nationality: e.target.value })} placeholder="" className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_civil_status', 'app')}</label>
-                    <select value={cpForm.civil_status} onChange={e => setCpForm({ ...cpForm, civil_status: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
+                  <FormField label={t('agenda_nationality', 'app')} required error={cpIdFieldErrors.nationality}>
+                    <input type="text" value={cpForm.nationality} onChange={e => setCpForm({ ...cpForm, nationality: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
+                  </FormField>
+                  <FormField label={t('agenda_civil_status', 'app')} required error={cpIdFieldErrors.civil_status}>
+                    <select value={cpForm.civil_status} onChange={e => setCpForm({ ...cpForm, civil_status: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
                       <option value="">{t('agenda_select', 'app')}</option>
                       <option value="Solteiro(a)">{t('rcpt_civil_single', 'app')}</option>
                       <option value="Casado(a)">{t('rcpt_civil_married', 'app')}</option>
@@ -2333,15 +2515,20 @@ const AgendaModuleContent = ({
                       <option value="Viuvo(a)">{t('rcpt_civil_widowed', 'app')}</option>
                       <option value="Uniao Estavel">{t('rcpt_civil_union', 'app')}</option>
                     </select>
-                  </div>
+                  </FormField>
                 </div>
                 {/* Foto do Paciente */}
-                <div>
-                  <label className="block text-sm font-medium text-slate-600 mb-2">{t('agenda_patient_photo', 'app')}</label>
+                <FormField label={t('agenda_patient_photo', 'app')} required error={cpIdFieldErrors.photo_url}>
                   <div className="flex items-center gap-4">
                     <div className="w-20 h-20 rounded-full bg-slate-100 border-2 border-slate-200 flex items-center justify-center overflow-hidden relative">
                       {cpWebcamPlaceholder ? (
-                        <Image src={cpWebcamPlaceholder} alt={t('rcpt_alt_patient_capture', 'app')} className="object-cover" fill />
+                        <Image
+                          key={cpWebcamPlaceholder.startsWith('data:') ? 'data' : cpWebcamPlaceholder + Date.now()}
+                          src={cpWebcamPlaceholder.startsWith('data:') ? cpWebcamPlaceholder : `${cpWebcamPlaceholder}${cpWebcamPlaceholder.includes('?') ? '&' : '?'}t=${Date.now()}`}
+                          alt={t('rcpt_alt_patient_capture', 'app')}
+                          className="object-cover"
+                          fill
+                        />
                       ) : (
                         <User className="w-8 h-8 text-slate-300" />
                       )}
@@ -2372,21 +2559,22 @@ const AgendaModuleContent = ({
                       )}
                     </div>
                   </div>
-                </div>
+                </FormField>
               </div>
             )}
 
             {/* Aba Contato / Endereco */}
             {clinicPatientFormTab === 'contact' && (
               <div className="space-y-4">
+                {cpContactErrors.length > 0 && <FormErrorSummary errors={cpContactErrors} onClose={clearCpContactErrors} />}
                 <div className="grid grid-cols-2 gap-3">
-                  <PhoneInput
-                    value={cpForm.phone}
-                    onChange={phone => setCpForm({ ...cpForm, phone })}
-                    label={t('agenda_phone', 'app')}
-                    required
-                    allowEmpty
-                  />
+                  <FormField label={t('agenda_phone', 'app')} required error={cpContactFieldErrors.phone}>
+                    <PhoneInput
+                      value={cpForm.phone}
+                      onChange={phone => setCpForm({ ...cpForm, phone })}
+                      allowEmpty
+                    />
+                  </FormField>
                   <div>
                     <label className="block text-xs font-semibold text-slate-600 mb-1">WhatsApp</label>
                     <button type="button" onClick={() => setCpForm({ ...cpForm, whatsapp_verified: !cpForm.whatsapp_verified })}
@@ -2400,51 +2588,46 @@ const AgendaModuleContent = ({
                     </button>
                   </div>
                 </div>
-                <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">{t('agenda_email', 'app')}</label>
-                  <input type="email" value={cpForm.email} onChange={e => setCpForm({ ...cpForm, email: e.target.value })}
-                    placeholder="" className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm" required />
-                </div>
+                <FormField label={t('agenda_email', 'app')} required error={cpContactFieldErrors.email}>
+                  <input type="text" value={cpForm.email} onChange={e => setCpForm({ ...cpForm, email: e.target.value })}
+                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm" />
+                </FormField>
                 <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
                   <div className="flex items-center gap-1.5 text-slate-700 font-bold text-sm pb-1 border-b border-slate-200">
                     <MapPin className="w-4 h-4 text-teal-600" />
                     <span>{t('agenda_full_address', 'app')}</span>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-500 mb-1">{t('agenda_department', 'app')}</label>
+                    <FormField label={t('agenda_department', 'app')} required error={cpContactFieldErrors.address_department}>
                       <input type="text" value={cpForm.address_department} onChange={e => setCpForm({ ...cpForm, address_department: e.target.value })}
-                        placeholder="" className="w-full p-2 bg-white border border-slate-200 rounded-md text-sm" required />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-500 mb-1">{t('agenda_district', 'app')}</label>
+                        className="w-full p-2 bg-white border border-slate-200 rounded-md text-sm" />
+                    </FormField>
+                    <FormField label={t('agenda_district', 'app')} required error={cpContactFieldErrors.address_district}>
                       <input type="text" value={cpForm.address_district} onChange={e => setCpForm({ ...cpForm, address_district: e.target.value })}
-                        placeholder="" className="w-full p-2 bg-white border border-slate-200 rounded-md text-sm" required />
-                    </div>
+                        className="w-full p-2 bg-white border border-slate-200 rounded-md text-sm" />
+                    </FormField>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-500 mb-1">{t('agenda_city', 'app')}</label>
+                    <FormField label={t('agenda_city', 'app')} required error={cpContactFieldErrors.address_city}>
                       <input type="text" value={cpForm.address_city} onChange={e => setCpForm({ ...cpForm, address_city: e.target.value })}
-                        placeholder="" className="w-full p-2 bg-white border border-slate-200 rounded-md text-sm" required />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-500 mb-1">{t('agenda_neighborhood', 'app')}</label>
+                        className="w-full p-2 bg-white border border-slate-200 rounded-md text-sm" />
+                    </FormField>
+                    <FormField label={t('agenda_neighborhood', 'app')} required error={cpContactFieldErrors.address_neighborhood}>
                       <input type="text" value={cpForm.address_neighborhood} onChange={e => setCpForm({ ...cpForm, address_neighborhood: e.target.value })}
-                        placeholder="" className="w-full p-2 bg-white border border-slate-200 rounded-md text-sm" required />
-                    </div>
+                        className="w-full p-2 bg-white border border-slate-200 rounded-md text-sm" />
+                    </FormField>
                   </div>
                   <div className="grid grid-cols-3 gap-3">
                     <div className="col-span-2">
-                      <label className="block text-xs font-semibold text-slate-500 mb-1">{t('agenda_street', 'app')}</label>
-                      <input type="text" value={cpForm.address_street} onChange={e => setCpForm({ ...cpForm, address_street: e.target.value })}
-                        placeholder="" className="w-full p-2 bg-white border border-slate-200 rounded-md text-sm" required />
+                      <FormField label={t('agenda_street', 'app')} required error={cpContactFieldErrors.address_street}>
+                        <input type="text" value={cpForm.address_street} onChange={e => setCpForm({ ...cpForm, address_street: e.target.value })}
+                          className="w-full p-2 bg-white border border-slate-200 rounded-md text-sm" />
+                      </FormField>
                     </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-500 mb-1">{t('agenda_number', 'app')}</label>
+                    <FormField label={t('agenda_number', 'app')} required error={cpContactFieldErrors.address_number}>
                       <input type="text" value={cpForm.address_number} onChange={e => setCpForm({ ...cpForm, address_number: e.target.value })}
-                        placeholder="" className="w-full p-2 bg-white border border-slate-200 rounded-md text-sm" required />
-                    </div>
+                        className="w-full p-2 bg-white border border-slate-200 rounded-md text-sm" />
+                    </FormField>
                   </div>
                 </div>
               </div>
@@ -2453,10 +2636,10 @@ const AgendaModuleContent = ({
             {/* Aba Convenio / Complementares */}
             {clinicPatientFormTab === 'complementary' && (
               <div className="space-y-4">
+                {cpCompErrors.length > 0 && <FormErrorSummary errors={cpCompErrors} onClose={clearCpCompErrors} />}
                 <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_insurance_type', 'app')}</label>
-                    <select value={cpForm.insurance_type} onChange={e => setCpForm({ ...cpForm, insurance_type: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
+                  <FormField label={t('agenda_insurance_type', 'app')} required error={cpCompFieldErrors.insurance_type}>
+                    <select value={cpForm.insurance_type} onChange={e => setCpForm({ ...cpForm, insurance_type: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
                       <option value="">{t('agenda_select', 'app')}</option>
                       <option value="IPS">IPS</option>
                       <option value="Sanidade Militar">{t('agenda_ins_type_military', 'app')}</option>
@@ -2465,18 +2648,15 @@ const AgendaModuleContent = ({
                       <option value="Seguro Privado">{t('agenda_ins_type_private', 'app')}</option>
                       <option value="Particular">{t('agenda_ins_type_particular', 'app')}</option>
                     </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_insurance_number', 'app')}</label>
+                  </FormField>
+                  <FormField label={t('agenda_insurance_number', 'app')} required={cpForm.insurance_type !== '' && cpForm.insurance_type !== 'Particular'} error={cpCompFieldErrors.insurance_number}>
                     <input type="text" value={cpForm.insurance_number} onChange={e => setCpForm({ ...cpForm, insurance_number: e.target.value })}
                       disabled={cpForm.insurance_type === 'Particular'}
-                      className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg disabled:opacity-50 disabled:bg-slate-100"
-                      />
-                  </div>
+                      className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg disabled:opacity-50 disabled:bg-slate-100" />
+                  </FormField>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_preferred_language_field', 'app')}</label>
-                  <select value={cpForm.preferred_language} onChange={e => setCpForm({ ...cpForm, preferred_language: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
+                <FormField label={t('agenda_preferred_language_field', 'app')} required error={cpCompFieldErrors.preferred_language}>
+                  <select value={cpForm.preferred_language} onChange={e => setCpForm({ ...cpForm, preferred_language: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
                     <option value="">{t('agenda_select', 'app')}</option>
                     <option value="pt-BR">🇧🇷 Português (Brasil)</option>
                     <option value="pt-PT">🇵🇹 Português (Portugal)</option>
@@ -2486,12 +2666,11 @@ const AgendaModuleContent = ({
                     <option value="en">🇺🇸 English (US/UK)</option>
                     <option value="outros">{t('agenda_others', 'app')}</option>
                   </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_allergies_field', 'app')}</label>
+                </FormField>
+                <FormField label={t('agenda_allergies_field', 'app')} required error={cpCompFieldErrors.allergies}>
                   <textarea value={cpForm.allergies} onChange={e => setCpForm({ ...cpForm, allergies: e.target.value })} rows={3}
-                    placeholder="" className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
-                </div>
+                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
+                </FormField>
                 <div>
                   <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_notes', 'app')}</label>
                   <textarea value={cpForm.notes} onChange={e => setCpForm({ ...cpForm, notes: e.target.value })} rows={2}
@@ -2503,6 +2682,7 @@ const AgendaModuleContent = ({
             {/* Aba Responsavel (so aparece se menor de idade) */}
             {clinicPatientFormTab === 'guardian' && (
               <div className="space-y-4">
+                {cpGuardErrors.length > 0 && <FormErrorSummary errors={cpGuardErrors} onClose={clearCpGuardErrors} />}
                 {cpIsMinor && cpForm.birth_date && (
                   <div className="bg-amber-50 p-3 rounded-lg border border-amber-200">
                     <p className="text-xs font-bold text-amber-700 flex items-center gap-1">
@@ -2517,15 +2697,12 @@ const AgendaModuleContent = ({
                     {t('agenda_guardian_optional', 'app')}
                   </p>
                 )}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">{t('agenda_guardian_name', 'app')}{cpIsMinor ? ' *' : ''}</label>
+                <FormField label={t('agenda_guardian_name', 'app')} required={cpIsMinor} error={cpGuardFieldErrors.responsible_name}>
                   <input type="text" value={cpForm.responsible_name} onChange={e => setCpForm({ ...cpForm, responsible_name: e.target.value })}
-                    placeholder="" className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg"
-                    />
-                </div>
+                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
+                </FormField>
                 <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">{t('agenda_document_type', 'app')}{cpIsMinor ? ' *' : ''}</label>
+                  <FormField label={t('agenda_document_type', 'app')} required={cpIsMinor} error={cpGuardFieldErrors.responsible_document_type}>
                     <select value={cpForm.responsible_document_type} onChange={e => setCpForm({ ...cpForm, responsible_document_type: e.target.value })}
                       className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs">
                       <option value="">{t('agenda_select', 'app')}</option>
@@ -2534,31 +2711,25 @@ const AgendaModuleContent = ({
                       <option value="RG">{t('rcpt_doc_rg', 'app')}</option>
                       <option value="Outro">{t('rcpt_doc_other', 'app')}</option>
                     </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">Nº Cédula / Doc{cpIsMinor ? ' *' : ''}</label>
+                  </FormField>
+                  <FormField label="Nº Cédula / Doc" required={cpIsMinor} error={cpGuardFieldErrors.responsible_document_number}>
                     <div className="relative">
                       <input type="text" value={cpForm.responsible_document_number} onChange={e => setCpForm({ ...cpForm, responsible_document_number: e.target.value })}
-                        placeholder="" className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg"
-                        />
+                        className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
                       {guardianCalculatedDV !== null && (
                         <span className="absolute right-2 top-2 px-1.5 py-0.5 bg-teal-50 border border-teal-100 text-teal-800 font-bold text-[10px] rounded">
                           DV: {guardianCalculatedDV}
                         </span>
                       )}
                     </div>
-                  </div>
+                  </FormField>
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">{t('agenda_guardian_phone', 'app')}</label>
-                  <input type="tel" value={cpForm.responsible_phone} onChange={e => setCpForm({ ...cpForm, responsible_phone: e.target.value })}
-                    placeholder="" className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg"
-                    />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">{t('agenda_relationship', 'app')}{cpIsMinor ? ' *' : ''}</label>
-                  <select value={cpForm.responsible_relationship} onChange={e => setCpForm({ ...cpForm, responsible_relationship: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs"
-                    >
+                <FormField label={t('agenda_guardian_phone', 'app')} error={cpGuardFieldErrors.responsible_phone}>
+                  <input type="text" value={cpForm.responsible_phone} onChange={e => setCpForm({ ...cpForm, responsible_phone: e.target.value })}
+                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
+                </FormField>
+                <FormField label={t('agenda_relationship', 'app')} required={cpIsMinor} error={cpGuardFieldErrors.responsible_relationship}>
+                  <select value={cpForm.responsible_relationship} onChange={e => setCpForm({ ...cpForm, responsible_relationship: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs">
                     <option value="">{t('rcpt_guardian_select_vinculo', 'app')}</option>
                     <option value="Pai">{t('rcpt_guardian_father', 'app')}</option>
                     <option value="Mãe">{t('rcpt_guardian_mother', 'app')}</option>
@@ -2567,7 +2738,7 @@ const AgendaModuleContent = ({
                     <option value="Filho(a)">{t('rcpt_guardian_child', 'app')}</option>
                     <option value="Outros">{t('rcpt_guardian_other', 'app')}</option>
                   </select>
-                </div>
+                </FormField>
               </div>
             )}
 
@@ -2586,7 +2757,7 @@ const AgendaModuleContent = ({
               return (
                 <div className="flex justify-end gap-2 pt-2 border-t border-slate-200">
                   {nextTab && (
-                    <button type="button" onClick={() => setClinicPatientFormTab(nextTab)}
+                    <button type="button" onClick={() => handleCpNextTab(clinicPatientFormTab, nextTab)}
                       className="py-2 px-4 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-lg transition flex items-center gap-1">
                       {t('agenda_next', 'app')} <ChevronRight className="w-4 h-4" />
                     </button>
@@ -3514,12 +3685,9 @@ const AgendaModuleContent = ({
               <h3 className="font-bold text-lg">{t('agenda_new_appointment_title', 'app')}</h3>
             </div>
 
-            {apptErrors.length > 0 && <FormErrorSummary errors={apptErrors} />}
-
 
             {/* Paciente (Busca em clinic_patients) */}
-            <div className="relative">
-              <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_th_patient', 'app')} *</label>
+            <FormField label={t('agenda_th_patient', 'app')} required error={apptFieldErrors.patientName}>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <input
@@ -3553,15 +3721,21 @@ const AgendaModuleContent = ({
                       (cp.phone && cp.phone.includes(q));
                   }).slice(0, 20).map(cp => (
                     <button key={cp.id} type="button"
-                      onClick={() => { setNewApptForm({ ...newApptForm, patient_id: cp.id, patient_name: cp.name }); setShowPatientDropdown(false); setPatientSearchQuery(''); }}
+                      onClick={() => {
+                        const ins = cp.insurance_type ? INSURANCE_TYPES.find(i => i.value === cp.insurance_type) : undefined;
+                        setNewApptForm({
+                          ...newApptForm,
+                          patient_id: cp.id,
+                          patient_name: cp.name,
+                          insurance_type: cp.insurance_type || '',
+                          insurance: ins ? t(ins.labelKey, 'app') : '',
+                          insurance_number: cp.insurance_number || '',
+                        });
+                        setShowPatientDropdown(false);
+                        setPatientSearchQuery('');
+                      }}
                       className="w-full px-4 py-3 text-left hover:bg-teal-50 flex items-center gap-3 border-b border-slate-100 last:border-0 transition">
-                      {cp.photo_url ? (
-                        <Image src={cp.photo_url} alt="" className="rounded-full object-cover" width={32} height={32} />
-                      ) : (
-                        <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center text-teal-700 text-xs font-bold">
-                          {cp.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
-                        </div>
-                      )}
+                      <PatientAvatar key={cp.updated_at || cp.id} src={cp.photo_url} name={cp.name} size={32} />
                       <div className="flex-1 min-w-0">
                         <p className="font-semibold text-sm text-slate-800 truncate">{cp.name}</p>
                         <p className="text-xs text-slate-500">{cp.document_type}: {cp.document_number || '-'} {cp.phone ? `| ${cp.phone}` : ''}</p>
@@ -3587,12 +3761,12 @@ const AgendaModuleContent = ({
               {showPatientDropdown && (
                 <div className="fixed inset-0 z-40" onClick={() => setShowPatientDropdown(false)} />
               )}
-            </div>
+            </FormField>
 
             {/* Modalidade + Sede + Sala */}
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_modality', 'app')}</label>
+                <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_modality', 'app')} *</label>
                 <div className="flex gap-2">
                   <button type="button" onClick={() => setNewApptForm({ ...newApptForm, modality: 'Presencial' })}
                     className={`flex-1 py-2 rounded-lg border-2 text-sm font-bold transition ${
@@ -3604,38 +3778,34 @@ const AgendaModuleContent = ({
                     }`}>{t('agenda_virtual', 'app')}</button>
                 </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_branch', 'app')} *</label>
-                <select value={newApptForm.branch} onChange={e => setNewApptForm({ ...newApptForm, branch: e.target.value, room: '', doctor_name: '', specialty: '' })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
+              <FormField label={t('agenda_branch', 'app')} required error={apptFieldErrors.branch}>
+                <select value={newApptForm.branch} onChange={e => setNewApptForm({ ...newApptForm, branch: e.target.value, room: '', doctor_name: '', specialty: '' })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" disabled={!locations.length}>
                   <option value="">{t('agenda_select', 'app')}</option>
                   {locations.map(loc => <option key={loc.id} value={loc.id}>{loc.name}</option>)}
                 </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_room', 'app')} *</label>
-                <select value={newApptForm.room} onChange={e => setNewApptForm({ ...newApptForm, room: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required disabled={!newApptForm.branch}>
+              </FormField>
+              <FormField label={t('agenda_room', 'app')} required error={apptFieldErrors.room}>
+                <select value={newApptForm.room} onChange={e => setNewApptForm({ ...newApptForm, room: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" disabled={!newApptForm.branch}>
                   <option value="">{newApptForm.branch ? t('agenda_select', 'app') : t('agenda_select_branch', 'app')}</option>
                   {availableRooms.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
                 </select>
-              </div>
+              </FormField>
             </div>
 
             {/* Especialidade + Profissional */}
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_specialty', 'app')} *</label>
-                <select value={newApptForm.specialty} onChange={e => setNewApptForm({ ...newApptForm, specialty: e.target.value, doctor_name: '' })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required disabled={!newApptForm.branch}>
+              <FormField label={t('agenda_specialty', 'app')} required error={apptFieldErrors.specialty}>
+                <select value={newApptForm.specialty} onChange={e => setNewApptForm({ ...newApptForm, specialty: e.target.value, doctor_name: '' })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" disabled={!newApptForm.branch}>
                   <option value="">{newApptForm.branch ? t('agenda_select_specialty', 'app') : t('agenda_select_branch_first', 'app')}</option>
                   {availableSpecialties.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_professional', 'app')} *</label>
-                <select value={newApptForm.doctor_name} onChange={e => setNewApptForm({ ...newApptForm, doctor_name: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required disabled={!newApptForm.specialty}>
+              </FormField>
+              <FormField label={t('agenda_professional', 'app')} required error={apptFieldErrors.doctorName}>
+                <select value={newApptForm.doctor_name} onChange={e => setNewApptForm({ ...newApptForm, doctor_name: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" disabled={!newApptForm.specialty}>
                   <option value="">{newApptForm.specialty ? t('agenda_select_professional', 'app') : t('agenda_select_specialty_first', 'app')}</option>
                   {availableProfessionals.map(p => <option key={p.id} value={p.name}>{p.name} - {p.specialty}</option>)}
                 </select>
-              </div>
+              </FormField>
             </div>
 
             {/* Tipo de Consulta */}
@@ -3658,13 +3828,11 @@ const AgendaModuleContent = ({
 
             {/* Data + Horário + Duração */}
             <div className="grid grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_date', 'app')}</label>
-                <I18nDatePicker value={newApptForm.date} onChange={v => setNewApptForm({ ...newApptForm, date: v })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_time', 'app')}</label>
-                <select value={newApptForm.time} onChange={e => setNewApptForm({ ...newApptForm, time: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required disabled={!newApptForm.date}>
+              <FormField label={t('agenda_date', 'app')} required error={apptFieldErrors.date}>
+                <I18nDatePicker value={newApptForm.date} onChange={v => setNewApptForm({ ...newApptForm, date: v })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
+              </FormField>
+              <FormField label={t('agenda_time', 'app')} required error={apptFieldErrors.time}>
+                <select value={newApptForm.time} onChange={e => setNewApptForm({ ...newApptForm, time: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" disabled={!newApptForm.date}>
                   <option value="">{t('agenda_select', 'app')}</option>
                   {TIME_SLOTS.map(slot => {
                     const blocked = isBlocked(newApptForm.date, slot, newApptForm.doctor_name, newApptForm.branch);
@@ -3676,7 +3844,7 @@ const AgendaModuleContent = ({
                     );
                   })}
                 </select>
-              </div>
+              </FormField>
               <div>
                 <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_duration', 'app')}</label>
                 <select value={newApptForm.duration_minutes} onChange={e => setNewApptForm({ ...newApptForm, duration_minutes: Number(e.target.value) })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
@@ -3691,16 +3859,24 @@ const AgendaModuleContent = ({
               </div>
             </div>
 
-            {/* Convênio/Tipo */}
-            <div>
-              <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_insurance', 'app')}</label>
-              <select value={newApptForm.insurance_type} onChange={e => {
-                const it = INSURANCE_TYPES.find(i => i.value === e.target.value);
-                setNewApptForm({ ...newApptForm, insurance_type: e.target.value || undefined, insurance: it ? t(it.labelKey, 'app') : '' });
-              }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
-                <option value="">{t('agenda_select', 'app')}</option>
-                {INSURANCE_TYPES.map(i => <option key={i.value} value={i.value}>{t(i.labelKey, 'app')}</option>)}
-              </select>
+            {apptErrors.length > 0 && <FormErrorSummary errors={apptErrors} onClose={clearApptErrors} />}
+
+            {/* Convênio/Tipo + Número da Carteirinha */}
+            <div className="grid grid-cols-2 gap-4">
+              <FormField label={t('agenda_insurance', 'app')} required error={apptFieldErrors.insurance_type}>
+                <select value={newApptForm.insurance_type ?? ''} onChange={e => {
+                  const it = INSURANCE_TYPES.find(i => i.value === e.target.value);
+                  setNewApptForm({ ...newApptForm, insurance_type: e.target.value || undefined, insurance: it ? t(it.labelKey, 'app') : '', insurance_number: '' });
+                }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                  <option value="">{t('agenda_select', 'app')}</option>
+                  {INSURANCE_TYPES.map(i => <option key={i.value} value={i.value}>{t(i.labelKey, 'app')}</option>)}
+                </select>
+              </FormField>
+              <FormField label={t('agenda_insurance_number', 'app')} required={!!newApptForm.insurance_type && newApptForm.insurance_type !== 'Particular'} error={apptFieldErrors.insurance_number}>
+                <input type="text" value={newApptForm.insurance_number} onChange={e => setNewApptForm({ ...newApptForm, insurance_number: e.target.value })}
+                  disabled={!newApptForm.insurance_type || newApptForm.insurance_type === 'Particular'}
+                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg disabled:opacity-50 disabled:bg-slate-100" />
+              </FormField>
             </div>
 
             {/* Cota Modalidade */}

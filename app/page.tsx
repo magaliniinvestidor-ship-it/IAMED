@@ -1491,6 +1491,7 @@ function HomeContent() {
                       professionals={professionals}
                       activeRole={activeRole}
                       activeOperator={activeOperator}
+                      userId={profile?.id}
                       userPermissions={profile?.permissions}
                     />
                     </ErrorBoundary>

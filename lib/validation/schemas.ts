@@ -1,6 +1,13 @@
 import { z } from 'zod';
 import type { ValidationMessages } from './i18n-schemas';
-import { getValidationMessages, createTriageSchema } from './i18n-schemas';
+import {
+  getValidationMessages,
+  createTriageSchema,
+  createClinicPatientIdentificationSchema,
+  createClinicPatientContactSchema,
+  createClinicPatientComplementarySchema,
+  createClinicPatientGuardianSchema,
+} from './i18n-schemas';
 
 export const createEmailSchema = (m: ValidationMessages) =>
   z.string().min(1, m.email).email(m.emailInvalid);
@@ -102,6 +109,10 @@ export const appointmentSchema = z.object({
   time: z
     .string()
     .regex(/^\d{2}:\d{2}$/, 'Hora deve estar no formato HH:MM'),
+  insurance_type: z
+    .enum(['IPS', 'Sanidade Militar', 'Sanidade Policial', 'Pré-paga', 'Seguro Privado', 'Particular', ''])
+    .refine((val) => val !== '', { message: 'Convênio é obrigatório' }),
+  insurance_number: z.string().max(50, 'Número da carteirinha deve ter no máximo 50 caracteres').optional().or(z.literal('')),
   status: z
     .enum([
       'agendado',
@@ -116,13 +127,12 @@ export const appointmentSchema = z.object({
       'ausente',
     ])
     .optional(),
-  branch: optionalString(100),
-  room: optionalString(50),
+  branch: nonEmptyString('Sede', 100),
+  room: nonEmptyString('Sala', 50),
   resource: optionalString(50),
   type: optionalString(50),
   modality: z.enum(['Presencial', 'Virtual']).optional(),
   insurance: optionalString(120),
-  insurance_type: optionalString(60),
   duration_minutes: z
     .number()
     .int('Duração deve ser um número inteiro')
@@ -131,6 +141,14 @@ export const appointmentSchema = z.object({
     .optional(),
   booked_via: z.enum(['recepcao', 'portal', 'whatsapp', 'call_center']).optional(),
 }).refine(
+  (data) => {
+    if (data.insurance_type && data.insurance_type !== 'Particular') {
+      return !!(data.insurance_number && data.insurance_number.trim().length > 0);
+    }
+    return true;
+  },
+  { message: 'Número da carteirinha é obrigatório', path: ['insurance_number'] }
+).refine(
   (data) => {
     if (!data.date || !data.time) return true;
     const apptDate = new Date(`${data.date}T${data.time}`);
@@ -385,6 +403,18 @@ export const createAllPatientSchemas = (m: ValidationMessages) => ({
   complementary: createPatientComplementarySchema(m),
   guardian: createPatientGuardianSchema(m),
 });
+
+export const createAllClinicPatientSchemas = (m: ValidationMessages) => ({
+  identification: createClinicPatientIdentificationSchema(m),
+  contact: createClinicPatientContactSchema(m),
+  complementary: createClinicPatientComplementarySchema(m),
+  guardian: createClinicPatientGuardianSchema(m),
+});
+
+export type ClinicPatientIdentificationFormData = z.infer<ReturnType<typeof createClinicPatientIdentificationSchema>>;
+export type ClinicPatientContactFormData = z.infer<ReturnType<typeof createClinicPatientContactSchema>>;
+export type ClinicPatientComplementaryFormData = z.infer<ReturnType<typeof createClinicPatientComplementarySchema>>;
+export type ClinicPatientGuardianFormData = z.infer<ReturnType<typeof createClinicPatientGuardianSchema>>;
 
 const defaultMessages = ptBRMessages;
 export const patientIdentificationSchema = createPatientIdentificationSchema(defaultMessages);

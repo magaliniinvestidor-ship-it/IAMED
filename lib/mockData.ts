@@ -473,6 +473,7 @@ export interface Appointment {
   overturn_reason?: string;
   insurance?: string;
   insurance_type?: string;
+  insurance_number?: string;
   duration_minutes?: number;
   booked_via?: 'recepcao' | 'portal' | 'whatsapp' | 'call_center';
 }
@@ -3682,6 +3683,9 @@ export interface BlockedSlot {
   end_time?: string;
   reason: string;
   description?: string;
+  created_at?: string;
+  created_by?: string;
+  updated_at?: string;
 }
 
 export const initialBlockedSlots: BlockedSlot[] = [

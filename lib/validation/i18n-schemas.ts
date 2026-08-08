@@ -169,6 +169,85 @@ export function createPatientIdentificationSchema(m: ValidationMessages) {
   });
 }
 
+export function createClinicPatientIdentificationSchema(m: ValidationMessages) {
+  return z.object({
+    name: z.string().min(1, m.required('Nome')).max(200, m.maxLength('Nome', 200)),
+    document_type: z
+      .enum(['CI', 'RG', 'Passaporte', 'DNI / Outro'], { message: m.documentType })
+      .optional(),
+    document_number: z.string().min(1, m.required('Documento')).max(30, m.maxLength('Documento', 30)),
+    birth_date: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, m.dateFormat)
+      .refine((val) => !isNaN(Date.parse(val)), m.dateInvalid),
+    gender: z.enum(['Masculino', 'Feminino', 'Outro'], { message: m.gender }),
+    nationality: z.string().min(1, m.required('Nacionalidade')).max(60, m.maxLength('Nacionalidade', 60)),
+    civil_status: z.enum(['Solteiro(a)', 'Casado(a)', 'Divorciado(a)', 'Viúvo(a)', 'União Estável'], { message: m.civilStatus }),
+    photo_url: z
+      .string()
+      .refine((val) => Boolean(val) && val.length > 0 && val !== 'data:,', m.photoRequired),
+  });
+}
+
+export function createClinicPatientContactSchema(m: ValidationMessages) {
+  return z.object({
+    phone: z
+      .string()
+      .min(8, m.phoneMinLength)
+      .max(20, m.phoneInvalid)
+      .regex(/^[\d+\-\s()]+$/, m.phoneFormat),
+    email: z.string().min(1, m.email).email(m.emailInvalid),
+    address_department: z.string().min(1, m.required('Departamento')).max(60, m.maxLength('Departamento', 60)),
+    address_district: z.string().min(1, m.required('Estado')).max(60, m.maxLength('Estado', 60)),
+    address_city: z.string().min(1, m.required('Cidade')).max(60, m.maxLength('Cidade', 60)),
+    address_neighborhood: z.string().min(1, m.required('Bairro')).max(100, m.maxLength('Bairro', 100)),
+    address_street: z.string().min(1, m.required('Rua')).max(150, m.maxLength('Rua', 150)),
+    address_number: z.string().min(1, m.required('Número')).max(20, m.maxLength('Número', 20)),
+  });
+}
+
+export function createClinicPatientComplementarySchema(m: ValidationMessages) {
+  return z
+    .object({
+      insurance_type: z
+        .enum(['IPS', 'Sanidade Militar', 'Sanidade Policial', 'Pré-paga', 'Seguro Privado', 'Particular', ''], {
+          message: m.required('Convênio'),
+        })
+        .refine((val) => val !== '', { message: m.required('Convênio') }),
+      insurance_number: z.string().max(50, m.maxLength('Número', 50)).optional().or(z.literal('')),
+      preferred_language: z
+        .enum(['pt-BR', 'pt-PT', 'es-AR', 'es-PY', 'es', 'en', 'outros', ''], {
+          message: m.preferredLanguage,
+        })
+        .refine((val) => val !== '', { message: m.preferredLanguage }),
+      allergies: z.string().min(1, m.allergiesRequired).max(1000, m.maxLength('Alergias', 1000)),
+    })
+    .refine(
+      (data) => {
+        if (data.insurance_type && data.insurance_type !== 'Particular') {
+          return !!(data.insurance_number && data.insurance_number.trim().length > 0);
+        }
+        return true;
+      },
+      { message: m.required('Número da Apólice'), path: ['insurance_number'] }
+    );
+}
+
+export function createClinicPatientGuardianSchema(m: ValidationMessages) {
+  return z.object({
+    responsible_name: z.string().max(200, m.maxLength('Nome', 200)).optional().or(z.literal('')),
+    responsible_document_type: z.string().optional().or(z.literal('')),
+    responsible_document_number: z.string().max(30, m.maxLength('Documento', 30)).optional().or(z.literal('')),
+    responsible_phone: z
+      .string()
+      .max(20, m.phoneInvalid)
+      .regex(/^[\d+\-\s()]+$/, m.phoneFormat)
+      .optional()
+      .or(z.literal('')),
+    responsible_relationship: z.string().max(60, m.maxLength('Parentesco', 60)).optional().or(z.literal('')),
+  });
+}
+
 export function createPatientContactAddressSchema(m: ValidationMessages) {
   return z.object({
     email: z.string().min(1, m.email).email(m.emailInvalid),
