@@ -527,7 +527,7 @@ export default function ReceptionModule({
   };
 
   const capturePhoto = async () => {
-    const fileName = selectedPatientId ? `patient_${selectedPatientId}.jpg` : `patient_${++photoCounterRef.current}.jpg`;
+    const fileName = selectedPatientId ? `patient_${selectedPatientId}_${Date.now()}.jpg` : `patient_${++photoCounterRef.current}.jpg`;
     if (videoRef.current && canvasRef.current) {
       const canvas = canvasRef.current;
       const video = videoRef.current;
@@ -872,7 +872,7 @@ export default function ReceptionModule({
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-    const fileName = selectedPatientId ? `patient_${selectedPatientId}.jpg` : `patient_${++photoCounterRef.current}.jpg`;
+    const fileName = selectedPatientId ? `patient_${selectedPatientId}_${Date.now()}.jpg` : `patient_${++photoCounterRef.current}.jpg`;
       const reader = new FileReader();
       reader.onloadend = async () => {
         const result = reader.result as string;
@@ -967,6 +967,11 @@ export default function ReceptionModule({
 
     const isEditing = !!selectedPatientId;
 
+    // Foto anterior (para remover do storage se a foto for alterada)
+    const previousPhotoUrl = isEditing
+      ? patients.find(p => p.id === selectedPatientId)?.photo_url || ''
+      : '';
+
     // Re-validate all tabs before final save
     if (!validateIdentificationTab()) {
       setActiveFormTab('identification');
@@ -1014,12 +1019,16 @@ export default function ReceptionModule({
       patientId = data;
     }
 
-    // Se tem preview mas photoUrl ainda vazio (upload assíncrono pendente), faz upload agora
+    // Se tem preview como data: URL (foto nova capturada), faz upload apenas se a foto
+    // ainda não foi enviada (ex.: captura sem upload concluído na edição)
     let finalPhotoUrl = photoUrl;
-    if (!finalPhotoUrl && webcamPlaceholder && webcamPlaceholder.startsWith('data:')) {
-      const uploadFileName = `patient_${patientId}.jpg`;
-      const uploadedUrl = await uploadPhotoToStorage(webcamPlaceholder, uploadFileName);
-      if (uploadedUrl) finalPhotoUrl = uploadedUrl;
+    if (webcamPlaceholder && webcamPlaceholder.startsWith('data:')) {
+      const needsUpload = !finalPhotoUrl || (isEditing && previousPhotoUrl && finalPhotoUrl === previousPhotoUrl);
+      if (needsUpload) {
+        const uploadFileName = `patient_${patientId}_${Date.now()}.jpg`;
+        const uploadedUrl = await uploadPhotoToStorage(webcamPlaceholder, uploadFileName);
+        if (uploadedUrl) finalPhotoUrl = uploadedUrl;
+      }
     }
 
     const newPatient: Patient = {
@@ -1126,6 +1135,29 @@ export default function ReceptionModule({
         setPatients(prev => prev.filter(p => p.id !== newPatient.id));
         alert(t('rcpt_alert_error_insert', 'app') + insertError.message);
         return;
+      }
+    }
+
+    // Apagar a foto antiga do storage quando a foto foi alterada na edição
+    if (
+      isEditing &&
+      previousPhotoUrl &&
+      previousPhotoUrl !== newPatient.photo_url &&
+      previousPhotoUrl.startsWith('http')
+    ) {
+      try {
+        const oldUrl = new URL(previousPhotoUrl);
+        const marker = '/storage/v1/object/public/patient-photos/';
+        const idx = oldUrl.pathname.indexOf(marker);
+        if (idx !== -1) {
+          const oldPath = decodeURIComponent(oldUrl.pathname.slice(idx + marker.length));
+          if (oldPath) {
+            const { error: rmError } = await supabase.storage.from('patient-photos').remove([oldPath]);
+            if (rmError) console.warn('[SUPABASE] REMOVE old photo FAILED:', rmError.message);
+          }
+        }
+      } catch (e) {
+        console.warn('[SUPABASE] REMOVE old photo parse error:', e);
       }
     }
 
