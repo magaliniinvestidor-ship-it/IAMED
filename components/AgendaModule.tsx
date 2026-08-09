@@ -24,9 +24,10 @@ import I18nDatePicker from '@/components/I18nDatePicker';
 import { Badge } from '@/components/ui/badge';
 import { useFormValidation, groupErrorsByPath } from '@/lib/validation';
 import { appointmentSchema, createAllClinicPatientSchemas } from '@/lib/validation/schemas';
-import { getValidationMessages } from '@/lib/validation/i18n-schemas';
+import { getValidationMessages, createBlockedSlotSchema, createEditAppointmentSchema } from '@/lib/validation/i18n-schemas';
 import { FormField, FormErrorSummary } from '@/components/forms';
 import { PatientAvatar } from '@/components/PatientAvatar';
+import { WHATSAPP_TEMPLATES, buildReminderMessage, getWhatsAppProvider } from '@/lib/whatsapp';
 
 // ==============================================================
 // INLINE MODAL (avoids Radix Dialog portal/focus issues)
@@ -246,13 +247,6 @@ const normalizeTime = (t: string) => {
   return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
 };
 
-const getLangMessageKey = (lang: string): 'messageEs' | 'messageGn' | 'messagePt' | 'messageEn' => {
-  if (lang === 'gn') return 'messageGn';
-  if (lang === 'en') return 'messageEn';
-  if (lang.startsWith('pt')) return 'messagePt';
-  return 'messageEs';
-};
-
 const isTimeSlotTaken = (
   date: string,
   time: string,
@@ -286,12 +280,6 @@ const PARAGUAY_HOLIDAYS = [
   { date: '08-15', name: 'Día de la Fundación de Asunción (Nacional)' },
   { date: '09-29', name: 'Día de la Victoria de Boquerón (Nacional)' },
   { date: '12-08', name: 'Día de la Virgen de Caacupé (Nacional)' },
-];
-
-const WHATSAPP_TEMPLATES = [
-  { id: 'tpl_1', nameKey: 'agenda_reminder_48h', hoursBefore: 48, messageEs: 'Hola {nombre}. Le recordamos su consulta con {profesional} el {fecha} a las {hora} en {sede}. Responda: 1=Confirmar, 2=Cancelar, 3=Remarcar', messageGn: 'Hola {nombre}. Rembiapoite upeicha rendaite con {profesional} {fecha} {hora} en {sede}. Jawepy: 1=Jepive, 2=Ñanomboya, 3=Tembiapo ipahague', messagePt: 'Olá {nombre}. Lembramos sua consulta com {profesional} em {fecha} às {hora} em {sede}. Responda: 1=Confirmar, 2=Cancelar, 3=Remarcar', messageEn: 'Hello {nombre}. We remind you of your appointment with {profesional} on {fecha} at {hora} at {sede}. Reply: 1=Confirm, 2=Cancel, 3=Reschedule' },
-  { id: 'tpl_2', nameKey: 'agenda_reminder_24h', hoursBefore: 24, messageEs: 'Hola {nombre}. Mañana tiene consulta con {profesional} a las {hora} en {sede}. Por favor confirme su asistencia.', messageGn: 'Hola {nombre}. Arange upeicha rendaite con {profesional} {hora} en {sede}. Ikatu peẽ jepive.', messagePt: 'Olá {nombre}. Amanhã você tem consulta com {profesional} às {hora} em {sede}. Por favor confirme.', messageEn: 'Hello {nombre}. You have an appointment with {profesional} tomorrow at {hora} at {sede}. Please confirm.' },
-  { id: 'tpl_3', nameKey: 'agenda_reminder_2h', hoursBefore: 2, messageEs: 'Hola {nombre}. Su consulta con {profesional} es en 2 horas en {sede}. Lo esperamos.', messageGn: 'Hola {nombre}. Upicha rendaite con {profesional} ha e\'ho 2 horas en {sede}. Jaha jave.', messagePt: 'Olá {nombre}. Sua consulta com {profesional} é em 2 horas em {sede}. Aguardamos você.', messageEn: 'Hello {nombre}. Your appointment with {profesional} is in 2 hours at {sede}. We look forward to seeing you.' },
 ];
 
 const CALL_CENTER_REASONS = [
@@ -415,7 +403,7 @@ const AgendaModuleContent = ({
 
   // Blockage modal
   const [showBlockageModal, setShowBlockageModal] = useState(false);
-  const [blockForm, setBlockForm] = useState({ doctor_name: '', branch: '', start_date: '', end_date: '', start_time: '', end_time: '', reason: 'feriado' as BlockedSlot['reason'], description: '' });
+  const [blockForm, setBlockForm] = useState({ doctor_name: '', branch: '', start_date: '', end_date: '', start_time: '', end_time: '', reason: '' as '' | BlockedSlot['reason'], description: '' });
 
   // WhatsApp
   const [reminders, setReminders] = useState<WhatsappReminder[]>([]);
@@ -515,6 +503,7 @@ const AgendaModuleContent = ({
     modality: 'Presencial' as 'Presencial' | 'Virtual',
     insurance: '', insurance_type: '' as string | undefined,
     insurance_number: '',
+    resource: '',
     duration_minutes: 30,
   });
   const [minGapMinutes, setMinGapMinutes] = useState(30);
@@ -522,6 +511,12 @@ const AgendaModuleContent = ({
   const { errors: apptErrors, validate: validateAppt, setErrors: setApptErrors, clearErrors: clearApptErrors } = useFormValidation(appointmentSchema);
   const apptFieldErrors = groupErrorsByPath(apptErrors);
   const validationMessages = useMemo(() => getValidationMessages(locale as 'pt-BR' | 'pt-PT' | 'en' | 'es' | 'es-AR' | 'es-PY'), [locale]);
+  const blockSchema = useMemo(() => createBlockedSlotSchema(validationMessages), [validationMessages]);
+  const { errors: blkErrors, validate: validateBlock, clearErrors: clearBlkErrors } = useFormValidation(blockSchema);
+  const blkFieldErrors = groupErrorsByPath(blkErrors);
+  const editApptSchema = useMemo(() => createEditAppointmentSchema(validationMessages), [validationMessages]);
+  const { errors: editApptErrors, validate: validateEditAppt, clearErrors: clearEditApptErrors } = useFormValidation(editApptSchema);
+  const editApptFieldErrors = groupErrorsByPath(editApptErrors);
   const cpSchemas = useMemo(() => createAllClinicPatientSchemas(validationMessages), [validationMessages]);
   const { errors: cpIdErrors, validate: validateCpId, setErrors: setCpIdErrors, clearErrors: clearCpIdErrors } = useFormValidation(cpSchemas.identification);
   const { errors: cpContactErrors, validate: validateCpContact, setErrors: setCpContactErrors, clearErrors: clearCpContactErrors } = useFormValidation(cpSchemas.contact);
@@ -537,9 +532,21 @@ const AgendaModuleContent = ({
     branch: '', room: '', type: 'primeira_vez' as string,
     modality: 'Presencial' as 'Presencial' | 'Virtual',
     insurance: '', insurance_type: '' as string | undefined,
+    insurance_number: '',
+    resource: '',
     duration_minutes: 30,
     status: 'agendado' as Appointment['status'],
   });
+
+  // Patient options for the edit modal (only Module 2 - clinic patients, plus fallback for the scheduled patient)
+  const editPatientOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    clinicPatients.forEach(p => { if (p.id) map.set(p.id, p.name); });
+    if (editingAppt?.patientId && !map.has(editingAppt.patientId)) {
+      map.set(editingAppt.patientId, editingAppt.patientName);
+    }
+    return Array.from(map, ([id, name]) => ({ id, name }));
+  }, [clinicPatients, editingAppt]);
 
   // Dynamic data for locations and rooms
   const [locations, setLocations] = useState<{ id: string; name: string; status: string }[]>([]);
@@ -850,15 +857,7 @@ const AgendaModuleContent = ({
   // WhatsApp Reminder helpers
   const reminderAppointments = useMemo(() => {
     if (!reminderForm.patient_id) return [];
-    const today = new Date();
-    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-    return appointments.filter(a => {
-      if (a.patientId !== reminderForm.patient_id) return false;
-      if (a.status === 'cancelado') return false;
-      // Only show appointments today or in the future
-      if (a.date < todayStr) return false;
-      return true;
-    });
+    return appointments.filter(a => a.patientId === reminderForm.patient_id);
   }, [appointments, reminderForm.patient_id]);
 
   const detectLanguage = (nationality?: string): typeof reminderForm.language => {
@@ -931,6 +930,7 @@ const AgendaModuleContent = ({
       a.id === draggedAppId ? { ...a, date: targetDate, time: targetTime, status: 'remarcado' as const } : a
     ));
     addAuditLog('Remarcação (Drag & Drop)', `${app.patientName}: ${app.date} ${normalizeTime(app.time)} → ${targetDate} ${normalizeTime(targetTime)}`);
+    cancelActiveRemindersForAppointment(draggedAppId);
     setDraggedAppId(null);
   };
 
@@ -944,6 +944,8 @@ const AgendaModuleContent = ({
   // ============================================================
   const handleBlockageSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const result = validateBlock(blockForm);
+    if (!result.success) return;
     let blockId = '';
     if (supabase) {
       const { data } = await supabase.rpc('next_module_id', { p_prefix: 'blk' });
@@ -959,7 +961,7 @@ const AgendaModuleContent = ({
       end_date: blockForm.end_date,
       start_time: blockForm.start_time || null,
       end_time: blockForm.end_time || null,
-      reason: blockForm.reason,
+      reason: blockForm.reason as BlockedSlot['reason'],
       description: blockForm.description,
       created_at: new Date().toISOString(),
       created_by: userId || activeOperator,
@@ -984,7 +986,7 @@ const AgendaModuleContent = ({
       if (error) console.warn('[SUPABASE] INSERT blocked_slots FAILED:', error.message);
     }
     setShowBlockageModal(false);
-    setBlockForm({ doctor_name: '', branch: '', start_date: '', end_date: '', start_time: '', end_time: '', reason: 'feriado', description: '' });
+    setBlockForm({ doctor_name: '', branch: '', start_date: '', end_date: '', start_time: '', end_time: '', reason: '', description: '' });
   };
 
   const handleDeleteBlockage = async (id: string) => {
@@ -1003,22 +1005,27 @@ const AgendaModuleContent = ({
       doctor_name: appt.doctorName,
       specialty: appt.specialty,
       date: appt.date,
-      time: appt.time,
+      time: normalizeTime(appt.time),
       branch: appt.branch || '',
       room: appt.room || '',
       type: appt.type || 'primeira_vez',
       modality: appt.modality || 'Presencial',
       insurance: appt.insurance || '',
       insurance_type: appt.insurance_type,
+      insurance_number: appt.insurance_number || '',
+      resource: appt.resource || '',
       duration_minutes: appt.duration_minutes || 30,
       status: appt.status,
     });
+    clearEditApptErrors();
     setShowEditApptModal(true);
   };
 
   const handleUpdateAppointment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingAppt) return;
+    const result = validateEditAppt(editApptForm);
+    if (!result.success) return;
     const updated: Appointment = {
       ...editingAppt,
       patientId: editApptForm.patient_id,
@@ -1033,11 +1040,16 @@ const AgendaModuleContent = ({
       modality: editApptForm.modality,
       insurance: editApptForm.insurance,
       insurance_type: editApptForm.insurance_type,
+      insurance_number: editApptForm.insurance_number,
+      resource: editApptForm.resource,
       duration_minutes: editApptForm.duration_minutes,
       status: editApptForm.status,
     };
     setAppointments(prev => prev.map(a => a.id === editingAppt.id ? updated : a));
     addAuditLog('Editou Agendamento', `${updated.patientName} - ${updated.date} ${updated.time}`);
+    if (updated.date !== editingAppt.date || normalizeTime(updated.time) !== normalizeTime(editingAppt.time)) {
+      cancelActiveRemindersForAppointment(editingAppt.id);
+    }
     if (supabase) {
       const { error } = await supabase.from('appointments').update({
         patient_id: updated.patientId,
@@ -1052,6 +1064,9 @@ const AgendaModuleContent = ({
         type: updated.type,
         modality: updated.modality,
         insurance: updated.insurance,
+        insurance_type: updated.insurance_type,
+        insurance_number: updated.insurance_number,
+        resource: updated.resource,
         duration_minutes: updated.duration_minutes,
       }).eq('id', editingAppt.id);
       if (error) console.error('[SUPABASE] UPDATE appointment FAILED:', error.message);
@@ -1089,13 +1104,19 @@ const AgendaModuleContent = ({
   const handleReminderSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const tpl = WHATSAPP_TEMPLATES.find(t => t.id === reminderForm.template_id);
-    const langKey = getLangMessageKey(reminderForm.language);
+    const selectedAppt = reminderAppointments.find(a => a.id === reminderForm.appointment_id);
     const newReminder: WhatsappReminder = {
       id: `rem_${++reminderCounterRef.current}`,
       appointment_id: reminderForm.appointment_id,
       patient_name: reminderForm.patient_name,
       patient_phone: reminderForm.patient_phone,
-      message_template: tpl ? tpl[langKey] || tpl.messageEs : '',
+      message_template: tpl ? buildReminderMessage(tpl, reminderForm.language, {
+        nombre: reminderForm.patient_name,
+        profesional: selectedAppt?.doctorName,
+        fecha: selectedAppt ? new Date(selectedAppt.date + 'T12:00:00').toLocaleDateString(locale, { day: 'numeric', month: 'long', year: 'numeric' }) : undefined,
+        hora: selectedAppt ? normalizeTime(selectedAppt.time) : undefined,
+        sede: selectedAppt?.branch,
+      }) : '',
       language: reminderForm.language || 'es',
       status: 'scheduled',
       scheduled_for: new Date(Date.now() + (tpl?.hoursBefore || 48) * 3600000).toISOString(),
@@ -1111,28 +1132,37 @@ const AgendaModuleContent = ({
   };
 
   const simulateWhatsAppSend = async (reminderId: string) => {
-    const now = new Date().toISOString();
-    setReminders(prev => prev.map(r => r.id === reminderId ? { ...r, status: 'sent' as const, sent_at: now } : r));
-    if (supabase) {
-      await supabase.from('whatsapp_reminders').update({ status: 'sent', sent_at: now }).eq('id', reminderId);
-    }
+    const provider = getWhatsAppProvider();
+    const rem = reminders.find(r => r.id === reminderId);
+    const sentAt = new Date().toISOString();
     addAuditLog('WhatsApp Enviado', `Lembrete ${reminderId}`);
-    setTimeout(() => {
-      setReminders(prev => prev.map(r => r.id === reminderId ? { ...r, status: 'delivered' as const } : r));
-      if (supabase) supabase.from('whatsapp_reminders').update({ status: 'delivered' }).eq('id', reminderId);
-    }, 2000);
-    setTimeout(() => {
-      setReminders(prev => prev.map(r => r.id === reminderId ? { ...r, status: 'read' as const } : r));
-      if (supabase) supabase.from('whatsapp_reminders').update({ status: 'read' }).eq('id', reminderId);
-    }, 5000);
+    await provider.sendMessage(rem?.patient_phone || '', rem?.message_template || '', {
+      onStatus: async (status) => {
+        setReminders(prev => prev.map(r => r.id === reminderId
+          ? { ...r, status: status as WhatsappReminder['status'], sent_at: status === 'sent' ? sentAt : r.sent_at }
+          : r));
+        if (supabase) {
+          const patch = status === 'sent' ? { status, sent_at: sentAt } : { status };
+          const { error } = await supabase.from('whatsapp_reminders').update(patch).eq('id', reminderId);
+          if (error) console.error(`[WHATSAPP] update ${status} FAILED:`, error.message);
+        }
+      },
+      onError: (error) => console.error('[WHATSAPP] send failed:', error),
+    });
   };
 
   const simulateWhatsAppResponse = async (reminderId: string, response: 'confirmed' | 'cancelled' | 'rescheduled') => {
     const newStatus = response === 'confirmed' ? 'confirmed' : response === 'cancelled' ? 'cancelled' : 'rescheduled';
     const newResponse = response === 'confirmed' ? '1' : response === 'cancelled' ? '2' : '3';
-    setReminders(prev => prev.map(r => r.id === reminderId ? { ...r, status: newStatus, response_received: newResponse } : r));
+    setReminders(prev => prev.map(r => r.id === reminderId ? { ...r, status: newStatus, response_received: newResponse, sent_at: r.sent_at ?? new Date().toISOString() } : r));
     if (supabase) {
-      await supabase.from('whatsapp_reminders').update({ status: newStatus, response_received: newResponse }).eq('id', reminderId);
+      const current = reminders.find(r => r.id === reminderId);
+      const { error } = await supabase.from('whatsapp_reminders').update({
+        status: newStatus,
+        response_received: newResponse,
+        ...(current?.sent_at ? {} : { sent_at: new Date().toISOString() }),
+      }).eq('id', reminderId);
+      if (error) console.error('[WHATSAPP] response update FAILED:', error.message);
     }
     const rem = reminders.find(r => r.id === reminderId);
     if (rem) {
@@ -1180,6 +1210,14 @@ const AgendaModuleContent = ({
           if (supabase) {
             await supabase.from('appointments').update({ status: 'cancelado' }).eq('id', rem.appointment_id);
           }
+        } else if (response === 'rescheduled') {
+          setAppointments(prev => prev.map(a =>
+            a.id === rem.appointment_id ? { ...a, status: 'remarcado' as const } : a
+          ));
+          addAuditLog('Paciente pediu remarcação via WhatsApp', rem.patient_name);
+          if (supabase) {
+            await supabase.from('appointments').update({ status: 'remarcado' }).eq('id', rem.appointment_id);
+          }
         }
       }
     }
@@ -1190,6 +1228,17 @@ const AgendaModuleContent = ({
     setReminders(prev => prev.filter(r => r.id !== reminderId));
     addAuditLog('Excluiu Lembrete WhatsApp', reminderId);
     if (supabase) await supabase.from('whatsapp_reminders').delete().eq('id', reminderId);
+  };
+
+  const cancelActiveRemindersForAppointment = async (apptId: string) => {
+    const linked = reminders.filter(r => r.appointment_id === apptId && (r.status === 'scheduled' || r.status === 'sent'));
+    if (linked.length === 0) return;
+    setReminders(prev => prev.map(r => linked.some(l => l.id === r.id) ? { ...r, status: 'cancelled' as const } : r));
+    if (supabase) {
+      for (const r of linked) {
+        await supabase.from('whatsapp_reminders').update({ status: 'cancelled' }).eq('id', r.id);
+      }
+    }
   };
 
   const handleWaitlistSubmit = async (e: React.FormEvent) => {
@@ -1231,7 +1280,6 @@ const AgendaModuleContent = ({
     }
     const tpl = WHATSAPP_TEMPLATES.find(t => t.id === notifyTemplate);
     if (!tpl) return;
-    const langKey = getLangMessageKey(notifyLanguage);
     const locName = locations.find(l => l.id === notifyEntry.branch)?.name || t('agenda_branch_fallback', 'app');
     
     // Get consult date/time from appointment or manual fields
@@ -1259,12 +1307,13 @@ const AgendaModuleContent = ({
       }
     }
     
-    const message = tpl[langKey]
-      .replace('{nombre}', notifyEntry.patient_name)
-      .replace('{profesional}', notifyEntry.doctor_name || t('agenda_any_professional', 'app'))
-      .replace('{fecha}', consultDate || t('agenda_not_defined', 'app'))
-      .replace('{hora}', consultTime || t('agenda_not_defined', 'app'))
-      .replace('{sede}', locName);
+    const message = buildReminderMessage(tpl, notifyLanguage, {
+      nombre: notifyEntry.patient_name,
+      profesional: notifyEntry.doctor_name || t('agenda_any_professional', 'app'),
+      fecha: consultDate || t('agenda_not_defined', 'app'),
+      hora: consultTime || t('agenda_not_defined', 'app'),
+      sede: locName,
+    });
 
     const newReminder: WhatsappReminder = {
       id: `rem_${++reminderCounterRef.current}`,
@@ -1280,7 +1329,10 @@ const AgendaModuleContent = ({
       created_at: new Date().toISOString(),
     };
 
-    const existingReminder = reminders.find(r => r.appointment_id === notifyAppointmentId && (r.status === 'scheduled' || r.status === 'sent'));
+    const existingReminder = reminders.find(r =>
+      (notifyAppointmentId ? r.appointment_id === notifyAppointmentId : r.patient_name === notifyEntry.patient_name) &&
+      (r.status === 'scheduled' || r.status === 'sent')
+    );
 
     if (existingReminder) {
       const updatedReminder = { ...existingReminder, ...newReminder, id: existingReminder.id };
@@ -1648,6 +1700,7 @@ const AgendaModuleContent = ({
       insurance: newApptForm.insurance,
       insurance_type: newApptForm.insurance_type,
       insurance_number: newApptForm.insurance_number,
+      resource: newApptForm.resource,
       duration_minutes: newApptForm.duration_minutes,
       booked_via: 'recepcao',
       status: 'agendado',
@@ -1669,6 +1722,9 @@ const AgendaModuleContent = ({
         type: newApp.type,
         modality: newApp.modality,
         insurance: newApp.insurance,
+        insurance_type: newApp.insurance_type,
+        insurance_number: newApp.insurance_number,
+        resource: newApp.resource,
         duration_minutes: newApp.duration_minutes,
       });
       if (agendaInsertError) {
@@ -1683,7 +1739,7 @@ const AgendaModuleContent = ({
     setNewApptForm({
       patient_id: '', patient_name: '', doctor_name: '', specialty: '', date: '', time: '',
       branch: '', room: '', type: 'primeira_vez',
-      modality: 'Presencial', insurance: '', insurance_type: undefined, insurance_number: '', duration_minutes: 30,
+      modality: 'Presencial', insurance: '', insurance_type: undefined, insurance_number: '', resource: '', duration_minutes: 30,
     });
   };
 
@@ -2275,7 +2331,7 @@ const AgendaModuleContent = ({
               <button onClick={() => setShowNewApptModal(true)} className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-lg flex items-center gap-2 transition">
                 <Plus className="w-4 h-4" /> {t('agenda_new_appointment', 'app')}
               </button>
-              <button onClick={() => setShowBlockageModal(true)} className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg flex items-center gap-2 transition">
+              <button onClick={() => { setShowBlockageModal(true); clearBlkErrors(); }} className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg flex items-center gap-2 transition">
                 <AlertTriangle className="w-4 h-4" /> {t('agenda_block', 'app')}
               </button>
             </>
@@ -2403,11 +2459,6 @@ const AgendaModuleContent = ({
                 <AlertTriangle className="w-5 h-5 text-amber-600" />
                 {t('agenda_blocks_title', 'app')} ({blockedSlots.length})
               </h3>
-              {canEdit && (
-                <button onClick={() => setShowBlockageModal(true)} className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-lg transition">
-                  {t('agenda_new_block', 'app')}
-                </button>
-              )}
             </div>
             {blockedSlots.length === 0 ? (
               <p className="text-center text-slate-400 py-6">{t('agenda_no_blocks', 'app')}</p>
@@ -3144,11 +3195,6 @@ const AgendaModuleContent = ({
                 <AlertTriangle className="w-5 h-5 text-amber-600" />
                 {t('agenda_blocks_title', 'app')} ({blockedSlots.length})
               </h3>
-              {canEdit && (
-                <button onClick={() => setShowBlockageModal(true)} className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-lg transition">
-                  {t('agenda_new_block', 'app')}
-                </button>
-              )}
             </div>
             {blockedSlots.length === 0 ? (
               <p className="text-center text-slate-400 py-6">{t('agenda_no_blocks', 'app')}</p>
@@ -3879,26 +3925,43 @@ const AgendaModuleContent = ({
               </FormField>
             </div>
 
+            {/* Recurso */}
+            <FormField label={t('agenda_resource', 'app')}>
+              <select value={newApptForm.resource} onChange={e => setNewApptForm({ ...newApptForm, resource: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                <option value="">{t('agenda_none', 'app')}</option>
+                {RESOURCES.map(r => <option key={r.id} value={t(r.nameKey, 'app')}>{t(r.nameKey, 'app')}</option>)}
+              </select>
+            </FormField>
+
             {/* Cota Modalidade */}
             {newApptForm.insurance_type && (
               <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
-                <p className="text-xs font-bold text-blue-700 mb-1">{t('agenda_quota_modality_title', 'app').replace('{insurance}', newApptForm.insurance_type)}</p>
+                <p className="text-sm font-bold text-blue-700 mb-1">{t('agenda_quota_modality_title', 'app').replace('{insurance}', newApptForm.insurance_type)}</p>
+                  <p className="text-xs text-blue-500 mb-1">{newApptForm.date ? t('agenda_quota_scope_day', 'app').replace('{date}', newApptForm.date) : t('agenda_quota_scope_all', 'app')}</p>
                 <div className="flex gap-4">
                   {(() => {
                     const ins = INSURANCE_TYPES.find(i => i.value === newApptForm.insurance_type);
                     if (!ins) return null;
-                    const presencialCount = appointments.filter(a => a.insurance_type === newApptForm.insurance_type && a.modality === 'Presencial' && a.date === newApptForm.date).length;
-                    const virtualCount = appointments.filter(a => a.insurance_type === newApptForm.insurance_type && a.modality === 'Virtual' && a.date === newApptForm.date).length;
+                    const activeStatuses = ['agendado', 'confirmado', 'pendente', 'em sala de espera', 'em atendimento', 'atendido', 'finalizado'];
+                    const quotaInScope = (a: { insurance_type?: string | null; modality?: string | null; date?: string | null; patient_id?: string | null; status?: string | null }) =>
+                      a.insurance_type === newApptForm.insurance_type &&
+                      a.patient_id === newApptForm.patient_id &&
+                      (!newApptForm.date || a.date === newApptForm.date) &&
+                      !!a.status && activeStatuses.includes(a.status);
+                    const presencialCount = appointments.filter(a => quotaInScope(a) && a.modality === 'Presencial').length;
+                    const virtualCount = appointments.filter(a => quotaInScope(a) && a.modality === 'Virtual').length;
+                    const presencialLeft = ins.quotaPresencial - presencialCount;
+                    const virtualLeft = ins.quotaVirtual - virtualCount;
                     return (
                       <>
                         <div>
-                          <span className="text-[10px] text-blue-600">{t('agenda_quota_presential', 'app').replace('{count}', String(presencialCount))}</span>
+                          <span className="text-xs text-blue-600">{t('agenda_quota_presential', 'app').replace('{count}', String(presencialCount))} · {t('agenda_quota_remaining', 'app').replace('{count}', String(presencialLeft))}</span>
                           <div className="w-24 h-1.5 bg-blue-200 rounded-full mt-0.5">
                             <div className="h-1.5 bg-blue-500 rounded-full" style={{ width: `${Math.min(100, (presencialCount / Math.max(1, ins.quotaPresencial)) * 100)}%` }} />
                           </div>
                         </div>
                         <div>
-                          <span className="text-[10px] text-blue-600">{t('agenda_quota_virtual', 'app').replace('{count}', String(virtualCount))}</span>
+                          <span className="text-xs text-blue-600">{t('agenda_quota_virtual', 'app').replace('{count}', String(virtualCount))} · {t('agenda_quota_remaining', 'app').replace('{count}', String(virtualLeft))}</span>
                           <div className="w-24 h-1.5 bg-purple-200 rounded-full mt-0.5">
                             <div className="h-1.5 bg-purple-500 rounded-full" style={{ width: `${Math.min(100, (virtualCount / Math.max(1, ins.quotaVirtual)) * 100)}%` }} />
                           </div>
@@ -3942,79 +4005,73 @@ const AgendaModuleContent = ({
       </InlineModal>
 
       {/* Edit Appointment Modal */}
-      <InlineModal open={showEditApptModal} onClose={() => { setShowEditApptModal(false); setEditingAppt(null); }} className="max-w-2xl">
+      <InlineModal open={showEditApptModal} onClose={() => { setShowEditApptModal(false); setEditingAppt(null); clearEditApptErrors(); }} className="max-w-2xl">
         <div className="p-6">
           <form onSubmit={handleUpdateAppointment} className="space-y-4" noValidate>
             <h3 className="font-bold text-lg">{t('agenda_edit_appointment', 'app')}</h3>
 
+            {editApptErrors.length > 0 && <FormErrorSummary errors={editApptErrors} onClose={clearEditApptErrors} />}
+
             {/* Status */}
-            <div>
-              <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_th_status', 'app')} *</label>
-              <select value={editApptForm.status} onChange={e => setEditApptForm({ ...editApptForm, status: e.target.value as Appointment['status'] })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
+            <FormField label={t('agenda_th_status', 'app')} error={editApptFieldErrors.status}>
+              <select value={editApptForm.status} onChange={e => setEditApptForm({ ...editApptForm, status: e.target.value as Appointment['status'] })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
                 {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
                   <option key={key} value={key}>{t(cfg.labelKey, 'app')}</option>
                 ))}
               </select>
-            </div>
+            </FormField>
 
             {/* Paciente */}
-            <div>
-              <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_th_patient', 'app')} *</label>
+            <FormField label={t('agenda_th_patient', 'app')} required error={editApptFieldErrors.patient_name}>
               <select value={editApptForm.patient_id} onChange={e => {
-                const p = patients.find(p => p.id === e.target.value);
+                const p = editPatientOptions.find(p => p.id === e.target.value);
                 setEditApptForm({ ...editApptForm, patient_id: e.target.value, patient_name: p?.name || '' });
-              }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
+              }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
                 <option value="">{t('agenda_select', 'app')}</option>
-                {patients.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                {editPatientOptions.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
-            </div>
+            </FormField>
 
             {/* Sede + Sala */}
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_branch', 'app')} *</label>
-                <select value={editApptForm.branch} onChange={e => setEditApptForm({ ...editApptForm, branch: e.target.value, room: '' })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
+              <FormField label={t('agenda_branch', 'app')} required error={editApptFieldErrors.branch}>
+                <select value={editApptForm.branch} onChange={e => setEditApptForm({ ...editApptForm, branch: e.target.value, room: '' })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
                   <option value="">{t('agenda_select', 'app')}</option>
                   {locations.map(loc => <option key={loc.id} value={loc.id}>{loc.name}</option>)}
                 </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_room', 'app')} *</label>
-                <select value={editApptForm.room} onChange={e => setEditApptForm({ ...editApptForm, room: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required disabled={!editApptForm.branch}>
+              </FormField>
+              <FormField label={t('agenda_room', 'app')} required error={editApptFieldErrors.room}>
+                <select value={editApptForm.room} onChange={e => setEditApptForm({ ...editApptForm, room: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" disabled={!editApptForm.branch}>
                   <option value="">{editApptForm.branch ? t('agenda_select_room', 'app') : t('agenda_select_branch_first', 'app')}</option>
                   {locations.filter(l => l.id === editApptForm.branch).length > 0 &&
                     clinicalRooms.filter(r => r.location_id === editApptForm.branch).map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
                 </select>
-              </div>
+              </FormField>
             </div>
 
             {/* Especialidade + Profissional */}
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_specialty', 'app')} *</label>
-                <select value={editApptForm.specialty} onChange={e => setEditApptForm({ ...editApptForm, specialty: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
+              <FormField label={t('agenda_specialty', 'app')} required error={editApptFieldErrors.specialty}>
+                <select value={editApptForm.specialty} onChange={e => setEditApptForm({ ...editApptForm, specialty: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
                   <option value="">{t('agenda_select', 'app')}</option>
                   {availableSpecialties.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_professional', 'app')} *</label>
-                <select value={editApptForm.doctor_name} onChange={e => setEditApptForm({ ...editApptForm, doctor_name: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
+              </FormField>
+              <FormField label={t('agenda_professional', 'app')} required error={editApptFieldErrors.doctor_name}>
+                <select value={editApptForm.doctor_name} onChange={e => setEditApptForm({ ...editApptForm, doctor_name: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
                   <option value="">{t('agenda_select', 'app')}</option>
                   {availableProfessionals.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
                 </select>
-              </div>
+              </FormField>
             </div>
 
             {/* Data + Horário + Duração */}
             <div className="grid grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_date', 'app')}</label>
-                <I18nDatePicker value={editApptForm.date} onChange={v => setEditApptForm({ ...editApptForm, date: v })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_time', 'app')} *</label>
-                <select value={editApptForm.time} onChange={e => setEditApptForm({ ...editApptForm, time: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required disabled={!editApptForm.date}>
+              <FormField label={t('agenda_date', 'app')} required error={editApptFieldErrors.date}>
+                <I18nDatePicker value={editApptForm.date} onChange={v => setEditApptForm({ ...editApptForm, date: v })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
+              </FormField>
+              <FormField label={t('agenda_time', 'app')} required error={editApptFieldErrors.time}>
+                <select value={editApptForm.time} onChange={e => setEditApptForm({ ...editApptForm, time: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" disabled={!editApptForm.date}>
                   <option value="">{t('agenda_select', 'app')}</option>
                   {TIME_SLOTS.map(slot => {
                     const occupied = hasTimeOverlap(editApptForm.date, slot, editApptForm.doctor_name, editApptForm.room, editingAppt?.id);
@@ -4025,9 +4082,8 @@ const AgendaModuleContent = ({
                     );
                   })}
                 </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_duration', 'app')}</label>
+              </FormField>
+              <FormField label={t('agenda_duration', 'app')} error={editApptFieldErrors.duration_minutes}>
                 <select value={editApptForm.duration_minutes} onChange={e => setEditApptForm({ ...editApptForm, duration_minutes: Number(e.target.value) })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
                   <option value={15}>15 {t('agenda_minutes', 'app')}</option>
                   <option value={20}>20 {t('agenda_minutes', 'app')}</option>
@@ -4037,74 +4093,87 @@ const AgendaModuleContent = ({
                   <option value={90}>90 {t('agenda_minutes', 'app')}</option>
                   <option value={120}>120 {t('agenda_minutes', 'app')}</option>
                 </select>
-              </div>
+              </FormField>
             </div>
+
+            {/* Recurso */}
+            <FormField label={t('agenda_resource', 'app')}>
+              <select value={editApptForm.resource} onChange={e => setEditApptForm({ ...editApptForm, resource: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                <option value="">{t('agenda_none', 'app')}</option>
+                {RESOURCES.map(r => <option key={r.id} value={t(r.nameKey, 'app')}>{t(r.nameKey, 'app')}</option>)}
+              </select>
+            </FormField>
 
             <div className="flex justify-end gap-2 pt-2">
               <button type="submit" className="py-2 px-4 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-lg transition">{t('agenda_save_changes', 'app')}</button>
-              <button type="button" onClick={() => { setShowEditApptModal(false); setEditingAppt(null); }} className="py-2 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg transition">{t('agenda_cancel', 'app')}</button>
+              <button type="button" onClick={() => { setShowEditApptModal(false); setEditingAppt(null); clearEditApptErrors(); }} className="py-2 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg transition">{t('agenda_cancel', 'app')}</button>
             </div>
           </form>
         </div>
       </InlineModal>
 
       {/* Blockage Modal */}
-      <InlineModal open={showBlockageModal} onClose={() => setShowBlockageModal(false)} className="max-w-md">
+      <InlineModal open={showBlockageModal} onClose={() => { setShowBlockageModal(false); clearBlkErrors(); }} className="max-w-md">
         <div className="p-6">
           <form onSubmit={handleBlockageSubmit} className="space-y-4" noValidate>
-            <h3 className="font-bold text-lg">{t('agenda_new_block_title', 'app')}</h3>
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-lg">{t('agenda_new_block_title', 'app')}</h3>
+              <button type="button" onClick={() => { setShowBlockageModal(false); clearBlkErrors(); }} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            {blkErrors.length > 0 && <FormErrorSummary errors={blkErrors} onClose={clearBlkErrors} />}
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">Sede *</label>
-                <select value={blockForm.branch} onChange={e => setBlockForm({ ...blockForm, branch: e.target.value, doctor_name: '' })} className="w-full p-2 pr-8 bg-slate-50 border border-slate-200 rounded-lg appearance-none text-sm" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.5rem center', backgroundSize: '1rem' }} required>
+              <FormField label={t('agenda_branch', 'app')} required error={blkFieldErrors.branch}>
+                <select value={blockForm.branch} onChange={e => setBlockForm({ ...blockForm, branch: e.target.value, doctor_name: '' })} className="w-full p-2 pr-8 bg-slate-50 border border-slate-200 rounded-lg appearance-none text-sm" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.5rem center', backgroundSize: '1rem' }}>
                   <option value="">{t('agenda_select_branch', 'app')}</option>
                   {locations.map(loc => <option key={loc.id} value={loc.id}>{loc.name}</option>)}
                 </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_professionals', 'app')} *</label>
-                <select value={blockForm.doctor_name} onChange={e => setBlockForm({ ...blockForm, doctor_name: e.target.value })} className="w-full p-2 pr-8 bg-slate-50 border border-slate-200 rounded-lg appearance-none text-sm" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.5rem center', backgroundSize: '1rem' }} required disabled={!blockForm.branch}>
-                  <option value="">{blockForm.branch ? t('agenda_all_professionals', 'app') : t('agenda_select_branch_first', 'app')}</option>
-                  {blockProfessionals.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
+              </FormField>
+              <FormField label={t('agenda_professionals', 'app')} required error={blkFieldErrors.doctor_name}>
+                <select value={blockForm.doctor_name} onChange={e => setBlockForm({ ...blockForm, doctor_name: e.target.value })} className="w-full p-2 pr-8 bg-slate-50 border border-slate-200 rounded-lg appearance-none text-sm" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.5rem center', backgroundSize: '1rem' }} disabled={!blockForm.branch}>
+                  {!blockForm.branch ? (
+                    <option value="">{t('agenda_select_branch_first', 'app')}</option>
+                  ) : (
+                    <>
+                      <option value="">{t('agenda_select', 'app')}</option>
+                      {blockProfessionals.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
+                    </>
+                  )}
                 </select>
-              </div>
+              </FormField>
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_start_date', 'app')}</label>
-                <I18nDatePicker value={blockForm.start_date} onChange={v => setBlockForm({ ...blockForm, start_date: v })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_end_date', 'app')}</label>
-                <I18nDatePicker value={blockForm.end_date} onChange={v => setBlockForm({ ...blockForm, end_date: v })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required />
-              </div>
+              <FormField label={t('agenda_start_date', 'app')} required error={blkFieldErrors.start_date}>
+                <I18nDatePicker value={blockForm.start_date} onChange={v => setBlockForm({ ...blockForm, start_date: v })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
+              </FormField>
+              <FormField label={t('agenda_end_date', 'app')} required error={blkFieldErrors.end_date}>
+                <I18nDatePicker value={blockForm.end_date} onChange={v => setBlockForm({ ...blockForm, end_date: v })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
+              </FormField>
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_start_time', 'app')}</label>
-                <input type="time" value={blockForm.start_time} onChange={e => setBlockForm({ ...blockForm, start_time: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_end_time', 'app')}</label>
-                <input type="time" value={blockForm.end_time} onChange={e => setBlockForm({ ...blockForm, end_time: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required />
-              </div>
+              <FormField label={t('agenda_start_time', 'app')} required error={blkFieldErrors.start_time}>
+                <input type="time" value={blockForm.start_time} onChange={e => setBlockForm({ ...blockForm, start_time: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
+              </FormField>
+              <FormField label={t('agenda_end_time', 'app')} required error={blkFieldErrors.end_time}>
+                <input type="time" value={blockForm.end_time} onChange={e => setBlockForm({ ...blockForm, end_time: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
+              </FormField>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_reason_required', 'app')}</label>
-              <select value={blockForm.reason} onChange={e => setBlockForm({ ...blockForm, reason: e.target.value as BlockedSlot['reason'] })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
+            <FormField label={t('agenda_reason_required', 'app')} required error={blkFieldErrors.reason}>
+              <select value={blockForm.reason} onChange={e => setBlockForm({ ...blockForm, reason: e.target.value as '' | BlockedSlot['reason'] })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                <option value="">{t('agenda_select', 'app')}</option>
                 <option value="feriado">{t('agenda_block_type_holiday', 'app')}</option>
                 <option value="férias">{t('agenda_block_type_vacation', 'app')}</option>
                 <option value="capacitação">{t('agenda_block_type_training', 'app')}</option>
                 <option value="emergência">{t('agenda_block_type_emergency', 'app')}</option>
               </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_description', 'app')}</label>
-              <input type="text" value={blockForm.description} onChange={e => setBlockForm({ ...blockForm, description: e.target.value })} placeholder={t('agenda_block_description_placeholder', 'app')} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required />
-            </div>
+            </FormField>
+            <FormField label={t('agenda_description', 'app')} required error={blkFieldErrors.description}>
+              <input type="text" value={blockForm.description} onChange={e => setBlockForm({ ...blockForm, description: e.target.value })} placeholder={t('agenda_block_description_placeholder', 'app')} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
+            </FormField>
             <div className="flex justify-end gap-2 pt-2">
               <button type="submit" className="py-2 px-4 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg transition">{t('agenda_register', 'app')}</button>
-              <button type="button" onClick={() => setShowBlockageModal(false)} className="py-2 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg transition">{t('agenda_close', 'app')}</button>
+              <button type="button" onClick={() => { setShowBlockageModal(false); clearBlkErrors(); }} className="py-2 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg transition">{t('agenda_close', 'app')}</button>
             </div>
           </form>
         </div>
@@ -4119,7 +4188,11 @@ const AgendaModuleContent = ({
               <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_patient', 'app')}</label>
               <select value={reminderForm.patient_id} onChange={e => {
                 const p = clinicPatients.find(p => p.id === e.target.value);
-                setReminderForm({ ...reminderForm, patient_id: e.target.value, patient_name: p?.name || '', patient_phone: p?.phone || '', appointment_id: '', language: detectLanguage(p?.nationality) });
+                const preferredLang = p?.preferred_language || '';
+                const reminderLang = ['pt-BR', 'pt-PT', 'es-AR', 'es-PY', 'es', 'en', 'gn'].includes(preferredLang)
+                  ? preferredLang as typeof reminderForm.language
+                  : detectLanguage(p?.nationality);
+                setReminderForm({ ...reminderForm, patient_id: e.target.value, patient_name: p?.name || '', patient_phone: p?.phone || '', appointment_id: '', language: reminderLang });
               }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
                 <option value="">{t('agenda_select_patient', 'app')}</option>
                 {clinicPatients.map(p => <option key={p.id} value={p.id}>{p.name} ({p.phone})</option>)}
@@ -4133,7 +4206,7 @@ const AgendaModuleContent = ({
               }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required disabled={!reminderForm.patient_id}>
                 <option value="">{!reminderForm.patient_id ? t('agenda_select_patient_first', 'app') : t('agenda_select_appointment', 'app')}</option>
                 {reminderAppointments.map(a => (
-                   <option key={a.id} value={a.id}>{a.date} {normalizeTime(a.time)} - {a.doctorName}</option>
+                   <option key={a.id} value={a.id}>{new Date(a.date + 'T12:00:00').toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' })} {normalizeTime(a.time)} - {a.doctorName}</option>
                 ))}
               </select>
             </div>
@@ -4166,14 +4239,14 @@ const AgendaModuleContent = ({
               <p className="text-sm text-slate-700">
                 {(() => {
                   const tpl = WHATSAPP_TEMPLATES.find(t => t.id === reminderForm.template_id);
-                  const text = tpl?.[getLangMessageKey(reminderForm.language)] || tpl?.messageEs || '';
                   const selectedAppt = reminderAppointments.find(a => a.id === reminderForm.appointment_id);
-                  return text
-                    .replace('{nombre}', reminderForm.patient_name || '{nombre}')
-                    .replace('{profesional}', selectedAppt?.doctorName || '{profesional}')
-                    .replace('{fecha}', selectedAppt ? new Date(selectedAppt.date + 'T12:00:00').toLocaleDateString(locale, { day: 'numeric', month: 'long', year: 'numeric' }) : '{fecha}')
-                    .replace('{hora}', selectedAppt ? normalizeTime(selectedAppt.time) : '{hora}')
-                    .replace('{sede}', selectedAppt?.branch || '{sede}');
+                  return tpl ? buildReminderMessage(tpl, reminderForm.language, {
+                    nombre: reminderForm.patient_name,
+                    profesional: selectedAppt?.doctorName,
+                    fecha: selectedAppt ? new Date(selectedAppt.date + 'T12:00:00').toLocaleDateString(locale, { day: 'numeric', month: 'long', year: 'numeric' }) : undefined,
+                    hora: selectedAppt ? normalizeTime(selectedAppt.time) : undefined,
+                    sede: selectedAppt?.branch ? locations.find(l => l.id === selectedAppt.branch)?.name || selectedAppt.branch : undefined,
+                  }) : '';
                 })() || t('agenda_select_template', 'app')}
               </p>
             </div>
@@ -4354,15 +4427,16 @@ const AgendaModuleContent = ({
               <div className="bg-blue-50 p-3 rounded-lg">
                 <p className="text-xs font-semibold text-blue-700 mb-1">{t('agenda_message_preview', 'app')}</p>
                 <p className="text-sm text-blue-800">
-                  {WHATSAPP_TEMPLATES.find(t => t.id === notifyTemplate)?.[
-                    getLangMessageKey(notifyLanguage)
-                  ]
-                    .replace('{nombre}', notifyEntry.patient_name)
-                    .replace('{profesional}', notifyEntry.doctor_name || t('agenda_any_professional', 'app'))
-                    .replace('{sede}', locations.find(l => l.id === notifyEntry.branch)?.name || t('agenda_branch_fallback', 'app'))
-                    .replace('{fecha}', notifyConsultDate || t('agenda_not_defined', 'app'))
-                    .replace('{hora}', notifyConsultTime || t('agenda_not_defined', 'app'))
-                    || t('agenda_select_template', 'app')}
+                  {(() => {
+                  const tpl = WHATSAPP_TEMPLATES.find(t => t.id === notifyTemplate);
+                  return tpl ? buildReminderMessage(tpl, notifyLanguage, {
+                    nombre: notifyEntry.patient_name,
+                    profesional: notifyEntry.doctor_name || t('agenda_any_professional', 'app'),
+                    sede: locations.find(l => l.id === notifyEntry.branch)?.name || t('agenda_branch_fallback', 'app'),
+                    fecha: notifyConsultDate || t('agenda_not_defined', 'app'),
+                    hora: notifyConsultTime || t('agenda_not_defined', 'app'),
+                  }) : t('agenda_select_template', 'app');
+                })()}
                 </p>
               </div>
               <div className="flex justify-end gap-2 pt-2">

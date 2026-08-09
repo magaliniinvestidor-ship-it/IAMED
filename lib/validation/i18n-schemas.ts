@@ -16,6 +16,9 @@ export interface ValidationMessages {
   documentType: string;
   civilStatus: string;
   photoRequired: string;
+  timeFormat: string;
+  timeRange: string;
+  dateRange: string;
   bloodType: string;
   preferredLanguage: string;
   allergiesRequired: string;
@@ -44,6 +47,9 @@ export function getValidationMessages(locale: Locale): ValidationMessages {
       allergiesRequired: 'Informe alergias / histórico clínico',
       rucFormat: 'RUC deve conter apenas números e hífens',
       urlInvalid: 'URL inválida',
+      timeFormat: 'Hora deve estar no formato HH:MM',
+      timeRange: 'Hora final deve ser maior que a inicial',
+      dateRange: 'Data final deve ser maior ou igual à data inicial',
     },
     'en': {
       required: (f) => `${f} is required`,
@@ -64,6 +70,9 @@ export function getValidationMessages(locale: Locale): ValidationMessages {
       allergiesRequired: 'Provide allergies / clinical history',
       rucFormat: 'RUC must contain only numbers and hyphens',
       urlInvalid: 'Invalid URL',
+      timeFormat: 'Time must be in HH:MM format',
+      timeRange: 'End time must be later than start time',
+      dateRange: 'End date must be on or after the start date',
     },
     'es': {
       required: (f) => `${f} es obligatorio`,
@@ -84,6 +93,9 @@ export function getValidationMessages(locale: Locale): ValidationMessages {
       allergiesRequired: 'Indique alergias / historial clínico',
       rucFormat: 'RUC debe contener solo números y guiones',
       urlInvalid: 'URL inválida',
+      timeFormat: 'Hora debe estar en formato HH:MM',
+      timeRange: 'Hora final debe ser mayor que la inicial',
+      dateRange: 'Fecha final debe ser mayor o igual a la fecha inicial',
     },
     'pt-PT': {
       required: (f) => `${f} é obrigatório`,
@@ -104,6 +116,9 @@ export function getValidationMessages(locale: Locale): ValidationMessages {
       allergiesRequired: 'Indique alergias / histórico clínico',
       rucFormat: 'RUC deve conter apenas números e hífens',
       urlInvalid: 'URL inválida',
+      timeFormat: 'Hora deve estar no formato HH:MM',
+      timeRange: 'Hora final deve ser maior que a inicial',
+      dateRange: 'Data final deve ser maior ou igual à data inicial',
     },
     'es-AR': {
       required: (f) => `${f} es obligatorio`,
@@ -144,6 +159,9 @@ export function getValidationMessages(locale: Locale): ValidationMessages {
       allergiesRequired: 'Indique alergias / historial clínico',
       rucFormat: 'RUC debe contener solo números y guiones',
       urlInvalid: 'URL inválida',
+      timeFormat: 'Hora debe estar en formato HH:MM',
+      timeRange: 'Hora final debe ser mayor que la inicial',
+      dateRange: 'Fecha final debe ser mayor o igual a la fecha inicial',
     },
   };
 
@@ -341,5 +359,79 @@ export function createPatientGuardianSchema(m: ValidationMessages) {
       .regex(/^[\d+\-\s()]+$/, m.phoneFormat)
       .optional()
       .or(z.literal('')),
+  });
+}
+
+export function createBlockedSlotSchema(m: ValidationMessages) {
+  return z
+    .object({
+      branch: z.string().min(1, m.required('Sede')).max(100, m.maxLength('Sede', 100)),
+      doctor_name: z.string().min(1, m.required('Profissional')).max(200, m.maxLength('Profissional', 200)),
+      start_date: z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/, m.dateFormat)
+        .refine((val) => !isNaN(Date.parse(val)), m.dateInvalid),
+      end_date: z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/, m.dateFormat)
+        .refine((val) => !isNaN(Date.parse(val)), m.dateInvalid),
+      start_time: z
+        .string()
+        .min(1, m.required('Hora de início'))
+        .regex(/^([01]\d|2[0-3]):[0-5]\d$/, m.timeFormat),
+      end_time: z
+        .string()
+        .min(1, m.required('Hora de fim'))
+        .regex(/^([01]\d|2[0-3]):[0-5]\d$/, m.timeFormat),
+      reason: z
+        .enum(['feriado', 'férias', 'capacitação', 'emergência', ''], {
+          message: m.required('Motivo'),
+        })
+        .refine((val) => val !== '', { message: m.required('Motivo') }),
+      description: z
+        .string()
+        .min(1, m.required('Descrição'))
+        .max(500, m.maxLength('Descrição', 500)),
+    })
+    .refine((d) => !d.start_date || !d.end_date || d.end_date >= d.start_date, {
+      message: m.dateRange,
+      path: ['end_date'],
+    })
+    .refine((d) => !d.start_time || !d.end_time || d.end_time > d.start_time, {
+      message: m.timeRange,
+      path: ['end_time'],
+    });
+}
+
+export function createEditAppointmentSchema(m: ValidationMessages) {
+  return z.object({
+    patient_id: z.string().min(1, m.required('Paciente')).max(20, m.maxLength('Paciente', 20)),
+    patient_name: z.string().min(1, m.required('Paciente')).max(200, m.maxLength('Paciente', 200)),
+    doctor_name: z.string().min(1, m.required('Profissional')).max(200, m.maxLength('Profissional', 200)),
+    specialty: z.string().min(1, m.required('Especialidade')).max(100, m.maxLength('Especialidade', 100)),
+    date: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, m.dateFormat)
+      .refine((val) => !isNaN(Date.parse(val)), m.dateInvalid),
+    time: z
+      .string()
+      .min(1, m.required('Horário'))
+      .regex(/^([01]\d|2[0-3]):[0-5]\d$/, m.timeFormat),
+    branch: z.string().min(1, m.required('Sede')).max(100, m.maxLength('Sede', 100)),
+    room: z.string().min(1, m.required('Sala')).max(50, m.maxLength('Sala', 50)),
+    status: z
+      .enum([
+        'agendado',
+        'confirmado',
+        'pendente',
+        'cancelado',
+        'atendido',
+        'remarcado',
+        'em sala de espera',
+        'em atendimento',
+        'finalizado',
+        'ausente',
+      ])
+      .optional(),
   });
 }

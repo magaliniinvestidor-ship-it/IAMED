@@ -343,3 +343,66 @@ export function MeuForm() {
 ### Exceção
 
 Se um módulo ainda não foi migrado para Zod (legado), ele PODE manter validação HTML5 temporariamente, mas DEVE ser migrado na próxima atualização do módulo.
+
+---
+
+## WhatsApp (Módulo de Lembretes)
+
+### Arquitetura Atual
+
+O envio de WhatsApp **NÃO tem API real** — o sistema usa um **provider de simulação**. A estrutura foi desenhada para permitir a troca por uma API real sem refatorar o resto do código.
+
+```
+lib/whatsapp/
+├── index.ts        # Re-exports
+├── templates.ts    # WHATSAPP_TEMPLATES, getLangMessageKey, buildReminderMessage
+└── provider.ts     # WhatsAppProvider (interface) + SimulatorProvider + get/setWhatsAppProvider
+```
+
+**Arquivos principais:**
+- `lib/whatsapp/templates.ts` — 3 templates (`tpl_1`=48h, `tpl_2`=24h, `tpl_3`=2h) multilíngue com placeholders `{nombre} {profesional} {fecha} {hora} {sede}`. `buildReminderMessage(tpl, lang, ctx)` é o ÚNICO ponto de interpolação dos placeholders.
+- `lib/whatsapp/provider.ts` — interface `WhatsAppProvider` com `sendMessage(phone, message, { onStatus, onError })`; `SimulatorProvider` emite `'sent' → 'delivered' → 'read'` com delays.
+- `components/AgendaModule.tsx` — consome via `getWhatsAppProvider().sendMessage(...)` (função `simulateWhatsAppSend`). A aba "WhatsApp" gerencia lembretes na tabela `whatsapp_reminders`.
+
+### Como Trocar para API Real (quando o usuário pedir)
+
+Quando o usuário pedir para integrar uma API de WhatsApp real (Twilio, Meta WhatsApp Business API, Evolution API, etc.):
+
+1. **Criar um novo provider** em `lib/whatsapp/provider.ts` (ou novo arquivo), implementando a interface `WhatsAppProvider`:
+   ```ts
+   export class EvolutionApiProvider implements WhatsAppProvider {
+     readonly id = 'evolution';
+     readonly name = 'Evolution API';
+     async sendMessage(phone: string, message: string, options?: WhatsAppSendOptions): Promise<WhatsAppSendResult> {
+       // fazer o POST real na API e chamar options.onStatus?.(...) conforme o status real
+       // 'sent' = fila da API, 'delivered' = entregue, 'read' = lido/lido duplo check
+     }
+   }
+   ```
+2. **Ativar o provider** rodando `setWhatsAppProvider(new EvolutionApiProvider())` no início do app (ex.: `app/page.tsx`) ou verificando variável de ambiente (ex.: `NEXT_PUBLIC_WHATSAPP_PROVIDER === 'evolution'`).
+3. **Regras obrigatórias ao integrar API real:**
+   - **NUNCA commitar chaves/credenciais**. Ler de `process.env.*` (`*.env.local`), ex.: `NEXT_PUBLIC_EVOLUTION_URL`, `EVOLUTION_KEY`.
+   - Não alterar a assinatura `sendMessage` — a UI depende dela.
+   - Manter `buildReminderMessage` como única fonte de interpolação de templates.
+   - Status devem continuar gravados na tabela `whatsapp_reminders` (status `scheduled/sent/delivered/read/confirmed/cancelled/rescheduled`).
+   - Em ambiente sem API configurada, manter `SimulatorProvider` como fallback.
+4. **Validar** com `npx tsc --noEmit` e `npx eslint lib/whatsapp components/AgendaModule.tsx`.
+5. Commit com mensagem tipo `feat: integrar WhatsApp API real em [NomeDoProvider]`.
+
+### Tabela `whatsapp_reminders` (colunas)
+
+| Coluna | Tipo | Uso |
+|---|---|---|
+| `id` | text | `rem_N` |
+| `appointment_id` | text | vínculo com `appointments` |
+| `patient_name` | text | nome (desnormalizado) |
+| `patient_phone` | text | telefone |
+| `message_template` | text | mensagem já interpolada |
+| `language` | text | `es/gn/pt/pt-BR/pt-PT/es-AR/es-PY/en` (CHECK) |
+| `status` | text | `scheduled/sent/delivered/read/confirmed/cancelled/rescheduled` (CHECK) |
+| `scheduled_for` | timestamp | quando disparar |
+| `sent_at` | timestamp | quando enviou |
+| `response_received` | text | `'1'`=confirmar, `'2'`=cancelar, `'3'`=remarcar |
+| `created_at` / `updated_at` | timestamp | auditoria |
+
+> **Nota:** a tabela `whatsapp_reminders` já possui CHECK de `language` e `status` com todos os valores usados — **nenhuma migração SQL é necessária** para o fluxo atual.

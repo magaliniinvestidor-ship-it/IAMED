@@ -7,6 +7,8 @@ import {
   createClinicPatientContactSchema,
   createClinicPatientComplementarySchema,
   createClinicPatientGuardianSchema,
+  createBlockedSlotSchema,
+  createEditAppointmentSchema,
 } from './i18n-schemas';
 
 export const createEmailSchema = (m: ValidationMessages) =>
@@ -415,6 +417,12 @@ export type ClinicPatientIdentificationFormData = z.infer<ReturnType<typeof crea
 export type ClinicPatientContactFormData = z.infer<ReturnType<typeof createClinicPatientContactSchema>>;
 export type ClinicPatientComplementaryFormData = z.infer<ReturnType<typeof createClinicPatientComplementarySchema>>;
 export type ClinicPatientGuardianFormData = z.infer<ReturnType<typeof createClinicPatientGuardianSchema>>;
+
+export const blockedSlotSchema = createBlockedSlotSchema(ptBRMessages);
+export type BlockedSlotFormData = z.infer<typeof blockedSlotSchema>;
+
+export const editAppointmentSchema = createEditAppointmentSchema(ptBRMessages);
+export type EditAppointmentFormData = z.infer<typeof editAppointmentSchema>;
 
 const defaultMessages = ptBRMessages;
 export const patientIdentificationSchema = createPatientIdentificationSchema(defaultMessages);
