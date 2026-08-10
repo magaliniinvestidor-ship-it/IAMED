@@ -7,7 +7,14 @@ import { supabase } from '@/lib/supabaseClient';
 import { useI18n } from '@/lib/i18n/I18nContext';
 import { useModuleId } from '@/hooks/useModuleId';
 import { useFormValidation } from '@/lib/validation';
-import { prescriptionSchema } from '@/lib/validation/schemas';
+import {
+  prescriptionSchema,
+  anamneseSchema,
+  soapSchema,
+  examRequestSchema,
+  procedureSchema,
+  attachmentSchema,
+} from '@/lib/validation/schemas';
 import { FormErrorSummary } from '@/components/forms';
 
 import {
@@ -207,7 +214,22 @@ const ClinicalModuleContent = ({
   patientsRef.current = patients;
 
   const genId = useModuleId('next_clinical_id');
-  const { errors: prescErrors, validate: validatePresc } = useFormValidation(prescriptionSchema);
+  const { errors: prescErrors, validate: validatePresc, setErrors: setPrescErrors, clearErrors: clearPrescErrors } = useFormValidation(prescriptionSchema);
+  const { errors: anamneseErrors, validate: validateAnamnese, clearErrors: clearAnamneseErrors } = useFormValidation(anamneseSchema);
+  const { errors: soapErrors, validate: validateSoap, clearErrors: clearSoapErrors } = useFormValidation(soapSchema);
+  const { errors: examErrors, validate: validateExam, clearErrors: clearExamErrors } = useFormValidation(examRequestSchema);
+  const { errors: procErrors, validate: validateProc, clearErrors: clearProcErrors } = useFormValidation(procedureSchema);
+  const { errors: attErrors, validate: validateAtt, clearErrors: clearAttErrors } = useFormValidation(attachmentSchema);
+
+  const switchHceTab = useCallback((tab: HCETab) => {
+    clearAnamneseErrors();
+    clearSoapErrors();
+    clearExamErrors();
+    clearProcErrors();
+    clearAttErrors();
+    setPrescErrors([]);
+    setHceTab(tab);
+  }, [clearAnamneseErrors, clearSoapErrors, clearExamErrors, clearProcErrors, clearAttErrors, setPrescErrors]);
 
   // Load CID-10 codes from Supabase (server-side search)
   useEffect(() => {
@@ -769,6 +791,22 @@ const ClinicalModuleContent = ({
   // ─── SAVE ANAMNESE ───
   const handleSaveAnamnese = async () => {
     const isEdit = !!anamnese.id;
+    const result = validateAnamnese({
+      patientId: selectedPatient?.id || '',
+      notes: anamnese.notes || '',
+      occupation: anamnese.occupation || '',
+      smoking: anamnese.smoking || '',
+      alcohol: anamnese.alcohol || '',
+      diet: anamnese.diet || '',
+      sleep: anamnese.sleep || '',
+      physicalActivity: anamnese.physicalActivity || '',
+      maritalStatus: anamnese.maritalStatus || '',
+      allergiesCount: anamnese.allergies?.length || 0,
+      medicationsCount: anamnese.currentMedications?.length || 0,
+      familyHistoryCount: anamnese.familyHistory?.length || 0,
+      surgicalHistoryCount: anamnese.surgicalHistory?.length || 0,
+    });
+    if (!result.success) return;
     const entry: Anamnese = {
       ...anamnese,
       id: anamnese.id || await genId('anam'),
@@ -830,6 +868,15 @@ const ClinicalModuleContent = ({
   // ─── SAVE SOAP NOTE ───
   const handleSaveSoap = async () => {
     const isEdit = !!soapNote.id;
+    const result = validateSoap({
+      patientId: selectedPatient?.id || '',
+      subjective: soapNote.subjective || '',
+      objective: soapNote.objective || '',
+      assessment: soapNote.assessment || '',
+      plan: soapNote.plan || '',
+      notes: soapNote.notes || '',
+    });
+    if (!result.success) return;
     const entry: SoapNote = {
       ...soapNote,
       id: soapNote.id || await genId('soap'),
@@ -955,6 +1002,14 @@ const ClinicalModuleContent = ({
 
   // ─── SAVE EXAM REQUEST ───
   const handleSaveExamRequest = async () => {
+    const result = validateExam({
+      patientId: selectedPatient?.id || '',
+      examName: examRequestForm.examName || '',
+      examType: examRequestForm.examType,
+      urgency: examRequestForm.urgency,
+      clinicalIndication: examRequestForm.clinicalIndication || '',
+    });
+    if (!result.success) return;
     const req: ExamRequest = {
       id: await genId('exam'),
       patientId: selectedPatient?.id || '',
@@ -991,6 +1046,15 @@ const ClinicalModuleContent = ({
 
   // ─── SAVE PROCEDURE ───
   const handleSaveProcedure = async () => {
+    const result = validateProc({
+      patientId: selectedPatient?.id || '',
+      procedureCode: procedureForm.procedureCode || '',
+      procedureName: procedureForm.procedureName || '',
+      procedureCategory: procedureForm.procedureCategory || '',
+      quantity: Number(procedureForm.quantity) || 0,
+      notes: procedureForm.notes || '',
+    });
+    if (!result.success) return;
     const proc: Procedure = {
       id: await genId('proc'),
       patientId: selectedPatient?.id || '',
@@ -1094,6 +1158,14 @@ const ClinicalModuleContent = ({
 
   // ─── SAVE ATTACHMENT (INSERT to Supabase) ───
   const handleSaveAttachment = async (file: File) => {
+    const result = validateAtt({
+      patientId: selectedPatient?.id || '',
+      fileName: file.name,
+      fileSizeBytes: file.size,
+      mimeType: file.type || 'application/octet-stream',
+      description: '',
+    });
+    if (!result.success) return;
     const att = {
       id: await genId('att'),
       patient_id: selectedPatient?.id || '',
@@ -1510,7 +1582,7 @@ const ClinicalModuleContent = ({
                   {hceTabs.slice(0, 6).map(tab => {
                     const Icon = tab.icon;
                     return (
-                      <button key={tab.key} onClick={() => setHceTab(tab.key)}
+                      <button key={tab.key} onClick={() => switchHceTab(tab.key)}
                         className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-t-lg transition whitespace-nowrap cursor-pointer
                           ${hceTab === tab.key ? 'bg-teal-50 text-teal-700 border-b-2 border-teal-600' : 'text-slate-500 hover:bg-slate-50'}`}>
                         <Icon className="w-3.5 h-3.5" /> {tab.label}
@@ -1522,7 +1594,7 @@ const ClinicalModuleContent = ({
                   {hceTabs.slice(6).map(tab => {
                     const Icon = tab.icon;
                     return (
-                      <button key={tab.key} onClick={() => setHceTab(tab.key)}
+                      <button key={tab.key} onClick={() => switchHceTab(tab.key)}
                         className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-t-lg transition whitespace-nowrap cursor-pointer
                           ${hceTab === tab.key ? 'bg-teal-50 text-teal-700 border-b-2 border-teal-600' : 'text-slate-500 hover:bg-slate-50'}`}>
                         <Icon className="w-3.5 h-3.5" /> {tab.label}
@@ -1538,6 +1610,8 @@ const ClinicalModuleContent = ({
                   <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
                     <BookOpen className="w-4 h-4 text-teal-600" /> {t('hce_anamnese_title', 'app')}
                   </h3>
+
+                  {anamneseErrors.length > 0 && <FormErrorSummary errors={anamneseErrors} />}
 
                   {!selectedPatId ? (
                     <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -1694,7 +1768,7 @@ const ClinicalModuleContent = ({
                     <div className="grid grid-cols-4 gap-2">
                       <input type="text" placeholder={t('hce_relation', 'app')} value={newFamily.relation} onChange={e => setNewFamily(p => ({ ...p, relation: e.target.value }))} className={inputCls} />
                       <input type="text" placeholder={t('hce_condition', 'app')} value={newFamily.condition} onChange={e => setNewFamily(p => ({ ...p, condition: e.target.value }))} className={inputCls} />
-                      <input type="number" placeholder={t('hce_age', 'app')} value={newFamily.age || ''} onChange={e => setNewFamily(p => ({ ...p, age: parseInt(e.target.value) || undefined }))} className={inputCls} />
+                      <input type="text" inputMode="numeric" placeholder={t('hce_age', 'app')} value={newFamily.age || ''} onChange={e => setNewFamily(p => ({ ...p, age: parseInt(e.target.value) || undefined }))} className={inputCls} />
                       <button type="button" onClick={() => {
                         if (!newFamily.relation.trim()) return;
                         if (!newFamily.condition.trim()) return;
@@ -1751,19 +1825,19 @@ const ClinicalModuleContent = ({
                       </div>
                       <div>
                         <label className={labelCls}>{t('hce_gynecological_gestations', 'app')}</label>
-                        <input type="number" value={anamnese.gynecological?.gestations ?? ''} onChange={e => setAnamnese(p => ({ ...p, gynecological: { ...p.gynecological!, gestations: parseInt(e.target.value) || 0 } }))} className={inputCls} />
+                        <input type="text" inputMode="numeric" value={anamnese.gynecological?.gestations ?? ''} onChange={e => setAnamnese(p => ({ ...p, gynecological: { ...p.gynecological!, gestations: parseInt(e.target.value) || 0 } }))} className={inputCls} />
                       </div>
                       <div>
                         <label className={labelCls}>{t('hce_gynecological_deliveries', 'app')}</label>
-                        <input type="number" value={anamnese.gynecological?.deliveries ?? ''} onChange={e => setAnamnese(p => ({ ...p, gynecological: { ...p.gynecological!, deliveries: parseInt(e.target.value) || 0 } }))} className={inputCls} />
+                        <input type="text" inputMode="numeric" value={anamnese.gynecological?.deliveries ?? ''} onChange={e => setAnamnese(p => ({ ...p, gynecological: { ...p.gynecological!, deliveries: parseInt(e.target.value) || 0 } }))} className={inputCls} />
                       </div>
                       <div>
                         <label className={labelCls}>{t('hce_gynecological_abortions', 'app')}</label>
-                        <input type="number" value={anamnese.gynecological?.abortions ?? ''} onChange={e => setAnamnese(p => ({ ...p, gynecological: { ...p.gynecological!, abortions: parseInt(e.target.value) || 0 } }))} className={inputCls} />
+                        <input type="text" inputMode="numeric" value={anamnese.gynecological?.abortions ?? ''} onChange={e => setAnamnese(p => ({ ...p, gynecological: { ...p.gynecological!, abortions: parseInt(e.target.value) || 0 } }))} className={inputCls} />
                       </div>
                       <div>
                         <label className={labelCls}>{t('hce_gynecological_cesareans', 'app')}</label>
-                        <input type="number" value={anamnese.gynecological?.cesareans ?? ''} onChange={e => setAnamnese(p => ({ ...p, gynecological: { ...p.gynecological!, cesareans: parseInt(e.target.value) || 0 } }))} className={inputCls} />
+                        <input type="text" inputMode="numeric" value={anamnese.gynecological?.cesareans ?? ''} onChange={e => setAnamnese(p => ({ ...p, gynecological: { ...p.gynecological!, cesareans: parseInt(e.target.value) || 0 } }))} className={inputCls} />
                       </div>
                       <div>
                         <label className={labelCls}>{t('hce_gynecological_last_menstruation', 'app')}</label>
@@ -1782,7 +1856,7 @@ const ClinicalModuleContent = ({
                     <div className="grid grid-cols-4 gap-2">
                       <div>
                         <label className={labelCls}>{t('hce_obstetric_gestation_number', 'app')}</label>
-                        <input type="number" value={anamnese.obstetric?.gestationNumber ?? ''} onChange={e => setAnamnese(p => ({ ...p, obstetric: { gestationNumber: parseInt(e.target.value) || 0, expectedDueDate: p.obstetric?.expectedDueDate || '', prenatalStart: p.obstetric?.prenatalStart || '', riskClassification: p.obstetric?.riskClassification || '' } }))} className={inputCls} />
+                        <input type="text" inputMode="numeric" value={anamnese.obstetric?.gestationNumber ?? ''} onChange={e => setAnamnese(p => ({ ...p, obstetric: { gestationNumber: parseInt(e.target.value) || 0, expectedDueDate: p.obstetric?.expectedDueDate || '', prenatalStart: p.obstetric?.prenatalStart || '', riskClassification: p.obstetric?.riskClassification || '' } }))} className={inputCls} />
                       </div>
                       <div>
                         <label className={labelCls}>{t('hce_obstetric_due_date', 'app')}</label>
@@ -2049,6 +2123,8 @@ const ClinicalModuleContent = ({
                   <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
                     <ClipboardList className="w-4 h-4 text-teal-600" /> {t('hce_soap_title', 'app')}
                   </h3>
+
+                  {soapErrors.length > 0 && <FormErrorSummary errors={soapErrors} />}
 
                   {!selectedPatId ? (
                     <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -2386,7 +2462,7 @@ const ClinicalModuleContent = ({
                                     </div>
                                     <div>
                                       <label className={labelCls}>{t('presc_quantity', 'app')}</label>
-                                      <input type="number" value={editingPrescription.quantity} onChange={e => setEditingPrescription(prev => prev ? { ...prev, quantity: parseInt(e.target.value) || 1 } : null)} className={inputCls} min={1} />
+                                      <input type="text" inputMode="numeric" value={editingPrescription.quantity} onChange={e => setEditingPrescription(prev => prev ? { ...prev, quantity: parseInt(e.target.value) || 1 } : null)} className={inputCls} />
                                     </div>
                                     <div>
                                       <label className={labelCls}>{t('presc_unit', 'app')}</label>
@@ -2528,7 +2604,7 @@ const ClinicalModuleContent = ({
                         </div>
                         <div>
                           <label className={labelCls}>{t('presc_quantity', 'app')}</label>
-                          <input type="number" value={prescriptionForm.quantity} onChange={e => setPrescriptionForm(p => ({ ...p, quantity: parseInt(e.target.value) || 1 }))} className={inputCls} min={1} />
+                          <input type="text" inputMode="numeric" value={prescriptionForm.quantity} onChange={e => setPrescriptionForm(p => ({ ...p, quantity: parseInt(e.target.value) || 1 }))} className={inputCls} />
                         </div>
                         <div>
                           <label className={labelCls}>{t('presc_unit', 'app')}</label>
@@ -2565,6 +2641,8 @@ const ClinicalModuleContent = ({
                   <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
                     <Scan className="w-4 h-4 text-teal-600" /> {t('hce_exam_request_title', 'app')}
                   </h3>
+
+                  {examErrors.length > 0 && <FormErrorSummary errors={examErrors} />}
 
                   {!selectedPatId ? (
                     <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -2665,6 +2743,8 @@ const ClinicalModuleContent = ({
                     <Activity className="w-4 h-4 text-teal-600" /> {t('hce_procedure_title', 'app')}
                   </h3>
 
+                  {procErrors.length > 0 && <FormErrorSummary errors={procErrors} />}
+
                   {!selectedPatId ? (
                     <div className="flex flex-col items-center justify-center py-12 text-center">
                       <AlertTriangle className="w-10 h-10 text-amber-400 mb-3" />
@@ -2697,7 +2777,7 @@ const ClinicalModuleContent = ({
                   <div className="grid grid-cols-3 gap-2">
                     <div>
                       <label className={labelCls}>{t('hce_procedure_quantity', 'app')}</label>
-                      <input type="number" value={procedureForm.quantity} onChange={e => setProcedureForm(p => ({ ...p, quantity: parseInt(e.target.value) || 1 }))} className={inputCls} min={1} />
+                      <input type="text" inputMode="numeric" value={procedureForm.quantity} onChange={e => setProcedureForm(p => ({ ...p, quantity: parseInt(e.target.value) || 1 }))} className={inputCls} />
                     </div>
                     <div>
                       <label className={labelCls}>{t('hce_procedure_status', 'app')}</label>
@@ -2768,6 +2848,8 @@ const ClinicalModuleContent = ({
                   <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
                     <Paperclip className="w-4 h-4 text-teal-600" /> {t('hce_attachment_title', 'app')}
                   </h3>
+
+                  {attErrors.length > 0 && <FormErrorSummary errors={attErrors} />}
 
                   {!selectedPatId ? (
                     <div className="flex flex-col items-center justify-center py-12 text-center">

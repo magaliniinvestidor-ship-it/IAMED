@@ -234,6 +234,78 @@ export const prescriptionSchema = z.object({
 
 export type PrescriptionFormData = z.infer<typeof prescriptionSchema>;
 
+export const anamneseSchema = z.object({
+  patientId: nonEmptyString('Paciente', 20),
+  notes: optionalString(2000),
+  occupation: optionalString(200),
+  smoking: optionalString(200),
+  alcohol: optionalString(200),
+  diet: optionalString(200),
+  sleep: optionalString(200),
+  physicalActivity: optionalString(200),
+  maritalStatus: optionalString(50),
+  allergiesCount: z.number().int('Alergias: deve ser inteiro').min(0).max(50),
+  medicationsCount: z.number().int('Medicações: deve ser inteiro').min(0).max(50),
+  familyHistoryCount: z.number().int('Histórico familiar: deve ser inteiro').min(0).max(50),
+  surgicalHistoryCount: z.number().int('Cirurgias: deve ser inteiro').min(0).max(50),
+});
+
+export type AnamneseFormData = z.infer<typeof anamneseSchema>;
+
+export const soapSchema = z.object({
+  patientId: nonEmptyString('Paciente', 20),
+  subjective: nonEmptyString('Subjetivo (S)', 4000),
+  objective: nonEmptyString('Objetivo (O)', 4000),
+  assessment: nonEmptyString('Avaliação (A)', 2000),
+  plan: nonEmptyString('Plano (P)', 4000),
+  notes: optionalString(4000),
+});
+
+export type SoapFormData = z.infer<typeof soapSchema>;
+
+export const examRequestSchema = z.object({
+  patientId: nonEmptyString('Paciente', 20),
+  examName: nonEmptyString('Nome do exame', 200),
+  examType: z.enum(['laboratorio', 'imagem', 'anatomia_patologica', 'outro'], {
+    message: 'Tipo de exame inválido',
+  }),
+  urgency: z.enum(['rotina', 'urgente', 'emergencia'], {
+    message: 'Urgência inválida',
+  }),
+  clinicalIndication: optionalString(1000),
+});
+
+export type ExamRequestFormData = z.infer<typeof examRequestSchema>;
+
+export const procedureSchema = z.object({
+  patientId: nonEmptyString('Paciente', 20),
+  procedureCode: optionalString(50),
+  procedureName: nonEmptyString('Nome do procedimento', 200),
+  procedureCategory: optionalString(100),
+  quantity: z
+    .number()
+    .int('Quantidade deve ser inteira')
+    .min(1, 'Quantidade mínima: 1')
+    .max(999, 'Quantidade máxima: 999'),
+  notes: optionalString(1000),
+});
+
+export type ProcedureFormData = z.infer<typeof procedureSchema>;
+
+export const attachmentSchema = z.object({
+  patientId: nonEmptyString('Paciente', 20),
+  fileName: nonEmptyString('Nome do arquivo', 500),
+  fileSizeBytes: z
+    .number()
+    .int('Tamanho deve ser inteiro')
+    .min(1, 'Arquivo vazio')
+    .max(50 * 1024 * 1024, 'Arquivo excede 50MB'),
+  mimeType: nonEmptyString('Tipo MIME', 100),
+  description: optionalString(500),
+});
+
+export type AttachmentFormData = z.infer<typeof attachmentSchema>;
+
 export const passwordChangeSchema = z.object({
   password: nonEmptyString('Senha', 100).min(6, 'Mínimo 6 caracteres'),
   confirmPassword: nonEmptyString('Confirmação', 100),
