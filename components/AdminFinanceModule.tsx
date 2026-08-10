@@ -2681,8 +2681,20 @@ const resetProfForm = () => {
             />
           )}
 
-          {(adminTab === 'locations' || adminTab === 'rooms') && (
+          {adminTab === 'locations' && (
             <LocationsTab
+              mode="locations"
+              locations={locations}
+              setLocations={setLocations}
+              clinicalRooms={clinicalRooms}
+              setClinicalRooms={setClinicalRooms}
+              addAuditLog={addAuditLog}
+            />
+          )}
+
+          {adminTab === 'rooms' && (
+            <LocationsTab
+              mode="rooms"
               locations={locations}
               setLocations={setLocations}
               clinicalRooms={clinicalRooms}

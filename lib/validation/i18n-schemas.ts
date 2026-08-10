@@ -2,6 +2,10 @@ import { z } from 'zod';
 
 export type Locale = 'pt-BR' | 'pt-PT' | 'en' | 'es' | 'es-AR' | 'es-PY';
 
+export function optionalString(m: ValidationMessages, max = 500) {
+  return z.string().max(max, m.maxLength('Texto', max)).optional().or(z.literal(''));
+}
+
 export interface ValidationMessages {
   required: (field: string) => string;
   email: string;
@@ -433,5 +437,68 @@ export function createEditAppointmentSchema(m: ValidationMessages) {
         'ausente',
       ])
       .optional(),
+  });
+}
+
+export function createWaitlistSchema(m: ValidationMessages) {
+  return z.object({
+    patient_id: z.string().min(1, m.required('Paciente')).max(20, m.maxLength('Paciente', 20)),
+    patient_name: z.string().min(1, m.required('Paciente')).max(200, m.maxLength('Paciente', 200)),
+    phone: optionalString(m, 20),
+    branch: z.string().min(1, m.required('Sede')).max(100, m.maxLength('Sede', 100)),
+    specialty: z.string().min(1, m.required('Especialidade')).max(100, m.maxLength('Especialidade', 100)),
+    doctor_name: z.string().min(1, m.required('Profissional')).max(200, m.maxLength('Profissional', 200)),
+    priority_criteria: z.enum(['arrival', 'urgency', 'coverage', 'seniority'], {
+      message: m.required('Critério de prioridade'),
+    }),
+    preferred_days: z.array(z.string()).default([]),
+    preferred_hours: z.array(z.string()).default([]),
+    status: z
+      .enum(['aguardando', 'notificado', 'alocado', 'cancelado'], {
+        message: m.required('Status'),
+      })
+      .optional(),
+  });
+}
+
+export function createAllocateWaitlistSchema(m: ValidationMessages) {
+  return z.object({
+    date: z
+      .string()
+      .min(1, m.required('Data'))
+      .regex(/^\d{4}-\d{2}-\d{2}$/, m.dateFormat)
+      .refine((val) => !isNaN(Date.parse(val)), m.dateInvalid),
+    time: z
+      .string()
+      .min(1, m.required('Horário'))
+      .regex(/^([01]\d|2[0-3]):[0-5]\d$/, m.timeFormat),
+    doctor_name: z.string().min(1, m.required('Profissional')).max(200, m.maxLength('Profissional', 200)),
+  });
+}
+
+export function createNotifyWaitlistSchema(m: ValidationMessages) {
+  return z.object({
+    language: z.string().min(1, m.required('Idioma')).max(10, m.maxLength('Idioma', 10)),
+    template: z.string().min(1, m.required('Modelo')).max(50, m.maxLength('Modelo', 50)),
+    consult_date: z
+      .string()
+      .min(1, m.required('Data da consulta'))
+      .regex(/^\d{4}-\d{2}-\d{2}$/, m.dateFormat)
+      .refine((val) => !isNaN(Date.parse(val)), m.dateInvalid),
+    consult_time: z
+      .string()
+      .min(1, m.required('Horário da consulta'))
+      .regex(/^([01]\d|2[0-3]):[0-5]\d$/, m.timeFormat),
+  });
+}
+
+export function createCallLogSchema(m: ValidationMessages) {
+  return z.object({
+    patient_id: z.string().min(1, m.required('Paciente')).max(20, m.maxLength('Paciente', 20)),
+    patient_name: z.string().min(1, m.required('Paciente')).max(200, m.maxLength('Paciente', 200)),
+    patient_phone: optionalString(m, 20),
+    type: z.enum(['inbound', 'outbound'], { message: m.required('Tipo') }),
+    reason: z.string().min(1, m.required('Motivo')).max(50, m.maxLength('Motivo', 50)),
+    notes: optionalString(m, 1000),
   });
 }

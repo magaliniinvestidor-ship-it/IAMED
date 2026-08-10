@@ -825,6 +825,7 @@
     "agenda_schedule_reminder": "Schedule WhatsApp Reminder",
     "agenda_language": "Language",
     "agenda_template": "Template",
+    "agenda_message": "Message",
     "agenda_message_preview": "Message preview:",
     "agenda_schedule": "Schedule",
     "agenda_add_to_waitlist": "Add to Waiting List",

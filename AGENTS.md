@@ -133,6 +133,7 @@ id = `surg_${Date.now()}`;
 | **Diagnóstico (PACS/SADT)** | `rep` (Laudos), `hl7` (Mensagens HL7), `m` (Medições Laboratório) |
 | **CRM & BI Analyst** | `camp` (Campanhas), `lead` (Leads), `opp` (Oportunidades), `opt` (Opt-Outs), `nps` (Pesquisas NPS) |
 | **Financeiro, Faturamento & LGPD** | `dte` (Documentos Eletrônicos), `fin` (Lançamentos Financeiros), `stk` (Itens Estoque/Patrimônio), `ins` (Convênios), `sso` (Provedores SSO), `elig` (Consultas Elegibilidade), `sett` (Repasses/Liquidacões), `frn` (Faturamento Estrangeiro), `batch` (Lotes Faturamento) |
+| **Agenda (Módulo 2)** | `blk` (Bloqueios de horário), `wl` (Lista de Espera), `whats` (Lembretes WhatsApp), `call` (Call Center) |
 
 ### Padrão Recomendado nos Componentes
 

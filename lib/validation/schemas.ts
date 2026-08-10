@@ -9,6 +9,10 @@ import {
   createClinicPatientGuardianSchema,
   createBlockedSlotSchema,
   createEditAppointmentSchema,
+  createWaitlistSchema,
+  createAllocateWaitlistSchema,
+  createNotifyWaitlistSchema,
+  createCallLogSchema,
 } from './i18n-schemas';
 
 export const createEmailSchema = (m: ValidationMessages) =>
@@ -741,3 +745,14 @@ export const financeStockItemSchema = z.object({
 });
 
 export type FinanceStockItemFormData = z.infer<typeof financeStockItemSchema>;
+
+export const waitlistSchema = createWaitlistSchema(ptBRMessages);
+export const allocateWaitlistSchema = createAllocateWaitlistSchema(ptBRMessages);
+export const notifyWaitlistSchema = createNotifyWaitlistSchema(ptBRMessages);
+
+export type WaitlistFormData = z.infer<typeof waitlistSchema>;
+export type AllocateWaitlistFormData = z.infer<typeof allocateWaitlistSchema>;
+export type NotifyWaitlistFormData = z.infer<typeof notifyWaitlistSchema>;
+
+export const callLogSchema = createCallLogSchema(ptBRMessages);
+export type CallLogFormData = z.infer<typeof callLogSchema>;

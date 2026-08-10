@@ -23,11 +23,12 @@ import PhoneInput from '@/components/PhoneInput';
 import I18nDatePicker from '@/components/I18nDatePicker';
 import { Badge } from '@/components/ui/badge';
 import { useFormValidation, groupErrorsByPath } from '@/lib/validation';
-import { appointmentSchema, createAllClinicPatientSchemas } from '@/lib/validation/schemas';
-import { getValidationMessages, createBlockedSlotSchema, createEditAppointmentSchema } from '@/lib/validation/i18n-schemas';
+import { appointmentSchema, createAllClinicPatientSchemas, waitlistSchema, allocateWaitlistSchema, notifyWaitlistSchema, callLogSchema } from '@/lib/validation/schemas';
+import { getValidationMessages, createBlockedSlotSchema, createEditAppointmentSchema, createWaitlistSchema, createAllocateWaitlistSchema, createNotifyWaitlistSchema, createCallLogSchema } from '@/lib/validation/i18n-schemas';
 import { FormField, FormErrorSummary } from '@/components/forms';
 import { PatientAvatar } from '@/components/PatientAvatar';
 import { WHATSAPP_TEMPLATES, buildReminderMessage, getWhatsAppProvider } from '@/lib/whatsapp';
+import { useModuleId } from '@/hooks/useModuleId';
 
 // ==============================================================
 // INLINE MODAL (avoids Radix Dialog portal/focus issues)
@@ -457,40 +458,8 @@ const AgendaModuleContent = ({
   const [callTimer, setCallTimer] = useState(0);
   const [callDateView, setCallDateView] = useState<'day' | 'week' | 'month'>('day');
   const [callSelectedDate, setCallSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const callCounterRef = useRef(0);
-  const waitlistCounterRef = useRef(0);
-  const reminderCounterRef = useRef(0);
 
-  // Initialize counters from existing data to avoid duplicate IDs
-  useEffect(() => {
-    let maxWlId = 0;
-    let maxRemId = 0;
-    let maxCallId = 0;
-    waitlist.forEach(w => {
-      const match = w.id.match(/^wl_(\d+)$/);
-      if (match) {
-        const num = parseInt(match[1], 10);
-        if (num > maxWlId) maxWlId = num;
-      }
-    });
-    reminders.forEach(r => {
-      const match = r.id.match(/^rem_(\d+)$/);
-      if (match) {
-        const num = parseInt(match[1], 10);
-        if (num > maxRemId) maxRemId = num;
-      }
-    });
-    callLogs.forEach(c => {
-      const match = c.id.match(/^call_(\d+)$/);
-      if (match) {
-        const num = parseInt(match[1], 10);
-        if (num > maxCallId) maxCallId = num;
-      }
-    });
-    if (maxWlId > waitlistCounterRef.current) waitlistCounterRef.current = maxWlId;
-    if (maxRemId > reminderCounterRef.current) reminderCounterRef.current = maxRemId;
-    if (maxCallId > callCounterRef.current) callCounterRef.current = maxCallId;
-  }, [appointments, waitlist, reminders, callLogs]);
+  // Blocked slots
 
   // Blocked slots
   const [blockedSlots, setBlockedSlots] = useState<BlockedSlot[]>([]);
@@ -523,6 +492,20 @@ const AgendaModuleContent = ({
   const { errors: cpCompErrors, validate: validateCpComp, setErrors: setCpCompErrors, clearErrors: clearCpCompErrors } = useFormValidation(cpSchemas.complementary);
   const { errors: cpGuardErrors, validate: validateCpGuard, setErrors: setCpGuardErrors, clearErrors: clearCpGuardErrors } = useFormValidation(cpSchemas.guardian);
   const [cpErrors, setCpErrors] = useState<typeof cpIdErrors>([]);
+
+  const genModuleId = useModuleId();
+  const wlSchema = useMemo(() => createWaitlistSchema(validationMessages), [validationMessages]);
+  const { errors: wlErrors, validate: validateWl, clearErrors: clearWlErrors } = useFormValidation(wlSchema);
+  const wlFieldErrors = groupErrorsByPath(wlErrors);
+  const allocWlSchema = useMemo(() => createAllocateWaitlistSchema(validationMessages), [validationMessages]);
+  const { errors: allocWlErrors, validate: validateAllocWl, clearErrors: clearAllocWlErrors } = useFormValidation(allocWlSchema);
+  const allocWlFieldErrors = groupErrorsByPath(allocWlErrors);
+  const notifWlSchema = useMemo(() => createNotifyWaitlistSchema(validationMessages), [validationMessages]);
+  const { errors: notifWlErrors, validate: validateNotifWl, clearErrors: clearNotifWlErrors } = useFormValidation(notifWlSchema);
+  const notifWlFieldErrors = groupErrorsByPath(notifWlErrors);
+  const callLogFormSchema = useMemo(() => createCallLogSchema(validationMessages), [validationMessages]);
+  const { errors: callLogFormErrors, validate: validateCallLog, clearErrors: clearCallLogErrors } = useFormValidation(callLogFormSchema);
+  const callLogFieldErrors = groupErrorsByPath(callLogFormErrors);
 
   // Edit appointment modal
   const [showEditApptModal, setShowEditApptModal] = useState(false);
@@ -723,7 +706,6 @@ const AgendaModuleContent = ({
     professionals.forEach(p => {
       if (p.status !== 'ativo') return;
       if (!p.specialty) return;
-      // If sede selected, only show specialties from professionals at that sede
       if (newApptForm.branch && p.locationId && p.locationId !== newApptForm.branch) return;
       specialtySet.add(p.specialty);
     });
@@ -734,7 +716,6 @@ const AgendaModuleContent = ({
   const availableProfessionals = useMemo(() => {
     return professionals.filter(p => {
       if (p.status !== 'ativo') return false;
-      // If sede selected, professional MUST have locationId matching the sede
       if (newApptForm.branch) {
         if (!p.locationId || p.locationId !== newApptForm.branch) return false;
       }
@@ -773,7 +754,9 @@ const AgendaModuleContent = ({
   const calendarAvailableDoctors = useMemo(() => {
     return professionals.filter(p => {
       if (p.status !== 'ativo') return false;
-      if (calendarFilterBranch && p.locationId && p.locationId !== calendarFilterBranch) return false;
+      if (calendarFilterBranch) {
+        if (!p.locationId || p.locationId !== calendarFilterBranch) return false;
+      }
       if (calendarFilterSpecialty && p.specialty !== calendarFilterSpecialty) return false;
       return true;
     });
@@ -795,11 +778,34 @@ const AgendaModuleContent = ({
   const waitlistAvailableDoctors = useMemo(() => {
     return professionals.filter(p => {
       if (p.status !== 'ativo') return false;
-      if (waitlistForm.branch && p.locationId && p.locationId !== waitlistForm.branch) return false;
+      if (waitlistForm.branch) {
+        if (!p.locationId || p.locationId !== waitlistForm.branch) return false;
+      }
       if (waitlistForm.specialty && p.specialty !== waitlistForm.specialty) return false;
       return true;
     });
   }, [professionals, waitlistForm.branch, waitlistForm.specialty]);
+
+  const editWaitlistAvailableSpecialties = useMemo(() => {
+    const specialtySet = new Set<string>();
+    professionals.forEach(p => {
+      if (p.status !== 'ativo' || !p.specialty) return;
+      if (editWaitlistForm.branch && p.locationId && p.locationId !== editWaitlistForm.branch) return;
+      specialtySet.add(p.specialty);
+    });
+    return Array.from(specialtySet).sort();
+  }, [professionals, editWaitlistForm.branch]);
+
+  const editWaitlistAvailableDoctors = useMemo(() => {
+    return professionals.filter(p => {
+      if (p.status !== 'ativo') return false;
+      if (editWaitlistForm.branch) {
+        if (!p.locationId || p.locationId !== editWaitlistForm.branch) return false;
+      }
+      if (editWaitlistForm.specialty && p.specialty !== editWaitlistForm.specialty) return false;
+      return true;
+    });
+  }, [professionals, editWaitlistForm.branch, editWaitlistForm.specialty]);
 
   // Waitlist list filter computed values
   const waitlistFilterSpecialties = useMemo(() => {
@@ -857,8 +863,20 @@ const AgendaModuleContent = ({
   // WhatsApp Reminder helpers
   const reminderAppointments = useMemo(() => {
     if (!reminderForm.patient_id) return [];
-    return appointments.filter(a => a.patientId === reminderForm.patient_id);
-  }, [appointments, reminderForm.patient_id]);
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const activeStatuses = ['scheduled', 'sent', 'delivered', 'read', 'confirmed'];
+    const reminderFor = (apptId: string) => reminders.find(r => r.appointment_id === apptId && activeStatuses.includes(r.status));
+    return appointments
+      .filter(a => a.patientId === reminderForm.patient_id && a.date >= today && !reminderFor(a.id))
+      .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
+  }, [appointments, reminders, reminderForm.patient_id]);
+
+  useEffect(() => {
+    if (reminderForm.appointment_id && !reminderAppointments.some(a => a.id === reminderForm.appointment_id)) {
+      setReminderForm(prev => ({ ...prev, appointment_id: '' }));
+    }
+  }, [reminderAppointments, reminderForm.appointment_id]);
 
   const detectLanguage = (nationality?: string): typeof reminderForm.language => {
     if (!nationality) return 'es';
@@ -1105,8 +1123,9 @@ const AgendaModuleContent = ({
     e.preventDefault();
     const tpl = WHATSAPP_TEMPLATES.find(t => t.id === reminderForm.template_id);
     const selectedAppt = reminderAppointments.find(a => a.id === reminderForm.appointment_id);
+    const newReminderId = await genModuleId('whats');
     const newReminder: WhatsappReminder = {
-      id: `rem_${++reminderCounterRef.current}`,
+      id: newReminderId,
       appointment_id: reminderForm.appointment_id,
       patient_name: reminderForm.patient_name,
       patient_phone: reminderForm.patient_phone,
@@ -1243,8 +1262,11 @@ const AgendaModuleContent = ({
 
   const handleWaitlistSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const result = validateWl(waitlistForm);
+    if (!result.success) return;
+    const newId = await genModuleId('wl');
     const newEntry: WaitlistEntry = {
-      id: `wl_${++waitlistCounterRef.current}`,
+      id: newId,
       ...waitlistForm,
       priority_score: Math.floor(Math.random() * 100),
       preferred_days: waitlistForm.preferred_days,
@@ -1270,18 +1292,17 @@ const AgendaModuleContent = ({
   // Handle Notify patient from waitlist
   const handleNotifySubmit = async () => {
     if (!notifyEntry) return;
-    if (!notifyConsultDate) {
-      alert(t('agenda_alert_required_consult_date', 'app'));
-      return;
-    }
-    if (!notifyConsultTime) {
-      alert(t('agenda_alert_required_consult_time', 'app'));
-      return;
-    }
+    const notifResult = validateNotifWl({
+      language: notifyLanguage,
+      template: notifyTemplate,
+      consult_date: notifyConsultDate,
+      consult_time: notifyConsultTime,
+    });
+    if (!notifResult.success) return;
     const tpl = WHATSAPP_TEMPLATES.find(t => t.id === notifyTemplate);
     if (!tpl) return;
     const locName = locations.find(l => l.id === notifyEntry.branch)?.name || t('agenda_branch_fallback', 'app');
-    
+
     // Get consult date/time from appointment or manual fields
     let consultDate = notifyConsultDate;
     let consultTime = notifyConsultTime;
@@ -1292,7 +1313,7 @@ const AgendaModuleContent = ({
         consultTime = appt.time;
       }
     }
-    
+
     // Validate availability
     if (consultDate && consultTime && notifyEntry.doctor_name) {
       const taken = isTimeSlotTaken(consultDate, consultTime, notifyEntry.doctor_name, appointments, waitlist, notifyEntry.id);
@@ -1306,17 +1327,18 @@ const AgendaModuleContent = ({
         return;
       }
     }
-    
+
     const message = buildReminderMessage(tpl, notifyLanguage, {
       nombre: notifyEntry.patient_name,
       profesional: notifyEntry.doctor_name || t('agenda_any_professional', 'app'),
-      fecha: consultDate || t('agenda_not_defined', 'app'),
-      hora: consultTime || t('agenda_not_defined', 'app'),
+      fecha: consultDate ? new Date(consultDate + 'T12:00:00').toLocaleDateString(locale, { day: 'numeric', month: 'long', year: 'numeric' }) : t('agenda_not_defined', 'app'),
+      hora: consultTime ? normalizeTime(consultTime) : t('agenda_not_defined', 'app'),
       sede: locName,
     });
 
+    const newReminderId = await genModuleId('whats');
     const newReminder: WhatsappReminder = {
-      id: `rem_${++reminderCounterRef.current}`,
+      id: newReminderId,
       appointment_id: notifyAppointmentId || null,
       patient_name: notifyEntry.patient_name,
       patient_phone: notifyEntry.phone,
@@ -1370,6 +1392,8 @@ const AgendaModuleContent = ({
         console.error('Falha ao gerar ID de agendamento via RPC next_appointment_id');
         return;
       }
+      const notifyInsuranceCp = clinicPatients.find(p => p.id === notifyEntry.patient_id);
+      const notifyInsuranceDef = notifyInsuranceCp?.insurance_type ? INSURANCE_TYPES.find(i => i.value === notifyInsuranceCp.insurance_type) : undefined;
       const pendingAppt: Appointment = {
         id: pendingApptId,
         patientId: notifyEntry.patient_id,
@@ -1383,6 +1407,9 @@ const AgendaModuleContent = ({
         room: '',
         type: 'primeira_vez',
         modality: 'Presencial',
+        insurance: notifyInsuranceDef ? t(notifyInsuranceDef.labelKey, 'app') : (notifyInsuranceCp?.insurance_type || ''),
+        insurance_type: notifyInsuranceCp?.insurance_type || '',
+        insurance_number: notifyInsuranceCp?.insurance_number || '',
         duration_minutes: 30,
       };
       setAppointments(prev => [...prev, pendingAppt]);
@@ -1404,6 +1431,9 @@ const AgendaModuleContent = ({
           room: pendingAppt.room,
           type: pendingAppt.type,
           modality: pendingAppt.modality,
+          insurance: pendingAppt.insurance || null,
+          insurance_type: pendingAppt.insurance_type || null,
+          insurance_number: pendingAppt.insurance_number || null,
           duration_minutes: pendingAppt.duration_minutes,
         }).select('id').single();
         if (inserted.data) {
@@ -1422,8 +1452,9 @@ const AgendaModuleContent = ({
 
   // Handle Allocate patient from waitlist
   const handleAllocateSubmit = async () => {
-    if (!allocateEntry || !allocateDate || !allocateTime || !allocateDoctor) return;
-    const doc = professionals.find(p => p.name === allocateDoctor);
+    if (!allocateEntry) return;
+    const result = validateAllocWl({ date: allocateDate, time: allocateTime, doctor_name: allocateDoctor });
+    if (!result.success) return;
     let newApptId = '';
     if (supabase) {
       const { data: rpcAppId, error: rpcErr } = await supabase.rpc('next_appointment_id');
@@ -1433,6 +1464,8 @@ const AgendaModuleContent = ({
       console.error('Falha ao gerar ID de agendamento via RPC next_appointment_id');
       return;
     }
+    const allocateInsuranceCp = clinicPatients.find(p => p.id === allocateEntry.patient_id);
+    const allocateInsuranceDef = allocateInsuranceCp?.insurance_type ? INSURANCE_TYPES.find(i => i.value === allocateInsuranceCp.insurance_type) : undefined;
     const newAppointment: Appointment = {
       id: newApptId,
       patientId: allocateEntry.patient_id,
@@ -1446,11 +1479,18 @@ const AgendaModuleContent = ({
       room: '',
       type: 'primeira_vez',
       modality: 'Presencial',
+      insurance: allocateInsuranceDef ? t(allocateInsuranceDef.labelKey, 'app') : (allocateInsuranceCp?.insurance_type || ''),
+      insurance_type: allocateInsuranceCp?.insurance_type || '',
+      insurance_number: allocateInsuranceCp?.insurance_number || '',
       duration_minutes: 30,
     };
     setAppointments(prev => [...prev, newAppointment]);
     setWaitlist(prev => prev.map(e => e.id === allocateEntry.id ? { ...e, status: 'alocado', allocated_date: allocateDate, allocated_time: allocateTime, appointment_id: newAppointment.id } : e));
-    addAuditLog('Alocou paciente da lista de espera', `${allocateEntry.patient_name} → ${allocateDate} ${allocateTime}`);
+    const orphanReminder = reminders.find(r => r.patient_name === allocateEntry.patient_name && !r.appointment_id && !['cancelled'].includes(r.status));
+    if (orphanReminder) {
+      setReminders(prev => prev.map(r => r.id === orphanReminder.id ? { ...r, appointment_id: newAppointment.id, scheduled_for: `${allocateDate}T${allocateTime}:00` } : r));
+    }
+    addAuditLog('Alocou paciente da lista de espera', `${allocateEntry.patient_name} ${allocateDate} ${allocateTime}`);
     if (supabase) {
       const { error: apptError } = await supabase.from('appointments').insert({
         id: newAppointment.id,
@@ -1465,6 +1505,9 @@ const AgendaModuleContent = ({
         room: newAppointment.room,
         type: newAppointment.type,
         modality: newAppointment.modality,
+        insurance: newAppointment.insurance || null,
+        insurance_type: newAppointment.insurance_type || null,
+        insurance_number: newAppointment.insurance_number || null,
         duration_minutes: newAppointment.duration_minutes,
       });
       if (apptError) {
@@ -1473,6 +1516,12 @@ const AgendaModuleContent = ({
       const { error: wlError } = await supabase.from('waiting_list').update({ status: 'alocado', allocated_date: allocateDate, allocated_time: allocateTime, appointment_id: newAppointment.id }).eq('id', allocateEntry.id);
       if (wlError) {
         console.error('[SUPABASE] UPDATE waiting_list FAILED:', wlError.message, wlError);
+      }
+      if (orphanReminder) {
+        const { error: remError } = await supabase.from('whatsapp_reminders').update({ appointment_id: newAppointment.id, scheduled_for: `${allocateDate}T${allocateTime}:00` }).eq('id', orphanReminder.id);
+        if (remError) {
+          console.error('[SUPABASE] UPDATE whatsapp_reminders FAILED:', remError.message, remError);
+        }
       }
     }
     setShowAllocateModal(false);
@@ -1485,6 +1534,19 @@ const AgendaModuleContent = ({
   // Handle Edit Waitlist Entry
   const handleEditWaitlistSubmit = async () => {
     if (!editingWaitlistEntry) return;
+    const result = validateWl({
+      patient_id: editWaitlistForm.patient_id,
+      patient_name: editWaitlistForm.patient_name,
+      phone: editWaitlistForm.phone,
+      branch: editWaitlistForm.branch,
+      specialty: editWaitlistForm.specialty,
+      doctor_name: editWaitlistForm.doctor_name,
+      priority_criteria: editWaitlistForm.priority_criteria,
+      preferred_days: editWaitlistForm.preferred_days,
+      preferred_hours: editWaitlistForm.preferred_hours,
+      status: editWaitlistForm.status,
+    });
+    if (!result.success) return;
     const updated: WaitlistEntry = {
       ...editingWaitlistEntry,
       patient_id: editWaitlistForm.patient_id,
@@ -1576,11 +1638,11 @@ const AgendaModuleContent = ({
 
   const handleCallSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!callForm.patient_id) { alert(t('agenda_alert_select_patient', 'app')); return; }
-    if (!callForm.type) { alert(t('agenda_alert_select_call_type', 'app')); return; }
-    if (!callForm.reason) { alert(t('agenda_alert_select_call_reason', 'app')); return; }
+    const result = validateCallLog(callForm);
+    if (!result.success) return;
+    const newCallId = await genModuleId('call');
     const newCall: CallLog = {
-      id: `call_${++callCounterRef.current}`,
+      id: newCallId,
       ...callForm,
       type: callForm.type as CallLog['type'],
       reason: callForm.reason as CallLog['reason'],
@@ -1594,9 +1656,10 @@ const AgendaModuleContent = ({
     setCallForm({ operator_name: activeOperator, patient_id: '', patient_name: '', patient_phone: '', type: '', reason: '', notes: '', duration_seconds: 0 });
   };
 
-  const startCall = (patientName: string, phone: string, type: 'outbound' | 'inbound' = 'outbound') => {
+  const startCall = async (patientName: string, phone: string, type: 'outbound' | 'inbound' = 'outbound') => {
+    const newId = await genModuleId('call');
     setActiveCall({
-      id: `call_${++callCounterRef.current}`,
+      id: newId,
       operator_name: activeOperator,
       patient_id: null,
       patient_name: patientName,
@@ -2346,7 +2409,7 @@ const AgendaModuleContent = ({
           { id: 'calendar', label: t('agenda_tab_calendar', 'app'), icon: CalendarDays, badge: filteredAppointments.length },
           { id: 'whatsapp', label: 'WhatsApp', icon: Send, badge: reminders.filter(r => r.status !== 'confirmed' && r.status !== 'cancelled').length },
           { id: 'waitlist', label: t('agenda_tab_waitlist', 'app'), icon: ClipboardList, badge: waitlist.filter(w => w.status === 'aguardando').length },
-          { id: 'callcenter', label: 'Call Center', icon: PhoneCall, badge: callLogs.length },
+          { id: 'callcenter', label: t('agenda_tab_callcenter', 'app'), icon: PhoneCall, badge: callLogs.length },
         ]).map(tab => (
           <button
             key={tab.id}
@@ -3563,6 +3626,9 @@ const AgendaModuleContent = ({
                             <>
                               <button onClick={() => {
                                 setNotifyEntry(w);
+                                const cp = clinicPatients.find(p => p.id === w.patient_id);
+                                const lang = (cp?.preferred_language || 'es') as typeof notifyLanguage;
+                                setNotifyLanguage(lang);
                                 setShowNotifyModal(true);
                               }} className="text-blue-600 hover:text-blue-800 text-xs font-semibold">{t('agenda_notify', 'app')}</button>
                               <button onClick={() => {
@@ -3688,7 +3754,6 @@ const AgendaModuleContent = ({
                     <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">{t('agenda_th_reason', 'app')}</th>
                     <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">{t('agenda_th_duration', 'app')}</th>
                     <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">{t('agenda_th_datetime', 'app')}</th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">{t('agenda_th_actions', 'app')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -3706,12 +3771,6 @@ const AgendaModuleContent = ({
                         {Math.floor(c.duration_seconds / 60)}:{String(c.duration_seconds % 60).padStart(2, '0')}
                       </td>
                       <td className="px-4 py-3 text-sm text-slate-500">{new Date(c.created_at).toLocaleString(locale)}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex gap-2">
-                          <button onClick={() => startCall(c.patient_name, c.patient_phone)} className="px-3 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded-lg hover:bg-green-200 transition">{t('agenda_call', 'app')}</button>
-                          <button onClick={() => startCall(c.patient_name, c.patient_phone, 'inbound')} className="px-3 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded-lg hover:bg-blue-200 transition">{t('agenda_receive', 'app')}</button>
-                        </div>
-                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -4259,65 +4318,61 @@ const AgendaModuleContent = ({
       </InlineModal>
 
       {/* Waitlist Modal */}
-      <InlineModal open={showWaitlistModal} onClose={() => { setShowWaitlistModal(false); setWaitlistForm({ patient_id: '', patient_name: '', phone: '', branch: '', specialty: '', doctor_name: '', priority_criteria: 'arrival', preferred_days: [], preferred_hours: [] }); }} className="max-w-md">
+      <InlineModal open={showWaitlistModal} onClose={() => { setShowWaitlistModal(false); clearWlErrors(); setWaitlistForm({ patient_id: '', patient_name: '', phone: '', branch: '', specialty: '', doctor_name: '', priority_criteria: 'arrival', preferred_days: [], preferred_hours: [] }); }} className="max-w-md">
         <div className="p-6">
           <form onSubmit={handleWaitlistSubmit} className="space-y-4" noValidate>
             <h3 className="font-bold text-lg">{t('agenda_add_to_waitlist_title', 'app')}</h3>
-            <div>
-              <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_patient', 'app')}</label>
+            {wlErrors.length > 0 && <FormErrorSummary errors={wlErrors} />}
+            <FormField label={t('agenda_patient', 'app')} required error={wlFieldErrors.patient_id}>
               <select value={waitlistForm.patient_id} onChange={e => {
                 const p = clinicPatients.find(p => p.id === e.target.value);
                 setWaitlistForm({ ...waitlistForm, patient_id: e.target.value, patient_name: p?.name || '', phone: p?.phone || '' });
-              }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
+              }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
                 <option value="">{t('agenda_select_patient', 'app')}</option>
                 {clinicPatients.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_branch', 'app')}</label>
+            </FormField>
+            <FormField label={t('agenda_branch', 'app')} required error={wlFieldErrors.branch}>
               <select value={waitlistForm.branch} onChange={e => {
                 setWaitlistForm({ ...waitlistForm, branch: e.target.value, specialty: '', doctor_name: '' });
-              }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
+              }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
                 <option value="">{t('agenda_select_branch', 'app')}</option>
                 {locations.filter(l => l.status === 'ativo').map(loc => (
                   <option key={loc.id} value={loc.id}>{loc.name}</option>
                 ))}
               </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_specialty', 'app')}</label>
+            </FormField>
+            <FormField label={t('agenda_specialty', 'app')} required error={wlFieldErrors.specialty}>
               <select value={waitlistForm.specialty} onChange={e => {
                 setWaitlistForm({ ...waitlistForm, specialty: e.target.value, doctor_name: '' });
-              }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
+              }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
                 <option value="">{t('agenda_select_specialty', 'app')}</option>
                 {waitlistAvailableSpecialties.map(sp => (
                   <option key={sp} value={sp}>{sp}</option>
                 ))}
               </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_professional', 'app')}</label>
+            </FormField>
+            <FormField label={t('agenda_professional', 'app')} required error={wlFieldErrors.doctor_name}>
               <select value={waitlistForm.doctor_name} onChange={e => setWaitlistForm({ ...waitlistForm, doctor_name: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
-                <option value="">{t('agenda_all_professionals', 'app')}</option>
+                <option value="">{t('agenda_select_professional', 'app')}</option>
                 {waitlistAvailableDoctors.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
               </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_priority_criteria', 'app')}</label>
+            </FormField>
+            <FormField label={t('agenda_priority_criteria', 'app')} required error={wlFieldErrors.priority_criteria}>
               <select value={waitlistForm.priority_criteria} onChange={e => setWaitlistForm({ ...waitlistForm, priority_criteria: e.target.value as WaitlistEntry['priority_criteria'] })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
                 <option value="arrival">{t('agenda_priority_arrival', 'app')}</option>
                 <option value="urgency">{t('agenda_priority_urgency', 'app')}</option>
                 <option value="coverage">{t('agenda_priority_coverage', 'app')}</option>
                 <option value="seniority">{t('agenda_priority_seniority', 'app')}</option>
               </select>
-            </div>
+            </FormField>
             <div>
               <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_preferred_days', 'app')}</label>
               <div className="flex flex-wrap gap-2">
                 {[t('agenda_day_mon', 'app'), t('agenda_day_tue', 'app'), t('agenda_day_wed', 'app'), t('agenda_day_thu', 'app'), t('agenda_day_fri', 'app'), t('agenda_day_sat', 'app')].map((day, i) => (
                   <label key={i} className="flex items-center gap-1 text-sm">
                     <input type="checkbox" checked={waitlistForm.preferred_days.includes(day)} onChange={e => {
-                      const newDays = e.target.checked 
+                      const newDays = e.target.checked
                         ? [...waitlistForm.preferred_days, day]
                         : waitlistForm.preferred_days.filter(d => d !== day);
                       setWaitlistForm({ ...waitlistForm, preferred_days: newDays });
@@ -4333,7 +4388,7 @@ const AgendaModuleContent = ({
                 {[t('agenda_pref_hours_morning', 'app'), t('agenda_pref_hours_afternoon', 'app'), t('agenda_pref_hours_night', 'app')].map((hour, i) => (
                   <label key={i} className="flex items-center gap-1 text-sm">
                     <input type="checkbox" checked={waitlistForm.preferred_hours.includes(hour)} onChange={e => {
-                      const newHours = e.target.checked 
+                      const newHours = e.target.checked
                         ? [...waitlistForm.preferred_hours, hour]
                         : waitlistForm.preferred_hours.filter(h => h !== hour);
                       setWaitlistForm({ ...waitlistForm, preferred_hours: newHours });
@@ -4345,24 +4400,24 @@ const AgendaModuleContent = ({
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <button type="submit" className="py-2 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition">{t('agenda_add', 'app')}</button>
-              <button type="button" onClick={() => { setShowWaitlistModal(false); setWaitlistForm({ patient_id: '', patient_name: '', phone: '', branch: '', specialty: '', doctor_name: '', priority_criteria: 'arrival', preferred_days: [], preferred_hours: [] }); }} className="py-2 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg transition">{t('agenda_cancel', 'app')}</button>
+              <button type="button" onClick={() => { setShowWaitlistModal(false); clearWlErrors(); setWaitlistForm({ patient_id: '', patient_name: '', phone: '', branch: '', specialty: '', doctor_name: '', priority_criteria: 'arrival', preferred_days: [], preferred_hours: [] }); }} className="py-2 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg transition">{t('agenda_cancel', 'app')}</button>
             </div>
           </form>
         </div>
       </InlineModal>
 
       {/* Waitlist - Notify Modal */}
-      <InlineModal open={showNotifyModal} onClose={() => setShowNotifyModal(false)} className="max-w-md">
+      <InlineModal open={showNotifyModal} onClose={() => { setShowNotifyModal(false); clearNotifWlErrors(); }} className="max-w-md">
         <div className="p-6">
           <h3 className="font-bold text-lg mb-4">{t('agenda_notify_patient', 'app')}</h3>
+          {notifWlErrors.length > 0 && <FormErrorSummary errors={notifWlErrors} />}
           {notifyEntry && (
             <div className="space-y-4">
               <div className="bg-slate-50 p-3 rounded-lg">
                 <p className="text-sm font-semibold">{notifyEntry.patient_name}</p>
                 <p className="text-xs text-slate-500">{notifyEntry.phone} • {notifyEntry.specialty}</p>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_language', 'app')}</label>
+              <FormField label={t('agenda_language', 'app')} required error={notifWlFieldErrors.language}>
                 <select value={notifyLanguage} onChange={e => setNotifyLanguage(e.target.value as typeof notifyLanguage)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
                   <option value="">{t('agenda_select', 'app')}</option>
                   <option value="pt-BR">Português (Brasil)</option>
@@ -4373,16 +4428,15 @@ const AgendaModuleContent = ({
                   <option value="gn">Guarani</option>
                   <option value="en">English</option>
                 </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_template', 'app')}</label>
+              </FormField>
+              <FormField label={t('agenda_template', 'app')} required error={notifWlFieldErrors.template}>
                 <select value={notifyTemplate} onChange={e => setNotifyTemplate(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
                   <option value="">{t('agenda_select', 'app')}</option>
                   {WHATSAPP_TEMPLATES.map(tmpl => (
                     <option key={tmpl.id} value={tmpl.id}>{t(tmpl.nameKey, 'app')} ({tmpl.hoursBefore}{t('agenda_hours_before', 'app')})</option>
                   ))}
                 </select>
-              </div>
+              </FormField>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_consult_date_label', 'app')} <span className="text-red-500">*</span></label>
@@ -4424,21 +4478,28 @@ const AgendaModuleContent = ({
                   </div>
                 </div>
               )}
-              <div className="bg-blue-50 p-3 rounded-lg">
-                <p className="text-xs font-semibold text-blue-700 mb-1">{t('agenda_message_preview', 'app')}</p>
-                <p className="text-sm text-blue-800">
-                  {(() => {
-                  const tpl = WHATSAPP_TEMPLATES.find(t => t.id === notifyTemplate);
-                  return tpl ? buildReminderMessage(tpl, notifyLanguage, {
-                    nombre: notifyEntry.patient_name,
-                    profesional: notifyEntry.doctor_name || t('agenda_any_professional', 'app'),
-                    sede: locations.find(l => l.id === notifyEntry.branch)?.name || t('agenda_branch_fallback', 'app'),
-                    fecha: notifyConsultDate || t('agenda_not_defined', 'app'),
-                    hora: notifyConsultTime || t('agenda_not_defined', 'app'),
-                  }) : t('agenda_select_template', 'app');
-                })()}
-                </p>
-              </div>
+              <FormField label={t('agenda_message', 'app')}>
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <MessageSquare className="w-4 h-4 text-emerald-600" />
+                    <span className="text-xs font-semibold text-slate-600">{t('agenda_message_preview', 'app')}</span>
+                  </div>
+                  <div className="bg-white rounded-lg p-3 border border-slate-200 shadow-sm">
+                    <p className="text-sm text-slate-800 whitespace-pre-wrap leading-relaxed">
+                      {(() => {
+                      const tpl = WHATSAPP_TEMPLATES.find(t => t.id === notifyTemplate);
+                      return tpl ? buildReminderMessage(tpl, notifyLanguage, {
+                        nombre: notifyEntry.patient_name,
+                        profesional: notifyEntry.doctor_name || t('agenda_any_professional', 'app'),
+                        sede: locations.find(l => l.id === notifyEntry.branch)?.name || t('agenda_branch_fallback', 'app'),
+                        fecha: notifyConsultDate ? new Date(notifyConsultDate + 'T12:00:00').toLocaleDateString(locale, { day: 'numeric', month: 'long', year: 'numeric' }) : t('agenda_not_defined', 'app'),
+                        hora: notifyConsultTime ? normalizeTime(notifyConsultTime) : t('agenda_not_defined', 'app'),
+                      }) : t('agenda_select_template', 'app');
+                    })()}
+                    </p>
+                  </div>
+                </div>
+              </FormField>
               <div className="flex justify-end gap-2 pt-2">
                 <button onClick={handleNotifySubmit} className="py-2 px-4 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg transition">{t('agenda_send_notification', 'app')}</button>
                 <button type="button" onClick={() => setShowNotifyModal(false)} className="py-2 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg transition">{t('agenda_cancel', 'app')}</button>
@@ -4449,9 +4510,10 @@ const AgendaModuleContent = ({
       </InlineModal>
 
       {/* Waitlist - Allocate Modal */}
-      <InlineModal open={showAllocateModal} onClose={() => setShowAllocateModal(false)} className="max-w-lg">
+      <InlineModal open={showAllocateModal} onClose={() => { setShowAllocateModal(false); clearAllocWlErrors(); }} className="max-w-lg">
         <div className="p-6">
             <h3 className="font-bold text-lg mb-4">{t('agenda_allocate_patient_title', 'app')}</h3>
+          {allocWlErrors.length > 0 && <FormErrorSummary errors={allocWlErrors} />}
           {allocateEntry && (
             <div className="space-y-4">
               <div className="bg-slate-50 p-3 rounded-lg">
@@ -4460,24 +4522,21 @@ const AgendaModuleContent = ({
                 <p className="text-xs text-slate-500">{t('agenda_branch', 'app')}: {locations.find(l => l.id === allocateEntry.branch)?.name || t('agenda_not_defined', 'app')}</p>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_date', 'app')}</label>
-                  <I18nDatePicker value={allocateDate} onChange={setAllocateDate} minDate={new Date().toISOString().split('T')[0]} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_time', 'app')}</label>
-                  <select value={allocateTime} onChange={e => setAllocateTime(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
+                <FormField label={t('agenda_date', 'app')} required error={allocWlFieldErrors.date}>
+                  <I18nDatePicker value={allocateDate} onChange={setAllocateDate} minDate={new Date().toISOString().split('T')[0]} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
+                </FormField>
+                <FormField label={t('agenda_time', 'app')} required error={allocWlFieldErrors.time}>
+                  <select value={allocateTime} onChange={e => setAllocateTime(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
                     <option value="">{t('agenda_select', 'app')}</option>
                     {TIME_SLOTS.map(slot => {
                       const taken = isTimeSlotTaken(allocateDate, slot, allocateDoctor, appointments, waitlist);
-                      return <option key={slot} value={slot} disabled={taken}>{slot} {taken ? `(${t('agenda_time_occupied_label', 'app').replace('⛔ ', '')})` : ''}</option>;
+                      return <option key={slot} value={slot} disabled={taken}>{slot} {taken ? `(${t('agenda_time_occupied_label', 'app').replace('� ', '')})` : ''}</option>;
                     })}
                   </select>
-                </div>
+                </FormField>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_professional', 'app')}</label>
-                <select value={allocateDoctor} onChange={e => setAllocateDoctor(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
+              <FormField label={t('agenda_professional', 'app')} required error={allocWlFieldErrors.doctor_name}>
+                <select value={allocateDoctor} onChange={e => setAllocateDoctor(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
                   <option value="">{t('agenda_select', 'app')}</option>
                   {professionals.filter(p => {
                     if (p.status !== 'ativo') return false;
@@ -4488,7 +4547,7 @@ const AgendaModuleContent = ({
                     <option key={p.id} value={p.name}>{p.name} - {p.specialty}</option>
                   ))}
                 </select>
-              </div>
+              </FormField>
               {allocateDate && allocateDoctor && (
                 <div className="bg-slate-50 p-3 rounded-lg">
                   <p className="text-xs font-semibold text-slate-600 mb-2">{t('agenda_occupied_times', 'app')}</p>
@@ -4504,7 +4563,7 @@ const AgendaModuleContent = ({
               )}
               <div className="flex justify-end gap-2 pt-2">
                 <button onClick={handleAllocateSubmit} disabled={!allocateDate || !allocateTime || !allocateDoctor} className="py-2 px-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white font-bold rounded-lg transition">{t('agenda_allocate_and_schedule', 'app')}</button>
-                <button type="button" onClick={() => setShowAllocateModal(false)} className="py-2 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg transition">{t('agenda_cancel', 'app')}</button>
+                <button type="button" onClick={() => { setShowAllocateModal(false); clearAllocWlErrors(); }} className="py-2 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg transition">{t('agenda_cancel', 'app')}</button>
               </div>
             </div>
           )}
@@ -4512,59 +4571,55 @@ const AgendaModuleContent = ({
       </InlineModal>
 
       {/* Waitlist - Edit Modal */}
-      <InlineModal open={showEditWaitlistModal} onClose={() => setShowEditWaitlistModal(false)} className="max-w-md">
+      <InlineModal open={showEditWaitlistModal} onClose={() => { setShowEditWaitlistModal(false); clearWlErrors(); }} className="max-w-md">
         <div className="p-6">
           <h3 className="font-bold text-lg mb-4">{t('agenda_edit_waitlist', 'app')}</h3>
+          {wlErrors.length > 0 && <FormErrorSummary errors={wlErrors} />}
           {editingWaitlistEntry && (
             <div className="space-y-4">
-              <div>
-              <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_patient', 'app')}</label>
+              <FormField label={t('agenda_patient', 'app')} required error={wlFieldErrors.patient_id}>
               <select value={editWaitlistForm.patient_id} onChange={e => {
-                const p = patients.find(p => p.id === e.target.value);
+                const p = clinicPatients.find(p => p.id === e.target.value);
                 setEditWaitlistForm({ ...editWaitlistForm, patient_id: e.target.value, patient_name: p?.name || '', phone: p?.phone || '' });
-              }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
+              }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
                 <option value="">{t('agenda_select_patient', 'app')}</option>
-                  {patients.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  {clinicPatients.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
-              </div>
-              <div>
-              <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_branch', 'app')}</label>
+              </FormField>
+              <FormField label={t('agenda_branch', 'app')} required error={wlFieldErrors.branch}>
               <select value={editWaitlistForm.branch} onChange={e => {
                 setEditWaitlistForm({ ...editWaitlistForm, branch: e.target.value, specialty: '', doctor_name: '' });
-              }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
+              }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
                 <option value="">{t('agenda_select_branch', 'app')}</option>
                   {locations.filter(l => l.status === 'ativo').map(loc => (
                     <option key={loc.id} value={loc.id}>{loc.name}</option>
                   ))}
                 </select>
-              </div>
-              <div>
-              <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_specialty', 'app')}</label>
+              </FormField>
+              <FormField label={t('agenda_specialty', 'app')} required error={wlFieldErrors.specialty}>
               <select value={editWaitlistForm.specialty} onChange={e => {
                 setEditWaitlistForm({ ...editWaitlistForm, specialty: e.target.value, doctor_name: '' });
-              }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
+              }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
                 <option value="">{t('agenda_select_specialty', 'app')}</option>
-                  {waitlistAvailableSpecialties.map(sp => (
+                  {editWaitlistAvailableSpecialties.map(sp => (
                     <option key={sp} value={sp}>{sp}</option>
                   ))}
                 </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_professional', 'app')}</label>
+              </FormField>
+              <FormField label={t('agenda_professional', 'app')} required error={wlFieldErrors.doctor_name}>
                 <select value={editWaitlistForm.doctor_name} onChange={e => setEditWaitlistForm({ ...editWaitlistForm, doctor_name: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
-                  <option value="">{t('agenda_all_professionals', 'app')}</option>
-                  {waitlistAvailableDoctors.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
+                  <option value="">{t('agenda_select_professional', 'app')}</option>
+                  {editWaitlistAvailableDoctors.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
                 </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_priority_criteria', 'app')}</label>
+              </FormField>
+              <FormField label={t('agenda_priority_criteria', 'app')} required error={wlFieldErrors.priority_criteria}>
                 <select value={editWaitlistForm.priority_criteria} onChange={e => setEditWaitlistForm({ ...editWaitlistForm, priority_criteria: e.target.value as WaitlistEntry['priority_criteria'] })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
                   <option value="arrival">{t('agenda_priority_arrival', 'app')}</option>
                   <option value="urgency">{t('agenda_priority_urgency', 'app')}</option>
                   <option value="coverage">{t('agenda_priority_coverage', 'app')}</option>
                   <option value="seniority">{t('agenda_priority_seniority', 'app')}</option>
                 </select>
-              </div>
+              </FormField>
               <div>
                 <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_status', 'app')}</label>
                 <select value={editWaitlistForm.status} onChange={e => setEditWaitlistForm({ ...editWaitlistForm, status: e.target.value as WaitlistEntry['status'] })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
@@ -4580,7 +4635,7 @@ const AgendaModuleContent = ({
                   {[t('agenda_day_mon', 'app'), t('agenda_day_tue', 'app'), t('agenda_day_wed', 'app'), t('agenda_day_thu', 'app'), t('agenda_day_fri', 'app'), t('agenda_day_sat', 'app')].map((day, i) => (
                     <label key={i} className="flex items-center gap-1 text-sm">
                       <input type="checkbox" checked={editWaitlistForm.preferred_days.includes(day)} onChange={e => {
-                        const newDays = e.target.checked 
+                        const newDays = e.target.checked
                           ? [...editWaitlistForm.preferred_days, day]
                           : editWaitlistForm.preferred_days.filter(d => d !== day);
                         setEditWaitlistForm({ ...editWaitlistForm, preferred_days: newDays });
@@ -4596,7 +4651,7 @@ const AgendaModuleContent = ({
                   {[t('agenda_pref_hours_morning', 'app'), t('agenda_pref_hours_afternoon', 'app'), t('agenda_pref_hours_night', 'app')].map((hour, i) => (
                     <label key={i} className="flex items-center gap-1 text-sm">
                       <input type="checkbox" checked={editWaitlistForm.preferred_hours.includes(hour)} onChange={e => {
-                        const newHours = e.target.checked 
+                        const newHours = e.target.checked
                           ? [...editWaitlistForm.preferred_hours, hour]
                           : editWaitlistForm.preferred_hours.filter(h => h !== hour);
                         setEditWaitlistForm({ ...editWaitlistForm, preferred_hours: newHours });
@@ -4608,7 +4663,7 @@ const AgendaModuleContent = ({
               </div>
               <div className="flex justify-end gap-2 pt-2">
                 <button onClick={handleEditWaitlistSubmit} className="py-2 px-4 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg transition">{t('agenda_save_changes', 'app')}</button>
-                <button type="button" onClick={() => setShowEditWaitlistModal(false)} className="py-2 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg transition">{t('agenda_cancel', 'app')}</button>
+                <button type="button" onClick={() => { setShowEditWaitlistModal(false); clearWlErrors(); }} className="py-2 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg transition">{t('agenda_cancel', 'app')}</button>
               </div>
             </div>
           )}
@@ -4616,44 +4671,41 @@ const AgendaModuleContent = ({
       </InlineModal>
 
       {/* Call Center Modal */}
-      <InlineModal open={showCallModal} onClose={() => { setShowCallModal(false); setCallForm({ operator_name: activeOperator, patient_id: '', patient_name: '', patient_phone: '', type: '', reason: '', notes: '', duration_seconds: 0 }); }} className="max-w-md">
+      <InlineModal open={showCallModal} onClose={() => { setShowCallModal(false); clearCallLogErrors(); setCallForm({ operator_name: activeOperator, patient_id: '', patient_name: '', patient_phone: '', type: '', reason: '', notes: '', duration_seconds: 0 }); }} className="max-w-md">
         <div className="p-6">
           <form onSubmit={handleCallSubmit} className="space-y-4" noValidate>
             <h3 className="font-bold text-lg">{t('agenda_register_call_title', 'app')}</h3>
-            <div>
-              <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_patient', 'app')}</label>
+            {callLogFormErrors.length > 0 && <FormErrorSummary errors={callLogFormErrors} />}
+            <FormField label={t('agenda_patient', 'app')} required error={callLogFieldErrors.patient_id}>
               <select value={callForm.patient_id} onChange={e => {
                 const p = clinicPatients.find(p => p.id === e.target.value);
                 setCallForm({ ...callForm, patient_id: e.target.value, patient_name: p?.name || '', patient_phone: p?.phone || '' });
-              }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
+              }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
                 <option value="">{t('agenda_select_patient', 'app')}</option>
                 {clinicPatients.map(p => <option key={p.id} value={p.id}>{p.name} ({p.phone})</option>)}
               </select>
-            </div>
+            </FormField>
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_type', 'app')}</label>
+              <FormField label={t('agenda_type', 'app')} required error={callLogFieldErrors.type}>
                 <select value={callForm.type} onChange={e => setCallForm({ ...callForm, type: e.target.value as CallLog['type'] })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
                   <option value="">{t('agenda_select', 'app')}</option>
                   <option value="inbound">{t('agenda_type_inbound', 'app')}</option>
                   <option value="outbound">{t('agenda_type_outbound', 'app')}</option>
                 </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_reason', 'app')}</label>
+              </FormField>
+              <FormField label={t('agenda_reason', 'app')} required error={callLogFieldErrors.reason}>
                 <select value={callForm.reason} onChange={e => setCallForm({ ...callForm, reason: e.target.value as CallLog['reason'] })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
                   <option value="">{t('agenda_select', 'app')}</option>
                   {CALL_CENTER_REASONS.map(r => <option key={r.value} value={r.value}>{t(r.labelKey, 'app')}</option>)}
                 </select>
-              </div>
+              </FormField>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_call_notes', 'app')}</label>
+            <FormField label={t('agenda_call_notes', 'app')} error={callLogFieldErrors.notes}>
               <textarea value={callForm.notes} onChange={e => setCallForm({ ...callForm, notes: e.target.value })} rows={3} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
-            </div>
+            </FormField>
             <div className="flex justify-end gap-2 pt-2">
               <button type="submit" className="py-2 px-4 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-lg transition">{t('agenda_register', 'app')}</button>
-              <button type="button" onClick={() => { setShowCallModal(false); setCallForm({ operator_name: activeOperator, patient_id: '', patient_name: '', patient_phone: '', type: '', reason: '', notes: '', duration_seconds: 0 }); }} className="py-2 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg transition">{t('agenda_cancel', 'app')}</button>
+              <button type="button" onClick={() => { setShowCallModal(false); clearCallLogErrors(); setCallForm({ operator_name: activeOperator, patient_id: '', patient_name: '', patient_phone: '', type: '', reason: '', notes: '', duration_seconds: 0 }); }} className="py-2 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg transition">{t('agenda_cancel', 'app')}</button>
             </div>
           </form>
         </div>

@@ -16,11 +16,13 @@ export function LocationsTab({
   clinicalRooms,
   setClinicalRooms,
   addAuditLog,
+  mode = 'both',
 }: Pick<AdminFinanceModuleProps, 'addAuditLog'> & {
   locations: Location[];
   setLocations: React.Dispatch<React.SetStateAction<Location[]>>;
   clinicalRooms: ClinicalRoom[];
   setClinicalRooms: React.Dispatch<React.SetStateAction<ClinicalRoom[]>>;
+  mode?: 'locations' | 'rooms' | 'both';
 }) {
   const { t } = useI18n();
   const genModuleId = useModuleId();
@@ -107,9 +109,13 @@ export function LocationsTab({
   const locFieldErrors = groupErrorsByPath(locErrors);
   const roomFieldErrors = groupErrorsByPath(roomErrors);
 
+  const showLocations = mode === 'both' || mode === 'locations';
+  const showRooms = mode === 'both' || mode === 'rooms';
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       {/* Location form */}
+      {showLocations && (
       <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs lg:col-span-1 space-y-4">
         <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
           <Building2 className="w-5 h-5 text-teal-600" />
@@ -183,9 +189,12 @@ export function LocationsTab({
           </div>
         </form>
       </div>
+      )}
 
-      {/* Locations list */}
-      <div className="lg:col-span-2 space-y-3">
+      <div className={`space-y-3 ${showLocations ? 'lg:col-span-2' : 'lg:col-span-3'}`}>
+        {/* Locations list */}
+        {showLocations && (
+        <>
         <div className="flex items-center justify-between">
           <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
             <Building2 className="w-4 h-4" /> Locais Cadastrados ({locations.length})
@@ -262,9 +271,12 @@ export function LocationsTab({
             </div>
           ))}
         </div>
+        </>
+        )}
 
-        {/* Room form + list */}
-        <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs space-y-4 mt-6">
+        {/* Room form */}
+        {showRooms && (
+        <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs space-y-4">
           <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
             <Building2 className="w-5 h-5 text-indigo-600" />
             <h3 className="font-semibold text-slate-800 text-base">
@@ -310,7 +322,10 @@ export function LocationsTab({
             </div>
           </form>
         </div>
+        )}
 
+        {/* Rooms list */}
+        {showRooms && (
         <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs space-y-3">
           <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
             <Building2 className="w-4 h-4" /> Salas Clínicas ({clinicalRooms.length})
@@ -371,6 +386,7 @@ export function LocationsTab({
             )}
           </div>
         </div>
+        )}
       </div>
     </div>
   );

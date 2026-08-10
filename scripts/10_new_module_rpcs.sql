@@ -4,6 +4,15 @@
 -- O front chama: supabase.rpc('next_module_id', { p_prefix: 'surg' })
 -- ════════════════════════════════════════════
 
+-- Sequence para lista de espera (Agenda)
+create sequence if not exists public.seq_waiting_list start 1 increment 1;
+
+-- Sequence para lembretes WhatsApp (Agenda)
+create sequence if not exists public.seq_whatsapp_reminders start 100 increment 1;
+
+-- Sequence para call center (Agenda)
+create sequence if not exists public.seq_call_center_logs start 1 increment 1;
+
 create or replace function public.next_module_id(p_prefix text)
 returns text
 language plpgsql
@@ -62,6 +71,12 @@ begin
     when 'batch'      then 'seq_batch_billing'
     -- Agenda (bloqueios)
     when 'blk'        then 'seq_blocked_slots'
+    -- Agenda (lista de espera)
+    when 'wl'         then 'seq_waiting_list'
+    -- Agenda (lembretes WhatsApp)
+    when 'whats'      then 'seq_whatsapp_reminders'
+    -- Agenda (call center)
+    when 'call'       then 'seq_call_center_logs'
     -- ClinicalModule (extra)
     when 'ac'         then 'seq_access_control'
     else null

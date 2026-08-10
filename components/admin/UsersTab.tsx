@@ -4,7 +4,6 @@
 import React, { useState, useEffect } from 'react';
 import { Users as UsersIcon, Edit2, Trash2, Plus, X, Mail, IdCard, MapPin, Fingerprint, UserCheck, UserX, Search } from 'lucide-react';
 import { useI18n } from '@/lib/i18n/I18nContext';
-import { useModuleId } from '@/hooks/useModuleId';
 import { supabase } from '@/lib/supabaseClient';
 import { SystemUser, AdminFinanceModuleProps } from './AdminContext';
 import type { SystemRole } from '@/lib/mockData';
@@ -30,7 +29,6 @@ interface UsersTabProps {
 
 export function UsersTab({ addAuditLog }: UsersTabProps) {
   const { t } = useI18n();
-  const genModuleId = useModuleId();
   const { errors, validate } = useFormValidation(systemUserSchema);
 
   const [users, setUsers] = useState<SystemUser[]>([]);
@@ -54,26 +52,42 @@ export function UsersTab({ addAuditLog }: UsersTabProps) {
     const { data, error } = await supabase
       .from('system_users')
       .select('*')
-      .order('name');
+      .order('created_at', { ascending: true });
     if (error) {
       if (typeof window !== 'undefined') console.error('[UsersTab.loadUsers]', error.message);
       return;
     }
     if (data) {
+      const profIds = data.filter((u: Record<string, unknown>) => u.professional_id).map((u: Record<string, unknown>) => u.professional_id as string);
+      let profMap: Record<string, string> = {};
+      let profEmailMap: Record<string, string> = {};
+      if (profIds.length > 0) {
+        const { data: profs } = await supabase.from('professionals').select('id, name, email').in('id', profIds);
+        if (profs) {
+          profMap = Object.fromEntries(profs.map((p: Record<string, unknown>) => [p.id as string, (p.name as string) || '']));
+          profEmailMap = Object.fromEntries(profs.filter((p: Record<string, unknown>) => p.email).map((p: Record<string, unknown>) => [p.id as string, p.email as string]));
+        }
+      }
       setUsers(
-        data.map((u: Record<string, unknown>) => ({
-          id: u.id as string,
-          name: (u.name as string) || '',
-          email: u.email as string | undefined,
-          ci: u.ci as string | undefined,
-          systemRole: (u.system_role as SystemRole) || 'Recepcionista',
-          permissions: (u.permissions as string[]) || [],
-          location: u.location as string | undefined,
-          status: (u.status as SystemUser['status']) || 'ativo',
-          twoFactorEnabled: u.two_factor_enabled as boolean | undefined,
-          twoFactorMethod: u.two_factor_method as SystemUser['twoFactorMethod'],
-          createdAt: (u.created_at as string) || new Date().toISOString(),
-        }))
+        data.map((u: Record<string, unknown>) => {
+          const profName = u.professional_id ? profMap[u.professional_id as string] : null;
+          const profEmail = u.professional_id ? profEmailMap[u.professional_id as string] : null;
+          return {
+            id: u.id as string,
+            authUserId: u.auth_user_id as string | undefined,
+            professionalId: u.professional_id as string | undefined,
+            name: profName || (u.ci as string) || (u.id as string),
+            email: profEmail || undefined,
+            ci: u.ci as string | undefined,
+            systemRole: (u.system_role as SystemRole) || 'Recepcionista',
+            permissions: (u.permissions as string[]) || [],
+            location: u.location as string | undefined,
+            status: (u.status as SystemUser['status']) || 'ativo',
+            twoFactorEnabled: u.two_factor_enabled as boolean | undefined,
+            twoFactorMethod: u.two_factor_method as SystemUser['twoFactorMethod'],
+            createdAt: (u.created_at as string) || new Date().toISOString(),
+          };
+        })
       );
     }
   };
@@ -143,46 +157,50 @@ export function UsersTab({ addAuditLog }: UsersTabProps) {
     }
 
     if (editingId) {
-      if (!supabase) return;
-      const { error } = await supabase
-        .from('system_users')
-        .update({
-          name: userData.name,
-          email: userData.email,
-          ci: userData.ci,
-          system_role: userData.systemRole,
-          location: userData.location,
-          status: userData.status,
-          two_factor_enabled: userData.twoFactorEnabled,
-          two_factor_method: userData.twoFactorMethod,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', editingId);
-      if (error) {
-        if (typeof window !== 'undefined') alert(t('admin_alert_update_user_error', 'app') + error.message);
+      const response = await fetch('/api/admin/users', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: editingId,
+          email: userEmail,
+          name: userName,
+          role: userRole,
+          location: userLocation,
+          ci: userCi,
+          status: userStatus,
+          password: userPassword || undefined,
+        }),
+      });
+      if (!response.ok) {
+        let msg = t('admin_alert_update_user_error', 'app');
+        try {
+          const errData = await response.json();
+          if (errData?.error) msg += errData.error;
+        } catch {}
+        if (typeof window !== 'undefined') alert(msg);
         return;
       }
       addAuditLog('Atualizou Usuário', userName);
     } else {
-      if (!supabase) return;
-      const id = await genModuleId('usr');
-      const { error } = await supabase
-        .from('system_users')
-        .insert({
-          id,
-          name: userData.name,
-          email: userData.email,
-          ci: userData.ci,
-          system_role: userData.systemRole,
-          location: userData.location,
-          status: userData.status,
-          two_factor_enabled: userData.twoFactorEnabled,
-          two_factor_method: userData.twoFactorMethod,
-          permissions: [],
-          created_at: new Date().toISOString(),
-        });
-      if (error) {
-        if (typeof window !== 'undefined') alert(t('admin_alert_create_user_error', 'app') + error.message);
+      const response = await fetch('/api/admin/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: userEmail,
+          password: userPassword,
+          name: userName,
+          role: userRole,
+          location: userLocation,
+          ci: userCi,
+        }),
+      });
+      if (!response.ok) {
+        let msg = t('admin_alert_create_user_error', 'app');
+        try {
+          const errData = await response.json();
+          if (errData?.error) msg += errData.error;
+        } catch {}
+        if (typeof window !== 'undefined') alert(msg);
         return;
       }
       addAuditLog('Criou Usuário', userName);
