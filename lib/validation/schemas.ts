@@ -70,7 +70,7 @@ export const patientSchema = z.object({
     .optional(),
   allergies: optionalString(1000),
   health_insurance_type: z
-    .enum(['IPS', 'Sanidade Militar', 'Sanidade Policial', 'Pré-paga', 'Seguro Privado', 'Particular', ''])
+    .enum(['IPS', 'Sanidade Militar', 'Sanidade Policial', 'EMP', 'Seguro Privado', 'Corporativo', 'Particular', 'Mercosul', ''])
     .optional(),
   health_insurance_number: optionalString(50),
   health_insurance_company: optionalString(120),
@@ -116,7 +116,7 @@ export const appointmentSchema = z.object({
     .string()
     .regex(/^\d{2}:\d{2}$/, 'Hora deve estar no formato HH:MM'),
   insurance_type: z
-    .enum(['IPS', 'Sanidade Militar', 'Sanidade Policial', 'Pré-paga', 'Seguro Privado', 'Particular', ''])
+    .enum(['IPS', 'Sanidade Militar', 'Sanidade Policial', 'EMP', 'Seguro Privado', 'Corporativo', 'Particular', 'Mercosul', ''])
     .refine((val) => val !== '', { message: 'Convênio é obrigatório' }),
   insurance_number: z.string().max(50, 'Número da carteirinha deve ter no máximo 50 caracteres').optional().or(z.literal('')),
   status: z
@@ -367,9 +367,9 @@ export const createPatientComplementarySchema = (m: ValidationMessages) =>
         .refine((val) => val !== '', { message: m.bloodType }),
       allergies: z.string().min(1, m.allergiesRequired).max(1000, m.maxLength('Alergias', 1000)),
       health_insurance_type: z
-        .enum(['IPS', 'Sanidade Militar', 'Sanidade Policial', 'Pré-paga', 'Seguro Privado', 'Particular', ''], {
-          message: m.required('Plano de Saúde'),
-        })
+.enum(['IPS', 'Sanidade Militar', 'Sanidade Policial', 'EMP', 'Seguro Privado', 'Corporativo', 'Particular', 'Mercosul', ''], {
+      message: m.required('Plano de Saúde'),
+    })
         .refine((val) => val !== '', { message: m.required('Plano de Saúde') }),
       health_insurance_number: z.string().max(50, m.maxLength('Número', 50)).optional().or(z.literal('')),
       health_insurance_company: z.string().max(120, m.maxLength('Convênio', 120)).optional().or(z.literal('')),

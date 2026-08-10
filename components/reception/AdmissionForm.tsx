@@ -124,7 +124,7 @@ export function AdmissionForm({ addAuditLog, onSuccess, initialPatient, onClose 
       address_number: addressNumber,
       blood_type: bloodType as 'A+' | 'A-' | 'B+' | 'B-' | 'AB+' | 'AB-' | 'O+' | 'O-' | 'Não Informado' | '' | undefined,
       allergies,
-      health_insurance_type: healthInsurance as 'IPS' | 'Sanidade Militar' | 'Sanidade Policial' | 'Pré-paga' | 'Seguro Privado' | 'Particular' | '' | undefined,
+      health_insurance_type: healthInsurance as 'IPS' | 'Sanidade Militar' | 'Sanidade Policial' | 'EMP' | 'Seguro Privado' | 'Corporativo' | 'Particular' | 'Mercosul' | '' | undefined,
       health_insurance_number: healthInsuranceNumber,
       health_insurance_company: healthInsuranceCompany,
       employer,

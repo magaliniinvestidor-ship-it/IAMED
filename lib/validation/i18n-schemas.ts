@@ -232,7 +232,7 @@ export function createClinicPatientComplementarySchema(m: ValidationMessages) {
   return z
     .object({
       insurance_type: z
-        .enum(['IPS', 'Sanidade Militar', 'Sanidade Policial', 'Pré-paga', 'Seguro Privado', 'Particular', ''], {
+        .enum(['IPS', 'Sanidade Militar', 'Sanidade Policial', 'EMP', 'Seguro Privado', 'Corporativo', 'Particular', 'Mercosul', ''], {
           message: m.required('Convênio'),
         })
         .refine((val) => val !== '', { message: m.required('Convênio') }),
@@ -297,7 +297,7 @@ export function createPatientComplementarySchema(m: ValidationMessages) {
         .refine((val) => val !== '', { message: m.bloodType }),
       allergies: z.string().min(1, m.allergiesRequired).max(1000, m.maxLength('Alergias', 1000)),
       health_insurance_type: z
-        .enum(['IPS', 'Sanidade Militar', 'Sanidade Policial', 'Pré-paga', 'Seguro Privado', 'Particular', ''], {
+        .enum(['IPS', 'Sanidade Militar', 'Sanidade Policial', 'EMP', 'Seguro Privado', 'Corporativo', 'Particular', 'Mercosul', ''], {
           message: m.required('Plano de Saúde'),
         })
         .refine((val) => val !== '', { message: m.required('Plano de Saúde') }),
@@ -500,5 +500,6 @@ export function createCallLogSchema(m: ValidationMessages) {
     type: z.enum(['inbound', 'outbound'], { message: m.required('Tipo') }),
     reason: z.string().min(1, m.required('Motivo')).max(50, m.maxLength('Motivo', 50)),
     notes: optionalString(m, 1000),
+    forwarded_to: optionalString(m, 30),
   });
 }

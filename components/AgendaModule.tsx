@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import Image from 'next/image';
 import { supabase } from '@/lib/supabaseClient';
 import { useI18n } from '@/lib/i18n/I18nContext';
-import { Patient, Appointment, Professional } from '@/lib/mockData';
+import { Patient, Appointment, Professional, InsuranceCompany } from '@/lib/mockData';
 import {
   CalendarDays, ClipboardList, PhoneCall, Plus,
   Trash2, AlertTriangle, CheckCircle, Clock, Check, RefreshCw,
@@ -115,6 +115,7 @@ interface AgendaModuleProps {
   activeOperator?: string;
   userId?: string;
   userPermissions?: string[];
+  insurances?: InsuranceCompany[];
 }
 
 interface BlockedSlot {
@@ -178,6 +179,10 @@ interface CallLog {
   notes: string;
   duration_seconds: number;
   recording_url: string | null;
+  status: 'ativa' | 'encerrada' | 'abandonada';
+  resolved_first_contact: boolean;
+  forwarded_to: string | null;
+  started_at?: string;
   created_at: string;
 }
 
@@ -293,6 +298,19 @@ const CALL_CENTER_REASONS = [
   { value: 'outros', labelKey: 'agenda_reason_others' },
 ];
 
+const CALL_CENTER_FORWARD_AREAS = [
+  { value: 'recepcao', labelKey: 'agenda_fwd_reception' },
+  { value: 'agendamento', labelKey: 'agenda_fwd_scheduling' },
+  { value: 'financeiro', labelKey: 'agenda_fwd_finance' },
+  { value: 'faturamento', labelKey: 'agenda_fwd_billing' },
+  { value: 'farmacia', labelKey: 'agenda_fwd_pharmacy' },
+  { value: 'laboratorio', labelKey: 'agenda_fwd_lab' },
+  { value: 'medicina_trabalho', labelKey: 'agenda_fwd_medtrab' },
+  { value: 'clinica', labelKey: 'agenda_fwd_clinic' },
+  { value: 'internacao', labelKey: 'agenda_fwd_intern' },
+  { value: 'ouvidoria', labelKey: 'agenda_fwd_ombudsman' },
+];
+
 const APPOINTMENT_TYPES = [
   { value: 'primeira_vez', labelKey: 'agenda_appt_type_first_visit', color: 'bg-blue-100 text-blue-700', icon: '🩺' },
   { value: 'retorno', labelKey: 'agenda_appt_type_return', color: 'bg-emerald-100 text-emerald-700', icon: '🔄' },
@@ -302,12 +320,14 @@ const APPOINTMENT_TYPES = [
 ];
 
 const INSURANCE_TYPES = [
+  { value: 'Particular', labelKey: 'agenda_ins_type_particular', quotaPresencial: 50, quotaVirtual: 50 },
   { value: 'IPS', labelKey: 'agenda_ins_type_ips', quotaPresencial: 80, quotaVirtual: 20 },
   { value: 'Sanidade Militar', labelKey: 'agenda_ins_type_military', quotaPresencial: 90, quotaVirtual: 10 },
   { value: 'Sanidade Policial', labelKey: 'agenda_ins_type_police', quotaPresencial: 85, quotaVirtual: 15 },
-  { value: 'Pré-paga', labelKey: 'agenda_ins_type_prepaid', quotaPresencial: 70, quotaVirtual: 30 },
+  { value: 'EMP', labelKey: 'agenda_ins_type_emp', quotaPresencial: 70, quotaVirtual: 30 },
   { value: 'Seguro Privado', labelKey: 'agenda_ins_type_private', quotaPresencial: 60, quotaVirtual: 40 },
-  { value: 'Particular', labelKey: 'agenda_ins_type_particular', quotaPresencial: 50, quotaVirtual: 50 },
+  { value: 'Corporativo', labelKey: 'agenda_ins_type_corporative', quotaPresencial: 70, quotaVirtual: 30 },
+  { value: 'Mercosul', labelKey: 'agenda_ins_type_mercosul', quotaPresencial: 75, quotaVirtual: 25 },
 ];
 
 const RESOURCES = [
@@ -342,9 +362,12 @@ const AgendaModuleContent = ({
   activeRole = 'Recepcionista',
   activeOperator = 'Operador',
   userId,
+  insurances = [],
 }: AgendaModuleProps) => {
   const { locale, t } = useI18n();
   const userPermissions = useUserPermissions();
+
+  const insuranceTypeOptions = INSURANCE_TYPES;
   const canEdit = userPermissions?.includes('agenda_edit') || 
                   userPermissions?.includes('admin:*') || 
                   userPermissions?.includes('perform_admit') ||
@@ -381,6 +404,7 @@ const AgendaModuleContent = ({
   const cpPhotoCounterRef = useRef(0);
   const cpPendingCaptureRef = useRef<'real' | 'simulation' | null>(null);
   const cpSimulationFileRef = useRef('');
+  const cpNewPatientIdRef = useRef<string | null>(null);
 
   // Patient search in appointment form
   const [patientSearchQuery, setPatientSearchQuery] = useState('');
@@ -453,16 +477,42 @@ const AgendaModuleContent = ({
   // Call Center
   const [callLogs, setCallLogs] = useState<CallLog[]>([]);
   const [showCallModal, setShowCallModal] = useState(false);
-  const [callForm, setCallForm] = useState({ operator_name: activeOperator, patient_id: '', patient_name: '', patient_phone: '', type: '' as '' | CallLog['type'], reason: '' as '' | CallLog['reason'], notes: '', duration_seconds: 0 });
-  const [activeCall, setActiveCall] = useState<CallLog | null>(null);
-  const [callTimer, setCallTimer] = useState(0);
+  const [callForm, setCallForm] = useState({ operator_name: activeOperator, patient_id: '', patient_name: '', patient_phone: '', type: '' as '' | CallLog['type'], reason: '' as '' | CallLog['reason'], notes: '', duration_seconds: 0, forwarded_to: '' });
+  const callStartRef = useRef<number | null>(null);
+  const [callElapsed, setCallElapsed] = useState(0);
+  const [activeCalls, setActiveCalls] = useState<CallLog[]>([]);
+  const [endCallModal, setEndCallModal] = useState<{ call: CallLog; status: CallLog['status']; resolved_first_contact: boolean; forwarded_to: string } | null>(null);
   const [callDateView, setCallDateView] = useState<'day' | 'week' | 'month'>('day');
   const [callSelectedDate, setCallSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
+
+  useEffect(() => {
+    if (!showCallModal) { setCallElapsed(0); callStartRef.current = null; return; }
+    callStartRef.current = Date.now();
+    setCallElapsed(0);
+    const interval = setInterval(() => {
+      if (callStartRef.current) setCallElapsed(Math.floor((Date.now() - callStartRef.current) / 1000));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [showCallModal]);
 
   // Blocked slots
 
   // Blocked slots
   const [blockedSlots, setBlockedSlots] = useState<BlockedSlot[]>([]);
+
+  const isBlockExpired = (b: BlockedSlot) => {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const now = new Date();
+    const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+    if (b.end_date < today) return true;
+    if (b.end_date === today) {
+      const nowTime = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+      if (b.end_time && nowTime > b.end_time) return true;
+    }
+    return false;
+  };
+  const activeBlockedSlots = blockedSlots.filter(b => !isBlockExpired(b));
+  const expiredBlockedCount = blockedSlots.length - activeBlockedSlots.length;
 
   // New appointment modal
   const [showNewApptModal, setShowNewApptModal] = useState(false);
@@ -1393,7 +1443,7 @@ const AgendaModuleContent = ({
         return;
       }
       const notifyInsuranceCp = clinicPatients.find(p => p.id === notifyEntry.patient_id);
-      const notifyInsuranceDef = notifyInsuranceCp?.insurance_type ? INSURANCE_TYPES.find(i => i.value === notifyInsuranceCp.insurance_type) : undefined;
+      const notifyInsuranceDef = notifyInsuranceCp?.insurance_type ? insuranceTypeOptions.find(i => i.value === notifyInsuranceCp.insurance_type) : undefined;
       const pendingAppt: Appointment = {
         id: pendingApptId,
         patientId: notifyEntry.patient_id,
@@ -1465,7 +1515,7 @@ const AgendaModuleContent = ({
       return;
     }
     const allocateInsuranceCp = clinicPatients.find(p => p.id === allocateEntry.patient_id);
-    const allocateInsuranceDef = allocateInsuranceCp?.insurance_type ? INSURANCE_TYPES.find(i => i.value === allocateInsuranceCp.insurance_type) : undefined;
+    const allocateInsuranceDef = allocateInsuranceCp?.insurance_type ? insuranceTypeOptions.find(i => i.value === allocateInsuranceCp.insurance_type) : undefined;
     const newAppointment: Appointment = {
       id: newApptId,
       patientId: allocateEntry.patient_id,
@@ -1647,47 +1697,94 @@ const AgendaModuleContent = ({
       type: callForm.type as CallLog['type'],
       reason: callForm.reason as CallLog['reason'],
       recording_url: null,
+      status: 'encerrada',
+      resolved_first_contact: false,
+      forwarded_to: callForm.forwarded_to || null,
+      started_at: new Date().toISOString(),
       created_at: new Date().toISOString(),
+      duration_seconds: callStartRef.current ? Math.max(1, Math.floor((Date.now() - callStartRef.current) / 1000)) : callForm.duration_seconds,
     };
     setCallLogs(prev => [newCall, ...prev]);
     addAuditLog('Registrou Ligação', `${callForm.type} - ${callForm.patient_name}`);
-    if (supabase) await supabase.from('call_center_logs').insert(newCall);
+    if (supabase) {
+      const { error } = await supabase.from('call_center_logs').insert(newCall);
+      if (error) console.error('[SUPABASE] INSERT call_center_logs FAILED:', error.code, error.message, error.details);
+    }
     setShowCallModal(false);
-    setCallForm({ operator_name: activeOperator, patient_id: '', patient_name: '', patient_phone: '', type: '', reason: '', notes: '', duration_seconds: 0 });
+    setCallForm({ operator_name: activeOperator, patient_id: '', patient_name: '', patient_phone: '', type: '', reason: '', notes: '', duration_seconds: 0, forwarded_to: '' });
   };
 
-  const startCall = async (patientName: string, phone: string, type: 'outbound' | 'inbound' = 'outbound') => {
-    const newId = await genModuleId('call');
-    setActiveCall({
-      id: newId,
-      operator_name: activeOperator,
-      patient_id: null,
-      patient_name: patientName,
-      patient_phone: phone,
-      type: type,
-      reason: 'agendamento',
-      notes: '',
-      duration_seconds: 0,
-      recording_url: null,
-      created_at: new Date().toISOString(),
-    });
-    setCallTimer(0);
+  const startCall = async (patientName: string, phone: string, type: 'outbound' | 'inbound' = 'outbound', existingId?: string) => {
+    const newId = existingId || (await genModuleId('call'));
+    const now = new Date().toISOString();
+    setActiveCalls(prev => [
+      ...prev,
+      {
+        id: newId,
+        operator_name: activeOperator,
+        patient_id: null,
+        patient_name: patientName,
+        patient_phone: phone,
+        type: type,
+        reason: 'agendamento',
+        notes: '',
+        duration_seconds: 0,
+        recording_url: null,
+        status: 'ativa',
+        resolved_first_contact: false,
+        forwarded_to: null,
+        started_at: now,
+        created_at: now,
+      },
+    ]);
   };
 
-  const endCall = () => {
-    if (!activeCall) return;
-    const endedCall = { ...activeCall, duration_seconds: callTimer };
-    setCallLogs(prev => [endedCall, ...prev]);
-    addAuditLog('Encerrou Ligação', `${activeCall.patient_name} (${callTimer}s)`);
-    setActiveCall(null);
-    setCallTimer(0);
+  const openEndCallModal = (call: CallLog) => {
+    setEndCallModal({ call, status: call.status === 'abandonada' ? 'abandonada' : 'encerrada', resolved_first_contact: call.resolved_first_contact, forwarded_to: call.forwarded_to || '' });
+  };
+
+  const endCall = async () => {
+    if (!endCallModal) return;
+    const { call, status, resolved_first_contact, forwarded_to } = endCallModal;
+    const endedCall: CallLog = {
+      ...call,
+      status,
+      resolved_first_contact,
+      forwarded_to: forwarded_to || null,
+      created_at: call.created_at || new Date().toISOString(),
+    };
+    setActiveCalls(prev => prev.filter(c => c.id !== call.id));
+    setCallLogs(prev => [endedCall, ...prev.filter(c => c.id !== call.id)]);
+    addAuditLog('Encerrou Ligação', `${call.patient_name} (${call.duration_seconds}s, ${status})`);
+    if (supabase) {
+      await supabase.from('call_center_logs').upsert({
+        id: endedCall.id,
+        operator_name: endedCall.operator_name,
+        patient_id: endedCall.patient_id,
+        patient_name: endedCall.patient_name,
+        patient_phone: endedCall.patient_phone,
+        type: endedCall.type,
+        reason: endedCall.reason,
+        notes: endedCall.notes,
+        duration_seconds: endedCall.duration_seconds,
+        recording_url: endedCall.recording_url,
+        status: endedCall.status,
+        resolved_first_contact: endedCall.resolved_first_contact,
+        forwarded_to: endedCall.forwarded_to,
+        started_at: endedCall.started_at || null,
+        created_at: endedCall.created_at,
+      });
+    }
+    setEndCallModal(null);
   };
 
   useEffect(() => {
-    if (!activeCall) return;
-    const interval = setInterval(() => setCallTimer(prev => prev + 1), 1000);
+    if (activeCalls.length === 0) return;
+    const interval = setInterval(() => {
+      setActiveCalls(prev => prev.map(c => (c.status === 'ativa' ? { ...c, duration_seconds: c.duration_seconds + 1 } : c)));
+    }, 1000);
     return () => clearInterval(interval);
-  }, [activeCall]);
+  }, [activeCalls.length]);
 
   const handleNewAppointment = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1705,7 +1802,7 @@ const AgendaModuleContent = ({
       branch: newApptForm.branch,
       room: newApptForm.room,
       modality: newApptForm.modality,
-      insurance_type: (newApptForm.insurance_type || '') as 'IPS' | 'Sanidade Militar' | 'Sanidade Policial' | 'Pré-paga' | 'Seguro Privado' | 'Particular' | '',
+      insurance_type: (newApptForm.insurance_type || '') as 'IPS' | 'Sanidade Militar' | 'Sanidade Policial' | 'EMP' | 'Seguro Privado' | 'Corporativo' | 'Particular' | 'Mercosul' | '',
       insurance_number: newApptForm.insurance_number || '',
     });
     if (!result.success) {
@@ -1895,6 +1992,7 @@ const AgendaModuleContent = ({
     });
     setCpWebcamPlaceholder(null);
     setEditingClinicPatient(null);
+    cpNewPatientIdRef.current = null;
     setClinicPatientFormTab('identification');
     setCpErrors([]);
     clearCpIdErrors();
@@ -1938,7 +2036,7 @@ const AgendaModuleContent = ({
     }
     if (tab === 'complementary') {
       const result = validateCpComp({
-        insurance_type: cpForm.insurance_type as 'IPS' | 'Sanidade Militar' | 'Sanidade Policial' | 'Pré-paga' | 'Seguro Privado' | 'Particular' | '',
+        insurance_type: cpForm.insurance_type as 'IPS' | 'Sanidade Militar' | 'Sanidade Policial' | 'EMP' | 'Seguro Privado' | 'Corporativo' | 'Particular' | 'Mercosul' | '',
         insurance_number: cpForm.insurance_number,
         preferred_language: cpForm.preferred_language as 'pt-BR' | 'pt-PT' | 'es-AR' | 'es-PY' | 'es' | 'en' | 'outros' | '',
         allergies: cpForm.allergies,
@@ -1997,7 +2095,7 @@ const AgendaModuleContent = ({
       address_number: cpForm.address_number,
     });
     const compResult = validateCpComp({
-      insurance_type: cpForm.insurance_type as 'IPS' | 'Sanidade Militar' | 'Sanidade Policial' | 'Pré-paga' | 'Seguro Privado' | 'Particular' | '',
+      insurance_type: cpForm.insurance_type as 'IPS' | 'Sanidade Militar' | 'Sanidade Policial' | 'EMP' | 'Seguro Privado' | 'Corporativo' | 'Particular' | 'Mercosul' | '',
       insurance_number: cpForm.insurance_number,
       preferred_language: cpForm.preferred_language as 'pt-BR' | 'pt-PT' | 'es-AR' | 'es-PY' | 'es' | 'en' | 'outros' | '',
       allergies: cpForm.allergies,
@@ -2026,7 +2124,7 @@ const AgendaModuleContent = ({
     }
 
     // ID do paciente: ao editar usa o existente, ao criar gera um novo via RPC
-    let patientId = editingClinicPatient?.id || '';
+    let patientId = editingClinicPatient?.id || cpNewPatientIdRef.current || '';
     if (!patientId && supabase) {
       const { data } = await supabase.rpc('next_clinic_patient_id');
       if (data) patientId = data as string;
@@ -2157,8 +2255,19 @@ const AgendaModuleContent = ({
     }
   };
 
+  const openNewClinicPatientModal = async () => {
+    resetCpForm();
+    setShowNewPatientModal(true);
+    if (supabase) {
+      const { data } = await supabase.rpc('next_clinic_patient_id');
+      if (data) cpNewPatientIdRef.current = data as string;
+    }
+    if (!cpNewPatientIdRef.current) cpNewPatientIdRef.current = 'CLI001';
+  };
+
   const handleEditClinicPatient = (patient: ClinicPatient) => {
     setEditingClinicPatient(patient);
+    cpNewPatientIdRef.current = null;
     setCpForm({
       name: patient.name, document_type: patient.document_type, document_number: patient.document_number,
       birth_date: patient.birth_date, gender: patient.gender, nationality: patient.nationality,
@@ -2236,7 +2345,7 @@ const AgendaModuleContent = ({
   const cpCapturePhoto = async () => {
     const fileName = editingClinicPatient?.id
       ? `patient_${editingClinicPatient.id}_${Date.now()}.jpg`
-      : `patient_${++cpPhotoCounterRef.current}_${Date.now()}.jpg`;
+      : `patient_${(cpNewPatientIdRef.current || 'CLI001')}_${Date.now()}.jpg`;
     if (cpVideoRef.current && cpCanvasRef.current) {
       const canvas = cpCanvasRef.current;
       const video = cpVideoRef.current;
@@ -2281,7 +2390,7 @@ const AgendaModuleContent = ({
     if (!file) return;
     const fileName = editingClinicPatient?.id
       ? `patient_${editingClinicPatient.id}_${Date.now()}.jpg`
-      : `patient_${++cpPhotoCounterRef.current}_${Date.now()}.jpg`;
+      : `patient_${(cpNewPatientIdRef.current || 'CLI001')}_${Date.now()}.jpg`;
     const reader = new FileReader();
     reader.onloadend = async () => {
       const dataUrl = reader.result as string;
@@ -2330,7 +2439,11 @@ const AgendaModuleContent = ({
     const avgDuration = total > 0 ? Math.round(filteredCallLogs.reduce((sum, c) => sum + c.duration_seconds, 0) / total) : 0;
     const todayStr = new Date().toISOString().split('T')[0];
     const todayCalls = callLogs.filter(c => c.created_at.startsWith(todayStr)).length;
-    return { total, inbound, outbound, avgDuration, todayCalls };
+    const abandoned = filteredCallLogs.filter(c => c.status === 'abandonada').length;
+    const fcr = filteredCallLogs.filter(c => c.resolved_first_contact && c.status === 'encerrada').length;
+    const abandonRate = total > 0 ? Math.round((abandoned / total) * 100) : 0;
+    const fcrRate = total > 0 ? Math.round((fcr / total) * 100) : 0;
+    return { total, inbound, outbound, avgDuration, todayCalls, abandoned, fcr, abandonRate, fcrRate };
   }, [filteredCallLogs, callLogs]);
 
   const whatsappMetrics = useMemo(() => {
@@ -2440,7 +2553,7 @@ const AgendaModuleContent = ({
               {t('agenda_patient_registration', 'app')} ({patientSearchQuery ? `${sortedFilteredClinicPatients.length} / ${clinicPatients.length}` : clinicPatients.length})
             </h3>
             {canEdit && (
-              <button onClick={() => { resetCpForm(); setShowNewPatientModal(true); }}
+              <button onClick={() => { openNewClinicPatientModal(); }}
                 className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-lg transition flex items-center gap-2">
                 <Plus className="w-4 h-4" /> {t('agenda_new_patient', 'app')}
               </button>
@@ -2520,14 +2633,17 @@ const AgendaModuleContent = ({
             <div className="flex justify-between items-center mb-4">
               <h3 className="font-bold text-slate-800 flex items-center gap-2">
                 <AlertTriangle className="w-5 h-5 text-amber-600" />
-                {t('agenda_blocks_title', 'app')} ({blockedSlots.length})
+                {t('agenda_blocks_title', 'app')} ({activeBlockedSlots.length})
+                {expiredBlockedCount > 0 && (
+                  <span className="ml-1 text-[10px] font-bold text-rose-500">{expiredBlockedCount} {t('agenda_blocks_expired', 'app')}</span>
+                )}
               </h3>
             </div>
-            {blockedSlots.length === 0 ? (
+            {activeBlockedSlots.length === 0 ? (
               <p className="text-center text-slate-400 py-6">{t('agenda_no_blocks', 'app')}</p>
             ) : (
               <div className="space-y-2 max-h-64 overflow-y-auto">
-                {blockedSlots.map(b => (
+                {activeBlockedSlots.map(b => (
                   <div key={b.id} className="p-3 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className={`w-2 h-2 rounded-full ${b.reason === 'feriado' ? 'bg-red-500' : b.reason === 'férias' ? 'bg-blue-500' : b.reason === 'capacitação' ? 'bg-purple-500' : 'bg-rose-500'}`} />
@@ -2755,12 +2871,7 @@ const AgendaModuleContent = ({
                   <FormField label={t('agenda_insurance_type', 'app')} required error={cpCompFieldErrors.insurance_type}>
                     <select value={cpForm.insurance_type} onChange={e => setCpForm({ ...cpForm, insurance_type: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
                       <option value="">{t('agenda_select', 'app')}</option>
-                      <option value="IPS">IPS</option>
-                      <option value="Sanidade Militar">{t('agenda_ins_type_military', 'app')}</option>
-                      <option value="Sanidade Policial">{t('agenda_ins_type_police', 'app')}</option>
-                      <option value="Pre-paga">{t('agenda_ins_type_prepaid', 'app')}</option>
-                      <option value="Seguro Privado">{t('agenda_ins_type_private', 'app')}</option>
-                      <option value="Particular">{t('agenda_ins_type_particular', 'app')}</option>
+                      {insuranceTypeOptions.map(i => <option key={i.value} value={i.value}>{i.labelKey ? t(i.labelKey, 'app') : i.value}</option>)}
                     </select>
                   </FormField>
                   <FormField label={t('agenda_insurance_number', 'app')} required={cpForm.insurance_type !== '' && cpForm.insurance_type !== 'Particular'} error={cpCompFieldErrors.insurance_number}>
@@ -3256,14 +3367,17 @@ const AgendaModuleContent = ({
             <div className="flex justify-between items-center mb-4">
               <h3 className="font-bold text-slate-800 flex items-center gap-2">
                 <AlertTriangle className="w-5 h-5 text-amber-600" />
-                {t('agenda_blocks_title', 'app')} ({blockedSlots.length})
+                {t('agenda_blocks_title', 'app')} ({activeBlockedSlots.length})
+                {expiredBlockedCount > 0 && (
+                  <span className="ml-1 text-[10px] font-bold text-rose-500">{expiredBlockedCount} {t('agenda_blocks_expired', 'app')}</span>
+                )}
               </h3>
             </div>
-            {blockedSlots.length === 0 ? (
+            {activeBlockedSlots.length === 0 ? (
               <p className="text-center text-slate-400 py-6">{t('agenda_no_blocks', 'app')}</p>
             ) : (
               <div className="space-y-2 max-h-64 overflow-y-auto">
-                {blockedSlots.map(b => (
+                {activeBlockedSlots.map(b => (
                   <div key={b.id} className="p-3 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className={`w-2 h-2 rounded-full ${b.reason === 'feriado' ? 'bg-red-500' : b.reason === 'férias' ? 'bg-blue-500' : b.reason === 'capacitação' ? 'bg-purple-500' : 'bg-rose-500'}`} />
@@ -3672,13 +3786,15 @@ const AgendaModuleContent = ({
       {activeTab === 'callcenter' && (
         <div className="space-y-4">
           {/* KPIs */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-8">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
             {[
               { label: t('agenda_total', 'app'), value: callCenterKPIs.total, icon: PhoneCall, color: 'text-slate-600', bg: 'bg-slate-50' },
               { label: t('agenda_incoming', 'app'), value: callCenterKPIs.inbound, icon: Phone, color: 'text-green-600', bg: 'bg-green-50' },
               { label: t('agenda_outgoing', 'app'), value: callCenterKPIs.outbound, icon: PhoneOff, color: 'text-blue-600', bg: 'bg-blue-50' },
               { label: t('agenda_avg_duration', 'app'), value: `${callCenterKPIs.avgDuration}s`, icon: Timer, color: 'text-amber-600', bg: 'bg-amber-50' },
               { label: t('agenda_today', 'app'), value: callCenterKPIs.todayCalls, icon: CalendarDays, color: 'text-purple-600', bg: 'bg-purple-50' },
+              { label: t('agenda_abandon_rate', 'app'), value: `${callCenterKPIs.abandonRate}%`, icon: TrendingDown, color: 'text-rose-600', bg: 'bg-rose-50' },
+              { label: t('agenda_fcr_rate', 'app'), value: `${callCenterKPIs.fcrRate}%`, icon: CheckCircle2, color: 'text-emerald-600', bg: 'bg-emerald-50' },
             ].map((m, i) => (
               <div key={i} className={`${m.bg} rounded-xl p-3 border border-slate-100`}>
                 <div className="flex items-center gap-2 mb-1">
@@ -3690,24 +3806,32 @@ const AgendaModuleContent = ({
             ))}
           </div>
 
-          {/* Active Call */}
-          {activeCall && (
-            <div className="bg-green-50 border-2 border-green-300 rounded-xl p-4 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" />
-                <div>
-                  <p className="font-bold text-green-800">{t('agenda_active_call', 'app')}</p>
-                  <p className="text-sm text-green-600">{activeCall.patient_name} • {activeCall.patient_phone}</p>
+          {/* Active Calls - Multi-operador */}
+          {activeCalls.length > 0 && (
+            <div className="space-y-2">
+              <h4 className="font-bold text-slate-800 flex items-center gap-2">
+                <PhoneCall className="w-5 h-5 text-green-600" />
+                {t('agenda_active_calls', 'app')} ({activeCalls.length})
+              </h4>
+              {activeCalls.map(c => (
+                <div key={c.id} className={`bg-green-50 border-2 rounded-xl p-4 flex items-center justify-between ${c.status === 'abandonada' ? 'border-amber-300' : 'border-green-300'}`}>
+                  <div className="flex items-center gap-3">
+                    <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" />
+                    <div>
+                      <p className="font-bold text-green-800">{t('agenda_active_call', 'app')} • {c.operator_name}</p>
+                      <p className="text-sm text-green-600">{c.patient_name} • {c.patient_phone}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <span className="text-2xl font-mono font-bold text-green-700">
+                      {Math.floor(c.duration_seconds / 60)}:{String(c.duration_seconds % 60).padStart(2, '0')}
+                    </span>
+                    <button onClick={() => openEndCallModal(c)} className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg flex items-center gap-2">
+                      <PhoneOff className="w-4 h-4" /> {t('agenda_end_call', 'app')}
+                    </button>
+                  </div>
                 </div>
-              </div>
-              <div className="flex items-center gap-4">
-                <span className="text-2xl font-mono font-bold text-green-700">
-                  {Math.floor(callTimer / 60)}:{String(callTimer % 60).padStart(2, '0')}
-                </span>
-                <button onClick={endCall} className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg flex items-center gap-2">
-                  <PhoneOff className="w-4 h-4" /> {t('agenda_end_call', 'app')}
-                </button>
-              </div>
+              ))}
             </div>
           )}
 
@@ -3753,6 +3877,8 @@ const AgendaModuleContent = ({
                     <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">{t('agenda_th_type', 'app')}</th>
                     <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">{t('agenda_th_reason', 'app')}</th>
                     <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">{t('agenda_th_duration', 'app')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">{t('agenda_th_status', 'app')}</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">{t('agenda_th_forward', 'app')}</th>
                     <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">{t('agenda_th_datetime', 'app')}</th>
                   </tr>
                 </thead>
@@ -3769,6 +3895,14 @@ const AgendaModuleContent = ({
                       <td className="px-4 py-3 text-sm text-slate-600">{(() => { const r = CALL_CENTER_REASONS.find(x => x.value === c.reason); return r ? t(r.labelKey, 'app') : c.reason; })()}</td>
                       <td className="px-4 py-3 text-sm text-slate-600">
                         {Math.floor(c.duration_seconds / 60)}:{String(c.duration_seconds % 60).padStart(2, '0')}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2 py-0.5 text-xs font-bold rounded ${c.status === 'abandonada' ? 'bg-amber-100 text-amber-700' : c.status === 'ativa' ? 'bg-green-100 text-green-700' : c.resolved_first_contact ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+                          {c.status === 'abandonada' ? t('agenda_call_status_abandoned', 'app') : c.status === 'ativa' ? t('agenda_call_status_active', 'app') : c.resolved_first_contact ? t('agenda_call_status_fcr', 'app') : t('agenda_call_status_ended', 'app')}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-slate-600">
+                        {c.forwarded_to ? (() => { const a = CALL_CENTER_FORWARD_AREAS.find(x => x.value === c.forwarded_to); return a ? t(a.labelKey, 'app') : c.forwarded_to; })() : '—'}
                       </td>
                       <td className="px-4 py-3 text-sm text-slate-500">{new Date(c.created_at).toLocaleString(locale)}</td>
                     </tr>
@@ -3827,7 +3961,7 @@ const AgendaModuleContent = ({
                   }).slice(0, 20).map(cp => (
                     <button key={cp.id} type="button"
                       onClick={() => {
-                        const ins = cp.insurance_type ? INSURANCE_TYPES.find(i => i.value === cp.insurance_type) : undefined;
+                        const ins = cp.insurance_type ? insuranceTypeOptions.find(i => i.value === cp.insurance_type) : undefined;
                         setNewApptForm({
                           ...newApptForm,
                           patient_id: cp.id,
@@ -3840,7 +3974,10 @@ const AgendaModuleContent = ({
                         setPatientSearchQuery('');
                       }}
                       className="w-full px-4 py-3 text-left hover:bg-teal-50 flex items-center gap-3 border-b border-slate-100 last:border-0 transition">
-                      <PatientAvatar key={cp.updated_at || cp.id} src={cp.photo_url} name={cp.name} size={32} />
+                      <div className="rounded-full bg-teal-100 flex items-center justify-center text-teal-700 font-bold shrink-0"
+                        style={{ width: 32, height: 32, fontSize: 10 }} aria-hidden>
+                        {cp.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
+                      </div>
                       <div className="flex-1 min-w-0">
                         <p className="font-semibold text-sm text-slate-800 truncate">{cp.name}</p>
                         <p className="text-xs text-slate-500">{cp.document_type}: {cp.document_number || '-'} {cp.phone ? `| ${cp.phone}` : ''}</p>
@@ -3970,11 +4107,11 @@ const AgendaModuleContent = ({
             <div className="grid grid-cols-2 gap-4">
               <FormField label={t('agenda_insurance', 'app')} required error={apptFieldErrors.insurance_type}>
                 <select value={newApptForm.insurance_type ?? ''} onChange={e => {
-                  const it = INSURANCE_TYPES.find(i => i.value === e.target.value);
-                  setNewApptForm({ ...newApptForm, insurance_type: e.target.value || undefined, insurance: it ? t(it.labelKey, 'app') : '', insurance_number: '' });
+                  const it = insuranceTypeOptions.find(i => i.value === e.target.value);
+                  setNewApptForm({ ...newApptForm, insurance_type: e.target.value || undefined, insurance: it ? (it.labelKey ? t(it.labelKey, 'app') : it.value) : '', insurance_number: '' });
                 }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
                   <option value="">{t('agenda_select', 'app')}</option>
-                  {INSURANCE_TYPES.map(i => <option key={i.value} value={i.value}>{t(i.labelKey, 'app')}</option>)}
+                  {insuranceTypeOptions.map(i => <option key={i.value} value={i.value}>{i.labelKey ? t(i.labelKey, 'app') : i.value}</option>)}
                 </select>
               </FormField>
               <FormField label={t('agenda_insurance_number', 'app')} required={!!newApptForm.insurance_type && newApptForm.insurance_type !== 'Particular'} error={apptFieldErrors.insurance_number}>
@@ -3999,7 +4136,7 @@ const AgendaModuleContent = ({
                   <p className="text-xs text-blue-500 mb-1">{newApptForm.date ? t('agenda_quota_scope_day', 'app').replace('{date}', newApptForm.date) : t('agenda_quota_scope_all', 'app')}</p>
                 <div className="flex gap-4">
                   {(() => {
-                    const ins = INSURANCE_TYPES.find(i => i.value === newApptForm.insurance_type);
+                    const ins = insuranceTypeOptions.find(i => i.value === newApptForm.insurance_type);
                     if (!ins) return null;
                     const activeStatuses = ['agendado', 'confirmado', 'pendente', 'em sala de espera', 'em atendimento', 'atendido', 'finalizado'];
                     const quotaInScope = (a: { insurance_type?: string | null; modality?: string | null; date?: string | null; patient_id?: string | null; status?: string | null }) =>
@@ -4671,10 +4808,16 @@ const AgendaModuleContent = ({
       </InlineModal>
 
       {/* Call Center Modal */}
-      <InlineModal open={showCallModal} onClose={() => { setShowCallModal(false); clearCallLogErrors(); setCallForm({ operator_name: activeOperator, patient_id: '', patient_name: '', patient_phone: '', type: '', reason: '', notes: '', duration_seconds: 0 }); }} className="max-w-md">
+      <InlineModal open={showCallModal} onClose={() => { setShowCallModal(false); clearCallLogErrors(); setCallForm({ operator_name: activeOperator, patient_id: '', patient_name: '', patient_phone: '', type: '', reason: '', notes: '', duration_seconds: 0, forwarded_to: '' }); }} className="max-w-md">
         <div className="p-6">
           <form onSubmit={handleCallSubmit} className="space-y-4" noValidate>
             <h3 className="font-bold text-lg">{t('agenda_register_call_title', 'app')}</h3>
+            {callStartRef.current && (
+              <div className="flex items-center gap-2 text-sm font-semibold text-rose-600">
+                <Timer className="w-4 h-4" />
+                <span className="font-mono">{Math.floor(callElapsed / 60)}:{String(callElapsed % 60).padStart(2, '0')}</span>
+              </div>
+            )}
             {callLogFormErrors.length > 0 && <FormErrorSummary errors={callLogFormErrors} />}
             <FormField label={t('agenda_patient', 'app')} required error={callLogFieldErrors.patient_id}>
               <select value={callForm.patient_id} onChange={e => {
@@ -4703,11 +4846,67 @@ const AgendaModuleContent = ({
             <FormField label={t('agenda_call_notes', 'app')} error={callLogFieldErrors.notes}>
               <textarea value={callForm.notes} onChange={e => setCallForm({ ...callForm, notes: e.target.value })} rows={3} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" />
             </FormField>
+            <FormField label={t('agenda_fwd_label', 'app')}>
+              <select value={callForm.forwarded_to} onChange={e => setCallForm({ ...callForm, forwarded_to: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                <option value="">{t('agenda_fwd_none', 'app')}</option>
+                {CALL_CENTER_FORWARD_AREAS.map(a => <option key={a.value} value={a.value}>{t(a.labelKey, 'app')}</option>)}
+              </select>
+            </FormField>
             <div className="flex justify-end gap-2 pt-2">
               <button type="submit" className="py-2 px-4 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-lg transition">{t('agenda_register', 'app')}</button>
-              <button type="button" onClick={() => { setShowCallModal(false); clearCallLogErrors(); setCallForm({ operator_name: activeOperator, patient_id: '', patient_name: '', patient_phone: '', type: '', reason: '', notes: '', duration_seconds: 0 }); }} className="py-2 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg transition">{t('agenda_cancel', 'app')}</button>
+              <button type="button" onClick={() => { setShowCallModal(false); clearCallLogErrors(); setCallForm({ operator_name: activeOperator, patient_id: '', patient_name: '', patient_phone: '', type: '', reason: '', notes: '', duration_seconds: 0, forwarded_to: '' }); }} className="py-2 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg transition">{t('agenda_cancel', 'app')}</button>
             </div>
           </form>
+        </div>
+      </InlineModal>
+
+      {/* End Call Modal (status, FCR, encaminhamento) */}
+      <InlineModal open={!!endCallModal} onClose={() => setEndCallModal(null)} className="max-w-md">
+        <div className="p-6 space-y-4">
+          <h3 className="font-bold text-lg">{t('agenda_end_call_title', 'app')}</h3>
+          {endCallModal && (
+            <>
+              <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-sm">
+                <p className="font-semibold text-slate-700">{endCallModal.call.patient_name}</p>
+                <p className="text-xs text-slate-500">{endCallModal.call.patient_phone} • {endCallModal.call.operator_name} • {Math.floor(endCallModal.call.duration_seconds / 60)}:{String(endCallModal.call.duration_seconds % 60).padStart(2, '0')}</p>
+              </div>
+              <FormField label={t('agenda_call_status', 'app')} required>
+                <select
+                  value={endCallModal.status}
+                  onChange={e => setEndCallModal({ ...endCallModal, status: e.target.value as CallLog['status'] })}
+                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg"
+                >
+                  <option value="encerrada">{t('agenda_call_status_ended', 'app')}</option>
+                  <option value="abandonada">{t('agenda_call_status_abandoned', 'app')}</option>
+                </select>
+              </FormField>
+              {endCallModal.status === 'encerrada' && (
+                <label className="flex items-center gap-2 text-sm font-medium text-slate-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={endCallModal.resolved_first_contact}
+                    onChange={e => setEndCallModal({ ...endCallModal, resolved_first_contact: e.target.checked })}
+                    className="w-4 h-4 text-teal-600"
+                  />
+                  {t('agenda_fcr_label', 'app')}
+                </label>
+              )}
+              <FormField label={t('agenda_fwd_label', 'app')}>
+                <select
+                  value={endCallModal.forwarded_to}
+                  onChange={e => setEndCallModal({ ...endCallModal, forwarded_to: e.target.value })}
+                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg"
+                >
+                  <option value="">{t('agenda_fwd_none', 'app')}</option>
+                  {CALL_CENTER_FORWARD_AREAS.map(a => <option key={a.value} value={a.value}>{t(a.labelKey, 'app')}</option>)}
+                </select>
+              </FormField>
+              <div className="flex justify-end gap-2 pt-2">
+                <button onClick={() => setEndCallModal(null)} className="py-2 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg transition">{t('agenda_cancel', 'app')}</button>
+                <button onClick={endCall} className="py-2 px-4 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-lg transition">{t('agenda_end_call', 'app')}</button>
+              </div>
+            </>
+          )}
         </div>
       </InlineModal>
     </div>

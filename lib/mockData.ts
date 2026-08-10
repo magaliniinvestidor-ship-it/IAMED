@@ -441,7 +441,7 @@ export interface Patient {
   // Campos complementares
   blood_type?: 'A+' | 'A-' | 'B+' | 'B-' | 'AB+' | 'AB-' | 'O+' | 'O-' | 'Não Informado' | '';
   allergies?: string;
-  health_insurance_type?: 'IPS' | 'Sanidade Militar' | 'Sanidade Policial' | 'Pré-paga' | 'Seguro Privado' | 'Particular' | '';
+  health_insurance_type?: 'IPS' | 'Sanidade Militar' | 'Sanidade Policial' | 'EMP' | 'Seguro Privado' | 'Corporativo' | 'Particular' | 'Mercosul' | '';
   health_insurance_number?: string;
   health_insurance_company?: string;
   employer?: string;
@@ -1831,7 +1831,7 @@ export interface LabOrder {
   patientBirthdate: string;
   patientSex: 'M' | 'F';
   requestingPhysician: string;
-  insuranceType: 'IPS' | 'Sanidade Militar' | 'Sanidade Policial' | 'Pré-paga' | 'Seguro Privado' | 'Particular';
+  insuranceType: 'IPS' | 'Sanidade Militar' | 'Sanidade Policial' | 'EMP' | 'Seguro Privado' | 'Corporativo' | 'Particular' | 'Mercosul';
   insuranceNumber?: string;
   priority: 'rotina' | 'urgente' | 'emergencia';
   observations: string;

@@ -393,7 +393,7 @@ function HomeContent() {
 
     setDataLoading(true);
     try {
-      const [patientsRes, appointmentsRes, bedsRes, logsRes, financeRes, stockRes, asosRes, dtesRes, professionalsRes, professionalRolesRes, pharmacyItemsRes, stockMovementsRes, inventoryCountsRes, adverseEventsRes, qualityDeviationsRes, batchRecallsRes, locationsRes, clinicalRoomsRes, clinicalHistoryRes] = await Promise.all([
+      const [patientsRes, appointmentsRes, bedsRes, logsRes, financeRes, stockRes, asosRes, dtesRes, professionalsRes, professionalRolesRes, pharmacyItemsRes, stockMovementsRes, inventoryCountsRes, adverseEventsRes, qualityDeviationsRes, batchRecallsRes, locationsRes, clinicalRoomsRes, clinicalHistoryRes, insurancesRes] = await Promise.all([
         supabase.from('patients').select('*').order('created_at', { ascending: false }),
         supabase.from('appointments').select('*').order('date', { ascending: true }),
         supabase.from('beds').select('*').order('name'),
@@ -413,6 +413,7 @@ function HomeContent() {
         supabase.from('locations').select('*').order('name', { ascending: true }),
         supabase.from('clinical_rooms').select('*').order('name', { ascending: true }),
         supabase.from('clinical_history').select('*').order('date', { ascending: false }),
+        supabase.from('insurance_companies').select('*').order('name', { ascending: true }),
       ]);
 
       const pharmacyHasError = !!(
@@ -806,6 +807,29 @@ function HomeContent() {
         setClinicalRooms(mapped);
       } else {
         setClinicalRooms(initialClinicalRooms);
+      }
+
+      // Insurance companies (convênios)
+      if (insurancesRes.data && !insurancesRes.error && insurancesRes.data.length > 0) {
+        const mapped = insurancesRes.data.map((i: any) => ({
+          id: i.id,
+          name: i.name,
+          type: i.type,
+          ruc: i.ruc || '',
+          contact: i.contact || '',
+          phone: i.phone || '',
+          email: i.email || '',
+          has_webservice: !!i.has_webservice,
+          webservice_url: i.webservice_url || '',
+          requires_authorization: !!i.requires_authorization,
+          requires_pre_approval: !!i.requires_pre_approval,
+          copay_rules: i.copay_rules || '',
+          coverage_ceiling: Number(i.coverage_ceiling) || 0,
+          active: i.active === undefined ? true : !!i.active,
+        }));
+        setInsurances(mapped);
+      } else {
+        setInsurances(initialInsurances);
       }
 
       setIsDbConnected(!hasError);
@@ -1475,6 +1499,7 @@ function HomeContent() {
                       activeRole={activeRole}
                       activeOperator={activeOperator}
                       userPermissions={profile?.permissions}
+                      insurances={insurances}
                     />
                     </ErrorBoundary>
                   </PermissionGate>
@@ -1493,6 +1518,7 @@ function HomeContent() {
                       activeOperator={activeOperator}
                       userId={profile?.id}
                       userPermissions={profile?.permissions}
+                      insurances={insurances}
                     />
                     </ErrorBoundary>
                   </PermissionGate>

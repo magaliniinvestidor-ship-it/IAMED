@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import Image from 'next/image';
-import { Patient, Appointment, Professional } from '@/lib/mockData';
+import { Patient, Appointment, Professional, InsuranceCompany } from '@/lib/mockData';
 import { supabase } from '@/lib/supabaseClient';
 import { useI18n } from '@/lib/i18n/I18nContext';
 import { useFormValidation, groupErrorsByPath, validateForm } from '@/lib/validation';
@@ -36,6 +36,7 @@ interface ReceptionModuleProps {
   activeRole?: string;
   activeOperator?: string;
   userPermissions?: string[];
+  insurances?: InsuranceCompany[];
 }
 
 export default function ReceptionModule({
@@ -49,8 +50,23 @@ export default function ReceptionModule({
   activeRole = 'Recepcionista',
   activeOperator = 'Operador',
   userPermissions = [],
+  insurances = [],
 }: ReceptionModuleProps) {
   const { t, locale } = useI18n();
+  const insuranceLabel = (type?: string) => {
+    if (!type) return '';
+    const map: Record<string, string> = {
+      'Particular': 'rcpt_insurance_particular',
+      'IPS': 'rcpt_insurance_ips',
+      'Sanidade Militar': 'rcpt_insurance_military',
+      'Sanidade Policial': 'rcpt_insurance_police',
+      'EMP': 'rcpt_insurance_emp',
+      'Seguro Privado': 'rcpt_insurance_international',
+      'Corporativo': 'rcpt_insurance_corporative',
+      'Mercosul': 'rcpt_insurance_mercosul',
+    };
+    return map[type] ? t(map[type], 'app') : type;
+  };
   const getMaxNumericId = async (table: string, idPattern: string, idColumn: string = 'id'): Promise<number> => {
     const { data } = await supabase.from(table).select(idColumn).like(idColumn, `${idPattern}%`);
     let max = 0;
@@ -126,7 +142,7 @@ export default function ReceptionModule({
   // Complementary fields
   const [bloodType, setBloodType] = useState<'A+' | 'A-' | 'B+' | 'B-' | 'AB+' | 'AB-' | 'O+' | 'O-' | 'Não Informado' | ''>('');
   const [allergies, setAllergies] = useState('');
-  const [healthInsuranceType, setHealthInsuranceType] = useState<'IPS' | 'Sanidade Militar' | 'Sanidade Policial' | 'Pré-paga' | 'Seguro Privado' | 'Particular' | ''>('');
+  const [healthInsuranceType, setHealthInsuranceType] = useState<'IPS' | 'Sanidade Militar' | 'Sanidade Policial' | 'EMP' | 'Seguro Privado' | 'Corporativo' | 'Particular' | 'Mercosul' | ''>('');
   const [healthInsuranceNumber, setHealthInsuranceNumber] = useState('');
   const [healthInsuranceCompany, setHealthInsuranceCompany] = useState('');
   const [employer, setEmployer] = useState('');
@@ -935,7 +951,7 @@ export default function ReceptionModule({
     const result = validateComplementary({
       blood_type: bloodType as 'A+' | 'A-' | 'B+' | 'B-' | 'AB+' | 'AB-' | 'O+' | 'O-' | 'Não Informado' | '' | undefined,
       allergies,
-      health_insurance_type: healthInsuranceType as 'IPS' | 'Sanidade Militar' | 'Sanidade Policial' | 'Pré-paga' | 'Seguro Privado' | 'Particular' | '' | undefined,
+      health_insurance_type: healthInsuranceType as 'IPS' | 'Sanidade Militar' | 'Sanidade Policial' | 'EMP' | 'Seguro Privado' | 'Corporativo' | 'Particular' | 'Mercosul' | '' | undefined,
       health_insurance_number: healthInsuranceNumber,
       health_insurance_company: healthInsuranceCompany,
       employer,
@@ -2719,8 +2735,10 @@ if (hasAnyField) {
                             <option value="IPS">{t('rcpt_insurance_ips', 'app')}</option>
                             <option value="Sanidade Militar">{t('rcpt_insurance_military', 'app')}</option>
                             <option value="Sanidade Policial">{t('rcpt_insurance_police', 'app')}</option>
-                            <option value="Pré-paga">{t('rcpt_insurance_prepaid', 'app')}</option>
+                            <option value="EMP">{t('rcpt_insurance_emp', 'app')}</option>
                             <option value="Seguro Privado">{t('rcpt_insurance_international', 'app')}</option>
+                            <option value="Corporativo">{t('rcpt_insurance_corporative', 'app')}</option>
+                            <option value="Mercosul">{t('rcpt_insurance_mercosul', 'app')}</option>
                           </select>
                         </div>
                         <div>
@@ -3015,7 +3033,7 @@ if (hasAnyField) {
                             <p><span className="text-slate-500 font-medium">{t('rcpt_list_allergies', 'app')}</span> <span className="font-semibold">{p.allergies}</span></p>
                           )}
                           {p.health_insurance_type && (
-                            <p><span className="text-slate-500 font-medium">{t('rcpt_list_insurance', 'app')}</span> <span className="font-semibold">{p.health_insurance_type === 'Particular' ? t('rcpt_insurance_particular', 'app') : p.health_insurance_type === 'IPS' ? t('rcpt_insurance_ips', 'app') : p.health_insurance_type === 'Sanidade Militar' ? t('rcpt_insurance_military', 'app') : p.health_insurance_type === 'Sanidade Policial' ? t('rcpt_insurance_police', 'app') : p.health_insurance_type === 'Pré-paga' ? t('rcpt_insurance_prepaid', 'app') : p.health_insurance_type === 'Seguro Privado' ? t('rcpt_insurance_international', 'app') : p.health_insurance_type}</span></p>
+                            <p><span className="text-slate-500 font-medium">{t('rcpt_list_insurance', 'app')}</span> <span className="font-semibold">{insuranceLabel(p.health_insurance_type)}</span></p>
                           )}
                           {pIsMinor && p.guardian_name && (
                             <p><span className="text-slate-500 font-medium">{t('rcpt_list_guardian', 'app')}</span> <span className="font-semibold">{p.guardian_name} ({p.guardian_relationship})</span></p>
@@ -5459,6 +5477,7 @@ if (hasAnyField) {
             activeRole={activeRole}
             activeOperator={activeOperator}
             userPermissions={userPermissions}
+            insurances={insurances}
           />
         )}
       </PermissionGate>

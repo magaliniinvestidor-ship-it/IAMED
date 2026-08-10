@@ -87,12 +87,14 @@ export const BLOOD_TYPES = [
 ];
 
 export const HEALTH_INSURANCE_OPTIONS = [
+  { value: 'Particular', label: 'Particular' },
   { value: 'IPS', label: 'IPS' },
   { value: 'Sanidade Militar', label: 'Sanidade Militar' },
   { value: 'Sanidade Policial', label: 'Sanidade Policial' },
-  { value: 'Pré-paga', label: 'Pré-paga' },
+  { value: 'EMP', label: 'Empresa (EMP)' },
   { value: 'Seguro Privado', label: 'Seguro Privado' },
-  { value: 'Particular', label: 'Particular' },
+  { value: 'Corporativo', label: 'Corporativo' },
+  { value: 'Mercosul', label: 'Mercosul' },
 ];
 
 export const LANGUAGES = [

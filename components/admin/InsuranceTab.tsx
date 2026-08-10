@@ -14,7 +14,7 @@ import { GS } from './helpers';
 
 interface InsuranceFormData {
   name: string;
-  type: InsuranceType;
+  type: InsuranceType | '';
   ruc: string;
   contact: string;
   phone: string;
@@ -28,19 +28,19 @@ interface InsuranceFormData {
 }
 
 const INSURANCE_TYPES: Array<{ value: InsuranceType; label: string }> = [
+  { value: 'Particular', label: 'Particular' },
   { value: 'IPS', label: 'IPS' },
   { value: 'Sanidade Militar', label: 'Sanidade Militar' },
   { value: 'Sanidade Policial', label: 'Sanidade Policial' },
   { value: 'EMP', label: 'Empresa (EMP)' },
   { value: 'Seguro Privado', label: 'Seguro Privado' },
   { value: 'Corporativo', label: 'Corporativo' },
-  { value: 'Particular', label: 'Particular' },
   { value: 'Mercosul', label: 'Mercosul' },
 ];
 
 const EMPTY_INSURANCE_FORM: InsuranceFormData = {
   name: '',
-  type: 'IPS',
+  type: '',
   ruc: '',
   contact: '',
   phone: '',
@@ -124,18 +124,20 @@ export function InsuranceTab({
       return;
     }
 
+    const safeForm = { ...form, type: (form.type || 'Particular') as InsuranceType };
+
     if (editingId) {
-      const updated: InsuranceCompany = { id: editingId, ...form, active: true };
+      const updated: InsuranceCompany = { id: editingId, ...safeForm, active: true };
       setInsurances((prev) => prev.map((i) => (i.id === editingId ? updated : i)));
       if (supabase) {
-        await supabase.from('insurances').update(updated as unknown as Record<string, unknown>).eq('id', editingId);
+        await supabase.from('insurance_companies').update(updated as unknown as Record<string, unknown>).eq('id', editingId);
       }
       addAuditLog('Convênio atualizado', form.name);
     } else {
-      const newIns: InsuranceCompany = { id: await genModuleId('ins'), ...form, active: true };
+      const newIns: InsuranceCompany = { id: await genModuleId('ins'), ...safeForm, active: true };
       setInsurances((prev) => [...prev, newIns]);
       if (supabase) {
-        await supabase.from('insurances').insert({ ...newIns, created_at: new Date().toISOString() });
+        await supabase.from('insurance_companies').insert({ ...newIns, created_at: new Date().toISOString() });
       }
       addAuditLog('Novo convênio cadastrado', form.name);
     }
@@ -149,7 +151,7 @@ export function InsuranceTab({
 
     setInsurances((prev) => prev.filter((i) => i.id !== ins.id));
     if (supabase) {
-      supabase.from('insurances').delete().eq('id', ins.id).then(({ error }) => {
+      supabase.from('insurance_companies').delete().eq('id', ins.id).then(({ error }) => {
         if (error) console.error('Erro ao excluir convênio:', error.message, error);
       });
     }
@@ -160,7 +162,7 @@ export function InsuranceTab({
     const updated = { ...ins, active: !ins.active };
     setInsurances((prev) => prev.map((i) => (i.id === ins.id ? updated : i)));
     if (supabase) {
-      supabase.from('insurances').update({ active: updated.active } as Record<string, unknown>).eq('id', ins.id);
+      supabase.from('insurance_companies').update({ active: updated.active } as Record<string, unknown>).eq('id', ins.id);
     }
     addAuditLog(updated.active ? 'Ativou Convênio' : 'Desativou Convênio', ins.name);
   };
@@ -274,6 +276,7 @@ export function InsuranceTab({
                     onChange={(e) => setForm((prev) => ({ ...prev, type: e.target.value as InsuranceType }))}
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
                   >
+                    <option value="">{t('rcpt_select', 'app')}</option>
                     {INSURANCE_TYPES.map((t) => (
                       <option key={t.value} value={t.value}>{t.label}</option>
                     ))}
