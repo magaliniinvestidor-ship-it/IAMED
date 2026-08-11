@@ -244,6 +244,18 @@ export const anamneseSchema = z.object({
   sleep: optionalString(200),
   physicalActivity: optionalString(200),
   maritalStatus: optionalString(50),
+  personalPathological: optionalString(1000),
+  menarche: optionalString(100),
+  gestations: z.number().int('Gestações: deve ser inteiro').min(0, 'Gestações: não pode ser negativo').max(50, 'Gestações: máximo 50').optional(),
+  deliveries: z.number().int('Partos: deve ser inteiro').min(0, 'Partos: não pode ser negativo').max(50, 'Partos: máximo 50').optional(),
+  abortions: z.number().int('Abortos: deve ser inteiro').min(0, 'Abortos: não pode ser negativo').max(50, 'Abortos: máximo 50').optional(),
+  cesareans: z.number().int('Cesáreas: deve ser inteiro').min(0, 'Cesáreas: não pode ser negativo').max(50, 'Cesáreas: máximo 50').optional(),
+  lastMenstruation: optionalString(100),
+  contraceptiveMethod: optionalString(200),
+  gestationNumber: z.number().int('Nº de gestação: deve ser inteiro').min(0, 'Nº de gestação: não pode ser negativo').max(50, 'Nº de gestação: máximo 50').optional(),
+  expectedDueDate: optionalString(100),
+  prenatalStart: optionalString(100),
+  riskClassification: optionalString(200),
   allergiesCount: z.number().int('Alergias: deve ser inteiro').min(0).max(50),
   medicationsCount: z.number().int('Medicações: deve ser inteiro').min(0).max(50),
   familyHistoryCount: z.number().int('Histórico familiar: deve ser inteiro').min(0).max(50),
@@ -251,6 +263,27 @@ export const anamneseSchema = z.object({
 });
 
 export type AnamneseFormData = z.infer<typeof anamneseSchema>;
+
+export const physicalExamSchema = z.object({
+  patientId: nonEmptyString('Paciente', 20),
+  generalAspect: optionalString(200),
+  examHeadNeck: optionalString(4000),
+  examCardiovascular: optionalString(4000),
+  examRespiratory: optionalString(4000),
+  examAbdomen: optionalString(4000),
+  examGenitourinary: optionalString(4000),
+  examMusculoskeletal: optionalString(4000),
+  examNeurological: optionalString(4000),
+  examSkin: optionalString(4000),
+  examEyes: optionalString(4000),
+  examEars: optionalString(4000),
+  examMouth: optionalString(4000),
+  examRectal: optionalString(4000),
+  examPsychiatric: optionalString(4000),
+  notes: optionalString(2000),
+});
+
+export type PhysicalExamFormData = z.infer<typeof physicalExamSchema>;
 
 export const soapSchema = z.object({
   patientId: nonEmptyString('Paciente', 20),

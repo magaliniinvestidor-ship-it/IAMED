@@ -105,6 +105,9 @@ describe('appointmentSchema', () => {
       date: '2027-06-15',
       time: '09:00',
       status: 'agendado',
+      branch: 'Sede Central',
+      room: 'Sala 1',
+      insurance_type: 'Particular',
     });
     expect(result.success).toBe(true);
   });

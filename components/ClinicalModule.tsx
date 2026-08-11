@@ -2,20 +2,21 @@
 
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import Image from 'next/image';
-import { Patient, AsoExam, Cid10Code, Prescription, ExamRequest, Procedure, Anamnese, SoapNote, Diagnosis, PhysicalExam, VitalSigns, AllergyEntry, MedicationEntry, FamilyHistoryEntry, SurgicalEntry, ElectronicSignature, AccessControl, PatientTimelineEvent, DrugCatalogItem, nationalProcedures, sensitiveFieldConfig } from '@/lib/mockData';
+import { Patient, AsoExam, Cid10Code, Prescription, ExamRequest, Procedure, Anamnese, SoapNote, Diagnosis, PhysicalExam, VitalSigns, AllergyEntry, MedicationEntry, FamilyHistoryEntry, SurgicalEntry, ElectronicSignature, AccessControl, PatientTimelineEvent, DrugCatalogItem, sensitiveFieldConfig } from '@/lib/mockData';
 import { supabase } from '@/lib/supabaseClient';
 import { useI18n } from '@/lib/i18n/I18nContext';
 import { useModuleId } from '@/hooks/useModuleId';
-import { useFormValidation } from '@/lib/validation';
+import { useFormValidation, groupErrorsByPath } from '@/lib/validation';
 import {
   prescriptionSchema,
   anamneseSchema,
+  physicalExamSchema,
   soapSchema,
   examRequestSchema,
   procedureSchema,
   attachmentSchema,
 } from '@/lib/validation/schemas';
-import { FormErrorSummary } from '@/components/forms';
+import { FormField, FormErrorSummary } from '@/components/forms';
 
 import {
   ClipboardList, Microscope, HeartPulse, ShieldAlert,
@@ -149,7 +150,7 @@ const ClinicalModuleContent = ({
       .order('name')
       .limit(100);
     if (data) setDrugCatalogItems(data as any);
-  }, [supabase]);
+  }, []);
 
   // ─── EXAM REQUEST STATE ───
   const [examRequests, setExamRequests] = useState<ExamRequest[]>([]);
@@ -216,20 +217,30 @@ const ClinicalModuleContent = ({
   const genId = useModuleId('next_clinical_id');
   const { errors: prescErrors, validate: validatePresc, setErrors: setPrescErrors, clearErrors: clearPrescErrors } = useFormValidation(prescriptionSchema);
   const { errors: anamneseErrors, validate: validateAnamnese, clearErrors: clearAnamneseErrors } = useFormValidation(anamneseSchema);
+  const { errors: physicalExamErrors, validate: validatePhysicalExam, clearErrors: clearPhysicalExamErrors } = useFormValidation(physicalExamSchema);
   const { errors: soapErrors, validate: validateSoap, clearErrors: clearSoapErrors } = useFormValidation(soapSchema);
   const { errors: examErrors, validate: validateExam, clearErrors: clearExamErrors } = useFormValidation(examRequestSchema);
   const { errors: procErrors, validate: validateProc, clearErrors: clearProcErrors } = useFormValidation(procedureSchema);
   const { errors: attErrors, validate: validateAtt, clearErrors: clearAttErrors } = useFormValidation(attachmentSchema);
 
+  const anamneseFieldErrors = groupErrorsByPath(anamneseErrors);
+  const physicalExamFieldErrors = groupErrorsByPath(physicalExamErrors);
+  const soapFieldErrors = groupErrorsByPath(soapErrors);
+  const prescFieldErrors = groupErrorsByPath(prescErrors);
+  const examFieldErrors = groupErrorsByPath(examErrors);
+  const procFieldErrors = groupErrorsByPath(procErrors);
+  const attFieldErrors = groupErrorsByPath(attErrors);
+
   const switchHceTab = useCallback((tab: HCETab) => {
     clearAnamneseErrors();
+    clearPhysicalExamErrors();
     clearSoapErrors();
     clearExamErrors();
     clearProcErrors();
     clearAttErrors();
     setPrescErrors([]);
     setHceTab(tab);
-  }, [clearAnamneseErrors, clearSoapErrors, clearExamErrors, clearProcErrors, clearAttErrors, setPrescErrors]);
+  }, [clearAnamneseErrors, clearPhysicalExamErrors, clearSoapErrors, clearExamErrors, clearProcErrors, clearAttErrors, setPrescErrors]);
 
   // Load CID-10 codes from Supabase (server-side search)
   useEffect(() => {
@@ -239,7 +250,7 @@ const ClinicalModuleContent = ({
       if (data) setCid10Data(data);
     };
     loadCid10();
-  }, [supabase]);
+  }, []);
 
   // Load drug catalog from Supabase (carrega top-100 ordenado por nome)
   useEffect(() => {
@@ -257,7 +268,7 @@ const ClinicalModuleContent = ({
       .or(`code.ilike.%${query}%,description.ilike.%${query}%,description_es.ilike.%${query}%,description_pt.ilike.%${query}%`)
       .order('code').limit(100);
     if (data) setCid10Data(data);
-  }, [supabase]);
+  }, []);
 
   // Initial state factories for form reset on patient change
   const makeAnamnese = useCallback((patientId: string): Anamnese => ({
@@ -615,7 +626,7 @@ const ClinicalModuleContent = ({
         .order('assigned_at', { ascending: true });
       if (allAssignments && allAssignments.length > 0) {
         setTimelineAssignments(allAssignments.map((a: any) => ({
-          locationName: a.hospital_locations?.name || 'Local',
+          locationName: a.hospital_locations?.name || t('hce_location_default', 'app'),
           assignedAt: a.assigned_at,
           completedAt: a.completed_at || null,
         })));
@@ -646,7 +657,7 @@ const ClinicalModuleContent = ({
     } finally {
       setTimelineLoading(false);
     }
-  }, []);
+  }, [t]);
 
   // Load data when patient changes
   useEffect(() => {
@@ -693,7 +704,7 @@ const ClinicalModuleContent = ({
   }, []);
 
   // ─── SAVE SIGNATURE (INSERT to Supabase) ───
-  const handleSaveSignature = async (sig: ElectronicSignature) => {
+  const handleSaveSignature = useCallback(async (sig: ElectronicSignature) => {
     setSignatures(prev => [sig, ...prev]);
     addAuditLog('Assinatura Eletrônica Qualificada', `${sig.documentType}: ${sig.documentId}`);
     if (supabase) {
@@ -720,10 +731,10 @@ const ClinicalModuleContent = ({
         status: sig.status,
       });
     }
-  };
+  }, [addAuditLog]);
 
   // ─── SAVE ACCESS CONTROL (INSERT to Supabase) ───
-  const handleSaveAccessControl = async (log: AccessControl) => {
+  const handleSaveAccessControl = useCallback(async (log: AccessControl) => {
     setAccessLogs(prev => [log, ...prev]);
     if (supabase) {
       await supabase.from('access_controls').insert({
@@ -739,7 +750,7 @@ const ClinicalModuleContent = ({
         notification_sent_at: log.notificationSentAt || null,
       });
     }
-  };
+  }, []);
 
   // ─── SIGNATURE SIMULATION ───
   const handleSignDocument = useCallback(async (docType: string, docId: string) => {
@@ -766,7 +777,7 @@ const ClinicalModuleContent = ({
     };
     handleSaveSignature(sig);
     return sig;
-  }, [selectedPatient, handleSaveSignature]);
+  }, [selectedPatient, handleSaveSignature, activeOperator, genId]);
 
   // ─── BREAK THE GLASS ───
   const handleBreakGlass = useCallback(async () => {
@@ -801,6 +812,18 @@ const ClinicalModuleContent = ({
       sleep: anamnese.sleep || '',
       physicalActivity: anamnese.physicalActivity || '',
       maritalStatus: anamnese.maritalStatus || '',
+      personalPathological: anamnese.personalPathological.join(', '),
+      menarche: anamnese.gynecological?.menarche || '',
+      gestations: anamnese.gynecological?.gestations ?? 0,
+      deliveries: anamnese.gynecological?.deliveries ?? 0,
+      abortions: anamnese.gynecological?.abortions ?? 0,
+      cesareans: anamnese.gynecological?.cesareans ?? 0,
+      lastMenstruation: anamnese.gynecological?.lastMenstruation || '',
+      contraceptiveMethod: anamnese.gynecological?.contraceptiveMethod || '',
+      gestationNumber: anamnese.obstetric?.gestationNumber ?? 0,
+      expectedDueDate: anamnese.obstetric?.expectedDueDate || '',
+      prenatalStart: anamnese.obstetric?.prenatalStart || '',
+      riskClassification: anamnese.obstetric?.riskClassification || '',
       allergiesCount: anamnese.allergies?.length || 0,
       medicationsCount: anamnese.currentMedications?.length || 0,
       familyHistoryCount: anamnese.familyHistory?.length || 0,
@@ -863,6 +886,67 @@ const ClinicalModuleContent = ({
     await supabase.from('anamnese').delete().eq('id', anamnese.id);
     setAnamnese(makeAnamnese(selectedPatient?.id || ''));
     addAuditLog('Excluiu Anamnese', selectedPatient?.name || '');
+  };
+
+  // ─── SAVE PHYSICAL EXAM ───
+  const handleSavePhysicalExam = async () => {
+    const isEdit = !!physicalExam.id;
+    const result = validatePhysicalExam({
+      patientId: selectedPatient?.id || '',
+      generalAspect: physicalExam.generalAspect || '',
+      examHeadNeck: physicalExam.examHeadNeck || '',
+      examCardiovascular: physicalExam.examCardiovascular || '',
+      examRespiratory: physicalExam.examRespiratory || '',
+      examAbdomen: physicalExam.examAbdomen || '',
+      examGenitourinary: physicalExam.examGenitourinary || '',
+      examMusculoskeletal: physicalExam.examMusculoskeletal || '',
+      examNeurological: physicalExam.examNeurological || '',
+      examSkin: physicalExam.examSkin || '',
+      examEyes: physicalExam.examEyes || '',
+      examEars: physicalExam.examEars || '',
+      examMouth: physicalExam.examMouth || '',
+      examRectal: physicalExam.examRectal || '',
+      examPsychiatric: physicalExam.examPsychiatric || '',
+      notes: physicalExam.notes || '',
+    });
+    if (!result.success) return;
+    const entry: PhysicalExam = {
+      ...physicalExam,
+      id: physicalExam.id || await genId('pexam'),
+      patientId: selectedPatient?.id || '',
+      createdBy: physicalExam.createdBy || activeOperator,
+      createdAt: physicalExam.createdAt || new Date().toISOString(),
+    };
+    setPhysicalExam(entry);
+    if (selectedPatient) {
+      setPatients(prev => prev.map(p => p.id === selectedPatient.id ? {
+        ...p,
+        clinicalHistory: [
+          { id: entry.id, date: entry.createdAt, type: 'Exame Físico', diagnosis: 'Exame físico registrado', cid10: '', prescriptions: [], notes: entry.notes, doctor: entry.createdBy },
+          ...p.clinicalHistory,
+        ],
+      } : p));
+    }
+    addAuditLog('Salvou Exame Físico', selectedPatient?.name || '');
+    if (supabase) {
+      const dbRow = {
+        id: entry.id, patient_id: entry.patientId, created_by: entry.createdBy,
+        updated_by: isEdit ? activeOperator : null,
+        vital_signs: entry.vitalSigns,
+        exam_head_neck: entry.examHeadNeck, exam_cardiovascular: entry.examCardiovascular,
+        exam_respiratory: entry.examRespiratory, exam_abdomen: entry.examAbdomen,
+        exam_genitourinary: entry.examGenitourinary, exam_musculoskeletal: entry.examMusculoskeletal,
+        exam_neurological: entry.examNeurological, exam_skin: entry.examSkin,
+        exam_eyes: entry.examEyes, exam_ears: entry.examEars, exam_mouth: entry.examMouth,
+        exam_rectal: entry.examRectal, exam_psychiatric: entry.examPsychiatric,
+        general_aspect: entry.generalAspect, notes: entry.notes,
+      };
+      if (isEdit) {
+        await supabase.from('physical_exams').update(dbRow).eq('id', entry.id);
+      } else {
+        await supabase.from('physical_exams').insert(dbRow);
+      }
+    }
   };
 
   // ─── SAVE SOAP NOTE ───
@@ -1225,7 +1309,7 @@ const ClinicalModuleContent = ({
         patientId: p.patientId,
         eventType: 'prescricao',
         eventDate: p.createdAt,
-        eventTitle: `Prescrição: ${p.drugName}`,
+        eventTitle: `${t('hce_event_prescription', 'app')}${p.drugName}`,
         eventDescription: `${p.dosage} - ${p.frequency} - ${p.route}`,
         eventSource: 'prescription',
         eventSourceId: p.id,
@@ -1242,7 +1326,7 @@ const ClinicalModuleContent = ({
         patientId: e.patientId,
         eventType: 'exame',
         eventDate: e.createdAt,
-        eventTitle: `Exame: ${e.examName}`,
+        eventTitle: `${t('hce_event_exam', 'app')}${e.examName}`,
         eventDescription: e.clinicalIndication,
         eventSource: 'exam_request',
         eventSourceId: e.id,
@@ -1259,7 +1343,7 @@ const ClinicalModuleContent = ({
         patientId: p.patientId,
         eventType: 'procedimento',
         eventDate: p.createdAt,
-        eventTitle: `Procedimento: ${p.procedureName}`,
+        eventTitle: `${t('hce_event_procedure', 'app')}${p.procedureName}`,
         eventDescription: p.notes,
         eventSource: 'procedure',
         eventSourceId: p.id,
@@ -1276,8 +1360,8 @@ const ClinicalModuleContent = ({
         patientId: anamnese.patientId,
         eventType: 'consulta',
         eventDate: anamnese.createdAt,
-        eventTitle: 'Anamnese',
-        eventDescription: anamnese.notes || `Alergias: ${anamnese.allergies.map(a => a.allergen).join(', ') || 'Nenhuma'}. Medicações: ${anamnese.currentMedications.map(m => m.name).join(', ') || 'Nenhuma'}.`,
+        eventTitle: t('hce_event_anamnese', 'app'),
+        eventDescription: anamnese.notes || `${t('hce_allergies', 'app')}: ${anamnese.allergies.map(a => a.allergen).join(', ') || t('hce_none', 'app')}. ${t('hce_current_medications', 'app')}: ${anamnese.currentMedications.map(m => m.name).join(', ') || t('hce_none', 'app')}.`,
         eventSource: 'anamnese',
         eventSourceId: anamnese.id,
         doctorName: anamnese.createdBy,
@@ -1293,7 +1377,7 @@ const ClinicalModuleContent = ({
         patientId: soapNote.patientId,
         eventType: 'consulta',
         eventDate: soapNote.createdAt,
-        eventTitle: 'Evolução SOAP',
+        eventTitle: t('hce_event_soap', 'app'),
         eventDescription: `S: ${soapNote.subjective || '-'} | O: ${soapNote.objective || '-'} | A: ${soapNote.assessment || '-'} | P: ${soapNote.plan || '-'}`,
         eventSource: 'soap_note',
         eventSourceId: soapNote.id,
@@ -1316,7 +1400,7 @@ const ClinicalModuleContent = ({
       }
       return true;
     });
-  }, [selectedPatient, prescriptions, examRequests, procedureList, anamnese, soapNote, timelineSearch, timelineFilterType, timelineFilterDoctor]);
+  }, [selectedPatient, prescriptions, examRequests, procedureList, anamnese, soapNote, timelineSearch, timelineFilterType, timelineFilterDoctor, t]);
 
   // ─── ASO & CAT HANDLERS ───
   const handleCreateAso = async (e: React.FormEvent) => {
@@ -1616,15 +1700,14 @@ const ClinicalModuleContent = ({
                   {!selectedPatId ? (
                     <div className="flex flex-col items-center justify-center py-12 text-center">
                       <AlertTriangle className="w-10 h-10 text-amber-400 mb-3" />
-                      <p className="text-sm font-semibold text-slate-600">{t('agenda_alert_select_patient', 'app') || 'Selecione um paciente para preencher a anamnese.'}</p>
+                      <p className="text-sm font-semibold text-slate-600">{t('agenda_alert_select_patient', 'app')}</p>
                     </div>
                   ) : (<>
 
 
                   {/* Smoking / Alcohol / Exercise */}
                   <div className="grid grid-cols-3 gap-3">
-                    <div>
-                      <label className={labelCls}>{t('hce_smoking', 'app')}</label>
+                    <FormField label={t('hce_smoking', 'app')} error={anamneseFieldErrors.smoking}>
                       <select value={anamnese.smoking} onChange={e => setAnamnese(p => ({ ...p, smoking: e.target.value }))} className={inputCls}>
                         <option value="">{t('agenda_select', 'app')}</option>
                         <option value="sim">{t('hce_smoking_yes', 'app')}</option>
@@ -1632,9 +1715,8 @@ const ClinicalModuleContent = ({
                         <option value="ex-fumante">{t('hce_smoking_ex', 'app')}</option>
                         <option value="nunca-fumou">{t('hce_smoking_never', 'app')}</option>
                       </select>
-                    </div>
-                    <div>
-                      <label className={labelCls}>{t('hce_alcohol', 'app')}</label>
+                    </FormField>
+                    <FormField label={t('hce_alcohol', 'app')} error={anamneseFieldErrors.alcohol}>
                       <select value={anamnese.alcohol} onChange={e => setAnamnese(p => ({ ...p, alcohol: e.target.value }))} className={inputCls}>
                         <option value="">{t('agenda_select', 'app')}</option>
                         <option value="não">{t('hce_alcohol_no', 'app')}</option>
@@ -1642,9 +1724,8 @@ const ClinicalModuleContent = ({
                         <option value="frequente">{t('hce_alcohol_frequent', 'app')}</option>
                         <option value="ex-etilista">{t('hce_alcohol_ex', 'app')}</option>
                       </select>
-                    </div>
-                    <div>
-                      <label className={labelCls}>{t('hce_physical_activity', 'app')}</label>
+                    </FormField>
+                    <FormField label={t('hce_physical_activity', 'app')} error={anamneseFieldErrors.physicalActivity}>
                       <select value={anamnese.physicalActivity} onChange={e => setAnamnese(p => ({ ...p, physicalActivity: e.target.value }))} className={inputCls}>
                         <option value="">{t('agenda_select', 'app')}</option>
                         <option value="não">{t('hce_activity_none', 'app')}</option>
@@ -1652,35 +1733,30 @@ const ClinicalModuleContent = ({
                         <option value="moderada">{t('hce_activity_moderate', 'app')}</option>
                         <option value="intensa">{t('hce_activity_intense', 'app')}</option>
                       </select>
-                    </div>
+                    </FormField>
                   </div>
 
                   {/* Personal Pathological History */}
-                  <div>
-                    <label className={labelCls}>{t('hce_personal_pathological', 'app')}</label>
+                  <FormField label={t('hce_personal_pathological', 'app')} error={anamneseFieldErrors.personalPathological}>
                     <textarea value={anamnese.personalPathological.join(', ')} onChange={e => setAnamnese(p => ({ ...p, personalPathological: e.target.value.split(',').map(s => s.trim()).filter(Boolean) }))} rows={2} className={textareaCls} placeholder={t('hce_personal_pathological_placeholder', 'app')} />
-                  </div>
+                  </FormField>
 
                   {/* Diet / Sleep */}
                   <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className={labelCls}>{t('hce_diet', 'app')}</label>
+                    <FormField label={t('hce_diet', 'app')} error={anamneseFieldErrors.diet}>
                       <input type="text" value={anamnese.diet} onChange={e => setAnamnese(p => ({ ...p, diet: e.target.value }))} className={inputCls} placeholder={t('hce_diet_placeholder', 'app')} />
-                    </div>
-                    <div>
-                      <label className={labelCls}>{t('hce_sleep', 'app')}</label>
+                    </FormField>
+                    <FormField label={t('hce_sleep', 'app')} error={anamneseFieldErrors.sleep}>
                       <input type="text" value={anamnese.sleep} onChange={e => setAnamnese(p => ({ ...p, sleep: e.target.value }))} className={inputCls} placeholder={t('hce_sleep_placeholder', 'app')} />
-                    </div>
+                    </FormField>
                   </div>
 
                   {/* Social */}
                   <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className={labelCls}>{t('hce_profession', 'app')}</label>
+                    <FormField label={t('hce_profession', 'app')} error={anamneseFieldErrors.occupation}>
                       <input type="text" value={anamnese.occupation} onChange={e => setAnamnese(p => ({ ...p, occupation: e.target.value }))} className={inputCls} placeholder={t('hce_profession_placeholder', 'app')} />
-                    </div>
-                    <div>
-                      <label className={labelCls}>{t('hce_marital_status', 'app')}</label>
+                    </FormField>
+                    <FormField label={t('hce_marital_status', 'app')} error={anamneseFieldErrors.maritalStatus}>
                       <select value={anamnese.maritalStatus} disabled className={`${inputCls} bg-slate-100 text-slate-500 cursor-not-allowed appearance-none`}>
                         <option value="">{t('agenda_select', 'app')}</option>
                         <option value="Solteiro(a)">{t('hce_marital_single', 'app')}</option>
@@ -1689,7 +1765,7 @@ const ClinicalModuleContent = ({
                         <option value="Viúvo(a)">{t('hce_marital_widowed', 'app')}</option>
                         <option value="União Estável">{t('hce_marital_stable', 'app')}</option>
                       </select>
-                    </div>
+                    </FormField>
                   </div>
 
                   {/* Allergies */}
@@ -1819,34 +1895,27 @@ const ClinicalModuleContent = ({
                   <div className="border border-slate-100 rounded-xl p-3 space-y-2">
                     <h5 className="text-xs font-bold text-slate-600 uppercase">{t('hce_gynecological', 'app')}</h5>
                     <div className="grid grid-cols-4 gap-2">
-                      <div>
-                        <label className={labelCls}>{t('hce_gynecological_menarche', 'app')}</label>
+                      <FormField label={t('hce_gynecological_menarche', 'app')} error={anamneseFieldErrors.menarche}>
                         <input type="text" value={anamnese.gynecological?.menarche || ''} onChange={e => setAnamnese(p => ({ ...p, gynecological: { menarche: e.target.value, gestations: p.gynecological?.gestations || 0, deliveries: p.gynecological?.deliveries || 0, abortions: p.gynecological?.abortions || 0, cesareans: p.gynecological?.cesareans || 0, lastMenstruation: p.gynecological?.lastMenstruation || '', contraceptiveMethod: p.gynecological?.contraceptiveMethod || '' } }))} className={inputCls} />
-                      </div>
-                      <div>
-                        <label className={labelCls}>{t('hce_gynecological_gestations', 'app')}</label>
+                      </FormField>
+                      <FormField label={t('hce_gynecological_gestations', 'app')} error={anamneseFieldErrors.gestations}>
                         <input type="text" inputMode="numeric" value={anamnese.gynecological?.gestations ?? ''} onChange={e => setAnamnese(p => ({ ...p, gynecological: { ...p.gynecological!, gestations: parseInt(e.target.value) || 0 } }))} className={inputCls} />
-                      </div>
-                      <div>
-                        <label className={labelCls}>{t('hce_gynecological_deliveries', 'app')}</label>
+                      </FormField>
+                      <FormField label={t('hce_gynecological_deliveries', 'app')} error={anamneseFieldErrors.deliveries}>
                         <input type="text" inputMode="numeric" value={anamnese.gynecological?.deliveries ?? ''} onChange={e => setAnamnese(p => ({ ...p, gynecological: { ...p.gynecological!, deliveries: parseInt(e.target.value) || 0 } }))} className={inputCls} />
-                      </div>
-                      <div>
-                        <label className={labelCls}>{t('hce_gynecological_abortions', 'app')}</label>
+                      </FormField>
+                      <FormField label={t('hce_gynecological_abortions', 'app')} error={anamneseFieldErrors.abortions}>
                         <input type="text" inputMode="numeric" value={anamnese.gynecological?.abortions ?? ''} onChange={e => setAnamnese(p => ({ ...p, gynecological: { ...p.gynecological!, abortions: parseInt(e.target.value) || 0 } }))} className={inputCls} />
-                      </div>
-                      <div>
-                        <label className={labelCls}>{t('hce_gynecological_cesareans', 'app')}</label>
+                      </FormField>
+                      <FormField label={t('hce_gynecological_cesareans', 'app')} error={anamneseFieldErrors.cesareans}>
                         <input type="text" inputMode="numeric" value={anamnese.gynecological?.cesareans ?? ''} onChange={e => setAnamnese(p => ({ ...p, gynecological: { ...p.gynecological!, cesareans: parseInt(e.target.value) || 0 } }))} className={inputCls} />
-                      </div>
-                      <div>
-                        <label className={labelCls}>{t('hce_gynecological_last_menstruation', 'app')}</label>
+                      </FormField>
+                      <FormField label={t('hce_gynecological_last_menstruation', 'app')} error={anamneseFieldErrors.lastMenstruation}>
                         <input type="text" value={anamnese.gynecological?.lastMenstruation || ''} onChange={e => setAnamnese(p => ({ ...p, gynecological: { ...p.gynecological!, lastMenstruation: e.target.value } }))} className={inputCls} />
-                      </div>
-                      <div className="col-span-2">
-                        <label className={labelCls}>{t('hce_gynecological_contraceptive', 'app')}</label>
+                      </FormField>
+                      <FormField label={t('hce_gynecological_contraceptive', 'app')} className="col-span-2" error={anamneseFieldErrors.contraceptiveMethod}>
                         <input type="text" value={anamnese.gynecological?.contraceptiveMethod || ''} onChange={e => setAnamnese(p => ({ ...p, gynecological: { ...p.gynecological!, contraceptiveMethod: e.target.value } }))} className={inputCls} />
-                      </div>
+                      </FormField>
                     </div>
                   </div>
 
@@ -1854,30 +1923,25 @@ const ClinicalModuleContent = ({
                   <div className="border border-slate-100 rounded-xl p-3 space-y-2">
                     <h5 className="text-xs font-bold text-slate-600 uppercase">{t('hce_obstetric', 'app')}</h5>
                     <div className="grid grid-cols-4 gap-2">
-                      <div>
-                        <label className={labelCls}>{t('hce_obstetric_gestation_number', 'app')}</label>
+                      <FormField label={t('hce_obstetric_gestation_number', 'app')} error={anamneseFieldErrors.gestationNumber}>
                         <input type="text" inputMode="numeric" value={anamnese.obstetric?.gestationNumber ?? ''} onChange={e => setAnamnese(p => ({ ...p, obstetric: { gestationNumber: parseInt(e.target.value) || 0, expectedDueDate: p.obstetric?.expectedDueDate || '', prenatalStart: p.obstetric?.prenatalStart || '', riskClassification: p.obstetric?.riskClassification || '' } }))} className={inputCls} />
-                      </div>
-                      <div>
-                        <label className={labelCls}>{t('hce_obstetric_due_date', 'app')}</label>
+                      </FormField>
+                      <FormField label={t('hce_obstetric_due_date', 'app')} error={anamneseFieldErrors.expectedDueDate}>
                         <input type="text" value={anamnese.obstetric?.expectedDueDate || ''} onChange={e => setAnamnese(p => ({ ...p, obstetric: { ...p.obstetric!, expectedDueDate: e.target.value } }))} className={inputCls} />
-                      </div>
-                      <div>
-                        <label className={labelCls}>{t('hce_obstetric_prenatal_start', 'app')}</label>
+                      </FormField>
+                      <FormField label={t('hce_obstetric_prenatal_start', 'app')} error={anamneseFieldErrors.prenatalStart}>
                         <input type="text" value={anamnese.obstetric?.prenatalStart || ''} onChange={e => setAnamnese(p => ({ ...p, obstetric: { ...p.obstetric!, prenatalStart: e.target.value } }))} className={inputCls} />
-                      </div>
-                      <div>
-                        <label className={labelCls}>{t('hce_obstetric_risk_classification', 'app')}</label>
+                      </FormField>
+                      <FormField label={t('hce_obstetric_risk_classification', 'app')} error={anamneseFieldErrors.riskClassification}>
                         <input type="text" value={anamnese.obstetric?.riskClassification || ''} onChange={e => setAnamnese(p => ({ ...p, obstetric: { ...p.obstetric!, riskClassification: e.target.value } }))} className={inputCls} />
-                      </div>
+                      </FormField>
                     </div>
                   </div>
 
                   {/* Notes */}
-                  <div>
-                    <label className={labelCls}>{t('hce_notes', 'app')}</label>
+                  <FormField label={t('hce_notes', 'app')} error={anamneseFieldErrors.notes}>
                     <textarea value={anamnese.notes} onChange={e => setAnamnese(p => ({ ...p, notes: e.target.value }))} rows={3} className={textareaCls} placeholder={t('hce_notes_placeholder', 'app')} />
-                  </div>
+                  </FormField>
 
                   <div className="flex justify-end gap-2">
                     {anamnese.id && (
@@ -1900,10 +1964,12 @@ const ClinicalModuleContent = ({
                     <Stethoscope className="w-4 h-4 text-teal-600" /> {t('hce_physical_exam_title', 'app')}
                   </h3>
 
+                  {physicalExamErrors.length > 0 && <FormErrorSummary errors={physicalExamErrors} />}
+
                   {!selectedPatId ? (
                     <div className="flex flex-col items-center justify-center py-12 text-center">
                       <AlertTriangle className="w-10 h-10 text-amber-400 mb-3" />
-                      <p className="text-sm font-semibold text-slate-600">{t('agenda_alert_select_patient', 'app') || 'Selecione um paciente.'}</p>
+                      <p className="text-sm font-semibold text-slate-600">{t('agenda_alert_select_patient', 'app')}</p>
                     </div>
                   ) : (<>
 
@@ -2009,10 +2075,9 @@ const ClinicalModuleContent = ({
                   </div>
 
                   {/* General Aspect */}
-                  <div>
-                    <label className={labelCls}>{t('hce_general_aspect', 'app')}</label>
+                  <FormField label={t('hce_general_aspect', 'app')} error={physicalExamFieldErrors.generalAspect}>
                     <input type="text" value={physicalExam.generalAspect} onChange={e => setPhysicalExam(p => ({ ...p, generalAspect: e.target.value }))} className={inputCls} placeholder={t('hce_general_aspect_placeholder', 'app')} />
-                  </div>
+                  </FormField>
 
                   {/* Body Systems */}
                   <div className="grid grid-cols-2 gap-3">
@@ -2031,8 +2096,7 @@ const ClinicalModuleContent = ({
                       { key: 'examRectal', label: t('hce_rectal', 'app') },
                       { key: 'examPsychiatric', label: t('hce_psychiatric', 'app') },
                     ].map(field => (
-                      <div key={field.key}>
-                        <label className={labelCls}>{field.label}</label>
+                      <FormField key={field.key} label={field.label} error={physicalExamFieldErrors[field.key]}>
                         <textarea
                           value={(physicalExam as any)[field.key] || ''}
                           onChange={e => setPhysicalExam(p => ({ ...p, [field.key]: e.target.value }))}
@@ -2040,12 +2104,11 @@ const ClinicalModuleContent = ({
                           className={textareaCls}
                           placeholder={`${t('hce_exam_placeholder', 'app')} ${field.label.toLowerCase()}...`}
                         />
-                      </div>
+                      </FormField>
                     ))}
                   </div>
 
-                  <div>
-                    <label className={labelCls}>{t('hce_notes', 'app')}</label>
+                  <FormField label={t('hce_notes', 'app')} error={physicalExamFieldErrors.notes}>
                     <textarea
                       value={physicalExam.notes || ''}
                       onChange={e => setPhysicalExam(p => ({ ...p, notes: e.target.value }))}
@@ -2053,7 +2116,7 @@ const ClinicalModuleContent = ({
                       className={textareaCls}
                       placeholder={t('hce_notes_placeholder', 'app')}
                     />
-                  </div>
+                  </FormField>
 
                   <div className="flex justify-end gap-2">
                     {physicalExam.id && (
@@ -2068,46 +2131,7 @@ const ClinicalModuleContent = ({
                         {t('hce_delete', 'app')}
                       </button>
                     )}
-                    <button onClick={async () => {
-                      const isEdit = !!physicalExam.id;
-                      const entry: PhysicalExam = {
-                        ...physicalExam,
-                        id: physicalExam.id || await genId('pexam'),
-                        patientId: selectedPatient?.id || '',
-                        createdBy: physicalExam.createdBy || activeOperator,
-                        createdAt: physicalExam.createdAt || new Date().toISOString(),
-                      };
-                      setPhysicalExam(entry);
-                      if (selectedPatient) {
-                        setPatients(prev => prev.map(p => p.id === selectedPatient.id ? {
-                          ...p,
-                          clinicalHistory: [
-                            { id: entry.id, date: entry.createdAt, type: 'Exame Físico', diagnosis: 'Exame físico registrado', cid10: '', prescriptions: [], notes: entry.notes, doctor: entry.createdBy },
-                            ...p.clinicalHistory,
-                          ],
-                        } : p));
-                      }
-                      addAuditLog('Salvou Exame Físico', selectedPatient?.name || '');
-                      if (supabase) {
-                        const dbRow = {
-                          id: entry.id, patient_id: entry.patientId, created_by: entry.createdBy,
-                          updated_by: isEdit ? activeOperator : null,
-                          vital_signs: entry.vitalSigns,
-                          exam_head_neck: entry.examHeadNeck, exam_cardiovascular: entry.examCardiovascular,
-                          exam_respiratory: entry.examRespiratory, exam_abdomen: entry.examAbdomen,
-                          exam_genitourinary: entry.examGenitourinary, exam_musculoskeletal: entry.examMusculoskeletal,
-                          exam_neurological: entry.examNeurological, exam_skin: entry.examSkin,
-                          exam_eyes: entry.examEyes, exam_ears: entry.examEars, exam_mouth: entry.examMouth,
-                          exam_rectal: entry.examRectal, exam_psychiatric: entry.examPsychiatric,
-                          general_aspect: entry.generalAspect, notes: entry.notes,
-                        };
-                        if (isEdit) {
-                          await supabase.from('physical_exams').update(dbRow).eq('id', entry.id);
-                        } else {
-                          await supabase.from('physical_exams').insert(dbRow);
-                        }
-                      }
-                    }}
+                    <button onClick={handleSavePhysicalExam}
                       className="py-2.5 px-6 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-lg text-xs transition">
                       {t('hce_save_physical_exam', 'app')}
                     </button>
@@ -2129,32 +2153,27 @@ const ClinicalModuleContent = ({
                   {!selectedPatId ? (
                     <div className="flex flex-col items-center justify-center py-12 text-center">
                       <AlertTriangle className="w-10 h-10 text-amber-400 mb-3" />
-                      <p className="text-sm font-semibold text-slate-600">{t('agenda_alert_select_patient', 'app') || 'Selecione um paciente.'}</p>
+                      <p className="text-sm font-semibold text-slate-600">{t('agenda_alert_select_patient', 'app')}</p>
                     </div>
                   ) : (<>
 
                   <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className={`${labelCls} text-blue-700`}>{t('hce_subjective', 'app')}</label>
+                    <FormField label={t('hce_subjective', 'app')} error={soapFieldErrors.subjective}>
                       <textarea value={soapNote.subjective} onChange={e => setSoapNote(p => ({ ...p, subjective: e.target.value }))} rows={5} className={textareaCls} placeholder={t('hce_subjective_placeholder', 'app')} />
-                    </div>
-                    <div>
-                      <label className={`${labelCls} text-green-700`}>{t('hce_objective', 'app')}</label>
+                    </FormField>
+                    <FormField label={t('hce_objective', 'app')} error={soapFieldErrors.objective}>
                       <textarea value={soapNote.objective} onChange={e => setSoapNote(p => ({ ...p, objective: e.target.value }))} rows={5} className={textareaCls} placeholder={t('hce_objective_placeholder', 'app')} />
-                    </div>
-                    <div>
-                      <label className={`${labelCls} text-amber-700`}>{t('hce_assessment', 'app')}</label>
+                    </FormField>
+                    <FormField label={t('hce_assessment', 'app')} error={soapFieldErrors.assessment}>
                       <textarea value={soapNote.assessment} onChange={e => setSoapNote(p => ({ ...p, assessment: e.target.value }))} rows={5} className={textareaCls} placeholder={t('hce_assessment_placeholder', 'app')} />
-                    </div>
-                    <div>
-                      <label className={`${labelCls} text-purple-700`}>{t('hce_plan', 'app')}</label>
+                    </FormField>
+                    <FormField label={t('hce_plan', 'app')} error={soapFieldErrors.plan}>
                       <textarea value={soapNote.plan} onChange={e => setSoapNote(p => ({ ...p, plan: e.target.value }))} rows={5} className={textareaCls} placeholder={t('hce_plan_placeholder', 'app')} />
-                    </div>
+                    </FormField>
                   </div>
-                  <div>
-                    <label className={labelCls}>{t('hce_notes', 'app')}</label>
+                  <FormField label={t('hce_notes', 'app')} error={soapFieldErrors.notes}>
                     <textarea value={soapNote.notes} onChange={e => setSoapNote(p => ({ ...p, notes: e.target.value }))} rows={2} className={textareaCls} />
-                  </div>
+                  </FormField>
                   <div className="flex justify-end gap-2">
                     {soapNote.id && (
                       <button onClick={handleDeleteSoap} className="py-2.5 px-4 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-lg text-xs transition">
@@ -2180,7 +2199,7 @@ const ClinicalModuleContent = ({
                   {!selectedPatId ? (
                     <div className="flex flex-col items-center justify-center py-12 text-center">
                       <AlertTriangle className="w-10 h-10 text-amber-400 mb-3" />
-                      <p className="text-sm font-semibold text-slate-600">{t('agenda_alert_select_patient', 'app') || 'Selecione um paciente.'}</p>
+                      <p className="text-sm font-semibold text-slate-600">{t('agenda_alert_select_patient', 'app')}</p>
                     </div>
                   ) : (<>
 
@@ -2344,7 +2363,7 @@ const ClinicalModuleContent = ({
                               <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition pointer-events-none whitespace-nowrap">{t('hce_edit', 'app')}</span>
                             </button>
                             <button onClick={async () => {
-                              if (window.confirm(t('hce_confirm_delete_diagnosis', 'app') || 'Tem certeza que deseja excluir este diagnóstico?')) {
+                              if (window.confirm(t('hce_confirm_delete_diagnosis', 'app'))) {
                                 setDiagnoses(prev => prev.filter(x => x.id !== d.id));
                                 if (supabase) {
                                   await supabase.from('diagnoses').delete().eq('id', d.id);
@@ -2370,7 +2389,7 @@ const ClinicalModuleContent = ({
                   {!selectedPatId ? (
                     <div className="flex flex-col items-center justify-center py-12 text-center">
                       <AlertTriangle className="w-10 h-10 text-amber-400 mb-3" />
-                      <p className="text-sm font-semibold text-slate-600">{t('agenda_alert_select_patient', 'app') || 'Selecione um paciente.'}</p>
+                      <p className="text-sm font-semibold text-slate-600">{t('agenda_alert_select_patient', 'app')}</p>
                     </div>
                   ) : (<>
 
@@ -2509,7 +2528,7 @@ const ClinicalModuleContent = ({
                                         <button onClick={() => handleSignPrescription(p.id)} className="group relative p-1.5 text-green-600 hover:text-green-800 hover:bg-green-50 rounded-lg transition"><FileSignature className="w-4 h-4" /><span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition pointer-events-none whitespace-nowrap">{t('hce_sign', 'app')}</span></button>
                                       </>
                                     )}
-                                    <button onClick={() => { if (window.confirm(t('hce_confirm_delete_prescription', 'app') || '¿Está seguro que desea eliminar esta receta?')) { handleDeletePrescription(p.id); } }} className="group relative p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition"><Trash2 className="w-4 h-4" /><span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition pointer-events-none whitespace-nowrap">{t('hce_delete', 'app')}</span></button>
+                                    <button onClick={() => { if (window.confirm(t('hce_confirm_delete_prescription', 'app'))) { handleDeletePrescription(p.id); } }} className="group relative p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition"><Trash2 className="w-4 h-4" /><span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition pointer-events-none whitespace-nowrap">{t('hce_delete', 'app')}</span></button>
                                   </div>
                                 </>
                               )}
@@ -2525,8 +2544,7 @@ const ClinicalModuleContent = ({
                     <div className="border-t border-teal-200 p-4 space-y-3 bg-slate-50">
                       <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">{t('presc_add_title', 'app')}</p>
                       <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className={labelCls}>{t('presc_add_name', 'app')} *</label>
+                        <FormField label={t('presc_add_name', 'app')} required error={prescFieldErrors.drugName}>
                           <div className="relative">
                             <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
                             <input type="text" value={prescriptionForm.drugName} onChange={e => { const v = e.target.value; setPrescriptionForm(p => ({ ...p, drugName: v })); setDrugSearch(v); searchDrugCatalog(v); }} placeholder={t('presc_placeholder_drug', 'app')} className={`${inputCls} pl-9`} />
@@ -2549,11 +2567,10 @@ const ClinicalModuleContent = ({
                               </div>
                             ))}
                           </div>
-                        </div>
-                        <div>
-                          <label className={labelCls}>{t('presc_active_ingredient', 'app')}</label>
+                        </FormField>
+                        <FormField label={t('presc_active_ingredient', 'app')} error={prescFieldErrors.activeIngredient}>
                           <input type="text" value={prescriptionForm.activeIngredient} onChange={e => setPrescriptionForm(p => ({ ...p, activeIngredient: e.target.value }))} className={inputCls} placeholder={t('presc_placeholder_ingredient', 'app')} />
-                        </div>
+                        </FormField>
                       </div>
                       <div className="grid grid-cols-3 gap-2">
                         <div>
@@ -2575,18 +2592,15 @@ const ClinicalModuleContent = ({
                             <option value="Otro">{t('presc_presentation_otro', 'app')}</option>
                           </select>
                         </div>
-                        <div>
-                          <label className={labelCls}>{t('presc_add_dosage', 'app')} *</label>
+                        <FormField label={t('presc_add_dosage', 'app')} required error={prescFieldErrors.dosage}>
                           <input type="text" value={prescriptionForm.dosage} onChange={e => setPrescriptionForm(p => ({ ...p, dosage: e.target.value }))} className={inputCls} placeholder={t('presc_placeholder_dosage', 'app')} />
-                        </div>
-                        <div>
-                          <label className={labelCls}>{t('presc_add_frequency', 'app')} *</label>
+                        </FormField>
+                        <FormField label={t('presc_add_frequency', 'app')} required error={prescFieldErrors.frequency}>
                           <input type="text" value={prescriptionForm.frequency} onChange={e => setPrescriptionForm(p => ({ ...p, frequency: e.target.value }))} className={inputCls} placeholder={t('presc_placeholder_frequency', 'app')} />
-                        </div>
+                        </FormField>
                       </div>
                       <div className="grid grid-cols-4 gap-2">
-                        <div>
-                          <label className={labelCls}>{t('presc_route', 'app')}</label>
+                        <FormField label={t('presc_route', 'app')} error={prescFieldErrors.route}>
                           <select value={prescriptionForm.route} onChange={e => setPrescriptionForm(p => ({ ...p, route: e.target.value }))} className={inputCls}>
                             <option value="oral">{t('presc_route_oral', 'app')}</option>
                             <option value="sublingual">{t('presc_route_sublingual', 'app')}</option>
@@ -2597,19 +2611,16 @@ const ClinicalModuleContent = ({
                             <option value="inhalacion">{t('presc_route_inhalacion', 'app')}</option>
                             <option value="vaginal">{t('presc_route_vaginal', 'app')}</option>
                           </select>
-                        </div>
-                        <div>
-                          <label className={labelCls}>{t('presc_add_duration', 'app')}</label>
+                        </FormField>
+                        <FormField label={t('presc_add_duration', 'app')} error={prescFieldErrors.duration}>
                           <input type="text" value={prescriptionForm.duration} onChange={e => setPrescriptionForm(p => ({ ...p, duration: e.target.value }))} className={inputCls} placeholder={t('presc_placeholder_duration', 'app')} />
-                        </div>
-                        <div>
-                          <label className={labelCls}>{t('presc_quantity', 'app')}</label>
+                        </FormField>
+                        <FormField label={t('presc_quantity', 'app')} error={prescFieldErrors.quantity}>
                           <input type="text" inputMode="numeric" value={prescriptionForm.quantity} onChange={e => setPrescriptionForm(p => ({ ...p, quantity: parseInt(e.target.value) || 1 }))} className={inputCls} />
-                        </div>
-                        <div>
-                          <label className={labelCls}>{t('presc_unit', 'app')}</label>
+                        </FormField>
+                        <FormField label={t('presc_unit', 'app')} error={prescFieldErrors.unit}>
                           <input type="text" value={prescriptionForm.unit} onChange={e => setPrescriptionForm(p => ({ ...p, unit: e.target.value }))} className={inputCls} placeholder={t('presc_placeholder_unit', 'app')} />
-                        </div>
+                        </FormField>
                       </div>
                       <div className="grid grid-cols-2 gap-2">
                         <div>
@@ -2620,10 +2631,9 @@ const ClinicalModuleContent = ({
                             <option value="arquivado">{t('hce_prescription_arquivado', 'app')}</option>
                           </select>
                         </div>
-                        <div>
-                          <label className={labelCls}>{t('presc_add_instructions', 'app')}</label>
+                        <FormField label={t('presc_add_instructions', 'app')} error={prescFieldErrors.notes}>
                           <input type="text" value={prescriptionForm.notes} onChange={e => setPrescriptionForm(p => ({ ...p, notes: e.target.value }))} className={inputCls} placeholder={t('presc_placeholder_notes', 'app')} />
-                        </div>
+                        </FormField>
                       </div>
                       <button onClick={handleSavePrescription} disabled={!prescriptionForm.drugName.trim()} className="w-full py-2.5 bg-teal-600 hover:bg-teal-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-semibold rounded-lg text-xs transition flex items-center justify-center gap-2">
                         <Plus className="w-3.5 h-3.5" /> {t('presc_add_button', 'app')}
@@ -2647,36 +2657,32 @@ const ClinicalModuleContent = ({
                   {!selectedPatId ? (
                     <div className="flex flex-col items-center justify-center py-12 text-center">
                       <AlertTriangle className="w-10 h-10 text-amber-400 mb-3" />
-                      <p className="text-sm font-semibold text-slate-600">{t('agenda_alert_select_patient', 'app') || 'Selecione um paciente.'}</p>
+                      <p className="text-sm font-semibold text-slate-600">{t('agenda_alert_select_patient', 'app')}</p>
                     </div>
                   ) : (<>
 
                   <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className={labelCls}>{t('hce_exam_type', 'app')}</label>
+                    <FormField label={t('hce_exam_type', 'app')} error={examFieldErrors.examType}>
                       <select value={examRequestForm.examType} onChange={e => setExamRequestForm(p => ({ ...p, examType: e.target.value as any }))} className={inputCls}>
                         <option value="laboratorio">{t('hce_exam_laboratorio', 'app')}</option>
                         <option value="imagem">{t('hce_exam_imagem', 'app')}</option>
                         <option value="anatomia_patologica">{t('hce_exam_anatomia', 'app')}</option>
                         <option value="outro">{t('hce_exam_outro', 'app')}</option>
                       </select>
-                    </div>
-                    <div>
-                      <label className={labelCls}>{t('hce_exam_name', 'app')}</label>
+                    </FormField>
+                    <FormField label={t('hce_exam_name', 'app')} error={examFieldErrors.examName}>
                       <input type="text" value={examRequestForm.examName} onChange={e => setExamRequestForm(p => ({ ...p, examName: e.target.value }))} className={inputCls} placeholder={t('hce_exam_name_placeholder', 'app')} />
-                    </div>
-                    <div className="col-span-2">
-                      <label className={labelCls}>{t('hce_clinical_indication', 'app')}</label>
+                    </FormField>
+                    <FormField label={t('hce_clinical_indication', 'app')} className="col-span-2" error={examFieldErrors.clinicalIndication}>
                       <textarea value={examRequestForm.clinicalIndication} onChange={e => setExamRequestForm(p => ({ ...p, clinicalIndication: e.target.value }))} rows={2} className={textareaCls} placeholder={t('hce_clinical_indication_placeholder', 'app')} />
-                    </div>
-                    <div>
-                      <label className={labelCls}>{t('hce_urgency', 'app')}</label>
+                    </FormField>
+                    <FormField label={t('hce_urgency', 'app')} error={examFieldErrors.urgency}>
                       <select value={examRequestForm.urgency} onChange={e => setExamRequestForm(p => ({ ...p, urgency: e.target.value as any }))} className={inputCls}>
                         <option value="rotina">{t('hce_urgency_rotina', 'app')}</option>
                         <option value="urgente">{t('hce_urgency_urgente', 'app')}</option>
                         <option value="emergencia">{t('hce_urgency_emergencia', 'app')}</option>
                       </select>
-                    </div>
+                    </FormField>
                     <div className="flex items-end">
                       <button onClick={handleSaveExamRequest} className="w-full py-2 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-lg text-xs transition">
                         {t('hce_request_exam', 'app')}
@@ -2748,21 +2754,18 @@ const ClinicalModuleContent = ({
                   {!selectedPatId ? (
                     <div className="flex flex-col items-center justify-center py-12 text-center">
                       <AlertTriangle className="w-10 h-10 text-amber-400 mb-3" />
-                      <p className="text-sm font-semibold text-slate-600">{t('agenda_alert_select_patient', 'app') || 'Selecione um paciente.'}</p>
+                      <p className="text-sm font-semibold text-slate-600">{t('agenda_alert_select_patient', 'app')}</p>
                     </div>
                   ) : (<>
 
                   <div className="grid grid-cols-3 gap-2">
-                    <div>
-                      <label className={labelCls}>{t('hce_procedure_code', 'app')}</label>
+                    <FormField label={t('hce_procedure_code', 'app')} error={procFieldErrors.procedureCode}>
                       <input type="text" value={procedureForm.procedureCode} onChange={e => setProcedureForm(p => ({ ...p, procedureCode: e.target.value }))} className={inputCls} placeholder={t('hce_procedure_code_placeholder', 'app')} />
-                    </div>
-                    <div>
-                      <label className={labelCls}>{t('hce_procedure_name', 'app')}</label>
+                    </FormField>
+                    <FormField label={t('hce_procedure_name', 'app')} error={procFieldErrors.procedureName}>
                       <input type="text" value={procedureForm.procedureName} onChange={e => setProcedureForm(p => ({ ...p, procedureName: e.target.value }))} className={inputCls} />
-                    </div>
-                    <div>
-                      <label className={labelCls}>{t('hce_procedure_category', 'app')}</label>
+                    </FormField>
+                    <FormField label={t('hce_procedure_category', 'app')} error={procFieldErrors.procedureCategory}>
                       <select value={procedureForm.procedureCategory} onChange={e => setProcedureForm(p => ({ ...p, procedureCategory: e.target.value }))} className={inputCls}>
                         <option value="">{t('hce_select_placeholder', 'app')}</option>
                         <option value="Consulta">{t('hce_category_consulta', 'app')}</option>
@@ -2772,13 +2775,12 @@ const ClinicalModuleContent = ({
                         <option value="Fisioterapia">{t('hce_category_fisioterapia', 'app')}</option>
                         <option value="Enfermagem">{t('hce_category_enfermagem', 'app')}</option>
                       </select>
-                    </div>
+                    </FormField>
                   </div>
                   <div className="grid grid-cols-3 gap-2">
-                    <div>
-                      <label className={labelCls}>{t('hce_procedure_quantity', 'app')}</label>
+                    <FormField label={t('hce_procedure_quantity', 'app')} error={procFieldErrors.quantity}>
                       <input type="text" inputMode="numeric" value={procedureForm.quantity} onChange={e => setProcedureForm(p => ({ ...p, quantity: parseInt(e.target.value) || 1 }))} className={inputCls} />
-                    </div>
+                    </FormField>
                     <div>
                       <label className={labelCls}>{t('hce_procedure_status', 'app')}</label>
                       <select value={procedureForm.status} onChange={e => setProcedureForm(p => ({ ...p, status: e.target.value as any }))} className={inputCls}>
@@ -2854,10 +2856,11 @@ const ClinicalModuleContent = ({
                   {!selectedPatId ? (
                     <div className="flex flex-col items-center justify-center py-12 text-center">
                       <AlertTriangle className="w-10 h-10 text-amber-400 mb-3" />
-                      <p className="text-sm font-semibold text-slate-600">{t('agenda_alert_select_patient', 'app') || 'Selecione um paciente.'}</p>
+                      <p className="text-sm font-semibold text-slate-600">{t('agenda_alert_select_patient', 'app')}</p>
                     </div>
                   ) : (<>
 
+                  <FormField error={attFieldErrors.fileName || attFieldErrors.fileSizeBytes || attFieldErrors.mimeType || attFieldErrors.description}>
                   <div className="p-6 border-2 border-dashed border-slate-300 rounded-xl text-center hover:border-teal-400 transition cursor-pointer">
                     <Paperclip className="w-8 h-8 mx-auto text-slate-400 mb-2" />
                     <p className="text-xs text-slate-500 font-medium">{t('hce_drag_files_or_click', 'app')}</p>
@@ -2869,6 +2872,7 @@ const ClinicalModuleContent = ({
                       });
                     }} />
                   </div>
+                </FormField>
                   <div className="space-y-2">
                     {attachments.map((a: any) => (
                       <div key={a.id} className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-xs">
@@ -2898,7 +2902,7 @@ const ClinicalModuleContent = ({
                   {!selectedPatId ? (
                     <div className="flex flex-col items-center justify-center py-12 text-center">
                       <AlertTriangle className="w-10 h-10 text-amber-400 mb-3" />
-                      <p className="text-sm font-semibold text-slate-600">{t('agenda_alert_select_patient', 'app') || 'Selecione um paciente.'}</p>
+                      <p className="text-sm font-semibold text-slate-600">{t('agenda_alert_select_patient', 'app')}</p>
                     </div>
                   ) : (<>
 
@@ -2946,7 +2950,7 @@ const ClinicalModuleContent = ({
                   {!selectedPatId ? (
                     <div className="flex flex-col items-center justify-center py-12 text-center">
                       <AlertTriangle className="w-10 h-10 text-amber-400 mb-3" />
-                      <p className="text-sm font-semibold text-slate-600">{t('agenda_alert_select_patient', 'app') || 'Selecione um paciente.'}</p>
+                      <p className="text-sm font-semibold text-slate-600">{t('agenda_alert_select_patient', 'app')}</p>
                     </div>
                   ) : (<>
 
@@ -3137,7 +3141,7 @@ const ClinicalModuleContent = ({
                   {!selectedPatId ? (
                     <div className="flex flex-col items-center justify-center py-12 text-center">
                       <AlertTriangle className="w-10 h-10 text-amber-400 mb-3" />
-                      <p className="text-sm font-semibold text-slate-600">{t('agenda_alert_select_patient', 'app') || 'Selecione um paciente.'}</p>
+                      <p className="text-sm font-semibold text-slate-600">{t('agenda_alert_select_patient', 'app')}</p>
                     </div>
                   ) : (<> 
 
@@ -3268,12 +3272,12 @@ const ClinicalModuleContent = ({
           <div className={sectionCls + ' lg:col-span-2 space-y-4'}>
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <div>
-                <h4 className="font-bold text-slate-800 text-base">IAMED PACS Radiológico</h4>
+                <h4 className="font-bold text-slate-800 text-base">{t('hce_pacs_title', 'app')}</h4>
                 <p className="text-xs text-slate-500">{t('hce_pacs_subtitle', 'app')}</p>
               </div>
               <div className="flex gap-2">
-                <span className="text-xs font-bold bg-slate-100 py-1 px-2.5 rounded text-slate-600">ID: PACS_8390</span>
-                <span className="text-xs font-bold bg-teal-50 text-teal-700 py-1 px-2.5 rounded border border-teal-100">ONLINE</span>
+                <span className="text-xs font-bold bg-slate-100 py-1 px-2.5 rounded text-slate-600">{t('hce_id', 'app')}: PACS_8390</span>
+                <span className="text-xs font-bold bg-teal-50 text-teal-700 py-1 px-2.5 rounded border border-teal-100">{t('hce_pacs_online', 'app')}</span>
               </div>
             </div>
             <div className="relative bg-black rounded-lg flex items-center justify-center overflow-hidden border border-slate-800 h-[320px]">
@@ -3332,8 +3336,8 @@ const ClinicalModuleContent = ({
                 <div>
                   <label className={labelCls}>{t('hce_opinion', 'app')}</label>
                   <select value={asoStatus} onChange={e => setAsoStatus(e.target.value as any)} className={inputCls}>
-                    <option value="apto">APTO</option>
-                    <option value="inapto">INAPTO</option>
+                    <option value="apto">{t('hce_aso_apto', 'app')}</option>
+                    <option value="inapto">{t('hce_aso_inapto', 'app')}</option>
                   </select>
                 </div>
               </div>
@@ -3471,8 +3475,8 @@ const ClinicalModuleContent = ({
                     onChange={e => setEditingAso(prev => prev ? { ...prev, status: e.target.value as 'apto' | 'inapto' } : null)}
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold"
                   >
-                    <option value="apto">APTO</option>
-                    <option value="inapto">INAPTO</option>
+                    <option value="apto">{t('hce_aso_apto', 'app')}</option>
+                    <option value="inapto">{t('hce_aso_inapto', 'app')}</option>
                   </select>
                 </div>
               </div>
@@ -3498,7 +3502,7 @@ const ClinicalModuleContent = ({
                   {t('app_save_changes', 'app')}
                 </button>
                 <button onClick={() => setEditingAso(null)} className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs cursor-pointer transition">
-                  Cancelar
+                  {t('hce_cancel', 'app')}
                 </button>
               </div>
             </div>
