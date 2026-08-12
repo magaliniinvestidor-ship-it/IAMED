@@ -230,6 +230,13 @@ export const prescriptionSchema = z.object({
     .max(999, 'Quantidade máxima: 999'),
   unit: nonEmptyString('Unidade', 20),
   notes: optionalString(1000),
+  snomedCode: z
+    .string()
+    .max(18, 'SNOMED-CT: máximo 18 dígitos')
+    .regex(/^[0-9]*$/, 'SNOMED-CT: apenas números')
+    .optional()
+    .or(z.literal('')),
+  snomedDescription: z.string().max(500, 'Descrição SNOMED-CT: máximo 500 caracteres').optional().or(z.literal('')),
 });
 
 export type PrescriptionFormData = z.infer<typeof prescriptionSchema>;
@@ -321,9 +328,34 @@ export const procedureSchema = z.object({
     .min(1, 'Quantidade mínima: 1')
     .max(999, 'Quantidade máxima: 999'),
   notes: optionalString(1000),
+  snomedCode: z
+    .string()
+    .max(18, 'SNOMED-CT: máximo 18 dígitos')
+    .regex(/^[0-9]*$/, 'SNOMED-CT: apenas números')
+    .optional()
+    .or(z.literal('')),
+  snomedDescription: z.string().max(500, 'Descrição SNOMED-CT: máximo 500 caracteres').optional().or(z.literal('')),
 });
 
 export type ProcedureFormData = z.infer<typeof procedureSchema>;
+
+export const snomedConceptSchema = z.object({
+  conceptId: z
+    .string()
+    .regex(/^[0-9]{6,18}$/, 'SNOMED-CT: ID deve ter entre 6 e 18 dígitos numéricos')
+    .or(z.literal('')),
+  preferredTerm: nonEmptyString('Termo preferido', 500),
+  termPt: optionalString(500),
+  termEs: optionalString(500),
+  termEn: optionalString(500),
+  cid10Code: optionalString(20),
+  semanticAxis: nonEmptyString('Eixo semântico', 50),
+  inn: optionalString(300),
+  rxnormCode: optionalString(50),
+  atcCode: optionalString(50),
+});
+
+export type SnomedConceptFormData = z.infer<typeof snomedConceptSchema>;
 
 export const attachmentSchema = z.object({
   patientId: nonEmptyString('Paciente', 20),

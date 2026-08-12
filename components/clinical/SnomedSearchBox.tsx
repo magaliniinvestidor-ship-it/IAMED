@@ -31,6 +31,8 @@ export function SnomedSearchBox({
   const [open, setOpen] = React.useState(false);
   const [mapResults, setMapResults] = React.useState<SnomedResolvedItem[] | null>(null);
   const [mapping, setMapping] = React.useState(false);
+  const [mapError, setMapError] = React.useState<string | null>(null);
+  const [inlineMsg, setInlineMsg] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     setValue(initialCode);
@@ -41,6 +43,8 @@ export function SnomedSearchBox({
     setValue(next);
     setOpen(true);
     setMapResults(null);
+    setMapError(null);
+    setInlineMsg(null);
     search(next);
   };
 
@@ -48,6 +52,8 @@ export function SnomedSearchBox({
     setValue(String(item.concept.concept_id));
     setOpen(false);
     setMapResults(null);
+    setMapError(null);
+    setInlineMsg(null);
     clear();
     onPick(item);
   };
@@ -57,20 +63,32 @@ export function SnomedSearchBox({
     setMapping(true);
     setOpen(true);
     setMapResults(null);
+    setMapError(null);
     try {
       const results = await mapCid10ToSnomed(cid10Context);
       setMapResults(results);
+      if (results.length === 0) {
+        setOpen(false);
+        setInlineMsg(t('hce_snomed_no_results', 'app'));
+      } else {
+        setOpen(true);
+        setInlineMsg(null);
+      }
       onMapFromCid10?.(results);
+    } catch (err) {
+      setMapResults([]);
+      setOpen(false);
+      setMapError(err instanceof Error ? err.message : String(err));
     } finally {
       setMapping(false);
     }
   };
 
-  const showDropdown = open && (value || items.length > 0 || (mapResults && mapResults.length > 0));
+  const showDropdown = open && (mapping || value || items.length > 0 || mapResults !== null);
   const list = mapResults ?? items;
 
   return (
-    <div className={`relative ${className}`}>
+    <div className={`relative ${className}`} onBlur={() => setTimeout(() => setOpen(false), 150)}>
       <div className="flex gap-1">
         <input
           type="text"
@@ -85,10 +103,10 @@ export function SnomedSearchBox({
             type="button"
             onClick={handleMapFromCid10}
             disabled={mapping}
-            className="shrink-0 px-2 py-1 text-[10px] font-bold rounded border border-teal-200 bg-teal-50 text-teal-700 hover:bg-teal-100 disabled:opacity-50 transition"
+            className="shrink-0 px-3 py-2 text-xs font-bold rounded-lg border border-teal-200 bg-teal-50 text-teal-700 hover:bg-teal-100 disabled:opacity-50 transition"
             title={t('hce_snomed_resolve_cid10', 'app')}
           >
-            {mapping ? '…' : 'CID→SNOMED'}
+            {mapping ? '…' : t('hce_snomed_lookup', 'app')}
           </button>
         )}
       </div>
@@ -97,17 +115,25 @@ export function SnomedSearchBox({
           {loading && (
             <p className="px-3 py-2 text-[10px] text-slate-500 italic">{t('hce_snomed_loading', 'app')}</p>
           )}
+          {mapping && (
+            <p className="px-3 py-2 text-[10px] text-teal-700 italic">
+              {t('hce_snomed_lookup', 'app')} · {cid10Context}…
+            </p>
+          )}
           {error && (
             <p className="px-3 py-2 text-[10px] text-rose-600">{error}</p>
           )}
-          {!loading && !error && list.length === 0 && (
+          {mapError && (
+            <p className="px-3 py-2 text-[10px] text-rose-600">{mapError}</p>
+          )}
+          {!loading && !mapping && !mapError && !error && list.length === 0 && (
             <p className="px-3 py-2 text-[10px] text-slate-400 italic">
-              {mapResults ? t('hce_snomed_no_results', 'app') : t('hce_snomed_no_results', 'app')}
+              {t('hce_snomed_no_results', 'app')}
             </p>
           )}
           {!loading && !error && mapResults && mapResults.length > 0 && (
             <p className="px-3 py-1 text-[9px] text-teal-700 font-bold uppercase border-b border-slate-100 bg-teal-50/40">
-              {t('hce_snomed_resolve_cid10', 'app')} · CID {cid10Context}
+              {t('hce_snomed_resolve_cid10', 'app')} · {cid10Context}
             </p>
           )}
           {!loading && !error && list.map(item => (
@@ -130,7 +156,7 @@ export function SnomedSearchBox({
                 </span>
               </div>
               {item.concept.inn && item.concept.inn !== item.term && (
-                <p className="text-[10px] text-slate-400 italic mt-0.5 truncate">INN: {item.concept.inn}</p>
+                <p className="text-[10px] text-slate-400 italic mt-0.5 truncate">{t('hce_snomed_inn', 'app')}: {item.concept.inn}</p>
               )}
             </button>
           ))}
@@ -138,6 +164,9 @@ export function SnomedSearchBox({
       )}
       {initialDescription && (
         <p className="text-[10px] text-slate-500 mt-1 italic">{initialDescription}</p>
+      )}
+      {inlineMsg && (
+        <p className="text-[10px] text-amber-600 mt-1 italic">{inlineMsg}</p>
       )}
     </div>
   );

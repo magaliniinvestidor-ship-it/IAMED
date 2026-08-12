@@ -80,6 +80,8 @@ export interface AllergyEntry {
   type: string;
   severity: 'leve' | 'moderada' | 'grave';
   reaction: string;
+  snomedCode?: string;
+  snomedDescription?: string;
 }
 
 export interface MedicationEntry {
@@ -260,6 +262,8 @@ export interface Prescription {
   refillCount: number;
   notes: string;
   qrCodeData: string;
+  snomedCode?: string;
+  snomedDescription?: string;
   signedAt?: string;
   signatureId?: string;
   status: 'rascunho' | 'assinado' | 'cancelado' | 'dispensado';
@@ -304,6 +308,8 @@ export interface Procedure {
   notes: string;
   complications: string;
   status: 'programado' | 'em_execucao' | 'concluido' | 'cancelado';
+  snomedCode?: string;
+  snomedDescription?: string;
   performedAt?: string;
   signedBy?: string;
   signedAt?: string;

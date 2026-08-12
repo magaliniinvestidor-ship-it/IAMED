@@ -9,6 +9,7 @@ import type { SnomedConcept, SnomedSearchOptions } from './types';
 const SUPABASE_TABLE = 'snomed_concepts';
 const COLUMNS = 'concept_id, preferred_term, term_pt, term_es, term_en, cid10_code, semantic_axis, is_active, rxnorm_code, inn, atc_code';
 const CACHE_TTL_MS = 1000 * 60 * 60 * 6;
+const LS_PREFIX = 'snomed_cache_v1:';
 
 interface ConceptCache {
   ts: number;
@@ -17,18 +18,62 @@ interface ConceptCache {
 
 const cache = new Map<string, ConceptCache>();
 
-function readCache(key: string): SnomedConcept[] | null {
-  const entry = cache.get(key);
-  if (!entry) return null;
-  if (Date.now() - entry.ts > CACHE_TTL_MS) {
-    cache.delete(key);
+function readLocalStorage(key: string): ConceptCache | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(LS_PREFIX + key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as ConceptCache;
+    if (!Array.isArray(parsed.data) || typeof parsed.ts !== 'number') return null;
+    return parsed;
+  } catch {
     return null;
   }
-  return entry.data;
+}
+
+function writeLocalStorage(key: string, entry: ConceptCache) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(LS_PREFIX + key, JSON.stringify(entry));
+  } catch {
+    return;
+  }
+}
+
+function removeLocalStorage(key: string) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.removeItem(LS_PREFIX + key);
+  } catch {
+    return;
+  }
+}
+
+function readCache(key: string): SnomedConcept[] | null {
+  const inMemory = cache.get(key);
+  if (inMemory) {
+    if (Date.now() - inMemory.ts > CACHE_TTL_MS) {
+      cache.delete(key);
+    } else {
+      return inMemory.data;
+    }
+  }
+  const persisted = readLocalStorage(key);
+  if (persisted) {
+    if (Date.now() - persisted.ts > CACHE_TTL_MS) {
+      removeLocalStorage(key);
+      return null;
+    }
+    cache.set(key, persisted);
+    return persisted.data;
+  }
+  return null;
 }
 
 function writeCache(key: string, data: SnomedConcept[]) {
-  cache.set(key, { ts: Date.now(), data });
+  const entry: ConceptCache = { ts: Date.now(), data };
+  cache.set(key, entry);
+  writeLocalStorage(key, entry);
 }
 
 export interface SnomedResolvedItem {

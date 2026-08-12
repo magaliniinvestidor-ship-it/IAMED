@@ -31,6 +31,7 @@ import { financialPostingSchema, financeStockItemSchema, ssoProviderSchema } fro
 import { FormErrorSummary } from '@/components/forms';
 import I18nDatePicker from '@/components/I18nDatePicker';
 import RolesTab from './RolesTab';
+import { SnomedAdminTab } from './admin/SnomedAdminTab';
 import {
   Receipt, TrendingUp, Pill, Settings, Plus, Check,
   AlertTriangle, ShieldCheck, Download, FileText, X,
@@ -41,7 +42,7 @@ import {
   Stethoscope, UserPlus, UserCheck, UserX, Mail, Phone, Briefcase, Calendar, Edit2, Users, Trash2,
   Lock, KeyRound, Fingerprint, DoorOpen, LogOut, Gauge,
   Smartphone as SmartphoneIcon, ScanLine, Copy, CheckCheck,
-  IdCard, MapPin, Star, ToggleLeft, ToggleRight,
+  IdCard, MapPin, Star, ToggleLeft, ToggleRight, Brain,
 } from 'lucide-react';
 
 interface AdminFinanceModuleProps {
@@ -371,7 +372,7 @@ export default function AdminFinanceModule({
   React.useEffect(() => { if (accountingEntriesProp) setAccountingEntries(accountingEntriesProp); }, [accountingEntriesProp]);
 
   // ── Admin tab (submodule 14) ────────────────────────────────────────────────────────
-  type AdminTab = 'users' | 'security' | 'password-policy' | 'two-factor' | 'sso' | 'sessions' | 'professionals' | 'locations' | 'rooms' | 'roles';
+  type AdminTab = 'users' | 'security' | 'password-policy' | 'two-factor' | 'sso' | 'sessions' | 'professionals' | 'locations' | 'rooms' | 'roles' | 'snomed';
   const [adminTab, setAdminTab] = useState<AdminTab>('users');
 
   // ── Locations & Rooms State ────────────────────────────────────────────────────────
@@ -1980,6 +1981,9 @@ const resetProfForm = () => {
             <button onClick={() => setAdminTab('roles')} className={`pb-2.5 px-3 text-sm font-semibold transition-all border-b-2 flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${adminTab === 'roles' ? 'border-teal-600 text-teal-600 font-bold' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
               <Briefcase className="w-3.5 h-3.5" /> Profissões
             </button>
+            <button onClick={() => setAdminTab('snomed')} className={`pb-2.5 px-3 text-sm font-semibold transition-all border-b-2 flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${adminTab === 'snomed' ? 'border-teal-600 text-teal-600 font-bold' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+              <Brain className="w-3.5 h-3.5" /> SNOMED-CT
+            </button>
           </div>
 
           {adminTab === 'users' && (
@@ -2711,6 +2715,11 @@ const resetProfForm = () => {
               supabase={supabase}
               addAuditLog={addAuditLog}
             />
+          )}
+
+          {/* ─── Tab: SNOMED-CT ─────────────────────────────────────────────────── */}
+          {adminTab === 'snomed' && (
+            <SnomedAdminTab addAuditLog={addAuditLog} />
           )}
         </div>
       )}
