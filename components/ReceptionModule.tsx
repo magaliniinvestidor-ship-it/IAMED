@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { Patient, Appointment, Professional, InsuranceCompany } from '@/lib/mockData';
 import { supabase } from '@/lib/supabaseClient';
 import { useI18n } from '@/lib/i18n/I18nContext';
+import { getVitalsBands, classifyBmiForAge } from '@/lib/vitals/vitalsLimits';
 import { useFormValidation, groupErrorsByPath, validateForm } from '@/lib/validation';
 import { patientSchema, createAllPatientSchemas, triageSchema } from '@/lib/validation/schemas';
 import { getValidationMessages, createTriageSchema, createMedicalConsultationSchema, createMedicalConsultationFinalizeSchema, type ValidationMessages } from '@/lib/validation/i18n-schemas';
@@ -438,36 +439,8 @@ export default function ReceptionModule({
   }, [triagePatient?.birthdate]);
 
   const vitalsLimits = useMemo(() => {
-    const isBaby = patientAgeMonths < 12;
-    const isChild = patientAgeMonths >= 12 && patientAgeMonths < 216;
-    if (isBaby) {
-      return {
-        label: t('rcpt_vitals_baby', 'app'),
-        spo2: { red: (v: number) => v < 90, orange: (v: number) => v >= 90 && v <= 94 },
-        pa: { red: (s: number) => s < 60, orange: (s: number) => s >= 60 && s <= 70, yellow: () => false },
-        fc: { red: (v: number) => v > 180 || v < 60, orange: (v: number) => (v >= 161 && v <= 180) || (v >= 60 && v <= 79), yellow: (v: number) => v >= 140 && v <= 160 },
-        fr: { red: (v: number) => v < 15, orange: (v: number) => v > 55, yellow: (v: number) => v >= 45 && v <= 55 },
-        temp: { orange: (v: number) => v >= 41.0 || v <= 35.0 || (v >= 38.5 && patientAgeMonths < 3), yellow: (v: number) => v >= 38.5 && v <= 40.9 && patientAgeMonths >= 3 },
-      };
-    }
-    if (isChild) {
-      return {
-        label: t('rcpt_vitals_child', 'app'),
-        spo2: { red: (v: number) => v < 90, orange: (v: number) => v >= 90 && v <= 94 },
-        pa: { red: (s: number) => s < 70, orange: (s: number) => s >= 70 && s <= 85, yellow: () => false },
-        fc: { red: (v: number) => v > 140 || v < 50, orange: (v: number) => (v >= 121 && v <= 140) || (v >= 50 && v <= 59), yellow: (v: number) => v >= 100 && v <= 120 },
-        fr: { red: (v: number) => v < 10, orange: (v: number) => v > 40, yellow: (v: number) => v >= 30 && v <= 40 },
-        temp: { orange: (v: number) => v >= 41.0 || v <= 35.0, yellow: (v: number) => v >= 38.5 && v <= 40.9 },
-      };
-    }
-    return {
-      label: t('rcpt_vitals_adult', 'app'),
-      spo2: { red: (v: number) => v < 85, orange: (v: number) => v >= 85 && v <= 94 },
-      pa: { red: (s: number) => s <= 70, orange: (s: number) => (s >= 71 && s <= 89) || s > 200, yellow: (s: number) => s >= 140 && s <= 199 },
-      fc: { red: (v: number) => v > 150 || v < 30, orange: (v: number) => (v >= 131 && v <= 150) || (v >= 30 && v <= 39), yellow: (v: number) => v >= 100 && v <= 130 },
-      fr: { red: (v: number) => v < 8, orange: (v: number) => v > 30, yellow: (v: number) => v >= 21 && v <= 30 },
-      temp: { orange: (v: number) => v >= 41.0 || v <= 35.0, yellow: (v: number) => v >= 38.5 && v <= 40.9 },
-    };
+    const bands = getVitalsBands(patientAgeMonths);
+    return { ...bands, label: t(bands.labelKey, 'app') };
   }, [patientAgeMonths, t]);
 
 
@@ -3980,30 +3953,40 @@ if (hasAnyField) {
                           className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans font-bold"
                         />
                       </div>
-                      {/* BMI (auto-calculated) */}
+                      {/* BMI (auto-calculated) — not used for babies < 1 year */}
+                      {patientAgeMonths >= 12 && (
                       <div>
                         <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_triage_bmi', 'app')}</label>
                         <div className={`w-full p-2 rounded-lg text-xs font-black text-center border ${
                           triageWeight && triageHeight
                             ? (() => {
                                 const bmi = parseFloat(triageWeight) / Math.pow(parseFloat(triageHeight) / 100, 2);
-                                if (bmi < 18.5) return 'bg-blue-50 border-blue-200 text-blue-700';
-                                if (bmi < 25) return 'bg-green-50 border-green-200 text-green-700';
-                                if (bmi < 30) return 'bg-amber-50 border-amber-200 text-amber-700';
-                                return 'bg-rose-50 border-rose-200 text-rose-700';
+                                const cls = classifyBmiForAge(bmi, patientAgeMonths, triagePatient?.gender);
+                                if (!cls) return 'bg-slate-100 border-slate-200 text-slate-400';
+                                if (cls.color === 'red') return 'bg-rose-50 border-rose-200 text-rose-700';
+                                if (cls.color === 'orange') return 'bg-orange-50 border-orange-200 text-orange-700';
+                                if (cls.color === 'yellow') return 'bg-amber-50 border-amber-200 text-amber-700';
+                                return 'bg-green-50 border-green-200 text-green-700';
                               })()
                             : 'bg-slate-100 border-slate-200 text-slate-400'
                         }`}>
                           {triageWeight && triageHeight
                             ? (() => {
                                 const bmi = parseFloat(triageWeight) / Math.pow(parseFloat(triageHeight) / 100, 2);
-                                const label = bmi < 18.5 ? t('rcpt_triage_bmi_underweight', 'app') : bmi < 25 ? t('rcpt_triage_bmi_normal', 'app') : bmi < 30 ? t('rcpt_triage_bmi_overweight', 'app') : t('rcpt_triage_bmi_obese', 'app');
+                                const cls = classifyBmiForAge(bmi, patientAgeMonths, triagePatient?.gender);
+                                const label = cls
+                                  ? cls.kind === 'underweight' ? t('rcpt_triage_bmi_underweight', 'app')
+                                    : cls.kind === 'overweight' ? t('rcpt_triage_bmi_overweight', 'app')
+                                    : cls.kind === 'obese' ? t('rcpt_triage_bmi_obese', 'app')
+                                    : t('rcpt_triage_bmi_normal', 'app')
+                                  : '';
                                 return `${bmi.toFixed(1)} — ${label}`;
                               })()
                             : t('rcpt_triage_bmi_info', 'app')
                           }
                         </div>
                       </div>
+                      )}
                       {/* Blood pressure */}
                       <div>
                         <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('rcpt_triage_blood_pressure', 'app')}</label>
@@ -4031,13 +4014,13 @@ if (hasAnyField) {
                           const systolic = parseInt(parts[0]);
                           const diastolic = parseInt(parts[1]);
                           if (!isNaN(systolic)) {
-                            if (vitalsLimits.pa.red(systolic) || (!isNaN(diastolic) && diastolic > 120)) {
+                            if (vitalsLimits.pa.red(systolic, isNaN(diastolic) ? NaN : diastolic)) {
                               return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> {t('rcpt_triage_bp_critical_low', 'app')}</p>;
                             }
-                            if (vitalsLimits.pa.orange(systolic)) {
+                            if (vitalsLimits.pa.orange(systolic, isNaN(diastolic) ? NaN : diastolic)) {
                               return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-500 inline-block" /> {t('rcpt_triage_bp_abnormal', 'app')}</p>;
                             }
-                            if (vitalsLimits.pa.yellow(systolic) || (!isNaN(diastolic) && diastolic >= 90 && diastolic <= 119)) {
+                            if (vitalsLimits.pa.yellow(systolic, isNaN(diastolic) ? NaN : diastolic)) {
                               return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block" /> {t('rcpt_triage_bp_elevated', 'app')}</p>;
                             }
                             return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> {t('rcpt_triage_status_normal', 'app')}</p>;
@@ -4064,10 +4047,13 @@ if (hasAnyField) {
                         {triageTemp && (() => {
                           const temp = parseFloat(triageTemp);
                           if (!isNaN(temp)) {
-                            if (vitalsLimits.temp.orange(temp)) {
+                            if (vitalsLimits.temp.red(temp, patientAgeMonths)) {
+                              return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> {t('rcpt_triage_temp_red', 'app')}</p>;
+                            }
+                            if (vitalsLimits.temp.orange(temp, patientAgeMonths)) {
                               return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-500 inline-block" /> {t('rcpt_triage_temp_orange', 'app')}</p>;
                             }
-                            if (vitalsLimits.temp.yellow(temp)) {
+                            if (vitalsLimits.temp.yellow(temp, patientAgeMonths)) {
                               return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block" /> {t('rcpt_triage_temp_yellow', 'app')}</p>;
                             }
                             return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> {t('rcpt_triage_status_normal', 'app')}</p>;
@@ -4155,13 +4141,13 @@ if (hasAnyField) {
                         {triageRR && (() => {
                           const rr = parseInt(triageRR);
                           if (!isNaN(rr)) {
-                            if (vitalsLimits.fr.red(rr)) {
+                            if (vitalsLimits.fr.red(rr, patientAgeMonths)) {
                               return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> {t('rcpt_triage_rr_critical', 'app')}</p>;
                             }
-                            if (vitalsLimits.fr.orange(rr)) {
+                            if (vitalsLimits.fr.orange(rr, patientAgeMonths)) {
                               return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-500 inline-block" /> {t('rcpt_triage_rr_elevated', 'app')}</p>;
                             }
-                            if (vitalsLimits.fr.yellow(rr)) {
+                            if (vitalsLimits.fr.yellow(rr, patientAgeMonths)) {
                               return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block" /> {t('rcpt_triage_rr_slightly', 'app')}</p>;
                             }
                             return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> {t('rcpt_triage_status_normal', 'app')}</p>;

@@ -14,12 +14,12 @@ interface TriageTabProps {
 
 type TriageColor = 'blue' | 'green' | 'yellow' | 'orange' | 'red';
 
-const TRIAGE_COLORS: Record<TriageColor, { bg: string; text: string; label: string; priority: 'normal' | 'preferencial' | 'emergência' }> = {
-  blue: { bg: 'bg-blue-500', text: 'text-blue-700', label: 'Não urgente (até 4h)', priority: 'normal' },
-  green: { bg: 'bg-emerald-500', text: 'text-emerald-700', label: 'Pouco urgente (até 2h)', priority: 'normal' },
-  yellow: { bg: 'bg-amber-500', text: 'text-amber-700', label: 'Urgente (até 1h)', priority: 'preferencial' },
-  orange: { bg: 'bg-orange-500', text: 'text-orange-700', label: 'Muito urgente (até 30min)', priority: 'emergência' },
-  red: { bg: 'bg-rose-500', text: 'text-rose-700', label: 'Emergência (imediato)', priority: 'emergência' },
+const TRIAGE_COLORS: Record<TriageColor, { bg: string; text: string; labelKey: string; priority: 'normal' | 'preferencial' | 'emergência' }> = {
+  blue: { bg: 'bg-blue-500', text: 'text-blue-700', labelKey: 'rcpt_triage_attr_blue', priority: 'normal' },
+  green: { bg: 'bg-emerald-500', text: 'text-emerald-700', labelKey: 'rcpt_triage_attr_green', priority: 'normal' },
+  yellow: { bg: 'bg-amber-500', text: 'text-amber-700', labelKey: 'rcpt_triage_attr_yellow', priority: 'preferencial' },
+  orange: { bg: 'bg-orange-500', text: 'text-orange-700', labelKey: 'rcpt_triage_attr_orange', priority: 'emergência' },
+  red: { bg: 'bg-rose-500', text: 'text-rose-700', labelKey: 'rcpt_triage_attr_red', priority: 'emergência' },
 };
 
 export function TriageTab({ patients, setPatients, addAuditLog }: TriageTabProps) {
@@ -62,7 +62,7 @@ export function TriageTab({ patients, setPatients, addAuditLog }: TriageTabProps
       )
     );
 
-    addAuditLog(t('rcpt_audit_triaged', 'app'), `${selectedPatient.name} → ${triageInfo.label}`);
+    addAuditLog(t('rcpt_audit_triaged', 'app'), `${selectedPatient.name} → ${t(triageInfo.labelKey, 'app')}`);
     setSelectedPatient(null);
   };
 
@@ -72,13 +72,13 @@ export function TriageTab({ patients, setPatients, addAuditLog }: TriageTabProps
       <div className="lg:col-span-1 bg-white rounded-xl border border-slate-200/80 shadow-xs overflow-hidden">
         <div className="px-4 py-3 border-b border-slate-100 bg-gradient-to-r from-amber-50 to-rose-50">
           <h3 className="font-black text-slate-800 text-sm flex items-center gap-2">
-            <Activity className="w-4 h-4 text-amber-600" /> Aguardando Triagem ({waitingPatients.length})
+            <Activity className="w-4 h-4 text-amber-600" /> {t('rcpt_triage_waiting_list', 'app')} ({waitingPatients.length})
           </h3>
         </div>
         <div className="space-y-2 p-3 max-h-[600px] overflow-y-auto">
           {waitingPatients.length === 0 ? (
             <div className="text-center py-8 text-slate-400 font-semibold text-xs">
-              Nenhum paciente aguardando triagem.
+              {t('rcpt_triage_no_waiting', 'app')}
             </div>
           ) : (
             waitingPatients.map((p) => (
@@ -94,7 +94,7 @@ export function TriageTab({ patients, setPatients, addAuditLog }: TriageTabProps
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="font-black text-slate-800 text-sm">{p.name}</p>
-                    <p className="text-[10px] text-slate-500">{p.document_number || 'Sem doc.'}</p>
+                    <p className="text-[10px] text-slate-500">{p.document_number || t('rcpt_triage_no_document', 'app')}</p>
                   </div>
                   <span className={`px-2 py-0.5 text-[9px] font-bold rounded uppercase border ${PRIORITY_BADGE[p.priority || 'normal']}`}>
                     {p.priority}
@@ -113,7 +113,7 @@ export function TriageTab({ patients, setPatients, addAuditLog }: TriageTabProps
             <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
               <div>
                 <h3 className="font-black text-slate-800 text-sm">{selectedPatient.name}</h3>
-                <p className="text-[10px] text-slate-500">Triagem · Classificação de Risco</p>
+                <p className="text-[10px] text-slate-500">{t('rcpt_triage_risk_subtitle', 'app')}</p>
               </div>
               <span className={`px-2 py-0.5 text-[10px] font-bold rounded uppercase border ${STATUS_BADGE[selectedPatient.status || 'aguardando']}`}>
                 {selectedPatient.status}
@@ -124,7 +124,7 @@ export function TriageTab({ patients, setPatients, addAuditLog }: TriageTabProps
               {/* Triage Color Selection */}
               <div>
                 <label className="block text-[10px] font-bold uppercase text-slate-500 mb-2 tracking-wider">
-                  Classificação de Risco (Manchester)
+                  {t('rcpt_triage_manchester', 'app')}
                 </label>
                 <div className="grid grid-cols-5 gap-2">
                   {(Object.keys(TRIAGE_COLORS) as TriageColor[]).map((color) => {
@@ -146,18 +146,18 @@ export function TriageTab({ patients, setPatients, addAuditLog }: TriageTabProps
                   })}
                 </div>
                 <p className="text-xs text-slate-600 mt-2 font-medium">
-                  {TRIAGE_COLORS[triageColor].label}
+                  {t(TRIAGE_COLORS[triageColor].labelKey, 'app')}
                 </p>
               </div>
 
               {/* Vital Signs */}
               <div>
                 <label className="block text-[10px] font-bold uppercase text-slate-500 mb-2 tracking-wider">
-                  <Heart className="w-3 h-3 inline mr-1" /> Sinais Vitais
+                  <Heart className="w-3 h-3 inline mr-1" /> {t('rcpt_triage_vital_signs', 'app')}
                 </label>
                 <div className="grid grid-cols-5 gap-2">
                   <div>
-                    <label className="block text-[9px] text-slate-500 font-bold uppercase mb-1">PA (mmHg)</label>
+                    <label className="block text-[9px] text-slate-500 font-bold uppercase mb-1">{t('rcpt_triage_bp_field', 'app')}</label>
                     <input
                       type="text"
                       value={vitalSigns.bp}
@@ -167,7 +167,7 @@ export function TriageTab({ patients, setPatients, addAuditLog }: TriageTabProps
                     />
                   </div>
                   <div>
-                    <label className="block text-[9px] text-slate-500 font-bold uppercase mb-1">Temp (°C)</label>
+                    <label className="block text-[9px] text-slate-500 font-bold uppercase mb-1">{t('rcpt_triage_temp_field', 'app')}</label>
                     <input
                       type="text"
                       value={vitalSigns.temp}
@@ -177,7 +177,7 @@ export function TriageTab({ patients, setPatients, addAuditLog }: TriageTabProps
                     />
                   </div>
                   <div>
-                    <label className="block text-[9px] text-slate-500 font-bold uppercase mb-1">SpO2 (%)</label>
+                    <label className="block text-[9px] text-slate-500 font-bold uppercase mb-1">{t('rcpt_triage_spo2_field', 'app')}</label>
                     <input
                       type="text"
                       value={vitalSigns.spo2}
@@ -187,7 +187,7 @@ export function TriageTab({ patients, setPatients, addAuditLog }: TriageTabProps
                     />
                   </div>
                   <div>
-                    <label className="block text-[9px] text-slate-500 font-bold uppercase mb-1">FC (bpm)</label>
+                    <label className="block text-[9px] text-slate-500 font-bold uppercase mb-1">{t('rcpt_triage_hr_field', 'app')}</label>
                     <input
                       type="text"
                       value={vitalSigns.hr}
@@ -197,7 +197,7 @@ export function TriageTab({ patients, setPatients, addAuditLog }: TriageTabProps
                     />
                   </div>
                   <div>
-                    <label className="block text-[9px] text-slate-500 font-bold uppercase mb-1">FR (irpm)</label>
+                    <label className="block text-[9px] text-slate-500 font-bold uppercase mb-1">{t('rcpt_triage_rr_field', 'app')}</label>
                     <input
                       type="text"
                       value={vitalSigns.rr}
@@ -211,27 +211,27 @@ export function TriageTab({ patients, setPatients, addAuditLog }: TriageTabProps
 
               <div>
                 <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1 tracking-wider">
-                  Sintomas / Queixa Principal
+                  {t('rcpt_triage_symptoms_title', 'app')}
                 </label>
                 <textarea
                   value={symptoms}
                   onChange={(e) => setSymptoms(e.target.value)}
                   rows={2}
                   className="w-full p-2 bg-slate-50 border border-slate-200 rounded text-xs"
-                  placeholder="Ex: Dor torácica há 2 horas, sudorese..."
+                  placeholder={t('rcpt_triage_symptoms_placeholder', 'app')}
                 />
               </div>
 
               <div>
                 <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1 tracking-wider">
-                  <Stethoscope className="w-3 h-3 inline mr-1" /> Hipótese Diagnóstica Preliminar
+                  <Stethoscope className="w-3 h-3 inline mr-1" /> {t('rcpt_triage_preliminary_diagnosis', 'app')}
                 </label>
                 <input
                   type="text"
                   value={preliminaryDiagnosis}
                   onChange={(e) => setPreliminaryDiagnosis(e.target.value)}
                   className="w-full p-2 bg-slate-50 border border-slate-200 rounded text-xs"
-                  placeholder="Ex: Síndrome Coronariana Aguda (CID-10 I20)"
+                  placeholder={t('rcpt_triage_preliminary_diagnosis_placeholder', 'app')}
                 />
               </div>
 
@@ -239,15 +239,15 @@ export function TriageTab({ patients, setPatients, addAuditLog }: TriageTabProps
                 onClick={handleSaveTriage}
                 className="w-full py-3 bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white font-black rounded-xl shadow-md text-sm flex items-center justify-center gap-2"
               >
-                <Check className="w-4 h-4" /> Confirmar Triagem
+                <Check className="w-4 h-4" /> {t('rcpt_triage_confirm', 'app')}
               </button>
             </div>
           </>
         ) : (
           <div className="p-12 text-center text-slate-400">
             <Activity className="w-12 h-12 mx-auto text-slate-300" />
-            <p className="font-semibold text-sm mt-3">Selecione um paciente da lista ao lado</p>
-            <p className="text-[10px] mt-1">A triagem classifica o paciente por risco (cor)</p>
+            <p className="font-semibold text-sm mt-3">{t('rcpt_triage_select_patient', 'app')}</p>
+            <p className="text-[10px] mt-1">{t('rcpt_triage_empty_hint', 'app')}</p>
           </div>
         )}
       </div>
