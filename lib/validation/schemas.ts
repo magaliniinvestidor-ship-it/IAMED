@@ -861,3 +861,29 @@ export type NotifyWaitlistFormData = z.infer<typeof notifyWaitlistSchema>;
 
 export const callLogSchema = createCallLogSchema(ptBRMessages);
 export type CallLogFormData = z.infer<typeof callLogSchema>;
+
+const CID10_CODE_REGEX = /^[A-Z][0-9]{2,3}(?:\.[0-9A-Z]{1,4})?$|^U[0-9]{2,3}(?:\.[0-9A-Z]{1,4})?$/;
+
+export const diagnosisSchema = z.object({
+  cid10Code: nonEmptyString('Código CID-10', 10).regex(
+    CID10_CODE_REGEX,
+    'Código CID-10 inválido (ex.: A00, J45.0, U07.1)'
+  ),
+  cid10Description: nonEmptyString('Descrição CID-10', 500),
+  diagnosisType: z.enum(['principal', 'secundário', 'diferencial', 'presuntivo'], {
+    error: () => 'Tipo de diagnóstico obrigatório',
+  }),
+  status: z.enum(['ativo', 'resolvido', 'crônico', 'em_tratamento'], {
+    error: () => 'Status obrigatório',
+  }),
+  snomedCode: z
+    .string()
+    .max(18, 'SNOMED-CT: máximo 18 dígitos')
+    .regex(/^[0-9]*$/, 'SNOMED-CT: apenas números')
+    .optional()
+    .or(z.literal('')),
+  snomedDescription: z.string().max(500, 'Descrição SNOMED-CT: máximo 500 caracteres').optional().or(z.literal('')),
+  notes: z.string().max(2000, 'Observações: máximo 2000 caracteres').optional().or(z.literal('')),
+});
+
+export type DiagnosisFormData = z.infer<typeof diagnosisSchema>;

@@ -16,8 +16,10 @@ import {
   examRequestSchema,
   procedureSchema,
   attachmentSchema,
+  diagnosisSchema,
 } from '@/lib/validation/schemas';
 import { FormField, FormErrorSummary } from '@/components/forms';
+import { SnomedSearchBox } from '@/components/clinical/SnomedSearchBox';
 
 import {
   ClipboardList, Microscope, HeartPulse, ShieldAlert,
@@ -240,6 +242,7 @@ const ClinicalModuleContent = ({
   const { errors: examErrors, validate: validateExam, clearErrors: clearExamErrors } = useFormValidation(examRequestSchema);
   const { errors: procErrors, validate: validateProc, clearErrors: clearProcErrors } = useFormValidation(procedureSchema);
   const { errors: attErrors, validate: validateAtt, clearErrors: clearAttErrors } = useFormValidation(attachmentSchema);
+  const { errors: diagnosisErrors, validate: validateDiagnosis, clearErrors: clearDiagnosisErrors } = useFormValidation(diagnosisSchema);
 
   const anamneseFieldErrors = groupErrorsByPath(anamneseErrors);
   const physicalExamFieldErrors = groupErrorsByPath(physicalExamErrors);
@@ -248,6 +251,7 @@ const ClinicalModuleContent = ({
   const examFieldErrors = groupErrorsByPath(examErrors);
   const procFieldErrors = groupErrorsByPath(procErrors);
   const attFieldErrors = groupErrorsByPath(attErrors);
+  const diagnosisFieldErrors = groupErrorsByPath(diagnosisErrors);
 
   const switchHceTab = useCallback((tab: HCETab) => {
     clearAnamneseErrors();
@@ -681,7 +685,14 @@ const ClinicalModuleContent = ({
     setNewDiagnosis({ cid10Code: '', cid10Description: '', diagnosisType: 'principal', status: 'ativo', notes: '', snomedCode: '', snomedDescription: '' });
     setCidSearch('');
     setEditingDiagnosis(null);
-  }, []);
+    setEditingExamRequest(null);
+    setEditingProcedure(null);
+    setEditingPrescription(null);
+    clearDiagnosisErrors();
+    clearExamErrors();
+    clearProcErrors();
+    clearPrescErrors();
+  }, [clearDiagnosisErrors, clearExamErrors, clearProcErrors, clearPrescErrors]);
 
   // ─── CID-10 LOOKUP ───
   const getCid10Description = useCallback((code: string, dbDescription: string, descriptionEs?: string, descriptionPt?: string) => {
@@ -690,11 +701,12 @@ const ClinicalModuleContent = ({
     return dbDescription;
   }, [locale]);
 
-  const lookupCid10Translation = useCallback((code: string, fallbackDesc?: string) => {
+  const lookupCid10Translation = useCallback((code: string, fallbackDesc?: string): string => {
     const entry = cid10Data.find(c => c.code === code);
-    return entry
-      ? getCid10Description(entry.code, entry.description, entry.description_es, entry.description_pt)
-      : (fallbackDesc || '');
+    if (entry) {
+      return getCid10Description(entry.code, entry.description, entry.description_es, entry.description_pt) ?? '';
+    }
+    return fallbackDesc ?? '';
   }, [cid10Data, getCid10Description]);
 
   const filteredCid10 = useMemo(() => cid10Data, [cid10Data]);
@@ -1263,6 +1275,7 @@ const ClinicalModuleContent = ({
   const handleUpdateDiagnosis = async (diag: Diagnosis) => {
     setDiagnoses(prev => prev.map(d => d.id === diag.id ? diag : d));
     setEditingDiagnosis(null);
+    clearDiagnosisErrors();
     addAuditLog('Atualizou Diagnóstico', `${diag.cid10Code} - ${selectedPatient?.name}`);
     if (supabase) {
       await supabase.from('diagnoses').update({
@@ -1532,7 +1545,7 @@ const ClinicalModuleContent = ({
 
   const inputCls = 'w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans';
   const textareaCls = 'w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans leading-relaxed resize-none';
-  const labelCls = 'block text-xs font-semibold text-slate-600 mb-1';
+  const labelCls = 'block text-xs font-semibold text-slate-600 mb-1 whitespace-nowrap overflow-hidden text-ellipsis';
   const sectionCls = 'bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs space-y-4';
 
   const formatDate = (dateStr: string) => {
@@ -2116,11 +2129,12 @@ const ClinicalModuleContent = ({
                   {physicalExamErrors.length > 0 && <FormErrorSummary errors={physicalExamErrors} />}
 
                   {/* Vital Signs */}
-                  <div className="border border-slate-100 rounded-xl p-3 space-y-2">
-                    <h5 className="text-xs font-bold text-slate-600 uppercase flex items-center gap-1">
-                      <Activity className="w-3.5 h-3.5 text-red-500" /> {t('hce_vital_signs', 'app')}
-                    </h5>
-                    <div className="grid grid-cols-4 gap-2">
+                  <div className="border border-slate-100 rounded-xl p-3 space-y-3">
+                    <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
+                      <HeartPulse className="w-4 h-4 text-rose-500" />
+                      <span>{t('hce_vital_signs', 'app')}</span>
+                    </div>
+                    <div className="grid grid-cols-4 gap-3">
                       <div>
                         <label className={labelCls}>{t('hce_weight', 'app')}</label>
                         <input type="text" value={physicalExam.vitalSigns.weight || ''} className={`${inputCls} bg-slate-50 cursor-not-allowed`} placeholder="kg" readOnly />
@@ -2138,10 +2152,10 @@ const ClinicalModuleContent = ({
                           const dia = parseInt(parts[1]);
                           const d = isNaN(dia) ? NaN : dia;
                           if (!isNaN(sys)) {
-                            if (vitalsLimits.pa.red(sys, d)) return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> {t('rcpt_triage_bp_critical_low', 'app')}</p>;
-                            if (vitalsLimits.pa.orange(sys, d)) return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-500 inline-block" /> {t('rcpt_triage_bp_abnormal', 'app')}</p>;
-                            if (vitalsLimits.pa.yellow(sys, d)) return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block" /> {t('rcpt_triage_bp_elevated', 'app')}</p>;
-                            return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> {t('rcpt_triage_status_normal', 'app')}</p>;
+                            if (vitalsLimits.pa.red(sys, d)) return <p className="text-[10px] mt-1 flex items-center gap-1 whitespace-nowrap"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> {t('rcpt_triage_bp_critical_low', 'app')}</p>;
+                            if (vitalsLimits.pa.orange(sys, d)) return <p className="text-[10px] mt-1 flex items-center gap-1 whitespace-nowrap"><span className="w-2 h-2 rounded-full bg-orange-500 inline-block" /> {t('rcpt_triage_bp_abnormal', 'app')}</p>;
+                            if (vitalsLimits.pa.yellow(sys, d)) return <p className="text-[10px] mt-1 flex items-center gap-1 whitespace-nowrap"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block" /> {t('rcpt_triage_bp_elevated', 'app')}</p>;
+                            return <p className="text-[10px] mt-1 flex items-center gap-1 whitespace-nowrap"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> {t('rcpt_triage_status_normal', 'app')}</p>;
                           }
                           return null;
                         })()}
@@ -2152,10 +2166,10 @@ const ClinicalModuleContent = ({
                         {physicalExam.vitalSigns.temperature && (() => {
                           const temp = parseFloat(physicalExam.vitalSigns.temperature);
                           if (!isNaN(temp)) {
-                            if (vitalsLimits.temp.red(temp, patientAgeMonths)) return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> {t('rcpt_triage_temp_red', 'app')}</p>;
-                            if (vitalsLimits.temp.orange(temp, patientAgeMonths)) return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-500 inline-block" /> {t('rcpt_triage_temp_orange', 'app')}</p>;
-                            if (vitalsLimits.temp.yellow(temp, patientAgeMonths)) return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block" /> {t('rcpt_triage_temp_yellow', 'app')}</p>;
-                            return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> {t('rcpt_triage_status_normal', 'app')}</p>;
+                            if (vitalsLimits.temp.red(temp, patientAgeMonths)) return <p className="text-[10px] mt-1 flex items-center gap-1 whitespace-nowrap"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> {t('rcpt_triage_temp_red', 'app')}</p>;
+                            if (vitalsLimits.temp.orange(temp, patientAgeMonths)) return <p className="text-[10px] mt-1 flex items-center gap-1 whitespace-nowrap"><span className="w-2 h-2 rounded-full bg-orange-500 inline-block" /> {t('rcpt_triage_temp_orange', 'app')}</p>;
+                            if (vitalsLimits.temp.yellow(temp, patientAgeMonths)) return <p className="text-[10px] mt-1 flex items-center gap-1 whitespace-nowrap"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block" /> {t('rcpt_triage_temp_yellow', 'app')}</p>;
+                            return <p className="text-[10px] mt-1 flex items-center gap-1 whitespace-nowrap"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> {t('rcpt_triage_status_normal', 'app')}</p>;
                           }
                           return null;
                         })()}
@@ -2166,9 +2180,9 @@ const ClinicalModuleContent = ({
                         {physicalExam.vitalSigns.spo2 && (() => {
                           const spo2 = Number(physicalExam.vitalSigns.spo2);
                           if (!isNaN(spo2)) {
-                            if (vitalsLimits.spo2.red(spo2)) return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> {t('rcpt_triage_spo2_critical', 'app')}</p>;
-                            if (vitalsLimits.spo2.orange(spo2)) return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-500 inline-block" /> {t('rcpt_triage_spo2_low', 'app')}</p>;
-                            return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> {t('rcpt_triage_spo2_normal', 'app')}</p>;
+                            if (vitalsLimits.spo2.red(spo2)) return <p className="text-[10px] mt-1 flex items-center gap-1 whitespace-nowrap"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> {t('rcpt_triage_spo2_critical', 'app')}</p>;
+                            if (vitalsLimits.spo2.orange(spo2)) return <p className="text-[10px] mt-1 flex items-center gap-1 whitespace-nowrap"><span className="w-2 h-2 rounded-full bg-orange-500 inline-block" /> {t('rcpt_triage_spo2_low', 'app')}</p>;
+                            return <p className="text-[10px] mt-1 flex items-center gap-1 whitespace-nowrap"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> {t('rcpt_triage_spo2_normal', 'app')}</p>;
                           }
                           return null;
                         })()}
@@ -2179,10 +2193,10 @@ const ClinicalModuleContent = ({
                         {physicalExam.vitalSigns.heartRate && (() => {
                           const hr = parseInt(physicalExam.vitalSigns.heartRate);
                           if (!isNaN(hr)) {
-                            if (vitalsLimits.fc.red(hr)) return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> {t('rcpt_triage_hr_critical', 'app')}</p>;
-                            if (vitalsLimits.fc.orange(hr)) return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-500 inline-block" /> {t('rcpt_triage_hr_abnormal', 'app')}</p>;
-                            if (vitalsLimits.fc.yellow(hr)) return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block" /> {t('rcpt_triage_hr_elevated', 'app')}</p>;
-                            return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> {t('rcpt_triage_status_normal', 'app')}</p>;
+                            if (vitalsLimits.fc.red(hr)) return <p className="text-[10px] mt-1 flex items-center gap-1 whitespace-nowrap"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> {t('rcpt_triage_hr_critical', 'app')}</p>;
+                            if (vitalsLimits.fc.orange(hr)) return <p className="text-[10px] mt-1 flex items-center gap-1 whitespace-nowrap"><span className="w-2 h-2 rounded-full bg-orange-500 inline-block" /> {t('rcpt_triage_hr_abnormal', 'app')}</p>;
+                            if (vitalsLimits.fc.yellow(hr)) return <p className="text-[10px] mt-1 flex items-center gap-1 whitespace-nowrap"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block" /> {t('rcpt_triage_hr_elevated', 'app')}</p>;
+                            return <p className="text-[10px] mt-1 flex items-center gap-1 whitespace-nowrap"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> {t('rcpt_triage_status_normal', 'app')}</p>;
                           }
                           return null;
                         })()}
@@ -2193,10 +2207,10 @@ const ClinicalModuleContent = ({
                         {physicalExam.vitalSigns.respiratoryRate && (() => {
                           const rr = parseInt(physicalExam.vitalSigns.respiratoryRate);
                           if (!isNaN(rr)) {
-                            if (vitalsLimits.fr.red(rr, patientAgeMonths)) return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> {t('rcpt_triage_rr_critical', 'app')}</p>;
-                            if (vitalsLimits.fr.orange(rr, patientAgeMonths)) return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-500 inline-block" /> {t('rcpt_triage_rr_elevated', 'app')}</p>;
-                            if (vitalsLimits.fr.yellow(rr, patientAgeMonths)) return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block" /> {t('rcpt_triage_rr_slightly', 'app')}</p>;
-                            return <p className="text-[10px] mt-1 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> {t('rcpt_triage_status_normal', 'app')}</p>;
+                            if (vitalsLimits.fr.red(rr, patientAgeMonths)) return <p className="text-[10px] mt-1 flex items-center gap-1 whitespace-nowrap"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> {t('rcpt_triage_rr_critical', 'app')}</p>;
+                            if (vitalsLimits.fr.orange(rr, patientAgeMonths)) return <p className="text-[10px] mt-1 flex items-center gap-1 whitespace-nowrap"><span className="w-2 h-2 rounded-full bg-orange-500 inline-block" /> {t('rcpt_triage_rr_elevated', 'app')}</p>;
+                            if (vitalsLimits.fr.yellow(rr, patientAgeMonths)) return <p className="text-[10px] mt-1 flex items-center gap-1 whitespace-nowrap"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block" /> {t('rcpt_triage_rr_slightly', 'app')}</p>;
+                            return <p className="text-[10px] mt-1 flex items-center gap-1 whitespace-nowrap"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> {t('rcpt_triage_status_normal', 'app')}</p>;
                           }
                           return null;
                         })()}
@@ -2212,7 +2226,7 @@ const ClinicalModuleContent = ({
                             if (!cls) return null;
                             const dot = cls.color === 'red' ? 'bg-red-500' : cls.color === 'orange' ? 'bg-orange-500' : cls.color === 'yellow' ? 'bg-amber-400' : 'bg-green-500';
                             const label = cls.kind === 'underweight' ? t('rcpt_triage_bmi_underweight', 'app') : cls.kind === 'overweight' ? t('rcpt_triage_bmi_overweight', 'app') : cls.kind === 'obese' ? t('rcpt_triage_bmi_obese', 'app') : t('rcpt_triage_status_normal', 'app');
-                            return <p className="text-[10px] mt-1 flex items-center gap-1"><span className={`w-2 h-2 rounded-full ${dot} inline-block`} /> {imc.toFixed(1)} — {label}</p>;
+                            return <p className="text-[10px] mt-1 flex items-center gap-1 whitespace-nowrap"><span className={`w-2 h-2 rounded-full ${dot} inline-block`} /> {imc.toFixed(1)} — {label}</p>;
                           }
                           return null;
                         })()}
@@ -2371,185 +2385,219 @@ const ClinicalModuleContent = ({
                       <AlertTriangle className="w-10 h-10 text-amber-400 mb-3" />
                       <p className="text-sm font-semibold text-slate-600">{t('agenda_alert_select_patient', 'app')}</p>
                     </div>
-                  ) : (<>
+                  ) : (
+                  <div className="flex gap-4">
+                    <div className="w-52 shrink-0 space-y-2">
+                      <p className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">{t('hce_diagnosis_history', 'app')}</p>
+                      <button onClick={() => { setEditingDiagnosis(null); setNewDiagnosis({ cid10Code: '', cid10Description: '', diagnosisType: 'principal', status: 'ativo', notes: '', snomedCode: '', snomedDescription: '' }); clearDiagnosisErrors(); }} className="w-full py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg transition flex items-center justify-center gap-1">
+                        <Plus className="w-3.5 h-3.5" /> {t('hce_diagnosis_new', 'app')}
+                      </button>
+                      {diagnoses.length === 0 && (
+                        <p className="text-[10px] text-slate-400 italic">{t('hce_no_diagnosis_records', 'app')}</p>
+                      )}
+                      {diagnoses.map((d, idx) => {
+                        const active = editingDiagnosis?.id === d.id;
+                        return (
+                          <button key={d.id} onClick={() => { setEditingDiagnosis(d); clearDiagnosisErrors(); }} className={`w-full text-left px-3 py-2 rounded-lg border transition ${active ? 'border-teal-400 bg-teal-50' : 'border-slate-200 bg-white hover:bg-slate-50'}`}>
+                            <span className={`block text-xs font-bold ${active ? 'text-teal-700' : 'text-slate-700'}`}>
+                              {d.cid10Code}
+                            </span>
+                            <span className="block text-[10px] text-slate-500 truncate">{lookupCid10Translation(d.cid10Code, d.cid10Description)}</span>
+                            <span className="block text-[10px] text-slate-400">{formatDate(d.createdAt)}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
 
-                  {/* CID-10 Search */}
+                    <div className="flex-1 min-w-0 space-y-4">
+                  {editingDiagnosis ? (
+                    <>
+                      {diagnosisErrors.length > 0 && <FormErrorSummary errors={diagnosisErrors} onClose={clearDiagnosisErrors} />}
+                      <div className="grid grid-cols-2 gap-2">
+                        <FormField label={t('hce_cid10_code', 'app')} required error={diagnosisFieldErrors.cid10Code}>
+                          <input type="text" value={editingDiagnosis.cid10Code} onChange={e => setEditingDiagnosis(p => p ? { ...p, cid10Code: e.target.value.toUpperCase() } : null)} className={inputCls} />
+                        </FormField>
+                        <FormField label={t('hce_cid10_description', 'app')} required error={diagnosisFieldErrors.cid10Description}>
+                          <input type="text" value={lookupCid10Translation(editingDiagnosis.cid10Code, editingDiagnosis.cid10Description)} onChange={e => setEditingDiagnosis(p => p ? { ...p, cid10Description: e.target.value } : null)} className={inputCls} />
+                        </FormField>
+                      </div>
+                      <div className="border border-teal-200 rounded-xl p-3 space-y-2">
+                        <div className="grid grid-cols-3 gap-2">
+                          <FormField label={t('hce_diagnosis_type', 'app')} required error={diagnosisFieldErrors.diagnosisType}>
+                            <select value={editingDiagnosis.diagnosisType} onChange={e => setEditingDiagnosis(p => p ? { ...p, diagnosisType: e.target.value as any } : null)} className={inputCls}>
+                              <option value="principal">{t('hce_diagnosis_principal', 'app')}</option>
+                              <option value="secundário">{t('hce_diagnosis_secundario', 'app')}</option>
+                              <option value="diferencial">{t('hce_diagnosis_diferencial', 'app')}</option>
+                              <option value="presuntivo">{t('hce_diagnosis_presuntivo', 'app')}</option>
+                            </select>
+                          </FormField>
+                          <FormField label={t('hce_diagnosis_status', 'app')} required error={diagnosisFieldErrors.status}>
+                            <select value={editingDiagnosis.status} onChange={e => setEditingDiagnosis(p => p ? { ...p, status: e.target.value as any } : null)} className={inputCls}>
+                              <option value="ativo">{t('hce_diagnosis_status_ativo', 'app')}</option>
+                              <option value="em_tratamento">{t('hce_diagnosis_status_em_tratamento', 'app')}</option>
+                              <option value="crônico">{t('hce_diagnosis_status_cronico', 'app')}</option>
+                              <option value="resolvido">{t('hce_diagnosis_status_resolvido', 'app')}</option>
+                            </select>
+                          </FormField>
+                          <FormField label={t('hce_snomed_code', 'app')} error={diagnosisFieldErrors.snomedCode}>
+                            <SnomedSearchBox
+                              semanticAxis="disorder"
+                              initialCode={editingDiagnosis.snomedCode ?? ''}
+                              initialDescription={editingDiagnosis.snomedDescription ?? ''}
+                              cid10Context={editingDiagnosis.cid10Code}
+                              onPick={(item) => setEditingDiagnosis(p => p ? {
+                                ...p,
+                                snomedCode: String(item.concept.concept_id),
+                                snomedDescription: item.term || item.concept.preferred_term,
+                                ...(item.concept.cid10_code && !p.cid10Code ? { cid10Code: item.concept.cid10_code, cid10Description: item.term } : {}),
+                              } : null)}
+                            />
+                          </FormField>
+                        </div>
+                        <FormField label={t('hce_snomed_description', 'app')} error={diagnosisFieldErrors.snomedDescription}>
+                          <input type="text" value={editingDiagnosis.snomedDescription ?? ''} onChange={e => setEditingDiagnosis(p => p ? { ...p, snomedDescription: e.target.value } : null)} className={inputCls} />
+                        </FormField>
+                        <FormField label={t('hce_notes', 'app')} error={diagnosisFieldErrors.notes}>
+                          <input type="text" value={editingDiagnosis.notes} onChange={e => setEditingDiagnosis(p => p ? { ...p, notes: e.target.value } : null)} className={inputCls} />
+                        </FormField>
+                      </div>
+                      <div className="flex justify-end gap-2">
+                        <button onClick={async () => {
+                          if (!editingDiagnosis) return;
+                          if (!window.confirm(t('hce_confirm_delete_diagnosis', 'app'))) return;
+                          setDiagnoses(prev => prev.filter(x => x.id !== editingDiagnosis.id));
+                          if (supabase) {
+                            await supabase.from('diagnoses').delete().eq('id', editingDiagnosis.id);
+                          }
+                          setEditingDiagnosis(null);
+                        }} className="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold rounded-lg">{t('hce_delete', 'app')}</button>
+                        <button onClick={() => { setEditingDiagnosis(null); clearDiagnosisErrors(); }} className="px-4 py-2 text-slate-600 hover:text-slate-800 text-xs font-bold rounded-lg">{t('hce_cancel', 'app')}</button>
+                        <button onClick={async () => {
+                          if (!editingDiagnosis) return;
+                          const payload = {
+                            cid10Code: editingDiagnosis.cid10Code ?? '',
+                            cid10Description: editingDiagnosis.cid10Description ?? '',
+                            diagnosisType: editingDiagnosis.diagnosisType,
+                            status: editingDiagnosis.status,
+                            snomedCode: editingDiagnosis.snomedCode ?? '',
+                            snomedDescription: editingDiagnosis.snomedDescription ?? '',
+                            notes: editingDiagnosis.notes ?? '',
+                          };
+                          const result = validateDiagnosis(payload);
+                          if (!result.success) return;
+                          await handleUpdateDiagnosis(editingDiagnosis);
+                          setEditingDiagnosis(null);
+                        }} className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg">{t('save', 'app')}</button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                  {diagnosisErrors.length > 0 && <FormErrorSummary errors={diagnosisErrors} onClose={clearDiagnosisErrors} />}
                   <div className="relative">
                     <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
                     <input type="text" value={cidSearch} onChange={e => { setCidSearch(e.target.value); searchCid10(e.target.value); }} placeholder={t('hce_cid10_lookup', 'app')}
                       className={`${inputCls} pl-9`} />
                   </div>
                   <div className="max-h-[120px] overflow-y-auto border border-slate-100 rounded-xl divide-y divide-slate-50">
-                    {filteredCid10.map(c => (
-                      <div key={c.code} onClick={() => setNewDiagnosis(p => ({ ...p, cid10Code: c.code, cid10Description: c.description }))}
-                        className="px-3 py-2.5 hover:bg-teal-50 cursor-pointer flex items-center gap-2 text-sm transition">
-                        <span className="font-bold text-teal-700 whitespace-nowrap">{c.code}</span>
-                        <span className="text-slate-600 flex-1 min-w-0 truncate">{getCid10Description(c.code, c.description, c.description_es, c.description_pt)}</span>
-                        <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded whitespace-nowrap flex-shrink-0">Cap. {c.chapter}</span>
+                    {filteredCid10.length === 0 ? (
+                      <div className="px-3 py-4 text-center text-xs text-slate-400 italic">
+                        {t('hce_cid10_no_results', 'app')}
                       </div>
-                    ))}
+                    ) : (
+                      filteredCid10.map(c => (
+                        <div key={c.code} onClick={() => { const translated = getCid10Description(c.code, c.description, c.description_es, c.description_pt); setNewDiagnosis(p => ({ ...p, cid10Code: c.code, cid10Description: translated })); clearDiagnosisErrors(); }}
+                          className="px-3 py-2.5 hover:bg-teal-50 cursor-pointer flex items-center gap-2 text-sm transition">
+                          <span className="font-bold text-teal-700 whitespace-nowrap">{c.code}</span>
+                          <span className="text-slate-600 flex-1 min-w-0 truncate">{getCid10Description(c.code, c.description, c.description_es, c.description_pt)}</span>
+                          <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded whitespace-nowrap flex-shrink-0">{t('hce_cid10_chapter', 'app')} {c.chapter}</span>
+                        </div>
+                      ))
+                    )}
                   </div>
-                  {/* Add Diagnosis Form */}
                   <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className={labelCls}>{t('hce_cid10_code', 'app')}</label>
-                      <input type="text" value={newDiagnosis.cid10Code} onChange={e => setNewDiagnosis(p => ({ ...p, cid10Code: e.target.value }))} className={inputCls} readOnly />
-                    </div>
-                    <div>
-                      <label className={labelCls}>{t('hce_cid10_description', 'app')}</label>
+                    <FormField label={t('hce_cid10_code', 'app')} required error={diagnosisFieldErrors.cid10Code}>
+                      <input type="text" value={newDiagnosis.cid10Code ?? ''} onChange={e => setNewDiagnosis(p => ({ ...p, cid10Code: e.target.value.toUpperCase() }))} className={inputCls} readOnly />
+                    </FormField>
+                    <FormField label={t('hce_cid10_description', 'app')} required error={diagnosisFieldErrors.cid10Description}>
                       <input type="text" value={lookupCid10Translation(newDiagnosis.cid10Code || '', newDiagnosis.cid10Description)} onChange={e => setNewDiagnosis(p => ({ ...p, cid10Description: e.target.value }))} className={inputCls} />
-                    </div>
+                    </FormField>
                   </div>
                   <div className="border border-teal-200 rounded-xl p-3 space-y-2">
                     <div className="grid grid-cols-3 gap-2">
-                      <div>
-                        <label className={labelCls}>{t('hce_diagnosis_type', 'app')}</label>
-                        <select value={newDiagnosis.diagnosisType} onChange={e => setNewDiagnosis(p => ({ ...p, diagnosisType: e.target.value as any }))} className={inputCls}>
+                      <FormField label={t('hce_diagnosis_type', 'app')} required error={diagnosisFieldErrors.diagnosisType}>
+                        <select value={newDiagnosis.diagnosisType ?? 'principal'} onChange={e => setNewDiagnosis(p => ({ ...p, diagnosisType: e.target.value as any }))} className={inputCls}>
                           <option value="principal">{t('hce_diagnosis_principal', 'app')}</option>
                           <option value="secundário">{t('hce_diagnosis_secundario', 'app')}</option>
                           <option value="diferencial">{t('hce_diagnosis_diferencial', 'app')}</option>
                           <option value="presuntivo">{t('hce_diagnosis_presuntivo', 'app')}</option>
                         </select>
-                      </div>
-                      <div>
-                        <label className={labelCls}>{t('hce_diagnosis_status', 'app')}</label>
-                        <select value={newDiagnosis.status || 'ativo'} onChange={e => setNewDiagnosis(p => ({ ...p, status: e.target.value as any }))} className={inputCls}>
+                      </FormField>
+                      <FormField label={t('hce_diagnosis_status', 'app')} required error={diagnosisFieldErrors.status}>
+                        <select value={newDiagnosis.status ?? 'ativo'} onChange={e => setNewDiagnosis(p => ({ ...p, status: e.target.value as any }))} className={inputCls}>
                           <option value="ativo">{t('hce_diagnosis_status_ativo', 'app')}</option>
                           <option value="em_tratamento">{t('hce_diagnosis_status_em_tratamento', 'app')}</option>
                           <option value="crônico">{t('hce_diagnosis_status_cronico', 'app')}</option>
                           <option value="resolvido">{t('hce_diagnosis_status_resolvido', 'app')}</option>
                         </select>
-                      </div>
-                      <div>
-                        <label className={labelCls}>{t('hce_snomed_code', 'app')}</label>
-                        <input type="text" value={newDiagnosis.snomedCode || ''} onChange={e => setNewDiagnosis(p => ({ ...p, snomedCode: e.target.value }))} className={inputCls} placeholder="SNOMED-CT" />
-                      </div>
+                      </FormField>
+                      <FormField label={t('hce_snomed_code', 'app')} error={diagnosisFieldErrors.snomedCode}>
+                        <SnomedSearchBox
+                          semanticAxis="disorder"
+                          initialCode={newDiagnosis.snomedCode ?? ''}
+                          initialDescription={newDiagnosis.snomedDescription ?? ''}
+                          cid10Context={newDiagnosis.cid10Code}
+                          onPick={(item) => setNewDiagnosis(p => ({
+                            ...p,
+                            snomedCode: String(item.concept.concept_id),
+                            snomedDescription: item.term || item.concept.preferred_term,
+                            ...(item.concept.cid10_code && !p.cid10Code ? { cid10Code: item.concept.cid10_code, cid10Description: item.term } : {}),
+                          }))}
+                        />
+                      </FormField>
                     </div>
-                    <div>
-                      <label className={labelCls}>{t('hce_snomed_description', 'app')}</label>
-                      <input type="text" value={newDiagnosis.snomedDescription || ''} onChange={e => setNewDiagnosis(p => ({ ...p, snomedDescription: e.target.value }))} className={inputCls} />
-                    </div>
-                    <div>
-                      <label className={labelCls}>{t('hce_notes', 'app')}</label>
-                      <input type="text" value={newDiagnosis.notes || ''} onChange={e => setNewDiagnosis(p => ({ ...p, notes: e.target.value }))} className={inputCls} />
-                    </div>
+                    <FormField label={t('hce_snomed_description', 'app')} error={diagnosisFieldErrors.snomedDescription}>
+                      <input type="text" value={newDiagnosis.snomedDescription ?? ''} onChange={e => setNewDiagnosis(p => ({ ...p, snomedDescription: e.target.value }))} className={inputCls} />
+                    </FormField>
+                    <FormField label={t('hce_notes', 'app')} error={diagnosisFieldErrors.notes}>
+                      <input type="text" value={newDiagnosis.notes ?? ''} onChange={e => setNewDiagnosis(p => ({ ...p, notes: e.target.value }))} className={inputCls} />
+                    </FormField>
                   </div>
                   <div className="flex justify-end">
                     <button onClick={async () => {
-                      if (newDiagnosis.cid10Code) {
-                        const diagId = await genId('diag');
-                        const newDiag = { ...newDiagnosis, id: diagId, patientId: selectedPatient?.id || '', createdBy: activeOperator, createdAt: new Date().toISOString(), status: newDiagnosis.status || 'ativo', notes: newDiagnosis.notes || '' } as Diagnosis;
-                        setDiagnoses(prev => [...prev, newDiag]);
-                        setNewDiagnosis({ cid10Code: '', cid10Description: '', diagnosisType: 'principal', status: 'ativo', notes: '', snomedCode: '', snomedDescription: '' });
-                        if (supabase) {
-                          await supabase.from('diagnoses').insert({
-                            id: diagId, patient_id: selectedPatient?.id || '', created_by: activeOperator,
-                            updated_by: null,
-                            cid10_code: newDiag.cid10Code, cid10_description: newDiag.cid10Description,
-                            snomed_code: newDiag.snomedCode || null, snomed_description: newDiag.snomedDescription || null,
-                            diagnosis_type: newDiag.diagnosisType, status: newDiag.status, notes: newDiag.notes,
-                          });
-                        }
+                      const payload = {
+                        cid10Code: newDiagnosis.cid10Code ?? '',
+                        cid10Description: newDiagnosis.cid10Description ?? '',
+                        diagnosisType: (newDiagnosis.diagnosisType ?? 'principal') as 'principal' | 'secundário' | 'diferencial' | 'presuntivo',
+                        status: (newDiagnosis.status ?? 'ativo') as 'ativo' | 'resolvido' | 'crônico' | 'em_tratamento',
+                        snomedCode: newDiagnosis.snomedCode ?? '',
+                        snomedDescription: newDiagnosis.snomedDescription ?? '',
+                        notes: newDiagnosis.notes ?? '',
+                      };
+                      const result = validateDiagnosis(payload);
+                      if (!result.success) return;
+                      const diagId = await genId('diag');
+                      const newDiag = { ...payload, id: diagId, patientId: selectedPatient?.id || '', createdBy: activeOperator, createdAt: new Date().toISOString() } as Diagnosis;
+                      setDiagnoses(prev => [...prev, newDiag]);
+                      setNewDiagnosis({ cid10Code: '', cid10Description: '', diagnosisType: 'principal', status: 'ativo', notes: '', snomedCode: '', snomedDescription: '' });
+                      clearDiagnosisErrors();
+                      if (supabase) {
+                        await supabase.from('diagnoses').insert({
+                          id: diagId, patient_id: selectedPatient?.id || '', created_by: activeOperator,
+                          updated_by: null,
+                          cid10_code: newDiag.cid10Code, cid10_description: newDiag.cid10Description,
+                          snomed_code: newDiag.snomedCode || null, snomed_description: newDiag.snomedDescription || null,
+                          diagnosis_type: newDiag.diagnosisType, status: newDiag.status, notes: newDiag.notes,
+                        });
                       }
                     }} className="bg-slate-800 hover:bg-slate-900 text-white text-xs px-4 py-2 rounded-lg font-bold">
                       {t('hce_diagnosis_add', 'app')}
                     </button>
                   </div>
-                  {/* Diagnoses List */}
-                  <div className="space-y-2">
-                    {diagnoses.map(d => (
-                      editingDiagnosis?.id === d.id ? (
-                        <div key={d.id} className="p-3 bg-teal-50 border border-teal-200 rounded-xl text-sm space-y-2">
-                          <div className="grid grid-cols-2 gap-2">
-                            <div>
-                              <label className={labelCls}>{t('hce_cid10_code', 'app')}</label>
-                              <input type="text" value={editingDiagnosis.cid10Code} onChange={e => setEditingDiagnosis(p => p ? { ...p, cid10Code: e.target.value } : null)} className={inputCls} />
-                            </div>
-                            <div>
-                              <label className={labelCls}>{t('hce_cid10_description', 'app')}</label>
-                              <input type="text" value={lookupCid10Translation(editingDiagnosis.cid10Code, editingDiagnosis.cid10Description)} onChange={e => setEditingDiagnosis(p => p ? { ...p, cid10Description: e.target.value } : null)} className={inputCls} />
-                            </div>
-                          </div>
-                          <div className="border border-teal-200 rounded-xl p-3 space-y-2">
-                            <div className="grid grid-cols-3 gap-2">
-                              <div>
-                                <label className={labelCls}>{t('hce_diagnosis_type', 'app')}</label>
-                                <select value={editingDiagnosis.diagnosisType} onChange={e => setEditingDiagnosis(p => p ? { ...p, diagnosisType: e.target.value as any } : null)} className={inputCls}>
-                                  <option value="principal">{t('hce_diagnosis_principal', 'app')}</option>
-                                  <option value="secundário">{t('hce_diagnosis_secundario', 'app')}</option>
-                                  <option value="diferencial">{t('hce_diagnosis_diferencial', 'app')}</option>
-                                  <option value="presuntivo">{t('hce_diagnosis_presuntivo', 'app')}</option>
-                                </select>
-                              </div>
-                              <div>
-                                <label className={labelCls}>{t('hce_diagnosis_status', 'app')}</label>
-                                <select value={editingDiagnosis.status} onChange={e => setEditingDiagnosis(p => p ? { ...p, status: e.target.value as any } : null)} className={inputCls}>
-                                  <option value="ativo">{t('hce_diagnosis_status_ativo', 'app')}</option>
-                                  <option value="em_tratamento">{t('hce_diagnosis_status_em_tratamento', 'app')}</option>
-                                  <option value="crônico">{t('hce_diagnosis_status_cronico', 'app')}</option>
-                                  <option value="resolvido">{t('hce_diagnosis_status_resolvido', 'app')}</option>
-                                </select>
-                              </div>
-                              <div>
-                                <label className={labelCls}>{t('hce_snomed_code', 'app')}</label>
-                                <input type="text" value={editingDiagnosis.snomedCode || ''} onChange={e => setEditingDiagnosis(p => p ? { ...p, snomedCode: e.target.value } : null)} className={inputCls} placeholder="SNOMED-CT" />
-                              </div>
-                            </div>
-                            <div>
-                              <label className={labelCls}>{t('hce_snomed_description', 'app')}</label>
-                              <input type="text" value={editingDiagnosis.snomedDescription || ''} onChange={e => setEditingDiagnosis(p => p ? { ...p, snomedDescription: e.target.value } : null)} className={inputCls} />
-                            </div>
-                            <div>
-                              <label className={labelCls}>{t('hce_notes', 'app')}</label>
-                              <input type="text" value={editingDiagnosis.notes} onChange={e => setEditingDiagnosis(p => p ? { ...p, notes: e.target.value } : null)} className={inputCls} />
-                            </div>
-                          </div>
-                          <div className="flex justify-end gap-2">
-                            <button onClick={() => setEditingDiagnosis(null)} className="px-4 py-2 text-slate-600 hover:text-slate-800 text-xs font-bold rounded-lg">{t('hce_cancel', 'app')}</button>
-                            <button onClick={() => editingDiagnosis && handleUpdateDiagnosis(editingDiagnosis)} className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg">{t('save', 'app')}</button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div key={d.id} className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-sm">
-                          <div>
-                            <span className="font-bold text-teal-700">{d.cid10Code}</span>
-                            <span className="text-slate-600 ml-2">{lookupCid10Translation(d.cid10Code, d.cid10Description)}</span>
-                            <span className={`ml-2 px-2 py-0.5 rounded text-xs font-bold ${
-                              d.diagnosisType === 'principal' ? 'bg-teal-100 text-teal-700' :
-                              d.diagnosisType === 'secundário' ? 'bg-blue-100 text-blue-700' :
-                              d.diagnosisType === 'diferencial' ? 'bg-amber-100 text-amber-700' :
-                              'bg-slate-100 text-slate-700'
-                            }`}>{t(`hce_diagnosis_${d.diagnosisType === 'secundário' ? 'secundario' : d.diagnosisType}`, 'app')}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className={`px-2 py-0.5 rounded text-xs font-bold ${
-                              d.status === 'ativo' ? 'bg-rose-100 text-rose-700' :
-                              d.status === 'em_tratamento' ? 'bg-amber-100 text-amber-700' :
-                              d.status === 'crônico' ? 'bg-purple-100 text-purple-700' :
-                              'bg-green-100 text-green-700'
-                            }`}>{t(`hce_diagnosis_status_${d.status}`, 'app')}</span>
-                            <button onClick={() => setEditingDiagnosis(d)} className="group relative px-2 py-1.5 bg-teal-100 hover:bg-teal-200 text-teal-700 text-xs font-bold rounded-lg transition">
-                              <Pencil className="w-3.5 h-3.5" />
-                              <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition pointer-events-none whitespace-nowrap">{t('hce_edit', 'app')}</span>
-                            </button>
-                            <button onClick={async () => {
-                              if (window.confirm(t('hce_confirm_delete_diagnosis', 'app'))) {
-                                setDiagnoses(prev => prev.filter(x => x.id !== d.id));
-                                if (supabase) {
-                                  await supabase.from('diagnoses').delete().eq('id', d.id);
-                                }
-                              }
-                            }} className="group relative px-2 py-1.5 bg-rose-100 hover:bg-rose-200 text-rose-700 text-xs font-bold rounded-lg transition">
-                              <Trash2 className="w-3.5 h-3.5" />
-                              <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition pointer-events-none whitespace-nowrap">{t('hce_delete', 'app')}</span>
-                            </button>
-                          </div>
-                        </div>
-                      )
-                    ))}
+                    </>
+                  )}
+                    </div>
                   </div>
-
-                  </>)}
+                  )}
                 </div>
               )}
 
@@ -2563,7 +2611,7 @@ const ClinicalModuleContent = ({
                     </div>
                   ) : (<>
 
-                  {/* ═══ RECETA MÉDICA - HEADER ═══ */}
+                  {/* ═══ RECETA MÉDICA - HEADER (timbrado mantido) ═══ */}
                   <div className="border-2 border-teal-600 rounded-xl overflow-hidden">
                     {/* Doctor Header */}
                     <div className="bg-teal-600 text-white p-4 flex items-center gap-4">
@@ -2600,7 +2648,7 @@ const ClinicalModuleContent = ({
                       <h3 className="font-bold text-teal-800 text-sm tracking-wider uppercase">{t('presc_title', 'app')}</h3>
                     </div>
 
-                    {/* Medications List */}
+                    {/* Medications List (numeração mantida como identidade da receita) */}
                     <div className="p-4 space-y-3">
                       {prescriptions.length === 0 ? (
                         <p className="text-center text-slate-400 text-xs py-4">{t('presc_empty', 'app')}</p>
@@ -2609,109 +2657,136 @@ const ClinicalModuleContent = ({
                           {prescriptions.map((p, idx) => (
                             <div key={p.id} className={`flex items-start gap-3 text-xs py-2 border-b border-slate-100 last:border-0 ${editingPrescription?.id === p.id ? 'bg-teal-50 -mx-2 px-2 rounded' : ''}`}>
                               <span className="font-bold text-teal-600 mt-0.5">{idx + 1}.</span>
-                              {editingPrescription?.id === p.id ? (
-                                <div className="flex-1 space-y-2">
-                                  <div className="grid grid-cols-2 gap-2">
-                                    <div>
-                                      <label className={labelCls}>{t('presc_medication', 'app')}</label>
-                                      <input type="text" value={editingPrescription.drugName} onChange={e => setEditingPrescription(prev => prev ? { ...prev, drugName: e.target.value } : null)} className={inputCls} />
-                                    </div>
-                                    <div>
-                                      <label className={labelCls}>{t('presc_active_ingredient', 'app')}</label>
-                                      <input type="text" value={editingPrescription.activeIngredient} onChange={e => setEditingPrescription(prev => prev ? { ...prev, activeIngredient: e.target.value } : null)} className={inputCls} />
-                                    </div>
-                                  </div>
-                                  <div className="grid grid-cols-3 gap-2">
-                                    <div>
-                                      <label className={labelCls}>{t('hce_dosage', 'app')}</label>
-                                      <input type="text" value={editingPrescription.dosage} onChange={e => setEditingPrescription(prev => prev ? { ...prev, dosage: e.target.value } : null)} className={inputCls} placeholder="500mg" />
-                                    </div>
-                                    <div>
-                                      <label className={labelCls}>{t('hce_frequency', 'app')}</label>
-                                      <input type="text" value={editingPrescription.frequency} onChange={e => setEditingPrescription(prev => prev ? { ...prev, frequency: e.target.value } : null)} className={inputCls} placeholder="8/8h" />
-                                    </div>
-                                    <div>
-                                      <label className={labelCls}>{t('presc_route', 'app')}</label>
-                                      <select value={editingPrescription.route} onChange={e => setEditingPrescription(prev => prev ? { ...prev, route: e.target.value } : null)} className={inputCls}>
-                                        <option value="oral">{t('presc_route_oral', 'app')}</option>
-                                        <option value="sublingual">{t('presc_route_sublingual', 'app')}</option>
-                                        <option value="venoso">{t('presc_route_venoso', 'app')}</option>
-                                        <option value="intramuscular">{t('presc_route_intramuscular', 'app')}</option>
-                                        <option value="topico">{t('presc_route_topico', 'app')}</option>
-                                        <option value="retal">{t('presc_route_retal', 'app')}</option>
-                                        <option value="inhalacion">{t('presc_route_inhalacion', 'app')}</option>
-                                        <option value="vaginal">{t('presc_route_vaginal', 'app')}</option>
-                                      </select>
-                                    </div>
-                                  </div>
-                                  <div className="grid grid-cols-4 gap-2">
-                                    <div>
-                                      <label className={labelCls}>{t('hce_duration', 'app')}</label>
-                                      <input type="text" value={editingPrescription.duration} onChange={e => setEditingPrescription(prev => prev ? { ...prev, duration: e.target.value } : null)} className={inputCls} placeholder={t('presc_placeholder_duration', 'app')} />
-                                    </div>
-                                    <div>
-                                      <label className={labelCls}>{t('presc_quantity', 'app')}</label>
-                                      <input type="text" inputMode="numeric" value={editingPrescription.quantity} onChange={e => setEditingPrescription(prev => prev ? { ...prev, quantity: parseInt(e.target.value) || 1 } : null)} className={inputCls} />
-                                    </div>
-                                    <div>
-                                      <label className={labelCls}>{t('presc_unit', 'app')}</label>
-                                      <input type="text" value={editingPrescription.unit} onChange={e => setEditingPrescription(prev => prev ? { ...prev, unit: e.target.value } : null)} className={inputCls} />
-                                    </div>
-                                    <div>
-                                      <label className={labelCls}>{t('presc_type', 'app')}</label>
-                                      <select value={editingPrescription.prescriptionType} onChange={e => setEditingPrescription(prev => prev ? { ...prev, prescriptionType: e.target.value as any } : null)} className={inputCls}>
-                                        <option value="comum">{t('hce_prescription_comum', 'app')}</option>
-                                        <option value="controlado">{t('hce_prescription_controlado', 'app')}</option>
-                                        <option value="arquivado">{t('hce_prescription_arquivado', 'app')}</option>
-                                      </select>
-                                    </div>
-                                  </div>
-                                  <div>
-                                    <label className={labelCls}>{t('presc_instructions', 'app')}</label>
-                                    <input type="text" value={editingPrescription.notes} onChange={e => setEditingPrescription(prev => prev ? { ...prev, notes: e.target.value } : null)} className={inputCls} placeholder={t('hce_prescription_notes_placeholder', 'app')} />
-                                  </div>
-                                  <div className="flex justify-end gap-2">
-                                    <button onClick={() => setEditingPrescription(null)} className="px-3 py-1.5 text-slate-600 hover:text-slate-800 text-xs font-bold rounded-lg">{t('presc_cancel', 'app')}</button>
-                                    <button onClick={() => editingPrescription && handleUpdatePrescription(editingPrescription)} className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg">{t('presc_save', 'app')}</button>
-                                  </div>
-                                </div>
-                              ) : (
-                                <>
-                                  <div className="flex-1 min-w-0">
-                                    <p className="font-bold text-slate-800">{p.drugName}</p>
-                                    <p className="text-slate-500">{p.dosage} — {p.frequency} — {p.route}</p>
-                                    <p className="text-slate-400">{t('presc_duration_label', 'app')} {p.duration} | {t('presc_quantity_label', 'app')} {p.quantity} {p.unit}</p>
-                                    {p.notes && <p className="text-slate-400 italic mt-0.5">{p.notes}</p>}
-                                  </div>
-                                  <div className="flex items-center gap-1 flex-shrink-0">
-                                    <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
-                                      p.prescriptionType === 'controlado' ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-600'
-                                    }`}>{p.prescriptionType === 'controlado' ? t('presc_badge_controlled', 'app') : t('presc_badge_common', 'app')}</span>
-                                    <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
-                                      p.status === 'assinado' ? 'bg-green-100 text-green-700' :
-                                      p.status === 'rascunho' ? 'bg-slate-100 text-slate-600' :
-                                      'bg-rose-100 text-rose-700'
-                                    }`}>{t(`hce_prescription_${p.status}`, 'app')}</span>
-                                    {p.status === 'rascunho' && (
-                                      <>
-                                        <button onClick={() => setEditingPrescription(p)} className="group relative p-1.5 text-teal-500 hover:text-teal-700 hover:bg-teal-50 rounded-lg transition"><Pencil className="w-4 h-4" /><span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition pointer-events-none whitespace-nowrap">{t('hce_edit', 'app')}</span></button>
-                                        <button onClick={() => handleSignPrescription(p.id)} className="group relative p-1.5 text-green-600 hover:text-green-800 hover:bg-green-50 rounded-lg transition"><FileSignature className="w-4 h-4" /><span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition pointer-events-none whitespace-nowrap">{t('hce_sign', 'app')}</span></button>
-                                      </>
-                                    )}
-                                    <button onClick={() => { if (window.confirm(t('hce_confirm_delete_prescription', 'app'))) { handleDeletePrescription(p.id); } }} className="group relative p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition"><Trash2 className="w-4 h-4" /><span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition pointer-events-none whitespace-nowrap">{t('hce_delete', 'app')}</span></button>
-                                  </div>
-                                </>
-                              )}
+                              <div className="flex-1 min-w-0">
+                                <p className="font-bold text-slate-800">{p.drugName}</p>
+                                <p className="text-slate-500">{p.dosage} — {p.frequency} — {p.route}</p>
+                                <p className="text-slate-400">{t('presc_duration_label', 'app')} {p.duration} | {t('presc_quantity_label', 'app')} {p.quantity} {p.unit}</p>
+                                {p.notes && <p className="text-slate-400 italic mt-0.5">{p.notes}</p>}
+                              </div>
+                              <div className="flex items-center gap-1 flex-shrink-0">
+                                <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                                  p.prescriptionType === 'controlado' ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-600'
+                                }`}>{p.prescriptionType === 'controlado' ? t('presc_badge_controlled', 'app') : t('presc_badge_common', 'app')}</span>
+                                <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                                  p.status === 'assinado' ? 'bg-green-100 text-green-700' :
+                                  p.status === 'rascunho' ? 'bg-slate-100 text-slate-600' :
+                                  'bg-rose-100 text-rose-700'
+                                }`}>{t(`hce_prescription_${p.status}`, 'app')}</span>
+                              </div>
                             </div>
                           ))}
                         </div>
                       )}
                     </div>
+                  </div>
 
-                     {/* Add Medication Form */}
+                  {/* ═══ PAINEL LISTA + FORM (padrão lista à esquerda, form à direita) ═══ */}
+                  <div className="flex gap-4">
+                    <div className="w-52 shrink-0 space-y-2">
+                      <p className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">{t('hce_presc_history', 'app')}</p>
+                      <button onClick={() => { setEditingPrescription(null); setPrescriptionForm({ drugName: '', activeIngredient: '', presentation: '', dosage: '', frequency: '', route: 'oral', duration: '', quantity: 1, unit: 'comprimidos', prescriptionType: 'comum', notes: '' }); clearPrescErrors(); }} className="w-full py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg transition flex items-center justify-center gap-1">
+                        <Plus className="w-3.5 h-3.5" /> {t('hce_presc_new', 'app')}
+                      </button>
+                      {prescriptions.length === 0 && (
+                        <p className="text-[10px] text-slate-400 italic">{t('hce_no_presc_records', 'app')}</p>
+                      )}
+                      {prescriptions.map((p, idx) => {
+                        const active = editingPrescription?.id === p.id;
+                        return (
+                          <button key={p.id} onClick={() => { setEditingPrescription(p); clearPrescErrors(); }} className={`w-full text-left px-3 py-2 rounded-lg border transition ${active ? 'border-teal-400 bg-teal-50' : 'border-slate-200 bg-white hover:bg-slate-50'}`}>
+                            <span className={`block text-xs font-bold truncate ${active ? 'text-teal-700' : 'text-slate-700'}`}>
+                              {idx + 1}. {p.drugName}
+                            </span>
+                            <span className="block text-[10px] text-slate-500 truncate">{p.dosage} — {p.frequency}</span>
+                            <div className="flex items-center gap-1 mt-0.5">
+                              <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                                p.status === 'assinado' ? 'bg-green-100 text-green-700' :
+                                p.status === 'rascunho' ? 'bg-slate-100 text-slate-600' :
+                                'bg-rose-100 text-rose-700'
+                              }`}>{t(`hce_prescription_${p.status}`, 'app')}</span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
 
-                    {prescErrors.length > 0 && <FormErrorSummary errors={prescErrors} />}
-                    <div className="border-t border-teal-200 p-4 space-y-3 bg-slate-50">
+                    <div className="flex-1 min-w-0 space-y-3">
+                  {editingPrescription ? (
+                    <>
+                      {prescErrors.length > 0 && <FormErrorSummary errors={prescErrors} onClose={clearPrescErrors} />}
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className={labelCls}>{t('presc_medication', 'app')}</label>
+                          <input type="text" value={editingPrescription.drugName} onChange={e => setEditingPrescription(prev => prev ? { ...prev, drugName: e.target.value } : null)} className={inputCls} />
+                        </div>
+                        <div>
+                          <label className={labelCls}>{t('presc_active_ingredient', 'app')}</label>
+                          <input type="text" value={editingPrescription.activeIngredient} onChange={e => setEditingPrescription(prev => prev ? { ...prev, activeIngredient: e.target.value } : null)} className={inputCls} />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        <div>
+                          <label className={labelCls}>{t('hce_dosage', 'app')}</label>
+                          <input type="text" value={editingPrescription.dosage} onChange={e => setEditingPrescription(prev => prev ? { ...prev, dosage: e.target.value } : null)} className={inputCls} placeholder="500mg" />
+                        </div>
+                        <div>
+                          <label className={labelCls}>{t('hce_frequency', 'app')}</label>
+                          <input type="text" value={editingPrescription.frequency} onChange={e => setEditingPrescription(prev => prev ? { ...prev, frequency: e.target.value } : null)} className={inputCls} placeholder="8/8h" />
+                        </div>
+                        <div>
+                          <label className={labelCls}>{t('presc_route', 'app')}</label>
+                          <select value={editingPrescription.route} onChange={e => setEditingPrescription(prev => prev ? { ...prev, route: e.target.value } : null)} className={inputCls}>
+                            <option value="oral">{t('presc_route_oral', 'app')}</option>
+                            <option value="sublingual">{t('presc_route_sublingual', 'app')}</option>
+                            <option value="venoso">{t('presc_route_venoso', 'app')}</option>
+                            <option value="intramuscular">{t('presc_route_intramuscular', 'app')}</option>
+                            <option value="topico">{t('presc_route_topico', 'app')}</option>
+                            <option value="retal">{t('presc_route_retal', 'app')}</option>
+                            <option value="inhalacion">{t('presc_route_inhalacion', 'app')}</option>
+                            <option value="vaginal">{t('presc_route_vaginal', 'app')}</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-4 gap-2">
+                        <div>
+                          <label className={labelCls}>{t('hce_duration', 'app')}</label>
+                          <input type="text" value={editingPrescription.duration} onChange={e => setEditingPrescription(prev => prev ? { ...prev, duration: e.target.value } : null)} className={inputCls} placeholder={t('presc_placeholder_duration', 'app')} />
+                        </div>
+                        <div>
+                          <label className={labelCls}>{t('presc_quantity', 'app')}</label>
+                          <input type="text" inputMode="numeric" value={editingPrescription.quantity} onChange={e => setEditingPrescription(prev => prev ? { ...prev, quantity: parseInt(e.target.value) || 1 } : null)} className={inputCls} />
+                        </div>
+                        <div>
+                          <label className={labelCls}>{t('presc_unit', 'app')}</label>
+                          <input type="text" value={editingPrescription.unit} onChange={e => setEditingPrescription(prev => prev ? { ...prev, unit: e.target.value } : null)} className={inputCls} />
+                        </div>
+                        <div>
+                          <label className={labelCls}>{t('presc_type', 'app')}</label>
+                          <select value={editingPrescription.prescriptionType} onChange={e => setEditingPrescription(prev => prev ? { ...prev, prescriptionType: e.target.value as any } : null)} className={inputCls}>
+                            <option value="comum">{t('hce_prescription_comum', 'app')}</option>
+                            <option value="controlado">{t('hce_prescription_controlado', 'app')}</option>
+                            <option value="arquivado">{t('hce_prescription_arquivado', 'app')}</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div>
+                        <label className={labelCls}>{t('presc_instructions', 'app')}</label>
+                        <input type="text" value={editingPrescription.notes} onChange={e => setEditingPrescription(prev => prev ? { ...prev, notes: e.target.value } : null)} className={inputCls} placeholder={t('hce_prescription_notes_placeholder', 'app')} />
+                      </div>
+                      <div className="flex justify-end gap-2">
+                        {editingPrescription.status === 'rascunho' && (
+                          <button onClick={() => { handleSignPrescription(editingPrescription.id); setEditingPrescription(null); }} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-xs font-bold rounded-lg flex items-center gap-1">
+                            <FileSignature className="w-3.5 h-3.5" /> {t('hce_sign', 'app')}
+                          </button>
+                        )}
+                        <button onClick={() => { if (window.confirm(t('hce_confirm_delete_prescription', 'app'))) { handleDeletePrescription(editingPrescription.id); setEditingPrescription(null); } }} className="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold rounded-lg">{t('hce_delete', 'app')}</button>
+                        <button onClick={() => { setEditingPrescription(null); clearPrescErrors(); }} className="px-4 py-2 text-slate-600 hover:text-slate-800 text-xs font-bold rounded-lg">{t('hce_cancel', 'app')}</button>
+                        <button onClick={() => editingPrescription && handleUpdatePrescription(editingPrescription)} className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg">{t('presc_save', 'app')}</button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      {prescErrors.length > 0 && <FormErrorSummary errors={prescErrors} onClose={clearPrescErrors} />}
                       <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">{t('presc_add_title', 'app')}</p>
                       <div className="grid grid-cols-2 gap-2">
                         <FormField label={t('presc_add_name', 'app')} required error={prescFieldErrors.drugName}>
@@ -2731,7 +2806,7 @@ const ClinicalModuleContent = ({
                                   d.source === 'dinavisa' ? 'bg-blue-100 text-blue-700' :
                                   d.source === 'anvisa' ? 'bg-green-100 text-green-700' :
                                   d.source === 'fda' ? 'bg-purple-100 text-purple-700' :
-                                  d.source === 'infarmed' ? 'bg-orange-100 text-orange-700' :
+                                  d.source === 'infarmed' ? 'bg-orange-100 text-orange-100' :
                                   'bg-slate-100 text-slate-600'
                                 }`}>{d.source?.toUpperCase() || ''}</span>
                               </div>
@@ -2808,9 +2883,10 @@ const ClinicalModuleContent = ({
                       <button onClick={handleSavePrescription} disabled={!prescriptionForm.drugName.trim()} className="w-full py-2.5 bg-teal-600 hover:bg-teal-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-semibold rounded-lg text-xs transition flex items-center justify-center gap-2">
                         <Plus className="w-3.5 h-3.5" /> {t('presc_add_button', 'app')}
                       </button>
+                    </>
+                  )}
                     </div>
                   </div>
-
                   </>)}
                 </div>
               )}
@@ -2822,93 +2898,108 @@ const ClinicalModuleContent = ({
                     <Scan className="w-4 h-4 text-teal-600" /> {t('hce_exam_request_title', 'app')}
                   </h3>
 
-                  {examErrors.length > 0 && <FormErrorSummary errors={examErrors} />}
-
                   {!selectedPatId ? (
                     <div className="flex flex-col items-center justify-center py-12 text-center">
                       <AlertTriangle className="w-10 h-10 text-amber-400 mb-3" />
                       <p className="text-sm font-semibold text-slate-600">{t('agenda_alert_select_patient', 'app')}</p>
                     </div>
-                  ) : (<>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <FormField label={t('hce_exam_type', 'app')} error={examFieldErrors.examType}>
-                      <select value={examRequestForm.examType} onChange={e => setExamRequestForm(p => ({ ...p, examType: e.target.value as any }))} className={inputCls}>
-                        <option value="laboratorio">{t('hce_exam_laboratorio', 'app')}</option>
-                        <option value="imagem">{t('hce_exam_imagem', 'app')}</option>
-                        <option value="anatomia_patologica">{t('hce_exam_anatomia', 'app')}</option>
-                        <option value="outro">{t('hce_exam_outro', 'app')}</option>
-                      </select>
-                    </FormField>
-                    <FormField label={t('hce_exam_name', 'app')} error={examFieldErrors.examName}>
-                      <input type="text" value={examRequestForm.examName} onChange={e => setExamRequestForm(p => ({ ...p, examName: e.target.value }))} className={inputCls} placeholder={t('hce_exam_name_placeholder', 'app')} />
-                    </FormField>
-                    <FormField label={t('hce_clinical_indication', 'app')} className="col-span-2" error={examFieldErrors.clinicalIndication}>
-                      <textarea value={examRequestForm.clinicalIndication} onChange={e => setExamRequestForm(p => ({ ...p, clinicalIndication: e.target.value }))} rows={2} className={textareaCls} placeholder={t('hce_clinical_indication_placeholder', 'app')} />
-                    </FormField>
-                    <FormField label={t('hce_urgency', 'app')} error={examFieldErrors.urgency}>
-                      <select value={examRequestForm.urgency} onChange={e => setExamRequestForm(p => ({ ...p, urgency: e.target.value as any }))} className={inputCls}>
-                        <option value="rotina">{t('hce_urgency_rotina', 'app')}</option>
-                        <option value="urgente">{t('hce_urgency_urgente', 'app')}</option>
-                        <option value="emergencia">{t('hce_urgency_emergencia', 'app')}</option>
-                      </select>
-                    </FormField>
-                    <div className="flex items-end">
-                      <button onClick={handleSaveExamRequest} className="w-full py-2 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-lg text-xs transition">
-                        {t('hce_request_exam', 'app')}
+                  ) : (
+                  <div className="flex gap-4">
+                    <div className="w-52 shrink-0 space-y-2">
+                      <p className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">{t('hce_exam_history', 'app')}</p>
+                      <button onClick={() => { setEditingExamRequest(null); }} className="w-full py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg transition flex items-center justify-center gap-1">
+                        <Plus className="w-3.5 h-3.5" /> {t('hce_exam_new', 'app')}
                       </button>
+                      {examRequests.length === 0 && (
+                        <p className="text-[10px] text-slate-400 italic">{t('hce_no_exam_records', 'app')}</p>
+                      )}
+                      {examRequests.map((e, idx) => {
+                        const active = editingExamRequest?.id === e.id;
+                        return (
+                          <button key={e.id} onClick={() => { setEditingExamRequest(e); clearExamErrors(); }} className={`w-full text-left px-3 py-2 rounded-lg border transition ${active ? 'border-teal-400 bg-teal-50' : 'border-slate-200 bg-white hover:bg-slate-50'}`}>
+                            <span className={`block text-xs font-bold truncate ${active ? 'text-teal-700' : 'text-slate-700'}`}>
+                              {e.examName}
+                            </span>
+                            <span className="block text-[10px] text-slate-500">{e.examType}</span>
+                            <span className="block text-[10px] text-slate-400">{formatDate(e.createdAt)}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <div className="flex-1 min-w-0 space-y-4">
+                  {editingExamRequest ? (
+                    <>
+                      {examErrors.length > 0 && <FormErrorSummary errors={examErrors} onClose={clearExamErrors} />}
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className={labelCls}>{t('hce_exam_type', 'app')}</label>
+                          <input type="text" value={editingExamRequest.examType} className={inputCls} readOnly />
+                        </div>
+                        <div>
+                          <label className={labelCls}>{t('hce_exam_name', 'app')}</label>
+                          <input type="text" value={editingExamRequest.examName} className={inputCls} readOnly />
+                        </div>
+                      </div>
+                      <div className="border border-teal-200 rounded-xl p-3 space-y-2">
+                        <div className="grid grid-cols-3 gap-2">
+                          <div>
+                            <label className={labelCls}>{t('hce_diagnosis_status', 'app')}</label>
+                            <select value={editingExamRequest.status} onChange={ev => setEditingExamRequest(prev => prev ? { ...prev, status: ev.target.value as any } : null)} className={inputCls}>
+                              <option value="solicitado">{t('hce_status_solicitado', 'app')}</option>
+                              <option value="em_andamento">{t('hce_status_em_andamento', 'app')}</option>
+                              <option value="concluido">{t('hce_status_concluido', 'app')}</option>
+                              <option value="cancelado">{t('hce_status_cancelado', 'app')}</option>
+                            </select>
+                          </div>
+                          <div className="col-span-2">
+                            <label className={labelCls}>{t('hce_result_observations', 'app')}</label>
+                            <textarea value={editingExamRequest.resultNotes ?? ''} onChange={ev => setEditingExamRequest(prev => prev ? { ...prev, resultNotes: ev.target.value } : null)} rows={3} className={textareaCls} placeholder={t('hce_describe_exam_results_placeholder', 'app')} />
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex justify-end gap-2">
+                        <button onClick={() => { if (window.confirm(t('hce_confirm_delete_prescription', 'app'))) { handleDeleteExamRequest(editingExamRequest.id); setEditingExamRequest(null); } }} className="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold rounded-lg">{t('hce_delete', 'app')}</button>
+                        <button onClick={() => { setEditingExamRequest(null); clearExamErrors(); }} className="px-4 py-2 text-slate-600 hover:text-slate-800 text-xs font-bold rounded-lg">{t('hce_cancel', 'app')}</button>
+                        <button onClick={() => { if (!editingExamRequest) return; handleUpdateExamRequest({ ...editingExamRequest, resultDate: editingExamRequest.status === 'concluido' ? new Date().toISOString() : editingExamRequest.resultDate }); setEditingExamRequest(null); }} className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg">{t('app_save', 'app')}</button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      {examErrors.length > 0 && <FormErrorSummary errors={examErrors} onClose={clearExamErrors} />}
+                      <div className="grid grid-cols-2 gap-3">
+                        <FormField label={t('hce_exam_type', 'app')} error={examFieldErrors.examType}>
+                          <select value={examRequestForm.examType} onChange={e => setExamRequestForm(p => ({ ...p, examType: e.target.value as any }))} className={inputCls}>
+                            <option value="laboratorio">{t('hce_exam_laboratorio', 'app')}</option>
+                            <option value="imagem">{t('hce_exam_imagem', 'app')}</option>
+                            <option value="anatomia_patologica">{t('hce_exam_anatomia', 'app')}</option>
+                            <option value="outro">{t('hce_exam_outro', 'app')}</option>
+                          </select>
+                        </FormField>
+                        <FormField label={t('hce_exam_name', 'app')} error={examFieldErrors.examName}>
+                          <input type="text" value={examRequestForm.examName} onChange={e => setExamRequestForm(p => ({ ...p, examName: e.target.value }))} className={inputCls} placeholder={t('hce_exam_name_placeholder', 'app')} />
+                        </FormField>
+                        <FormField label={t('hce_clinical_indication', 'app')} className="col-span-2" error={examFieldErrors.clinicalIndication}>
+                          <textarea value={examRequestForm.clinicalIndication} onChange={e => setExamRequestForm(p => ({ ...p, clinicalIndication: e.target.value }))} rows={2} className={textareaCls} placeholder={t('hce_clinical_indication_placeholder', 'app')} />
+                        </FormField>
+                        <FormField label={t('hce_urgency', 'app')} error={examFieldErrors.urgency}>
+                          <select value={examRequestForm.urgency} onChange={e => setExamRequestForm(p => ({ ...p, urgency: e.target.value as any }))} className={inputCls}>
+                            <option value="rotina">{t('hce_urgency_rotina', 'app')}</option>
+                            <option value="urgente">{t('hce_urgency_urgente', 'app')}</option>
+                            <option value="emergencia">{t('hce_urgency_emergencia', 'app')}</option>
+                          </select>
+                        </FormField>
+                        <div className="flex items-end">
+                          <button onClick={handleSaveExamRequest} className="w-full py-2 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-lg text-xs transition">
+                            {t('hce_request_exam', 'app')}
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  )}
                     </div>
                   </div>
-
-                  {/* Exam Requests List */}
-                  <div className="space-y-2">
-                    {examRequests.map(e => (
-                      editingExamRequest?.id === e.id ? (
-                        <div key={e.id} className="p-3 bg-teal-50 border border-teal-200 rounded-xl text-xs space-y-2">
-                          <div className="grid grid-cols-3 gap-2">
-                            <div>
-                              <label className={labelCls}>{t('hce_diagnosis_status', 'app')}</label>
-                              <select value={editingExamRequest.status} onChange={ev => setEditingExamRequest(prev => prev ? { ...prev, status: ev.target.value as any } : null)} className={inputCls}>
-                                <option value="solicitado">{t('hce_status_solicitado', 'app')}</option>
-                                <option value="em_andamento">{t('hce_status_em_andamento', 'app')}</option>
-                                <option value="concluido">{t('hce_status_concluido', 'app')}</option>
-                                <option value="cancelado">{t('hce_status_cancelado', 'app')}</option>
-                              </select>
-                            </div>
-                            <div className="col-span-2">
-                              <label className={labelCls}>{t('hce_result_observations', 'app')}</label>
-                              <textarea value={editingExamRequest.resultNotes} onChange={ev => setEditingExamRequest(prev => prev ? { ...prev, resultNotes: ev.target.value } : null)} rows={3} className={textareaCls} placeholder={t('hce_describe_exam_results_placeholder', 'app')} />
-                            </div>
-                          </div>
-                          <div className="flex justify-end gap-2">
-                            <button onClick={() => setEditingExamRequest(null)} className="px-3 py-1.5 text-slate-600 hover:text-slate-800 text-xs font-bold rounded-lg">{t('hce_cancel', 'app')}</button>
-                            <button onClick={() => editingExamRequest && handleUpdateExamRequest({ ...editingExamRequest, resultDate: editingExamRequest.status === 'concluido' ? new Date().toISOString() : editingExamRequest.resultDate })} className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg">{t('app_save', 'app')}</button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div key={e.id} className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-1">
-                          <div className="flex items-center justify-between">
-                            <span className="font-bold text-slate-800">{e.examName}</span>
-                            <div className="flex items-center gap-2">
-                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                                e.status === 'concluido' ? 'bg-green-100 text-green-700' :
-                                e.status === 'solicitado' ? 'bg-amber-100 text-amber-700' :
-                                e.status === 'cancelado' ? 'bg-rose-100 text-rose-700' :
-                                'bg-blue-100 text-blue-700'
-                              }`}>{e.status}</span>
-                              <button onClick={() => setEditingExamRequest(e)} className="text-teal-500 hover:text-teal-700"><Sliders className="w-3 h-3" /></button>
-                              <button onClick={() => handleDeleteExamRequest(e.id)} className="text-rose-500 hover:text-rose-700"><Trash2 className="w-3 h-3" /></button>
-                            </div>
-                          </div>
-                          <p className="text-slate-500">{t('hce_type_label', 'app')}: {e.examType} | {t('hce_urgency_label', 'app')}: {e.urgency}</p>
-                          <p className="text-slate-500">{t('hce_indication_label', 'app')}: {e.clinicalIndication}</p>
-                          {e.resultNotes && <p className="text-green-600 font-bold">{t('hce_result_label', 'app')}: {e.resultNotes}</p>}
-                        </div>
-                      )
-                    ))}
-                  </div>
-
-                  </>)}
+                  )}
                 </div>
               )}
 
@@ -2919,98 +3010,121 @@ const ClinicalModuleContent = ({
                     <Activity className="w-4 h-4 text-teal-600" /> {t('hce_procedure_title', 'app')}
                   </h3>
 
-                  {procErrors.length > 0 && <FormErrorSummary errors={procErrors} />}
-
                   {!selectedPatId ? (
                     <div className="flex flex-col items-center justify-center py-12 text-center">
                       <AlertTriangle className="w-10 h-10 text-amber-400 mb-3" />
                       <p className="text-sm font-semibold text-slate-600">{t('agenda_alert_select_patient', 'app')}</p>
                     </div>
-                  ) : (<>
-
-                  <div className="grid grid-cols-3 gap-2">
-                    <FormField label={t('hce_procedure_code', 'app')} error={procFieldErrors.procedureCode}>
-                      <input type="text" value={procedureForm.procedureCode} onChange={e => setProcedureForm(p => ({ ...p, procedureCode: e.target.value }))} className={inputCls} placeholder={t('hce_procedure_code_placeholder', 'app')} />
-                    </FormField>
-                    <FormField label={t('hce_procedure_name', 'app')} error={procFieldErrors.procedureName}>
-                      <input type="text" value={procedureForm.procedureName} onChange={e => setProcedureForm(p => ({ ...p, procedureName: e.target.value }))} className={inputCls} />
-                    </FormField>
-                    <FormField label={t('hce_procedure_category', 'app')} error={procFieldErrors.procedureCategory}>
-                      <select value={procedureForm.procedureCategory} onChange={e => setProcedureForm(p => ({ ...p, procedureCategory: e.target.value }))} className={inputCls}>
-                        <option value="">{t('hce_select_placeholder', 'app')}</option>
-                        <option value="Consulta">{t('hce_category_consulta', 'app')}</option>
-                        <option value="Procedimento">{t('hce_category_procedimento', 'app')}</option>
-                        <option value="Laboratório">{t('hce_category_laboratorio', 'app')}</option>
-                        <option value="Imagem">{t('hce_category_imagem', 'app')}</option>
-                        <option value="Fisioterapia">{t('hce_category_fisioterapia', 'app')}</option>
-                        <option value="Enfermagem">{t('hce_category_enfermagem', 'app')}</option>
-                      </select>
-                    </FormField>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    <FormField label={t('hce_procedure_quantity', 'app')} error={procFieldErrors.quantity}>
-                      <input type="text" inputMode="numeric" value={procedureForm.quantity} onChange={e => setProcedureForm(p => ({ ...p, quantity: parseInt(e.target.value) || 1 }))} className={inputCls} />
-                    </FormField>
-                    <div>
-                      <label className={labelCls}>{t('hce_procedure_status', 'app')}</label>
-                      <select value={procedureForm.status} onChange={e => setProcedureForm(p => ({ ...p, status: e.target.value as any }))} className={inputCls}>
-                        <option value="programado">{t('hce_procedure_programado', 'app')}</option>
-                        <option value="em_execucao">{t('hce_procedure_em_execucao', 'app')}</option>
-                        <option value="concluido">{t('hce_procedure_concluido', 'app')}</option>
-                      </select>
-                    </div>
-                    <div className="flex items-end">
-                      <button onClick={handleSaveProcedure} className="w-full py-2 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-lg text-xs transition">
-                        {t('hce_register_procedure', 'app')}
+                  ) : (
+                  <div className="flex gap-4">
+                    <div className="w-52 shrink-0 space-y-2">
+                      <p className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">{t('hce_procedure_history', 'app')}</p>
+                      <button onClick={() => { setEditingProcedure(null); }} className="w-full py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg transition flex items-center justify-center gap-1">
+                        <Plus className="w-3.5 h-3.5" /> {t('hce_procedure_new', 'app')}
                       </button>
+                      {procedureList.length === 0 && (
+                        <p className="text-[10px] text-slate-400 italic">{t('hce_no_procedure_records', 'app')}</p>
+                      )}
+                      {procedureList.map((p, idx) => {
+                        const active = editingProcedure?.id === p.id;
+                        return (
+                          <button key={p.id} onClick={() => { setEditingProcedure(p); clearProcErrors(); }} className={`w-full text-left px-3 py-2 rounded-lg border transition ${active ? 'border-teal-400 bg-teal-50' : 'border-slate-200 bg-white hover:bg-slate-50'}`}>
+                            <span className={`block text-xs font-bold truncate ${active ? 'text-teal-700' : 'text-slate-700'}`}>
+                              {p.procedureCode} — {p.procedureName}
+                            </span>
+                            <span className="block text-[10px] text-slate-500">{p.procedureCategory}</span>
+                            <span className="block text-[10px] text-slate-400">{formatDate(p.createdAt)}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <div className="flex-1 min-w-0 space-y-4">
+                  {editingProcedure ? (
+                    <>
+                      {procErrors.length > 0 && <FormErrorSummary errors={procErrors} onClose={clearProcErrors} />}
+                      <div className="grid grid-cols-3 gap-2">
+                        <div>
+                          <label className={labelCls}>{t('hce_procedure_code', 'app')}</label>
+                          <input type="text" value={editingProcedure.procedureCode} className={inputCls} readOnly />
+                        </div>
+                        <div>
+                          <label className={labelCls}>{t('hce_procedure_name', 'app')}</label>
+                          <input type="text" value={editingProcedure.procedureName} className={inputCls} readOnly />
+                        </div>
+                        <div>
+                          <label className={labelCls}>{t('hce_procedure_category', 'app')}</label>
+                          <input type="text" value={editingProcedure.procedureCategory} className={inputCls} readOnly />
+                        </div>
+                      </div>
+                      <div className="border border-teal-200 rounded-xl p-3 space-y-2">
+                        <div className="grid grid-cols-3 gap-2">
+                          <div>
+                            <label className={labelCls}>{t('hce_diagnosis_status', 'app')}</label>
+                            <select value={editingProcedure.status} onChange={ev => setEditingProcedure(prev => prev ? { ...prev, status: ev.target.value as any } : null)} className={inputCls}>
+                              <option value="programado">{t('hce_procedure_programado', 'app')}</option>
+                              <option value="em_execucao">{t('hce_procedure_em_execucao', 'app')}</option>
+                              <option value="concluido">{t('hce_procedure_concluido', 'app')}</option>
+                              <option value="cancelado">{t('hce_status_cancelado', 'app')}</option>
+                            </select>
+                          </div>
+                          <div className="col-span-2">
+                            <label className={labelCls}>{t('hce_complications', 'app')}</label>
+                            <input type="text" value={editingProcedure.complications ?? ''} onChange={ev => setEditingProcedure(prev => prev ? { ...prev, complications: ev.target.value } : null)} className={inputCls} placeholder={t('hce_describe_complications_placeholder', 'app')} />
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex justify-end gap-2">
+                        <button onClick={() => { if (window.confirm(t('hce_confirm_delete_prescription', 'app'))) { handleDeleteProcedure(editingProcedure.id); setEditingProcedure(null); } }} className="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold rounded-lg">{t('hce_delete', 'app')}</button>
+                        <button onClick={() => { setEditingProcedure(null); clearProcErrors(); }} className="px-4 py-2 text-slate-600 hover:text-slate-800 text-xs font-bold rounded-lg">{t('hce_cancel', 'app')}</button>
+                        <button onClick={() => { if (!editingProcedure) return; handleUpdateProcedure({ ...editingProcedure, performedAt: editingProcedure.status === 'concluido' ? new Date().toISOString() : editingProcedure.performedAt }); setEditingProcedure(null); }} className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg">{t('app_save', 'app')}</button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      {procErrors.length > 0 && <FormErrorSummary errors={procErrors} onClose={clearProcErrors} />}
+                      <div className="grid grid-cols-3 gap-2">
+                        <FormField label={t('hce_procedure_code', 'app')} error={procFieldErrors.procedureCode}>
+                          <input type="text" value={procedureForm.procedureCode} onChange={e => setProcedureForm(p => ({ ...p, procedureCode: e.target.value }))} className={inputCls} placeholder={t('hce_procedure_code_placeholder', 'app')} />
+                        </FormField>
+                        <FormField label={t('hce_procedure_name', 'app')} error={procFieldErrors.procedureName}>
+                          <input type="text" value={procedureForm.procedureName} onChange={e => setProcedureForm(p => ({ ...p, procedureName: e.target.value }))} className={inputCls} />
+                        </FormField>
+                        <FormField label={t('hce_procedure_category', 'app')} error={procFieldErrors.procedureCategory}>
+                          <select value={procedureForm.procedureCategory} onChange={e => setProcedureForm(p => ({ ...p, procedureCategory: e.target.value }))} className={inputCls}>
+                            <option value="">{t('hce_select_placeholder', 'app')}</option>
+                            <option value="Consulta">{t('hce_category_consulta', 'app')}</option>
+                            <option value="Procedimento">{t('hce_category_procedimento', 'app')}</option>
+                            <option value="Laboratório">{t('hce_category_laboratorio', 'app')}</option>
+                            <option value="Imagem">{t('hce_category_imagem', 'app')}</option>
+                            <option value="Fisioterapia">{t('hce_category_fisioterapia', 'app')}</option>
+                            <option value="Enfermagem">{t('hce_category_enfermagem', 'app')}</option>
+                          </select>
+                        </FormField>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        <FormField label={t('hce_procedure_quantity', 'app')} error={procFieldErrors.quantity}>
+                          <input type="text" inputMode="numeric" value={procedureForm.quantity} onChange={e => setProcedureForm(p => ({ ...p, quantity: parseInt(e.target.value) || 1 }))} className={inputCls} />
+                        </FormField>
+                        <div>
+                          <label className={labelCls}>{t('hce_procedure_status', 'app')}</label>
+                          <select value={procedureForm.status} onChange={e => setProcedureForm(p => ({ ...p, status: e.target.value as any }))} className={inputCls}>
+                            <option value="programado">{t('hce_procedure_programado', 'app')}</option>
+                            <option value="em_execucao">{t('hce_procedure_em_execucao', 'app')}</option>
+                            <option value="concluido">{t('hce_procedure_concluido', 'app')}</option>
+                          </select>
+                        </div>
+                        <div className="flex items-end">
+                          <button onClick={handleSaveProcedure} className="w-full py-2 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-lg text-xs transition">
+                            {t('hce_register_procedure', 'app')}
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  )}
                     </div>
                   </div>
-                  {/* Procedures List */}
-                  <div className="space-y-2">
-                    {procedureList.map(p => (
-                      editingProcedure?.id === p.id ? (
-                        <div key={p.id} className="p-3 bg-teal-50 border border-teal-200 rounded-xl text-xs space-y-2">
-                          <div className="grid grid-cols-3 gap-2">
-                            <div>
-                              <label className={labelCls}>{t('hce_diagnosis_status', 'app')}</label>
-                              <select value={editingProcedure.status} onChange={ev => setEditingProcedure(prev => prev ? { ...prev, status: ev.target.value as any } : null)} className={inputCls}>
-                                <option value="programado">{t('hce_procedure_programado', 'app')}</option>
-                                <option value="em_execucao">{t('hce_procedure_em_execucao', 'app')}</option>
-                                <option value="concluido">{t('hce_procedure_concluido', 'app')}</option>
-                                <option value="cancelado">{t('hce_status_cancelado', 'app')}</option>
-                              </select>
-                            </div>
-                            <div className="col-span-2">
-                              <label className={labelCls}>{t('hce_complications', 'app')}</label>
-                              <input type="text" value={editingProcedure.complications} onChange={ev => setEditingProcedure(prev => prev ? { ...prev, complications: ev.target.value } : null)} className={inputCls} placeholder={t('hce_describe_complications_placeholder', 'app')} />
-                            </div>
-                          </div>
-                          <div className="flex justify-end gap-2">
-                            <button onClick={() => setEditingProcedure(null)} className="px-3 py-1.5 text-slate-600 hover:text-slate-800 text-xs font-bold rounded-lg">{t('hce_cancel', 'app')}</button>
-                            <button onClick={() => editingProcedure && handleUpdateProcedure({ ...editingProcedure, performedAt: editingProcedure.status === 'concluido' ? new Date().toISOString() : editingProcedure.performedAt })} className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg">{t('app_save', 'app')}</button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div key={p.id} className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs">
-                          <div className="flex items-center justify-between">
-                            <span className="font-bold text-slate-800">{p.procedureCode} — {p.procedureName}</span>
-                            <div className="flex items-center gap-2">
-                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                                p.status === 'concluido' ? 'bg-green-100 text-green-700' :
-                                p.status === 'em_execucao' ? 'bg-blue-100 text-blue-700' :
-                                p.status === 'cancelado' ? 'bg-rose-100 text-rose-700' :
-                                'bg-amber-100 text-amber-700'
-                              }`}>{p.status}</span>
-                              <button onClick={() => setEditingProcedure(p)} className="text-teal-500 hover:text-teal-700"><Sliders className="w-3 h-3" /></button>
-                              <button onClick={() => handleDeleteProcedure(p.id)} className="text-rose-500 hover:text-rose-700"><Trash2 className="w-3 h-3" /></button>
-                            </div>
-                          </div>
-                        </div>
-                      )
-                    ))}
-                  </div>
-
-                  </>)}
+                  )}
                 </div>
               )}
 
