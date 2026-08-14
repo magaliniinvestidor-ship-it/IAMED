@@ -118,6 +118,11 @@ const ClinicalModuleContent = ({
   const { t, locale } = useI18n();
   const userPermissions = useUserPermissions();
   const hasSensitiveAccess = hasPermission(userPermissions, 'view_sensitive');
+  const activeProfessional = useMemo(() => {
+    const byName = professionals.find(p => p.name?.toLowerCase() === activeOperator.toLowerCase());
+    if (byName) return byName;
+    return professionals.find(p => p.council && p.council !== 'N/A' && p.councilNumber) || professionals[0] || null;
+  }, [professionals, activeOperator]);
 
   // Patient selection
   const [selectedPatId, setSelectedPatId] = useState('');
@@ -189,6 +194,10 @@ const ClinicalModuleContent = ({
   const [safetyAlerts, setSafetyAlerts] = useState<SafetyAlert[]>([]);
   const [prescQrDataUrl, setPrescQrDataUrl] = useState('');
   const [pediatricDoseModal, setPediatricDoseModal] = useState<{ weight: string; height: string; dosePerKgPerDay: string; dosesPerDay: string; result: string } | null>(null);
+  const [qrVerifyModal, setQrVerifyModal] = useState(false);
+  const [qrVerifyInput, setQrVerifyInput] = useState('');
+  const [qrVerifyResult, setQrVerifyResult] = useState<'success' | 'fail' | null>(null);
+  const [sendModal, setSendModal] = useState(false);
 
   // Itens e cabeçalho da receita selecionada
   const selectedItems = useMemo(
@@ -1612,6 +1621,10 @@ const ClinicalModuleContent = ({
 
   // ─── SIGN PRESCRIPTION (assina o cabeçalho com todos os itens) ───
   const handleSignPrescription = async (prescId: string) => {
+    const graveAlerts = safetyAlerts.filter(a => a.severity === 'contraindicado' || a.severity === 'grave');
+    if (graveAlerts.length > 0) {
+      if (!confirm(t('presc_confirm_sign_grave', 'app'))) return;
+    }
     const signedAt = new Date().toISOString();
     setPrescriptions(prev => prev.map(p =>
       p.id === prescId ? { ...p, status: 'assinado', signedAt } : p
@@ -1666,6 +1679,44 @@ const ClinicalModuleContent = ({
       await supabase.from('prescriptions').delete().eq('id', prescId);
     }
     addAuditLog('Excluiu Receita', prescId);
+  };
+
+  // ─── PRINT PRESCRIPTION (só a receita médica, não a página inteira) ───
+  const handlePrintPrescription = () => {
+    const el = document.getElementById('prescription-print-area');
+    if (!el) { window.print(); return; }
+    const original = document.body.innerHTML;
+    const printContent = el.outerHTML;
+    document.body.innerHTML = `<style>
+      @page { margin: 12mm; }
+      body * { visibility: hidden; }
+      #prescription-print-area, #prescription-print-area * { visibility: visible; }
+      #prescription-print-area {
+        position: absolute; left: 0; top: 0; width: 100%;
+        border: none !important;
+      }
+      #prescription-print-area .no-print { display: none !important; }
+    </style>${printContent}`;
+    window.print();
+    document.body.innerHTML = original;
+  };
+
+  // ─── VERIFY QR CODE (modal simulado) ───
+  const handleVerifyQr = () => {
+    if (!selectedHeader || !selectedHeader.qrCodeData) {
+      setQrVerifyResult('fail');
+      return;
+    }
+    const valid = qrVerifyInput.trim() === String(selectedHeader.qrCodeData).slice(0, 24);
+    setQrVerifyResult(valid ? 'success' : 'fail');
+  };
+
+  // ─── SEND PRESCRIPTION (envio digital simulado) ───
+  const handleSendPrescription = async (channel: 'whatsapp' | 'email') => {
+    setSendModal(false);
+    await new Promise(r => setTimeout(r, 800));
+    alert(t('presc_send_success', 'app'));
+    addAuditLog('Enviou Receita', `${channel.toUpperCase()} - ${selectedPatient?.name}`);
   };
 
   // ─── SAVE EXAM REQUEST ───
@@ -3237,20 +3288,20 @@ const ClinicalModuleContent = ({
                   ) : (<>
 
                   {/* ═══ RECETA MÉDICA - HEADER (timbrado mantido) ═══ */}
-                  <div className="border-2 border-teal-600 rounded-xl overflow-hidden">
+                  <div id="prescription-print-area" className="border-2 border-teal-600 rounded-xl overflow-hidden">
                     {/* Doctor Header */}
                     <div className="bg-teal-600 text-white p-4 flex items-center gap-4">
                       <div className="w-14 h-14 bg-white rounded-full flex items-center justify-center flex-shrink-0">
                         <Stethoscope className="w-7 h-7 text-teal-600" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-bold text-lg truncate">{activeOperator}</p>
-                        <p className="text-teal-100 text-xs">{t('presc_header_rne_crm', 'app')} — —</p>
-                        <p className="text-teal-100 text-xs">{t('presc_header_specialty', 'app')} — —</p>
+                        <p className="font-bold text-lg truncate">{activeProfessional?.name || activeOperator}</p>
+                        <p className="text-teal-100 text-xs">{t('presc_header_rne_crm', 'app')} {activeProfessional?.council || '—'} {activeProfessional?.councilNumber ? `— ${activeProfessional.councilNumber}` : '— —'}</p>
+                        <p className="text-teal-100 text-xs">{t('presc_header_specialty', 'app')} {activeProfessional?.specialty || '— —'}</p>
                       </div>
                       <div className="text-right text-[10px] text-teal-100 flex-shrink-0">
-                        <p>{t('presc_header_address', 'app')} — —</p>
-                        <p>{t('presc_header_phone', 'app')} — —</p>
+                        <p>{t('presc_header_address', 'app')} {activeProfessional?.locationId ? `Sede ${activeProfessional.locationId.replace('loc_', '')}` : '— —'}</p>
+                        <p>{t('presc_header_phone', 'app')} {activeProfessional?.phone || '— —'}</p>
                       </div>
                     </div>
 
@@ -3272,6 +3323,16 @@ const ClinicalModuleContent = ({
                     <div className="text-center py-2 border-b border-teal-200">
                       <h3 className="font-bold text-teal-800 text-sm tracking-wider uppercase">{t('presc_title', 'app')}</h3>
                     </div>
+
+                    {/* Alerta de receita controlada */}
+                    {selectedItems.some(i => i.prescriptionType === 'controlado') && (
+                      <div className="mx-4 mt-3 p-2.5 bg-rose-50 border border-rose-300 rounded-lg text-[11px] text-rose-800 flex items-start gap-2">
+                        <ShieldAlert className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <p className="font-bold">{t('presc_controlled_alert', 'app')}</p>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Itens da receita (tabela) */}
                     <div className="p-4">
@@ -3364,13 +3425,23 @@ const ClinicalModuleContent = ({
 
                     {/* Ações da receita */}
                     {selectedPrescriptionId && selectedHeader && (
-                      <div className="px-4 pb-4 flex flex-wrap items-center gap-2">
+                      <div className="no-print px-4 pb-4 flex flex-wrap items-center gap-2">
                         {selectedHeader.status === 'rascunho' && (
                           <button onClick={() => handleSignPrescription(selectedPrescriptionId)} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-xs font-bold rounded-lg flex items-center gap-1">
                             <FileSignature className="w-3.5 h-3.5" /> {t('presc_sign_receipt', 'app')}
                           </button>
                         )}
-                        <button onClick={() => window.print()} className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-lg flex items-center gap-1">
+                        {selectedHeader.status === 'assinado' && (
+                          <>
+                            <button onClick={() => setQrVerifyModal(true)} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg flex items-center gap-1">
+                              <QrCode className="w-3.5 h-3.5" /> {t('presc_qr_verify', 'app')}
+                            </button>
+                            <button onClick={() => setSendModal(true)} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg flex items-center gap-1">
+                              <Send className="w-3.5 h-3.5" /> {t('presc_send_whatsapp', 'app')}
+                            </button>
+                          </>
+                        )}
+                        <button onClick={handlePrintPrescription} className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-lg flex items-center gap-1">
                           <Printer className="w-3.5 h-3.5" /> {t('presc_print', 'app')}
                         </button>
                         <button onClick={() => handleDeletePrescription(selectedPrescriptionId)} className="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold rounded-lg flex items-center gap-1">
@@ -3379,6 +3450,52 @@ const ClinicalModuleContent = ({
                       </div>
                     )}
                   </div>
+
+                  {/* ═══ MODAL: VERIFICAR QR CODE ═══ */}
+                  {qrVerifyModal && (
+                    <div className="no-print fixed inset-0 z-50 bg-slate-900/70 flex items-center justify-center p-4">
+                      <div className="bg-white rounded-xl p-5 max-w-sm w-full space-y-3">
+                        <h4 className="font-bold text-slate-800 flex items-center gap-2"><QrCode className="w-4 h-4" /> {t('presc_qr_verify', 'app')}</h4>
+                        <input type="text" value={qrVerifyInput} onChange={e => { setQrVerifyInput(e.target.value); setQrVerifyResult(null); }} placeholder={t('presc_qr_verify_placeholder', 'app')} className="w-full p-2 border border-slate-200 rounded-lg text-xs" />
+                        <div className="flex gap-2 justify-end">
+                          <button onClick={() => { setQrVerifyModal(false); setQrVerifyInput(''); setQrVerifyResult(null); }} className="px-3 py-1.5 text-slate-600 text-xs font-bold rounded-lg">{t('hce_cancel', 'app')}</button>
+                          <button onClick={handleVerifyQr} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg">{t('presc_qr_verify_btn', 'app')}</button>
+                        </div>
+                        {qrVerifyResult === 'success' && (
+                          <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-xs text-green-700 flex items-center gap-2">
+                            <Check className="w-4 h-4" /> {t('presc_qr_verify_success', 'app')}
+                          </div>
+                        )}
+                        {qrVerifyResult === 'fail' && (
+                          <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-700 flex items-center gap-2">
+                            <AlertTriangle className="w-4 h-4" /> {t('presc_qr_verify_fail', 'app')}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ═══ MODAL: ENVIAR RECEITA ═══ */}
+                  {sendModal && (
+                    <div className="no-print fixed inset-0 z-50 bg-slate-900/70 flex items-center justify-center p-4">
+                      <div className="bg-white rounded-xl p-5 max-w-sm w-full space-y-3">
+                        <h4 className="font-bold text-slate-800 flex items-center gap-2"><Send className="w-4 h-4" /> {t('presc_send_whatsapp', 'app')}</h4>
+                        <p className="text-xs text-slate-500">Paciente: <b>{selectedPatient?.name}</b></p>
+                        <p className="text-xs text-slate-500">{selectedPatient?.phone || 'sem telefone'}</p>
+                        <div className="flex flex-wrap gap-2 pt-2">
+                          <button onClick={() => handleSendPrescription('whatsapp')} className="flex-1 px-3 py-2 bg-green-600 hover:bg-green-700 text-white text-xs font-bold rounded-lg flex items-center justify-center gap-1">
+                            <Send className="w-3.5 h-3.5" /> {t('presc_send_whatsapp', 'app')}
+                          </button>
+                          <button onClick={() => handleSendPrescription('email')} className="flex-1 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg flex items-center justify-center gap-1">
+                            <Send className="w-3.5 h-3.5" /> {t('presc_send_email', 'app')}
+                          </button>
+                        </div>
+                        <div className="flex justify-end">
+                          <button onClick={() => setSendModal(false)} className="px-3 py-1.5 text-slate-600 text-xs font-bold rounded-lg">{t('hce_cancel', 'app')}</button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* ═══ PAINEL LISTA + FORM (padrão lista à esquerda, form à direita) ═══ */}
                   <div className="flex gap-4">
@@ -3422,7 +3539,28 @@ const ClinicalModuleContent = ({
                       <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">{t('presc_edit_title', 'app')}</p>
                       <div className="grid grid-cols-2 gap-2">
                         <FormField label={t('presc_medication', 'app')} required error={prescFieldErrors.drugName}>
-                          <input type="text" value={editingItem.drugName} onChange={e => setEditingItem(prev => prev ? { ...prev, drugName: e.target.value } : null)} className={inputCls} />
+                          <div className="relative">
+                            <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+                            <input type="text" value={editingItem.drugName} onChange={e => { const v = e.target.value; setEditingItem(prev => prev ? { ...prev, drugName: v } : null); setDrugSearch(v); searchDrugCatalog(v); }} placeholder={t('presc_placeholder_drug', 'app')} className={`${inputCls} pl-9`} />
+                          </div>
+                          <div className="max-h-[120px] overflow-y-auto border border-slate-100 rounded-xl divide-y divide-slate-50 mt-2 bg-white">
+                            {drugCatalogItems.length === 0 ? (
+                              <p className="px-3 py-2 text-xs text-slate-400 italic">{t('drug_search_no_results', 'app')}</p>
+                            ) : drugCatalogItems.slice(0, 10).map((d: any) => (
+                              <div key={d.id} onClick={() => setEditingItem(prev => prev ? { ...prev, drugName: d.name || prev.drugName, activeIngredient: d.active_ingredient || prev.activeIngredient, presentation: d.presentation || prev.presentation, dosage: d.default_dosage || d.common_dose_adult || prev.dosage, frequency: d.default_frequency || prev.frequency, route: d.route || prev.route, duration: d.default_duration || prev.duration, snomedCode: d.snomed_code || prev.snomedCode, snomedDescription: d.snomed_description || prev.snomedDescription } : null)}
+                                className="px-3 py-2.5 hover:bg-teal-50 cursor-pointer flex items-center gap-2 text-sm transition">
+                                <span className="font-bold text-teal-700 whitespace-nowrap text-xs">{d.name}</span>
+                                <span className="text-slate-600 flex-1 min-w-0 truncate text-xs">{d.active_ingredient}{d.presentation ? ` — ${d.presentation}` : ''}</span>
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap flex-shrink-0 font-bold uppercase ${
+                                  d.source === 'dinavisa' ? 'bg-blue-100 text-blue-700' :
+                                  d.source === 'anvisa' ? 'bg-green-100 text-green-700' :
+                                  d.source === 'fda' ? 'bg-purple-100 text-purple-700' :
+                                  d.source === 'infarmed' ? 'bg-orange-100 text-orange-100' :
+                                  'bg-slate-100 text-slate-600'
+                                }`}>{d.source?.toUpperCase() || ''}</span>
+                              </div>
+                            ))}
+                          </div>
                         </FormField>
                         <FormField label={t('presc_active_ingredient', 'app')} error={prescFieldErrors.activeIngredient}>
                           <input type="text" value={editingItem.activeIngredient} onChange={e => setEditingItem(prev => prev ? { ...prev, activeIngredient: e.target.value } : null)} className={inputCls} />
