@@ -970,7 +970,31 @@ const ClinicalModuleContent = ({
     activeSessionRef.current = { id: logId, patientId, fields: [tab] };
   }, [activeOperator, handleSaveAccessControl, closeAccessSession, genId]);
 
-  // Reset do estado de envio ao trocar de receita (cada receita tem seu próprio ciclo)
+  // Regenera o QR code (data URL) a partir do payload armazenado, ao trocar de receita ou recarregar
+  const prescQrDataUrlRef = useRef('');
+  useEffect(() => { prescQrDataUrlRef.current = prescQrDataUrl; }, [prescQrDataUrl]);
+  useEffect(() => {
+    let cancelled = false;
+    const regen = async () => {
+      const payload = selectedHeader?.qrCodeData;
+      if (payload && !prescQrDataUrlRef.current) {
+        try {
+          const url = await generateQrDataUrl(payload);
+          if (!cancelled) setPrescQrDataUrl(url);
+        } catch (err) {
+          console.error('[QR] regenerate failed:', err);
+        }
+      } else if (!payload && prescQrDataUrlRef.current) {
+        setPrescQrDataUrl('');
+      }
+    };
+    regen();
+    return () => { cancelled = true; };
+  }, [selectedHeader?.id, selectedHeader?.qrCodeData]);
+
+  useEffect(() => {
+    setSentChannels({ whatsapp: false, email: false });
+  }, [selectedPrescriptionId]);
   useEffect(() => {
     setSentChannels({ whatsapp: false, email: false });
   }, [selectedPrescriptionId]);
@@ -1483,6 +1507,14 @@ const ClinicalModuleContent = ({
     }
   };
 
+  // Ao abrir a aba de Receituário, sempre inicia com uma nova receita em rascunho
+  useEffect(() => {
+    if (hceTab !== 'prescriptions') return;
+    if (!selectedPatient) return;
+    handleNewPrescription();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hceTab, selectedPatient]);
+
   // ─── SAVE ITEM (adiciona medicamento à receita selecionada) ───
   const runPrescriptionSafetyChecks = useCallback(async (items: PrescriptionItem[]) => {
     if (!items.length) {
@@ -1652,25 +1684,25 @@ const ClinicalModuleContent = ({
         snomedCode: i.snomedCode || null,
       })),
     });
-    if (header) {
-      const payload = buildPrescriptionQrPayload({
+    const payload = buildPrescriptionQrPayload({
         id: prescId,
-        patientId: header.patientId,
+        patientId: header?.patientId || selectedPatient?.id || '',
         patientName: selectedPatient?.name || '',
-        createdAt: header.createdAt,
+        createdAt: header?.createdAt || new Date().toISOString(),
         signedAt,
         verificationCode: sig.verificationCode,
         items: items.map(i => ({ name: i.drugName, dosage: i.dosage, frequency: i.frequency })),
       });
       const qrUrl = await generateQrDataUrl(payload);
       setPrescQrDataUrl(qrUrl);
-      const updated: PrescriptionHeader = { ...header, status: 'assinado', signedAt, qrCodeData: payload };
-      setPrescriptions(prev => prev.map(p => p.id === prescId ? updated : p));
-    }
-    if (supabase) {
-      await supabase.from('prescriptions').update({ status: 'assinado', signed_at: signedAt }).eq('id', prescId);
-    }
-  };
+      if (header) {
+        const updated: PrescriptionHeader = { ...header, status: 'assinado', signedAt, qrCodeData: payload };
+        setPrescriptions(prev => prev.map(p => p.id === prescId ? updated : p));
+      }
+      if (supabase) {
+        await supabase.from('prescriptions').update({ status: 'assinado', signed_at: signedAt, qr_code_data: payload, signature_id: sig.id }).eq('id', prescId);
+      }
+    };
 
   // ─── DELETE PRESCRIPTION (cabeçalho; itens excluem em cascata) ───
   const handleDeletePrescription = async (prescId: string) => {
