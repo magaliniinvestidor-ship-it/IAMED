@@ -379,6 +379,7 @@ export interface AccessControl {
   ipAddress: string;
   notifiedPrivacyOfficer: boolean;
   notificationSentAt?: string;
+  sessionEndAt?: string;
 }
 
 // ==========================================

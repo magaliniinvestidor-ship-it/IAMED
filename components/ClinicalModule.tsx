@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { Patient, AsoExam, Cid10Code, ExamRequest, Procedure, Anamnese, SoapNote, Diagnosis, PhysicalExam, VitalSigns, AllergyEntry, MedicationEntry, FamilyHistoryEntry, SurgicalEntry, ElectronicSignature, AccessControl, PatientTimelineEvent, DrugCatalogItem, Professional, sensitiveFieldConfig } from '@/lib/mockData';
 import { supabase } from '@/lib/supabaseClient';
@@ -35,6 +35,7 @@ import {
   Lock as LockIcon
 } from 'lucide-react';
 import { PermissionGate, WithPermissions, useUserPermissions } from '@/components/ui/PermissionGate';
+import { hasPermission } from '@/lib/usePermissions';
 import I18nDatePicker from '@/components/I18nDatePicker';
 
 interface ClinicalModuleProps {
@@ -116,7 +117,7 @@ const ClinicalModuleContent = ({
 }: ClinicalModuleProps) => {
   const { t, locale } = useI18n();
   const userPermissions = useUserPermissions();
-  const hasSensitiveAccess = userPermissions.includes('view_sensitive');
+  const hasSensitiveAccess = hasPermission(userPermissions, 'view_sensitive');
 
   // Patient selection
   const [selectedPatId, setSelectedPatId] = useState('');
@@ -256,7 +257,10 @@ const ClinicalModuleContent = ({
   // ─── SECURITY STATE ───
   const [breakGlassActive, setBreakGlassActive] = useState(false);
   const [breakGlassJustification, setBreakGlassJustification] = useState('');
+  const breakGlassTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [accessLogs, setAccessLogs] = useState<AccessControl[]>([]);
+  const activeSessionRef = useRef<{ id: string; patientId: string; fields: string[] } | null>(null);
+  const hceTabRef = useRef<HCETab>(hceTab);
   const [careTeam, setCareTeam] = useState<{ id: string; professionalName: string; role: string }[]>([]);
   const [careTeamLoaded, setCareTeamLoaded] = useState(false);
   const [careTeamProfId, setCareTeamProfId] = useState('');
@@ -721,6 +725,7 @@ const ClinicalModuleContent = ({
           ipAddress: a.ip_address || '',
           notifiedPrivacyOfficer: a.notified_privacy_officer || false,
           notificationSentAt: a.notification_sent_at,
+          sessionEndAt: a.session_end_at || undefined,
         })));
       }
     } catch (error) {
@@ -901,26 +906,68 @@ const ClinicalModuleContent = ({
         ip_address: log.ipAddress,
         notified_privacy_officer: log.notifiedPrivacyOfficer,
         notification_sent_at: log.notificationSentAt || null,
+        session_end_at: log.sessionEndAt || null,
       });
     }
   }, []);
 
-  // ─── LOG NORMAL VIEW (registro detalhado de cada visualização) ───
+  // ─── CLOSE ACTIVE SESSION (atualiza session_end_at e fecha ref) ───
+  const closeAccessSession = useCallback(async () => {
+    const session = activeSessionRef.current;
+    if (!session) return;
+    if (supabase) {
+      await supabase.from('access_controls')
+        .update({ session_end_at: new Date().toISOString() })
+        .eq('id', session.id);
+    }
+    setAccessLogs(prev => prev.map(l => l.id === session.id ? { ...l, sessionEndAt: new Date().toISOString() } : l));
+    activeSessionRef.current = null;
+  }, []);
+
+  // ─── LOG NORMAL VIEW (1 registro por sessão de prontuário; acumula abas) ───
   const logHceView = useCallback(async (patientId: string) => {
     if (!supabase) return;
+    const now = new Date().toISOString();
+    const tab = 'hce_' + hceTabRef.current;
+
+    // Se já há sessão ativa para este paciente, apenas acumula a aba acessada
+    const session = activeSessionRef.current;
+    if (session && session.patientId === patientId) {
+      if (!session.fields.includes(tab)) {
+        session.fields.push(tab);
+        await supabase.from('access_controls')
+          .update({ fields_accessed: session.fields })
+          .eq('id', session.id);
+        setAccessLogs(prev => prev.map(l => l.id === session.id ? { ...l, fieldsAccessed: [...session.fields] } : l));
+      }
+      return;
+    }
+
+    // Nova sessão: fecha a anterior (outro paciente) e cria novo registro
+    if (session) {
+      await closeAccessSession();
+    }
+    const logId = await genId('ac');
     const log: AccessControl = {
-      id: await genId('ac'),
+      id: logId,
       patientId,
       accessedBy: activeOperator,
-      accessedAt: new Date().toISOString(),
+      accessedAt: now,
       accessType: 'normal',
       justification: 'Visualização de rotina do HCE',
-      fieldsAccessed: ['hce_' + hceTab],
+      fieldsAccessed: [tab],
       ipAddress: '192.168.1.1',
       notifiedPrivacyOfficer: false,
     };
     handleSaveAccessControl(log);
-  }, [activeOperator, handleSaveAccessControl, hceTab, genId]);
+    activeSessionRef.current = { id: logId, patientId, fields: [tab] };
+  }, [activeOperator, handleSaveAccessControl, closeAccessSession, genId]);
+
+  // Mantém hceTabRef sincronizado e acumula a aba na sessão ativa
+  useEffect(() => {
+    hceTabRef.current = hceTab;
+    if (selectedPatId && supabase) logHceView(selectedPatId);
+  }, [hceTab, selectedPatId, logHceView]);
 
   // Load data when patient changes
   useEffect(() => {
@@ -932,6 +979,13 @@ const ClinicalModuleContent = ({
       logHceView(selectedPatId);
     }
   }, [selectedPatId, loadPatientData, loadTimelineData, loadClinicalEvents, loadCareTeam, logHceView]);
+
+  useEffect(() => {
+    return () => {
+      if (breakGlassTimeoutRef.current) clearTimeout(breakGlassTimeoutRef.current);
+      closeAccessSession();
+    };
+  }, [closeAccessSession]);
 
   // Reset form when patient changes (moved from useEffect to event handler)
   const handlePatientChange = useCallback((newPatientId: string) => {
@@ -1081,9 +1135,10 @@ const ClinicalModuleContent = ({
         read: false,
       });
     }
-    setBreakGlassActive(false);
     setBreakGlassJustification('');
     addAuditLog('Quebra de Vidro (Emergência)', `Paciente: ${selectedPatient?.name}`);
+    if (breakGlassTimeoutRef.current) clearTimeout(breakGlassTimeoutRef.current);
+    breakGlassTimeoutRef.current = setTimeout(() => setBreakGlassActive(false), 10 * 60 * 1000);
   }, [breakGlassJustification, selectedPatient, activeOperator, addAuditLog, handleSaveAccessControl, genId]);
 
   // ─── SAVE ANAMNESE ───
@@ -2547,7 +2602,7 @@ const ClinicalModuleContent = ({
                   {/* Gynecological (campo sensível - Lei 1682/2001) */}
                   <div className="border border-slate-100 rounded-xl p-3 space-y-2">
                     <h5 className="text-xs font-bold text-slate-600 uppercase">{t('hce_gynecological', 'app')}</h5>
-                    {!hasSensitiveAccess ? (
+                    {!hasSensitiveAccess && !breakGlassActive ? (
                       <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-[10px] text-slate-400 flex items-center gap-2">
                         <Lock className="w-3.5 h-3.5 flex-shrink-0" /> {t('hce_sensitive_locked', 'app')}
                       </div>
@@ -2581,7 +2636,7 @@ const ClinicalModuleContent = ({
                   {/* Obstetric (campo sensível - Lei 1682/2001) */}
                   <div className="border border-slate-100 rounded-xl p-3 space-y-2">
                     <h5 className="text-xs font-bold text-slate-600 uppercase">{t('hce_obstetric', 'app')}</h5>
-                    {!hasSensitiveAccess ? (
+                    {!hasSensitiveAccess && !breakGlassActive ? (
                       <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-[10px] text-slate-400 flex items-center gap-2">
                         <Lock className="w-3.5 h-3.5 flex-shrink-0" /> {t('hce_sensitive_locked', 'app')}
                       </div>
@@ -4146,7 +4201,7 @@ const ClinicalModuleContent = ({
                         {breakGlassActive ? <Unlock className="w-4 h-4 text-rose-600" /> : <Lock className="w-4 h-4 text-slate-600" />}
                         {t('hce_break_glass', 'app')}
                       </h5>
-                      <button onClick={() => setBreakGlassActive(!breakGlassActive)}
+                      <button onClick={() => { if (breakGlassTimeoutRef.current) clearTimeout(breakGlassTimeoutRef.current); setBreakGlassActive(!breakGlassActive); }}
                         className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${breakGlassActive ? 'bg-rose-600 text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'}`}>
                         {breakGlassActive ? t('hce_break_glass_activated', 'app') : t('hce_break_glass_activate', 'app')}
                       </button>
