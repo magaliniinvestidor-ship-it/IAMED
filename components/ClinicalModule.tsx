@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import Image from 'next/image';
-import { Patient, AsoExam, Cid10Code, Prescription, ExamRequest, Procedure, Anamnese, SoapNote, Diagnosis, PhysicalExam, VitalSigns, AllergyEntry, MedicationEntry, FamilyHistoryEntry, SurgicalEntry, ElectronicSignature, AccessControl, PatientTimelineEvent, DrugCatalogItem, sensitiveFieldConfig } from '@/lib/mockData';
+import { Patient, AsoExam, Cid10Code, ExamRequest, Procedure, Anamnese, SoapNote, Diagnosis, PhysicalExam, VitalSigns, AllergyEntry, MedicationEntry, FamilyHistoryEntry, SurgicalEntry, ElectronicSignature, AccessControl, PatientTimelineEvent, DrugCatalogItem, sensitiveFieldConfig } from '@/lib/mockData';
 import { supabase } from '@/lib/supabaseClient';
 import { useI18n } from '@/lib/i18n/I18nContext';
 import { getVitalsBands, classifyBmiForAge } from '@/lib/vitals/vitalsLimits';
@@ -46,6 +46,41 @@ interface ClinicalModuleProps {
 
 // HCE Tab type
 type HCETab = 'anamnese' | 'exam' | 'soap' | 'diagnoses' | 'prescriptions' | 'exams' | 'procedures' | 'attachments' | 'signatures' | 'timeline' | 'security';
+
+// Modelo de receita com múltiplos medicamentos: cabeçalho + itens
+interface PrescriptionHeader {
+  id: string;
+  patientId: string;
+  createdBy: string;
+  createdAt: string;
+  updatedBy?: string;
+  status: 'rascunho' | 'assinado' | 'cancelado' | 'dispensado';
+  signedAt?: string;
+  signatureId?: string;
+  qrCodeData: string;
+  title?: string;
+  notes?: string;
+}
+
+interface PrescriptionItem {
+  id: string;
+  prescriptionId: string;
+  position: number;
+  prescriptionType: 'comum' | 'controlado' | 'arquivado';
+  drugName: string;
+  activeIngredient: string;
+  presentation: string;
+  dosage: string;
+  frequency: string;
+  route: string;
+  duration: string;
+  startDate: string;
+  quantity: number;
+  unit: string;
+  notes: string;
+  snomedCode?: string;
+  snomedDescription?: string;
+}
 
 // CID-10 seed data inline for lookup
 
@@ -123,12 +158,14 @@ const ClinicalModuleContent = ({
     cid10Code: '', cid10Description: '', diagnosisType: 'principal', status: 'ativo', notes: '', snomedCode: '', snomedDescription: '',
   });
   const [editingDiagnosis, setEditingDiagnosis] = useState<Diagnosis | null>(null);
-  const [editingPrescription, setEditingPrescription] = useState<Prescription | null>(null);
+  const [editingItem, setEditingItem] = useState<PrescriptionItem | null>(null);
   const [editingExamRequest, setEditingExamRequest] = useState<ExamRequest | null>(null);
   const [editingProcedure, setEditingProcedure] = useState<Procedure | null>(null);
 
-  // ─── PRESCRIPTION STATE ───
-  const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
+  // ─── PRESCRIPTION STATE (cabeçalho + itens) ───
+  const [prescriptions, setPrescriptions] = useState<PrescriptionHeader[]>([]);
+  const [allItems, setAllItems] = useState<PrescriptionItem[]>([]);
+  const [selectedPrescriptionId, setSelectedPrescriptionId] = useState<string | null>(null);
   const [prescriptionForm, setPrescriptionForm] = useState({
     drugName: '', activeIngredient: '', presentation: '',
     dosage: '', frequency: '', route: 'oral', duration: '', quantity: 1, unit: 'comprimidos', notes: '',
@@ -139,12 +176,24 @@ const ClinicalModuleContent = ({
   const [drugSearch, setDrugSearch] = useState('');
   const [showDrugDropdown, setShowDrugDropdown] = useState(false);
 
+  // Itens e cabeçalho da receita selecionada
+  const selectedItems = useMemo(
+    () => (selectedPrescriptionId
+      ? allItems.filter(i => i.prescriptionId === selectedPrescriptionId).sort((a, b) => a.position - b.position)
+      : []),
+    [allItems, selectedPrescriptionId]
+  );
+  const selectedHeader = useMemo(
+    () => prescriptions.find(p => p.id === selectedPrescriptionId) || null,
+    [prescriptions, selectedPrescriptionId]
+  );
+
   const searchDrugCatalog = useCallback(async (query: string) => {
     if (!supabase) return;
     if (!query.trim()) {
       const { data } = await supabase
         .from('drug_catalog')
-        .select('id, name, active_ingredient, presentation, manufacturer, category, controlled_category, requires_prescription, source, source_id, country, default_dosage, default_frequency, default_duration, route')
+        .select('id, name, active_ingredient, presentation, manufacturer, category, controlled_category, requires_prescription, source, source_id, country, default_dosage, default_frequency, default_duration, common_dose_adult, route, snomed_code, snomed_description')
         .order('name')
         .limit(100);
       if (data) setDrugCatalogItems(data as any);
@@ -152,7 +201,7 @@ const ClinicalModuleContent = ({
     }
     const { data } = await supabase
       .from('drug_catalog')
-      .select('id, name, active_ingredient, presentation, manufacturer, category, controlled_category, requires_prescription, source, source_id, country, default_dosage, default_frequency, default_duration, route')
+      .select('id, name, active_ingredient, presentation, manufacturer, category, controlled_category, requires_prescription, source, source_id, country, default_dosage, default_frequency, default_duration, common_dose_adult, route, snomed_code, snomed_description')
       .or(`name.ilike.%${query}%,active_ingredient.ilike.%${query}%,name_es.ilike.%${query}%,name_pt.ilike.%${query}%,name_en.ilike.%${query}%`)
       .order('name')
       .limit(100);
@@ -451,7 +500,7 @@ const ClinicalModuleContent = ({
         })));
       }
 
-      // Load prescriptions
+      // Load prescriptions (headers)
       const { data: prescData } = await supabase
         .from('prescriptions')
         .select('*')
@@ -459,32 +508,55 @@ const ClinicalModuleContent = ({
         .order('created_at', { ascending: false });
 
       if (prescData) {
-        setPrescriptions(prescData.map(p => ({
+        const headers: PrescriptionHeader[] = prescData.map(p => ({
           id: p.id,
           patientId: p.patient_id,
           createdBy: p.created_by,
           createdAt: p.created_at,
           updatedBy: p.updated_by || '',
-          prescriptionType: p.prescription_type,
-          drugName: p.drug_name,
-          activeIngredient: p.active_ingredient || '',
-          dosage: p.dosage,
-          frequency: p.frequency,
-          route: p.route || 'oral',
-          duration: p.duration || '',
-          startDate: p.start_date,
-          endDate: p.end_date,
-          quantity: p.quantity || 1,
-          unit: p.unit || 'unidade',
-          refillCount: p.refill_count || 0,
-          notes: p.notes || '',
-          qrCodeData: p.qr_code_data || '',
-          snomedCode: p.snomed_code || '',
-          snomedDescription: p.snomed_description || '',
+          status: p.status,
           signedAt: p.signed_at,
           signatureId: p.signature_id,
-          status: p.status,
-        })));
+          qrCodeData: p.qr_code_data || '',
+          title: p.title || '',
+          notes: p.notes || '',
+        })) as PrescriptionHeader[];
+        setPrescriptions(headers);
+        if (headers.length > 0) setSelectedPrescriptionId(headers[0].id);
+
+        // Load items of all headers (para exibição + timeline)
+        let itemData: any[] = [];
+        if (headers.length > 0) {
+          const { data } = await supabase
+            .from('prescription_items')
+            .select('*')
+            .in('prescription_id', headers.map(h => h.id))
+            .order('position', { ascending: true });
+          itemData = data || [];
+        }
+        setAllItems(itemData.map(i => ({
+          id: i.id,
+          prescriptionId: i.prescription_id,
+          position: i.position,
+          prescriptionType: i.prescription_type,
+          drugName: i.drug_name,
+          activeIngredient: i.active_ingredient || '',
+          presentation: i.presentation || '',
+          dosage: i.dosage || '',
+          frequency: i.frequency || '',
+          route: i.route || 'oral',
+          duration: i.duration || '',
+          startDate: i.start_date || '',
+          quantity: i.quantity || 1,
+          unit: i.unit || 'unidade',
+          notes: i.notes || '',
+          snomedCode: i.snomed_code || '',
+          snomedDescription: i.snomed_description || '',
+        })) as PrescriptionItem[]);
+      } else {
+        setPrescriptions([]);
+        setAllItems([]);
+        setSelectedPrescriptionId(null);
       }
 
       // Load exam requests
@@ -693,7 +765,8 @@ const ClinicalModuleContent = ({
     setEditingDiagnosis(null);
     setEditingExamRequest(null);
     setEditingProcedure(null);
-    setEditingPrescription(null);
+    setEditingItem(null);
+    setSelectedPrescriptionId(null);
     clearDiagnosisErrors();
     clearExamErrors();
     clearProcErrors();
@@ -718,8 +791,9 @@ const ClinicalModuleContent = ({
   const filteredCid10 = useMemo(() => cid10Data, [cid10Data]);
 
   // ─── QR CODE GENERATION (simple hash) ───
-  const generateQRData = useCallback((prescription: Prescription) => {
-    const data = `${prescription.id}|${prescription.patientId}|${prescription.drugName}|${prescription.dosage}|${prescription.createdBy}|${prescription.createdAt}`;
+  const generateQRData = useCallback((header: PrescriptionHeader, items: PrescriptionItem[]) => {
+    const drugs = items.map(i => i.drugName).join('+');
+    const data = `${header.id}|${header.patientId}|${drugs}|${header.createdBy}|${header.createdAt}`;
     let hash = 0;
     for (let i = 0; i < data.length; i++) {
       const char = data.charCodeAt(i);
@@ -1113,8 +1187,40 @@ const ClinicalModuleContent = ({
     addAuditLog('Excluiu Evolução SOAP', selectedPatient?.name || '');
   };
 
-  // ─── SAVE PRESCRIPTION ───
-  const handleSavePrescription = async () => {
+  // ─── NEW PRESCRIPTION (cria cabeçalho vazio) ───
+  const handleNewPrescription = async () => {
+    if (!selectedPatient) return;
+    const header: PrescriptionHeader = {
+      id: await genId('presc'),
+      patientId: selectedPatient.id,
+      createdBy: activeOperator,
+      createdAt: new Date().toISOString(),
+      status: 'rascunho',
+      qrCodeData: '',
+      title: '',
+    };
+    setPrescriptions(prev => [header, ...prev]);
+    setSelectedPrescriptionId(header.id);
+    setEditingItem(null);
+    clearPrescErrors();
+    setPrescriptionForm({ drugName: '', activeIngredient: '', presentation: '', dosage: '', frequency: '', route: 'oral', duration: '', quantity: 1, unit: 'comprimidos', notes: '', snomedCode: '', snomedDescription: '', prescriptionType: 'comum' });
+    addAuditLog('Receita Criada', `${selectedPatient.name}`);
+    if (supabase) {
+      await supabase.from('prescriptions').insert({
+        id: header.id, patient_id: header.patientId, created_by: header.createdBy,
+        updated_by: null,
+        prescription_type: 'comum', drug_name: '', active_ingredient: '',
+        presentation: '', dosage: '', frequency: '', route: '', duration: '',
+        start_date: new Date().toISOString().split('T')[0], quantity: 1, unit: '',
+        refill_count: 0, notes: '', qr_code_data: '',
+        snomed_code: null, snomed_description: null,
+        status: header.status,
+      });
+    }
+  };
+
+  // ─── SAVE ITEM (adiciona medicamento à receita selecionada) ───
+  const handleSavePrescriptionItem = async () => {
     // Zod validation
     const prescResult = validatePresc({
       patientId: selectedPatient?.id || '',
@@ -1131,16 +1237,18 @@ const ClinicalModuleContent = ({
       snomedDescription: prescriptionForm.snomedDescription || '',
     });
     if (!prescResult.success) return;
-
+    if (!selectedPrescriptionId) return;
     if (!prescriptionForm.drugName.trim()) return;
-    const presc: Prescription = {
-      id: await genId('presc'),
-      patientId: selectedPatient?.id || '',
-      createdBy: activeOperator,
-      createdAt: new Date().toISOString(),
+
+    const position = allItems.filter(i => i.prescriptionId === selectedPrescriptionId).length + 1;
+    const item: PrescriptionItem = {
+      id: await genId('pitem'),
+      prescriptionId: selectedPrescriptionId,
+      position,
       prescriptionType: prescriptionForm.prescriptionType,
       drugName: prescriptionForm.drugName,
       activeIngredient: prescriptionForm.activeIngredient,
+      presentation: prescriptionForm.presentation,
       dosage: prescriptionForm.dosage,
       frequency: prescriptionForm.frequency,
       route: prescriptionForm.route,
@@ -1148,51 +1256,105 @@ const ClinicalModuleContent = ({
       startDate: new Date().toISOString().split('T')[0],
       quantity: prescriptionForm.quantity,
       unit: prescriptionForm.unit,
-      refillCount: 0,
       notes: prescriptionForm.notes,
-      qrCodeData: '',
       snomedCode: prescriptionForm.snomedCode,
       snomedDescription: prescriptionForm.snomedDescription,
-      status: 'rascunho',
     };
-    presc.qrCodeData = generateQRData(presc);
-    setPrescriptions(prev => [presc, ...prescriptions]);
+    setAllItems(prev => [...prev, item]);
     setPrescriptionForm({ drugName: '', activeIngredient: '', presentation: '', dosage: '', frequency: '', route: 'oral', duration: '', quantity: 1, unit: 'comprimidos', notes: '', snomedCode: '', snomedDescription: '', prescriptionType: 'comum' });
-    addAuditLog('Prescrição Criada', `${presc.drugName} - ${selectedPatient?.name}`);
+    clearPrescErrors();
+    addAuditLog('Medicamento Adicionado à Receita', `${item.drugName} - ${selectedPatient?.name}`);
     if (supabase) {
-      await supabase.from('prescriptions').insert({
-        id: presc.id, patient_id: presc.patientId, created_by: presc.createdBy,
-        updated_by: null,
-        prescription_type: presc.prescriptionType, drug_name: presc.drugName,
-        active_ingredient: presc.activeIngredient, presentation: prescriptionForm.presentation || '',
-        dosage: presc.dosage,
-        frequency: presc.frequency, route: presc.route, duration: presc.duration,
-        start_date: presc.startDate, quantity: presc.quantity, unit: presc.unit,
-        refill_count: presc.refillCount, notes: presc.notes, qr_code_data: presc.qrCodeData,
-        snomed_code: presc.snomedCode || null, snomed_description: presc.snomedDescription || null,
-        status: presc.status,
+      await supabase.from('prescription_items').insert({
+        id: item.id, prescription_id: item.prescriptionId, position: item.position,
+        prescription_type: item.prescriptionType, drug_name: item.drugName,
+        active_ingredient: item.activeIngredient, presentation: item.presentation,
+        dosage: item.dosage, frequency: item.frequency, route: item.route,
+        duration: item.duration, start_date: item.startDate, quantity: item.quantity,
+        unit: item.unit, notes: item.notes,
+        snomed_code: item.snomedCode || null, snomed_description: item.snomedDescription || null,
       });
     }
   };
 
-  // ─── SIGN PRESCRIPTION ───
-  const handleSignPrescription = async (prescId: string) => {
-    setPrescriptions(prev => prev.map(p =>
-      p.id === prescId ? { ...p, status: 'assinado', signedAt: new Date().toISOString() } : p
-    ));
-    await handleSignDocument('prescricao', prescId);
+  // ─── UPDATE ITEM ───
+  const handleUpdatePrescriptionItem = async (item: PrescriptionItem) => {
+    const prescResult = validatePresc({
+      patientId: selectedPatient?.id || '',
+      drugName: item.drugName,
+      activeIngredient: item.activeIngredient || '',
+      dosage: item.dosage || '',
+      frequency: item.frequency || '',
+      route: item.route || '',
+      duration: item.duration || '',
+      quantity: Number(item.quantity) || 0,
+      unit: item.unit || '',
+      notes: item.notes || '',
+      snomedCode: item.snomedCode || '',
+      snomedDescription: item.snomedDescription || '',
+    });
+    if (!prescResult.success) return;
+    setAllItems(prev => prev.map(i => i.id === item.id ? item : i));
+    setEditingItem(null);
+    clearPrescErrors();
+    addAuditLog('Atualizou Medicamento da Receita', `${item.drugName} - ${selectedPatient?.name}`);
     if (supabase) {
-      await supabase.from('prescriptions').update({ status: 'assinado', signed_at: new Date().toISOString() }).eq('id', prescId);
+      await supabase.from('prescription_items').update({
+        drug_name: item.drugName,
+        active_ingredient: item.activeIngredient,
+        presentation: item.presentation,
+        dosage: item.dosage,
+        frequency: item.frequency,
+        route: item.route,
+        duration: item.duration,
+        quantity: item.quantity,
+        unit: item.unit,
+        prescription_type: item.prescriptionType,
+        snomed_code: item.snomedCode || null,
+        snomed_description: item.snomedDescription || null,
+        notes: item.notes,
+      }).eq('id', item.id);
     }
   };
 
-  // ─── DELETE PRESCRIPTION ───
+  // ─── DELETE ITEM ───
+  const handleDeletePrescriptionItem = async (itemId: string) => {
+    if (!confirm(t('presc_confirm_delete_item', 'app'))) return;
+    setAllItems(prev => prev.filter(i => i.id !== itemId));
+    if (editingItem?.id === itemId) setEditingItem(null);
+    if (supabase) {
+      await supabase.from('prescription_items').delete().eq('id', itemId);
+    }
+  };
+
+  // ─── SIGN PRESCRIPTION (assina o cabeçalho com todos os itens) ───
+  const handleSignPrescription = async (prescId: string) => {
+    const signedAt = new Date().toISOString();
+    setPrescriptions(prev => prev.map(p =>
+      p.id === prescId ? { ...p, status: 'assinado', signedAt } : p
+    ));
+    const items = allItems.filter(i => i.prescriptionId === prescId);
+    const header = prescriptions.find(p => p.id === prescId);
+    if (header) {
+      const updated: PrescriptionHeader = { ...header, status: 'assinado', signedAt, qrCodeData: generateQRData({ ...header, status: 'assinado', signedAt }, items) };
+      setPrescriptions(prev => prev.map(p => p.id === prescId ? updated : p));
+    }
+    await handleSignDocument('prescricao', prescId);
+    if (supabase) {
+      await supabase.from('prescriptions').update({ status: 'assinado', signed_at: signedAt }).eq('id', prescId);
+    }
+  };
+
+  // ─── DELETE PRESCRIPTION (cabeçalho; itens excluem em cascata) ───
   const handleDeletePrescription = async (prescId: string) => {
+    if (!confirm(t('presc_confirm_delete_receipt', 'app'))) return;
     setPrescriptions(prev => prev.filter(p => p.id !== prescId));
+    setAllItems(prev => prev.filter(i => i.prescriptionId !== prescId));
+    if (selectedPrescriptionId === prescId) setSelectedPrescriptionId(null);
     if (supabase) {
       await supabase.from('prescriptions').delete().eq('id', prescId);
     }
-    addAuditLog('Excluiu Prescrição', prescId);
+    addAuditLog('Excluiu Receita', prescId);
   };
 
   // ─── SAVE EXAM REQUEST ───
@@ -1305,30 +1467,6 @@ const ClinicalModuleContent = ({
     }
   };
 
-  // ─── UPDATE PRESCRIPTION ───
-  const handleUpdatePrescription = async (presc: Prescription) => {
-    setPrescriptions(prev => prev.map(p => p.id === presc.id ? presc : p));
-    setEditingPrescription(null);
-    addAuditLog('Atualizou Prescrição', `${presc.drugName} - ${selectedPatient?.name}`);
-    if (supabase) {
-      await supabase.from('prescriptions').update({
-        drug_name: presc.drugName,
-        active_ingredient: presc.activeIngredient,
-        dosage: presc.dosage,
-        frequency: presc.frequency,
-        route: presc.route,
-        duration: presc.duration,
-        quantity: presc.quantity,
-        unit: presc.unit,
-        prescription_type: presc.prescriptionType,
-        snomed_code: presc.snomedCode || null,
-        snomed_description: presc.snomedDescription || null,
-        notes: presc.notes,
-        updated_by: activeOperator,
-      }).eq('id', presc.id);
-    }
-  };
-
   // ─── UPDATE EXAM REQUEST ───
   const handleUpdateExamRequest = async (exam: ExamRequest) => {
     setExamRequests(prev => prev.map(e => e.id === exam.id ? exam : e));
@@ -1421,15 +1559,17 @@ const ClinicalModuleContent = ({
       });
     }
 
-    // Add prescriptions as timeline events
+    // Add prescriptions as timeline events (uma receita = um evento com seus itens)
     prescriptions.forEach(p => {
+      const pItems = allItems.filter(i => i.prescriptionId === p.id);
+      const drugNames = pItems.map(i => i.drugName).filter(Boolean).join(', ');
       events.push({
         id: p.id,
         patientId: p.patientId,
         eventType: 'prescricao',
         eventDate: p.createdAt,
-        eventTitle: `${t('hce_event_prescription', 'app')}${p.drugName}`,
-        eventDescription: `${p.dosage} - ${p.frequency} - ${p.route}`,
+        eventTitle: `${t('hce_event_prescription', 'app')}${drugNames || p.id}`,
+        eventDescription: pItems.map(i => `${i.drugName} ${i.dosage} - ${i.frequency} - ${i.route}`).join('; ') || p.notes || '',
         eventSource: 'prescription',
         eventSourceId: p.id,
         doctorName: p.createdBy,
@@ -1519,7 +1659,7 @@ const ClinicalModuleContent = ({
       }
       return true;
     });
-  }, [selectedPatient, prescriptions, examRequests, procedureList, anamnese, soapNote, timelineSearch, timelineFilterType, timelineFilterDoctor, t]);
+  }, [selectedPatient, prescriptions, allItems, examRequests, procedureList, anamnese, soapNote, timelineSearch, timelineFilterType, timelineFilterDoctor, t]);
 
   // ─── ASO & CAT HANDLERS ───
   const handleCreateAso = async (e: React.FormEvent) => {
@@ -2698,57 +2838,100 @@ const ClinicalModuleContent = ({
                       <h3 className="font-bold text-teal-800 text-sm tracking-wider uppercase">{t('presc_title', 'app')}</h3>
                     </div>
 
-                    {/* Medications List (numeração mantida como identidade da receita) */}
-                    <div className="p-4 space-y-3">
-                      {prescriptions.length === 0 ? (
+                    {/* Itens da receita (tabela) */}
+                    <div className="p-4">
+                      {!selectedPrescriptionId ? (
+                        <p className="text-center text-slate-400 text-xs py-4">{t('presc_select_receipt', 'app')}</p>
+                      ) : selectedItems.length === 0 ? (
                         <p className="text-center text-slate-400 text-xs py-4">{t('presc_empty', 'app')}</p>
                       ) : (
-                        <div className="space-y-2">
-                          {prescriptions.map((p, idx) => (
-                            <div key={p.id} className={`flex items-start gap-3 text-xs py-2 border-b border-slate-100 last:border-0 ${editingPrescription?.id === p.id ? 'bg-teal-50 -mx-2 px-2 rounded' : ''}`}>
-                              <span className="font-bold text-teal-600 mt-0.5">{idx + 1}.</span>
-                              <div className="flex-1 min-w-0">
-                                <p className="font-bold text-slate-800">{p.drugName}</p>
-                                <p className="text-slate-500">{p.dosage} — {p.frequency} — {p.route}</p>
-                                <p className="text-slate-400">{t('presc_duration_label', 'app')} {p.duration} | {t('presc_quantity_label', 'app')} {p.quantity} {p.unit}</p>
-                                {p.snomedCode && <p className="text-slate-400 text-[10px]">{t('hce_snomed_code', 'app')}: {p.snomedCode}{p.snomedDescription ? ` — ${p.snomedDescription}` : ''}</p>}
-                                {p.notes && <p className="text-slate-400 italic mt-0.5">{p.notes}</p>}
-                              </div>
-                              <div className="flex items-center gap-1 flex-shrink-0">
-                                <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
-                                  p.prescriptionType === 'controlado' ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-600'
-                                }`}>{p.prescriptionType === 'controlado' ? t('presc_badge_controlled', 'app') : t('presc_badge_common', 'app')}</span>
-                                <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
-                                  p.status === 'assinado' ? 'bg-green-100 text-green-700' :
-                                  p.status === 'rascunho' ? 'bg-slate-100 text-slate-600' :
-                                  'bg-rose-100 text-rose-700'
-                                }`}>{t(`hce_prescription_${p.status}`, 'app')}</span>
-                              </div>
-                            </div>
-                          ))}
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-xs">
+                            <thead>
+                              <tr className="text-left text-[10px] uppercase tracking-wider text-slate-500 border-b border-slate-200">
+                                <th className="py-1.5 pr-2">#</th>
+                                <th className="py-1.5 pr-2">{t('presc_medication', 'app')}</th>
+                                <th className="py-1.5 pr-2">{t('presc_add_posology', 'app')}</th>
+                                <th className="py-1.5 pr-2">{t('presc_type', 'app')}</th>
+                                <th className="py-1.5 pr-2">{t('presc_col_actions', 'app')}</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                              {selectedItems.map((item, idx) => (
+                                <tr key={item.id} className={editingItem?.id === item.id ? 'bg-teal-50' : ''}>
+                                  <td className="py-2 pr-2 font-bold text-teal-600">{idx + 1}.</td>
+                                  <td className="py-2 pr-2 align-top">
+                                    <p className="font-bold text-slate-800">{item.drugName}</p>
+                                    {item.activeIngredient && <p className="text-slate-500">{item.activeIngredient}</p>}
+                                    {item.snomedCode && <p className="text-slate-400 text-[10px]">{t('hce_snomed_code', 'app')}: {item.snomedCode}{item.snomedDescription ? ` — ${item.snomedDescription}` : ''}</p>}
+                                    {item.notes && <p className="text-slate-400 italic mt-0.5">{item.notes}</p>}
+                                  </td>
+                                  <td className="py-2 pr-2 align-top">
+                                    <p className="text-slate-600">{item.dosage} — {item.frequency} — {t(`presc_route_${item.route}`, 'app')}</p>
+                                    <p className="text-slate-400">{t('presc_duration_label', 'app')} {item.duration} | {t('presc_quantity_label', 'app')} {item.quantity} {item.unit}</p>
+                                  </td>
+                                  <td className="py-2 pr-2 align-top">
+                                    <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${item.prescriptionType === 'controlado' ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-600'}`}>
+                                      {item.prescriptionType === 'controlado' ? t('presc_badge_controlled', 'app') : t('presc_badge_common', 'app')}
+                                    </span>
+                                  </td>
+                                  <td className="py-2 pr-2 align-top">
+                                    <div className="flex items-center gap-1">
+                                      <button onClick={() => { setEditingItem(item); clearPrescErrors(); }} className="p-1 text-slate-500 hover:text-teal-600" title={t('hce_edit', 'app')}>
+                                        <Pencil className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button onClick={() => handleDeletePrescriptionItem(item.id)} className="p-1 text-slate-500 hover:text-rose-600" title={t('hce_delete', 'app')}>
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
                         </div>
                       )}
                     </div>
+
+                    {/* Ações da receita */}
+                    {selectedPrescriptionId && selectedHeader && (
+                      <div className="px-4 pb-4 flex flex-wrap items-center gap-2">
+                        {selectedHeader.status === 'rascunho' && (
+                          <button onClick={() => handleSignPrescription(selectedPrescriptionId)} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-xs font-bold rounded-lg flex items-center gap-1">
+                            <FileSignature className="w-3.5 h-3.5" /> {t('presc_sign_receipt', 'app')}
+                          </button>
+                        )}
+                        <button onClick={() => window.print()} className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-lg flex items-center gap-1">
+                          <Printer className="w-3.5 h-3.5" /> {t('presc_print', 'app')}
+                        </button>
+                        <button onClick={() => handleDeletePrescription(selectedPrescriptionId)} className="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold rounded-lg flex items-center gap-1">
+                          <Trash2 className="w-3.5 h-3.5" /> {t('presc_delete_receipt', 'app')}
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   {/* ═══ PAINEL LISTA + FORM (padrão lista à esquerda, form à direita) ═══ */}
                   <div className="flex gap-4">
                     <div className="w-52 shrink-0 space-y-2">
                       <p className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">{t('hce_presc_history', 'app')}</p>
-                      <button onClick={() => { setEditingPrescription(null); setPrescriptionForm({ drugName: '', activeIngredient: '', presentation: '', dosage: '', frequency: '', route: 'oral', duration: '', quantity: 1, unit: 'comprimidos', prescriptionType: 'comum', notes: '', snomedCode: '', snomedDescription: '' }); clearPrescErrors(); }} className="w-full py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg transition flex items-center justify-center gap-1">
-                        <Plus className="w-3.5 h-3.5" /> {t('hce_presc_new', 'app')}
+                      <button onClick={handleNewPrescription} className="w-full py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg transition flex items-center justify-center gap-1">
+                        <Plus className="w-3.5 h-3.5" /> {t('presc_new_button', 'app')}
                       </button>
                       {prescriptions.length === 0 && (
                         <p className="text-[10px] text-slate-400 italic">{t('hce_no_presc_records', 'app')}</p>
                       )}
                       {prescriptions.map((p, idx) => {
-                        const active = editingPrescription?.id === p.id;
+                        const itemCount = allItems.filter(i => i.prescriptionId === p.id).length;
+                        const active = selectedPrescriptionId === p.id;
                         return (
-                          <button key={p.id} onClick={() => { setEditingPrescription(p); clearPrescErrors(); }} className={`w-full text-left px-3 py-2 rounded-lg border transition ${active ? 'border-teal-400 bg-teal-50' : 'border-slate-200 bg-white hover:bg-slate-50'}`}>
+                          <button key={p.id} onClick={() => { setSelectedPrescriptionId(p.id); setEditingItem(null); clearPrescErrors(); }} className={`w-full text-left px-3 py-2 rounded-lg border transition ${active ? 'border-teal-400 bg-teal-50' : 'border-slate-200 bg-white hover:bg-slate-50'}`}>
                             <span className={`block text-xs font-bold truncate ${active ? 'text-teal-700' : 'text-slate-700'}`}>
-                              {idx + 1}. {p.drugName}
+                              {t('presc_receipt_label', 'app')} #{idx + 1}
                             </span>
-                            <span className="block text-[10px] text-slate-500 truncate">{p.dosage} — {p.frequency}</span>
+                            <span className="block text-[10px] text-slate-500 truncate">
+                              {itemCount > 0 ? t('presc_item_count', 'app').replace('{count}', String(itemCount)) : t('presc_no_items_label', 'app')}
+                            </span>
                             <div className="flex items-center gap-1 mt-0.5">
                               <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
                                 p.status === 'assinado' ? 'bg-green-100 text-green-700' :
@@ -2762,50 +2945,46 @@ const ClinicalModuleContent = ({
                     </div>
 
                     <div className="flex-1 min-w-0 space-y-3">
-                  {editingPrescription ? (
+                  {!selectedPrescriptionId ? (
+                    <p className="text-xs text-slate-400 italic">{t('presc_select_to_add', 'app')}</p>
+                  ) : editingItem ? (
                     <>
                       {prescErrors.length > 0 && <FormErrorSummary errors={prescErrors} onClose={clearPrescErrors} />}
+                      <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">{t('presc_edit_title', 'app')}</p>
                       <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className={labelCls}>{t('presc_medication', 'app')}</label>
-                          <input type="text" value={editingPrescription.drugName} onChange={e => setEditingPrescription(prev => prev ? { ...prev, drugName: e.target.value } : null)} className={inputCls} />
-                        </div>
-                        <div>
-                          <label className={labelCls}>{t('presc_active_ingredient', 'app')}</label>
-                          <input type="text" value={editingPrescription.activeIngredient} onChange={e => setEditingPrescription(prev => prev ? { ...prev, activeIngredient: e.target.value } : null)} className={inputCls} />
-                        </div>
+                        <FormField label={t('presc_medication', 'app')} required error={prescFieldErrors.drugName}>
+                          <input type="text" value={editingItem.drugName} onChange={e => setEditingItem(prev => prev ? { ...prev, drugName: e.target.value } : null)} className={inputCls} />
+                        </FormField>
+                        <FormField label={t('presc_active_ingredient', 'app')} error={prescFieldErrors.activeIngredient}>
+                          <input type="text" value={editingItem.activeIngredient} onChange={e => setEditingItem(prev => prev ? { ...prev, activeIngredient: e.target.value } : null)} className={inputCls} />
+                        </FormField>
                       </div>
                       <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className={labelCls}>{t('hce_snomed_code', 'app')}</label>
+                        <FormField label={t('hce_snomed_code', 'app')} error={prescFieldErrors.snomedCode}>
                           <SnomedSearchBox
                             semanticAxis="substance"
-                            initialCode={editingPrescription.snomedCode ?? ''}
-                            initialDescription={editingPrescription.snomedDescription ?? ''}
-                            onPick={(item) => setEditingPrescription(prev => prev ? {
+                            initialCode={editingItem.snomedCode ?? ''}
+                            initialDescription={editingItem.snomedDescription ?? ''}
+                            onPick={(item) => setEditingItem(prev => prev ? {
                               ...prev,
                               snomedCode: String(item.concept.concept_id),
                               snomedDescription: item.term || item.concept.preferred_term,
                             } : null)}
                           />
-                        </div>
-                        <div>
-                          <label className={labelCls}>{t('hce_snomed_description', 'app')}</label>
-                          <input type="text" value={editingPrescription.snomedDescription ?? ''} onChange={e => setEditingPrescription(prev => prev ? { ...prev, snomedDescription: e.target.value } : null)} className={inputCls} />
-                        </div>
+                        </FormField>
+                        <FormField label={t('hce_snomed_description', 'app')} error={prescFieldErrors.snomedDescription}>
+                          <input type="text" value={editingItem.snomedDescription ?? ''} onChange={e => setEditingItem(prev => prev ? { ...prev, snomedDescription: e.target.value } : null)} className={inputCls} />
+                        </FormField>
                       </div>
                       <div className="grid grid-cols-3 gap-2">
-                        <div>
-                          <label className={labelCls}>{t('hce_dosage', 'app')}</label>
-                          <input type="text" value={editingPrescription.dosage} onChange={e => setEditingPrescription(prev => prev ? { ...prev, dosage: e.target.value } : null)} className={inputCls} placeholder="500mg" />
-                        </div>
-                        <div>
-                          <label className={labelCls}>{t('hce_frequency', 'app')}</label>
-                          <input type="text" value={editingPrescription.frequency} onChange={e => setEditingPrescription(prev => prev ? { ...prev, frequency: e.target.value } : null)} className={inputCls} placeholder="8/8h" />
-                        </div>
-                        <div>
-                          <label className={labelCls}>{t('presc_route', 'app')}</label>
-                          <select value={editingPrescription.route} onChange={e => setEditingPrescription(prev => prev ? { ...prev, route: e.target.value } : null)} className={inputCls}>
+                        <FormField label={t('hce_dosage', 'app')} required error={prescFieldErrors.dosage}>
+                          <input type="text" value={editingItem.dosage} onChange={e => setEditingItem(prev => prev ? { ...prev, dosage: e.target.value } : null)} className={inputCls} placeholder="500mg" />
+                        </FormField>
+                        <FormField label={t('hce_frequency', 'app')} required error={prescFieldErrors.frequency}>
+                          <input type="text" value={editingItem.frequency} onChange={e => setEditingItem(prev => prev ? { ...prev, frequency: e.target.value } : null)} className={inputCls} placeholder="8/8h" />
+                        </FormField>
+                        <FormField label={t('presc_route', 'app')} error={prescFieldErrors.route}>
+                          <select value={editingItem.route} onChange={e => setEditingItem(prev => prev ? { ...prev, route: e.target.value } : null)} className={inputCls}>
                             <option value="oral">{t('presc_route_oral', 'app')}</option>
                             <option value="sublingual">{t('presc_route_sublingual', 'app')}</option>
                             <option value="venoso">{t('presc_route_venoso', 'app')}</option>
@@ -2815,43 +2994,32 @@ const ClinicalModuleContent = ({
                             <option value="inhalacion">{t('presc_route_inhalacion', 'app')}</option>
                             <option value="vaginal">{t('presc_route_vaginal', 'app')}</option>
                           </select>
-                        </div>
+                        </FormField>
                       </div>
                       <div className="grid grid-cols-4 gap-2">
-                        <div>
-                          <label className={labelCls}>{t('hce_duration', 'app')}</label>
-                          <input type="text" value={editingPrescription.duration} onChange={e => setEditingPrescription(prev => prev ? { ...prev, duration: e.target.value } : null)} className={inputCls} placeholder={t('presc_placeholder_duration', 'app')} />
-                        </div>
-                        <div>
-                          <label className={labelCls}>{t('presc_quantity', 'app')}</label>
-                          <input type="text" inputMode="numeric" value={editingPrescription.quantity} onChange={e => setEditingPrescription(prev => prev ? { ...prev, quantity: parseInt(e.target.value) || 1 } : null)} className={inputCls} />
-                        </div>
-                        <div>
-                          <label className={labelCls}>{t('presc_unit', 'app')}</label>
-                          <input type="text" value={editingPrescription.unit} onChange={e => setEditingPrescription(prev => prev ? { ...prev, unit: e.target.value } : null)} className={inputCls} />
-                        </div>
-                        <div>
-                          <label className={labelCls}>{t('presc_type', 'app')}</label>
-                          <select value={editingPrescription.prescriptionType} onChange={e => setEditingPrescription(prev => prev ? { ...prev, prescriptionType: e.target.value as any } : null)} className={inputCls}>
+                        <FormField label={t('hce_duration', 'app')} error={prescFieldErrors.duration}>
+                          <input type="text" value={editingItem.duration} onChange={e => setEditingItem(prev => prev ? { ...prev, duration: e.target.value } : null)} className={inputCls} placeholder={t('presc_placeholder_duration', 'app')} />
+                        </FormField>
+                        <FormField label={t('presc_quantity', 'app')} error={prescFieldErrors.quantity}>
+                          <input type="text" inputMode="numeric" value={editingItem.quantity} onChange={e => setEditingItem(prev => prev ? { ...prev, quantity: parseInt(e.target.value) || 1 } : null)} className={inputCls} />
+                        </FormField>
+                        <FormField label={t('presc_unit', 'app')} error={prescFieldErrors.unit}>
+                          <input type="text" value={editingItem.unit} onChange={e => setEditingItem(prev => prev ? { ...prev, unit: e.target.value } : null)} className={inputCls} />
+                        </FormField>
+                        <FormField label={t('presc_type', 'app')} error={prescFieldErrors.prescriptionType}>
+                          <select value={editingItem.prescriptionType} onChange={e => setEditingItem(prev => prev ? { ...prev, prescriptionType: e.target.value as any } : null)} className={inputCls}>
                             <option value="comum">{t('hce_prescription_comum', 'app')}</option>
                             <option value="controlado">{t('hce_prescription_controlado', 'app')}</option>
                             <option value="arquivado">{t('hce_prescription_arquivado', 'app')}</option>
                           </select>
-                        </div>
+                        </FormField>
                       </div>
-                      <div>
-                        <label className={labelCls}>{t('presc_instructions', 'app')}</label>
-                        <input type="text" value={editingPrescription.notes} onChange={e => setEditingPrescription(prev => prev ? { ...prev, notes: e.target.value } : null)} className={inputCls} placeholder={t('hce_prescription_notes_placeholder', 'app')} />
-                      </div>
+                      <FormField label={t('presc_instructions', 'app')} error={prescFieldErrors.notes}>
+                        <input type="text" value={editingItem.notes} onChange={e => setEditingItem(prev => prev ? { ...prev, notes: e.target.value } : null)} className={inputCls} placeholder={t('hce_prescription_notes_placeholder', 'app')} />
+                      </FormField>
                       <div className="flex justify-end gap-2">
-                        {editingPrescription.status === 'rascunho' && (
-                          <button onClick={() => { handleSignPrescription(editingPrescription.id); setEditingPrescription(null); }} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-xs font-bold rounded-lg flex items-center gap-1">
-                            <FileSignature className="w-3.5 h-3.5" /> {t('hce_sign', 'app')}
-                          </button>
-                        )}
-                        <button onClick={() => { if (window.confirm(t('hce_confirm_delete_prescription', 'app'))) { handleDeletePrescription(editingPrescription.id); setEditingPrescription(null); } }} className="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold rounded-lg">{t('hce_delete', 'app')}</button>
-                        <button onClick={() => { setEditingPrescription(null); clearPrescErrors(); }} className="px-4 py-2 text-slate-600 hover:text-slate-800 text-xs font-bold rounded-lg">{t('hce_cancel', 'app')}</button>
-                        <button onClick={() => editingPrescription && handleUpdatePrescription(editingPrescription)} className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg">{t('presc_save', 'app')}</button>
+                        <button onClick={() => { setEditingItem(null); clearPrescErrors(); }} className="px-4 py-2 text-slate-600 hover:text-slate-800 text-xs font-bold rounded-lg">{t('hce_cancel', 'app')}</button>
+                        <button onClick={() => editingItem && handleUpdatePrescriptionItem(editingItem)} className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg">{t('presc_save', 'app')}</button>
                       </div>
                     </>
                   ) : (
@@ -2868,7 +3036,7 @@ const ClinicalModuleContent = ({
                             {drugCatalogItems.length === 0 ? (
                               <p className="px-3 py-2 text-xs text-slate-400 italic">{t('drug_search_no_results', 'app')}</p>
                             ) : drugCatalogItems.slice(0, 10).map((d: any) => (
-                              <div key={d.id} onClick={() => setPrescriptionForm(p => ({ ...p, drugName: d.name, activeIngredient: d.active_ingredient ?? p.activeIngredient, presentation: d.presentation ?? p.presentation, dosage: d.default_dosage ?? p.dosage, frequency: d.default_frequency ?? p.frequency, route: d.route ?? p.route, duration: d.default_duration ?? p.duration }))}
+                              <div key={d.id} onClick={() => setPrescriptionForm(p => ({ ...p, drugName: d.name || p.drugName, activeIngredient: d.active_ingredient || p.activeIngredient, presentation: d.presentation || p.presentation, dosage: d.default_dosage || d.common_dose_adult || p.dosage, frequency: d.default_frequency || p.frequency, route: d.route || p.route, duration: d.default_duration || p.duration, snomedCode: d.snomed_code || p.snomedCode, snomedDescription: d.snomed_description || p.snomedDescription }))}
                                 className="px-3 py-2.5 hover:bg-teal-50 cursor-pointer flex items-center gap-2 text-sm transition">
                                 <span className="font-bold text-teal-700 whitespace-nowrap text-xs">{d.name}</span>
                                 <span className="text-slate-600 flex-1 min-w-0 truncate text-xs">{d.active_ingredient}{d.presentation ? ` — ${d.presentation}` : ''}</span>
@@ -2969,7 +3137,7 @@ const ClinicalModuleContent = ({
                           <input type="text" value={prescriptionForm.notes} onChange={e => setPrescriptionForm(p => ({ ...p, notes: e.target.value }))} className={inputCls} placeholder={t('presc_placeholder_notes', 'app')} />
                         </FormField>
                       </div>
-                      <button onClick={handleSavePrescription} disabled={!prescriptionForm.drugName.trim()} className="w-full py-2.5 bg-teal-600 hover:bg-teal-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-semibold rounded-lg text-xs transition flex items-center justify-center gap-2">
+                      <button onClick={handleSavePrescriptionItem} disabled={!prescriptionForm.drugName.trim()} className="w-full py-2.5 bg-teal-600 hover:bg-teal-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-semibold rounded-lg text-xs transition flex items-center justify-center gap-2">
                         <Plus className="w-3.5 h-3.5" /> {t('presc_add_button', 'app')}
                       </button>
                     </>

@@ -13,6 +13,9 @@ tsconfig.tsbuildinfo
 # Backups
 backup_supabase/
 
+# RxNav cache
+.rxnav_cache.json
+
 # Test output
 testsprite_tests/
 
