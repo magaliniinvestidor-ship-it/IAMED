@@ -13,6 +13,11 @@ create sequence if not exists seq_procedures            start 1;
 create sequence if not exists seq_clinical_attachments  start 1;
 create sequence if not exists seq_electronic_signatures  start 1;
 create sequence if not exists seq_aso_exams             start 1;
+create sequence if not exists seq_prescription_items    start 1;
+create sequence if not exists seq_physical_exams        start 1;
+create sequence if not exists seq_access_control        start 1;
+create sequence if not exists seq_drug_interactions     start 1;
+create sequence if not exists seq_patient_care_team     start 1;
 
 -- Módulo 1 - Recepção
 create sequence if not exists seq_patients              start 1;

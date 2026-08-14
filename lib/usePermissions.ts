@@ -23,6 +23,7 @@ export const PERMISSIONS = {
     bi: 'view_bi',
     patient_portal: 'view_patient_portal',
     hospitalization: 'view_hospitalization',
+    sensitive: 'view_sensitive',
   },
   perform: {
     admit: 'perform_admit',
@@ -51,7 +52,7 @@ const WILDCARD_MAP: Record<string, string[]> = {
     'view_stock', 'view_med_work', 'view_crm', 'view_security', 'view_insurance',
     'view_fee_schedule', 'view_copay', 'view_batches', 'view_eligibility',
     'view_settlements', 'view_foreign_billing', 'view_bi', 'view_patient_portal',
-    'view_hospitalization',
+    'view_hospitalization', 'view_sensitive',
     'perform_admit', 'perform_prescribe', 'perform_sifen', 'perform_post_finance',
     'perform_stock', 'perform_beds', 'perform_rbac', 'perform_insurance',
     'perform_fee_schedule', 'perform_copay', 'perform_batches', 'perform_eligibility',

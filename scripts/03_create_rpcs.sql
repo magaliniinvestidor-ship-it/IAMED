@@ -23,6 +23,8 @@ begin
     when 'aso'   then 'seq_aso_exams'
     when 'ac'    then 'seq_access_control'
     when 'pexam' then 'seq_physical_exams'
+    when 'int'   then 'seq_drug_interactions'
+    when 'ct'    then 'seq_patient_care_team'
     else null
   end;
   if v_seq is null then

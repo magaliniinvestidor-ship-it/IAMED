@@ -20,6 +20,10 @@ import {
 } from '@/lib/validation/schemas';
 import { FormField, FormErrorSummary } from '@/components/forms';
 import { SnomedSearchBox } from '@/components/clinical/SnomedSearchBox';
+import { getSignatureProvider, SignableDocument } from '@/lib/signature/provider';
+import { checkInteractions, checkAllergies, SafetyAlert } from '@/lib/prescription/safetyChecks';
+import { generateQrDataUrl, buildPrescriptionQrPayload } from '@/lib/prescription/qrCode';
+import { calculatePediatricDoseByWeight, calculateBodySurfaceArea } from '@/lib/prescription/pediatricDose';
 
 import {
   ClipboardList, Microscope, HeartPulse, ShieldAlert,
@@ -30,7 +34,7 @@ import {
   BookOpen, Tag, FileSignature, Scan,
   Lock as LockIcon
 } from 'lucide-react';
-import { PermissionGate, WithPermissions } from '@/components/ui/PermissionGate';
+import { PermissionGate, WithPermissions, useUserPermissions } from '@/components/ui/PermissionGate';
 import I18nDatePicker from '@/components/I18nDatePicker';
 
 interface ClinicalModuleProps {
@@ -109,6 +113,8 @@ const ClinicalModuleContent = ({
   activeOperator = 'Operador',
 }: ClinicalModuleProps) => {
   const { t, locale } = useI18n();
+  const userPermissions = useUserPermissions();
+  const hasSensitiveAccess = userPermissions.includes('view_sensitive');
 
   // Patient selection
   const [selectedPatId, setSelectedPatId] = useState('');
@@ -176,6 +182,11 @@ const ClinicalModuleContent = ({
   const [drugSearch, setDrugSearch] = useState('');
   const [showDrugDropdown, setShowDrugDropdown] = useState(false);
 
+  // Alertas de segurança medicamentosa (interações + alergias)
+  const [safetyAlerts, setSafetyAlerts] = useState<SafetyAlert[]>([]);
+  const [prescQrDataUrl, setPrescQrDataUrl] = useState('');
+  const [pediatricDoseModal, setPediatricDoseModal] = useState<{ weight: string; height: string; dosePerKgPerDay: string; dosesPerDay: string; result: string } | null>(null);
+
   // Itens e cabeçalho da receita selecionada
   const selectedItems = useMemo(
     () => (selectedPrescriptionId
@@ -233,13 +244,19 @@ const ClinicalModuleContent = ({
   const [timelineSearch, setTimelineSearch] = useState('');
   const [timelineFilterType, setTimelineFilterType] = useState<string>('all');
   const [timelineFilterDoctor, setTimelineFilterDoctor] = useState('');
+  const [timelineDateFrom, setTimelineDateFrom] = useState('');
+  const [timelineDateTo, setTimelineDateTo] = useState('');
   const [timelineAssignments, setTimelineAssignments] = useState<{ locationName: string; assignedAt: string; completedAt: string | null }[]>([]);
   const [timelineLoading, setTimelineLoading] = useState(false);
+  const [timelineInternments, setTimelineInternments] = useState<PatientTimelineEvent[]>([]);
+  const [timelineSurgeries, setTimelineSurgeries] = useState<PatientTimelineEvent[]>([]);
 
   // ─── SECURITY STATE ───
   const [breakGlassActive, setBreakGlassActive] = useState(false);
   const [breakGlassJustification, setBreakGlassJustification] = useState('');
   const [accessLogs, setAccessLogs] = useState<AccessControl[]>([]);
+  const [careTeam, setCareTeam] = useState<{ id: string; professionalName: string; role: string }[]>([]);
+  const [careTeamLoaded, setCareTeamLoaded] = useState(false);
 
   // Diagnostic/Laboratory states (submodule 4)
   const [imageContrast, setImageContrast] = useState(100);
@@ -284,6 +301,8 @@ const ClinicalModuleContent = ({
   // ─── SEQUENTIAL ID GENERATION (Postgres RPC) ───
   const patientsRef = React.useRef(patients);
   patientsRef.current = patients;
+
+  const notifCounterRef = React.useRef(0);
 
   const genId = useModuleId('next_clinical_id');
   const { errors: prescErrors, validate: validatePresc, setErrors: setPrescErrors, clearErrors: clearPrescErrors } = useFormValidation(prescriptionSchema);
@@ -749,13 +768,90 @@ const ClinicalModuleContent = ({
     }
   }, [t]);
 
+  const loadClinicalEvents = useCallback(async (patientId: string) => {
+    if (!supabase || !patientId) return;
+    const internments: PatientTimelineEvent[] = [];
+    const surgeries: PatientTimelineEvent[] = [];
+    try {
+      const { data: hospData } = await supabase
+        .from('hospitalizations')
+        .select('*')
+        .eq('patient_id', patientId);
+      if (hospData) {
+        (hospData as any[]).forEach((h: any) => {
+          internments.push({
+            id: h.id,
+            patientId,
+            eventType: 'internacao',
+            eventDate: h.admission_date || h.created_at || '',
+            eventTitle: t('hce_event_internacao', 'app'),
+            eventDescription: h.diagnosis || h.notes || '',
+            eventSource: 'hospitalization',
+            eventSourceId: h.id,
+            doctorName: '',
+            specialty: '',
+            cid10Code: '',
+          });
+        });
+      }
+      const { data: surgData } = await supabase
+        .from('surgeries')
+        .select('*')
+        .eq('patient_id', patientId);
+      if (surgData) {
+        (surgData as any[]).forEach((s: any) => {
+          surgeries.push({
+            id: s.id,
+            patientId,
+            eventType: 'cirurgia',
+            eventDate: s.scheduled_date || s.created_at || '',
+            eventTitle: t('hce_event_cirurgia', 'app'),
+            eventDescription: s.notes || '',
+            eventSource: 'surgery',
+            eventSourceId: s.id,
+            doctorName: s.surgeon || '',
+            specialty: '',
+            cid10Code: '',
+          });
+        });
+      }
+    } catch (err) {
+      console.error('[SUPABASE] Load clinical events FAILED:', err);
+    }
+    setTimelineInternments(internments);
+    setTimelineSurgeries(surgeries);
+  }, [t]);
+
+  // ─── LOAD CARE TEAM (equipe assistencial designada) ───
+  const loadCareTeam = useCallback(async (patientId: string) => {
+    setCareTeamLoaded(false);
+    setCareTeam([]);
+    if (!supabase) return;
+    try {
+      const { data } = await supabase
+        .from('patient_care_team')
+        .select('id, professional_name, role')
+        .eq('patient_id', patientId)
+        .eq('active', true);
+      if (data) {
+        setCareTeam(data.map((r: any) => ({ id: r.id, professionalName: r.professional_name, role: r.role })));
+      }
+    } catch (err) {
+      console.error('[SUPABASE] Load care team FAILED:', err);
+    } finally {
+      setCareTeamLoaded(true);
+    }
+  }, []);
+
   // Load data when patient changes
   useEffect(() => {
     if (selectedPatId) {
       loadPatientData(selectedPatId);
       loadTimelineData(selectedPatId);
+      loadClinicalEvents(selectedPatId);
+      loadCareTeam(selectedPatId);
     }
-  }, [selectedPatId, loadPatientData, loadTimelineData]);
+  }, [selectedPatId, loadPatientData, loadTimelineData, loadClinicalEvents, loadCareTeam]);
 
   // Reset form when patient changes (moved from useEffect to event handler)
   const handlePatientChange = useCallback((newPatientId: string) => {
@@ -767,6 +863,8 @@ const ClinicalModuleContent = ({
     setEditingProcedure(null);
     setEditingItem(null);
     setSelectedPrescriptionId(null);
+    setSafetyAlerts([]);
+    setPrescQrDataUrl('');
     clearDiagnosisErrors();
     clearExamErrors();
     clearProcErrors();
@@ -852,8 +950,22 @@ const ClinicalModuleContent = ({
     }
   }, []);
 
-  // ─── SIGNATURE SIMULATION ───
-  const handleSignDocument = useCallback(async (docType: string, docId: string) => {
+  // ─── SIGNATURE (provider de Firma Electrónica Cualificada) ───
+  const handleSignDocument = useCallback(async (docType: string, docId: string, content?: Record<string, unknown>) => {
+    const doc: SignableDocument = {
+      documentType: docType as any,
+      documentId: docId,
+      patientId: selectedPatient?.id || '',
+      signerName: activeOperator,
+      signerCouncil: 'CRM',
+      signerCouncilNumber: 'CRM-PY 000000',
+      content: content || {
+        patientId: selectedPatient?.id || '',
+        patientName: selectedPatient?.name || '',
+        operator: activeOperator,
+      },
+    };
+    const result = await getSignatureProvider().sign(doc);
     const sig: ElectronicSignature = {
       id: await genId('sig'),
       signerId: 'current_user',
@@ -864,16 +976,18 @@ const ClinicalModuleContent = ({
       documentType: docType as any,
       documentId: docId,
       patientId: selectedPatient?.id || '',
-      signatureHash: `SHA256:${Array.from({length: 64}, () => Math.floor(Math.random() * 16).toString(16)).join('')}`,
-      certificateSerial: `CERT-${crypto.randomUUID()}`,
-      certificateIssuer: 'AC IAMED - Prestador Qualificado (PCSC)',
-      signedAt: new Date().toISOString(),
-      verificationCode: `VER-${Math.random().toString(36).substring(2, 10).toUpperCase()}`,
-      status: 'valida',
+      signatureHash: result.signatureHash,
+      certificateSerial: result.certificateSerial,
+      certificateIssuer: result.certificateIssuer,
+      certificateValidFrom: result.certificateValidFrom,
+      certificateValidTo: result.certificateValidTo,
+      signedAt: result.signedAt,
+      verificationCode: result.verificationCode,
+      status: result.status,
       ipAddress: '192.168.1.1',
       userAgent: navigator.userAgent,
-      timestampAuthority: 'IAMED-TSA',
-      timestampToken: `TSA-${crypto.randomUUID()}`,
+      timestampAuthority: result.timestampAuthority,
+      timestampToken: result.timestampToken,
     };
     handleSaveSignature(sig);
     return sig;
@@ -882,22 +996,51 @@ const ClinicalModuleContent = ({
   // ─── BREAK THE GLASS ───
   const handleBreakGlass = useCallback(async () => {
     if (!breakGlassJustification.trim()) return;
+    const accessedAt = new Date().toISOString();
     const log: AccessControl = {
       id: await genId('ac'),
       patientId: selectedPatient?.id || '',
-      accessedBy: 'Operador Atual',
-      accessedAt: new Date().toISOString(),
+      accessedBy: activeOperator,
+      accessedAt,
       accessType: 'break_the_glass',
       justification: breakGlassJustification,
       fieldsAccessed: ['hce_completo'],
       ipAddress: '192.168.1.1',
-      notifiedPrivacyOfficer: false,
+      notifiedPrivacyOfficer: true,
+      notificationSentAt: accessedAt,
     };
     handleSaveAccessControl(log);
+    if (supabase) {
+      await supabase.from('internal_notifications').insert({
+        id: `notif_${++notifCounterRef.current}`,
+        patient_name: selectedPatient?.name || '',
+        from_location: activeOperator,
+        to_location: 'Privacy Officer',
+        message: `Quebra de vidro: ${activeOperator} acessou HCE de ${selectedPatient?.name || ''}. Justificativa: ${breakGlassJustification}`,
+        read: false,
+      });
+    }
     setBreakGlassActive(false);
     setBreakGlassJustification('');
     addAuditLog('Quebra de Vidro (Emergência)', `Paciente: ${selectedPatient?.name}`);
-  }, [breakGlassJustification, selectedPatient, addAuditLog, handleSaveAccessControl, genId]);
+  }, [breakGlassJustification, selectedPatient, activeOperator, addAuditLog, handleSaveAccessControl, genId]);
+
+  // ─── LOG NORMAL VIEW (registro detalhado de cada visualização) ───
+  const logHceView = useCallback(async (patientId: string) => {
+    if (!supabase) return;
+    const log: AccessControl = {
+      id: await genId('ac'),
+      patientId,
+      accessedBy: activeOperator,
+      accessedAt: new Date().toISOString(),
+      accessType: 'normal',
+      justification: 'Visualização de rotina do HCE',
+      fieldsAccessed: ['hce_' + hceTab],
+      ipAddress: '192.168.1.1',
+      notifiedPrivacyOfficer: false,
+    };
+    handleSaveAccessControl(log);
+  }, [activeOperator, handleSaveAccessControl, hceTab, genId]);
 
   // ─── SAVE ANAMNESE ───
   const handleSaveAnamnese = async () => {
@@ -1220,6 +1363,34 @@ const ClinicalModuleContent = ({
   };
 
   // ─── SAVE ITEM (adiciona medicamento à receita selecionada) ───
+  const runPrescriptionSafetyChecks = useCallback(async (items: PrescriptionItem[]) => {
+    if (!items.length) {
+      setSafetyAlerts([]);
+      return;
+    }
+    const safetyItems = items.map(i => ({
+      drugName: i.drugName,
+      activeIngredient: i.activeIngredient,
+      snomedCode: i.snomedCode || null,
+      prescriptionType: i.prescriptionType,
+    }));
+    const patientAllergies: string[] = [
+      ...(selectedPatient?.allergies ? selectedPatient.allergies.split(',').map(a => a.trim()).filter(Boolean) : []),
+      ...(anamnese?.allergies ? anamnese.allergies.map(a => a.allergen).filter(Boolean) : []),
+    ];
+    const [interactionAlerts, allergyAlerts] = await Promise.all([
+      checkInteractions(safetyItems),
+      Promise.resolve(checkAllergies(patientAllergies, safetyItems)),
+    ]);
+    setSafetyAlerts([...interactionAlerts, ...allergyAlerts]);
+  }, [selectedPatient, anamnese]);
+
+  const runSafetyChecksAfterChange = useCallback(async () => {
+    if (!selectedPrescriptionId) return;
+    const items = allItems.filter(i => i.prescriptionId === selectedPrescriptionId);
+    await runPrescriptionSafetyChecks(items);
+  }, [selectedPrescriptionId, allItems, runPrescriptionSafetyChecks]);
+
   const handleSavePrescriptionItem = async () => {
     // Zod validation
     const prescResult = validatePresc({
@@ -1275,6 +1446,7 @@ const ClinicalModuleContent = ({
         snomed_code: item.snomedCode || null, snomed_description: item.snomedDescription || null,
       });
     }
+    await runSafetyChecksAfterChange();
   };
 
   // ─── UPDATE ITEM ───
@@ -1315,6 +1487,7 @@ const ClinicalModuleContent = ({
         notes: item.notes,
       }).eq('id', item.id);
     }
+    await runSafetyChecksAfterChange();
   };
 
   // ─── DELETE ITEM ───
@@ -1325,6 +1498,7 @@ const ClinicalModuleContent = ({
     if (supabase) {
       await supabase.from('prescription_items').delete().eq('id', itemId);
     }
+    await runSafetyChecksAfterChange();
   };
 
   // ─── SIGN PRESCRIPTION (assina o cabeçalho com todos os itens) ───
@@ -1335,11 +1509,39 @@ const ClinicalModuleContent = ({
     ));
     const items = allItems.filter(i => i.prescriptionId === prescId);
     const header = prescriptions.find(p => p.id === prescId);
+    const sig = await handleSignDocument('prescricao', prescId, {
+      prescriptionId: prescId,
+      patientId: header?.patientId || selectedPatient?.id || '',
+      patientName: selectedPatient?.name || '',
+      items: items.map(i => ({
+        drugName: i.drugName,
+        activeIngredient: i.activeIngredient,
+        presentation: i.presentation,
+        dosage: i.dosage,
+        frequency: i.frequency,
+        route: i.route,
+        duration: i.duration,
+        quantity: i.quantity,
+        unit: i.unit,
+        prescriptionType: i.prescriptionType,
+        snomedCode: i.snomedCode || null,
+      })),
+    });
     if (header) {
-      const updated: PrescriptionHeader = { ...header, status: 'assinado', signedAt, qrCodeData: generateQRData({ ...header, status: 'assinado', signedAt }, items) };
+      const payload = buildPrescriptionQrPayload({
+        id: prescId,
+        patientId: header.patientId,
+        patientName: selectedPatient?.name || '',
+        createdAt: header.createdAt,
+        signedAt,
+        verificationCode: sig.verificationCode,
+        items: items.map(i => ({ name: i.drugName, dosage: i.dosage, frequency: i.frequency })),
+      });
+      const qrUrl = await generateQrDataUrl(payload);
+      setPrescQrDataUrl(qrUrl);
+      const updated: PrescriptionHeader = { ...header, status: 'assinado', signedAt, qrCodeData: payload };
       setPrescriptions(prev => prev.map(p => p.id === prescId ? updated : p));
     }
-    await handleSignDocument('prescricao', prescId);
     if (supabase) {
       await supabase.from('prescriptions').update({ status: 'assinado', signed_at: signedAt }).eq('id', prescId);
     }
@@ -1536,7 +1738,7 @@ const ClinicalModuleContent = ({
     addAuditLog('Excluiu Anexo Clínico', attId);
   };
 
-  // ─── FILTERED TIMELINE ───
+
   const filteredTimeline = useMemo(() => {
     const events: PatientTimelineEvent[] = [];
 
@@ -1612,9 +1814,33 @@ const ClinicalModuleContent = ({
       });
     });
 
+    // Add hospitalization events (internação)
+    timelineInternments.forEach(h => events.push(h));
+    // Add surgery events (cirurgia)
+    timelineSurgeries.forEach(s => events.push(s));
+    // Add vaccination events from clinical history
+    if (selectedPatient?.clinicalHistory) {
+      selectedPatient.clinicalHistory
+        .filter((h: any) => h.type?.toLowerCase().includes('vacina'))
+        .forEach((h: any) => {
+          events.push({
+            id: h.id,
+            patientId: selectedPatient.id,
+            eventType: 'vacina',
+            eventDate: h.date,
+            eventTitle: t('hce_event_vacina', 'app'),
+            eventDescription: h.notes || h.diagnosis || '',
+            eventSource: 'clinical_history',
+            eventSourceId: h.id,
+            doctorName: h.doctor || '',
+            specialty: '',
+            cid10Code: h.cid10 || '',
+          });
+        });
+    }
+
     // Add anamnesis entries
-    if (anamnese && anamnese.id && anamnese.patientId) {
-      events.push({
+    if (anamnese && anamnese.id && anamnese.patientId) {      events.push({
         id: anamnese.id,
         patientId: anamnese.patientId,
         eventType: 'consulta',
@@ -1653,13 +1879,15 @@ const ClinicalModuleContent = ({
     return events.filter(e => {
       if (timelineFilterType !== 'all' && e.eventType !== timelineFilterType) return false;
       if (timelineFilterDoctor && !e.doctorName.toLowerCase().includes(timelineFilterDoctor.toLowerCase())) return false;
+      if (timelineDateFrom && e.eventDate < timelineDateFrom) return false;
+      if (timelineDateTo && e.eventDate > timelineDateTo + 'T23:59:59') return false;
       if (timelineSearch) {
         const q = timelineSearch.toLowerCase();
         return e.eventTitle.toLowerCase().includes(q) || e.eventDescription.toLowerCase().includes(q) || e.cid10Code.toLowerCase().includes(q);
       }
       return true;
     });
-  }, [selectedPatient, prescriptions, allItems, examRequests, procedureList, anamnese, soapNote, timelineSearch, timelineFilterType, timelineFilterDoctor, t]);
+  }, [selectedPatient, prescriptions, allItems, examRequests, procedureList, anamnese, soapNote, timelineSearch, timelineFilterType, timelineFilterDoctor, timelineDateFrom, timelineDateTo, timelineInternments, timelineSurgeries, t]);
 
   // ─── ASO & CAT HANDLERS ───
   const handleCreateAso = async (e: React.FormEvent) => {
@@ -1706,11 +1934,77 @@ const ClinicalModuleContent = ({
   const labelCls = 'block text-xs font-semibold text-slate-600 mb-1 whitespace-nowrap overflow-hidden text-ellipsis';
   const sectionCls = 'bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs space-y-4';
 
-  const formatDate = (dateStr: string) => {
+  const formatDate = useCallback((dateStr: string) => {
     if (!dateStr) return '';
     const date = new Date(dateStr.includes('T') ? dateStr : dateStr + 'T12:00:00');
     return isNaN(date.getTime()) ? '' : date.toLocaleDateString(locale);
-  };
+  }, [locale]);
+  // ─── FILTERED TIMELINE ───
+  const handleExportTimelinePdf = useCallback(async () => {
+    if (!filteredTimeline.length || !selectedPatient) return;
+    const jsPDF = (await import('jspdf')).default;
+    const doc = new jsPDF();
+    doc.setFontSize(14);
+    doc.text(t('hce_timeline_export_title', 'app').replace('{name}', selectedPatient.name), 14, 16);
+    doc.setFontSize(9);
+    doc.text(`${t('hce_patient', 'app')}: ${selectedPatient.name} | CI: ${selectedPatient.document_number || '—'}`, 14, 24);
+    doc.text(`${t('hce_timeline_export_date', 'app')}: ${new Date().toLocaleDateString(locale)}`, 14, 30);
+    let y = 38;
+    filteredTimeline.slice(0, 60).forEach(evt => {
+      if (y > 275) { doc.addPage(); y = 20; }
+      doc.setFontSize(9);
+      doc.setTextColor(20);
+      const dateLabel = evt.eventDate ? formatDate(evt.eventDate.split('T')[0]) : '—';
+      doc.text(`${dateLabel} | ${evt.eventTitle}${evt.doctorName ? ' | ' + evt.doctorName : ''}`, 14, y);
+      y += 5;
+      if (evt.eventDescription) {
+        doc.setFontSize(7.5);
+        doc.setTextColor(90);
+        const lines = doc.splitTextToSize(evt.eventDescription, 180);
+        lines.slice(0, 3).forEach((line: string) => { doc.text(line, 16, y); y += 4; });
+        doc.setTextColor(20);
+      }
+      if (evt.cid10Code) { doc.setFontSize(7.5); doc.text(`CID: ${evt.cid10Code}`, 16, y); y += 4; }
+      y += 3;
+    });
+    const pdfBase64 = doc.output('datauristring').split(',')[1];
+    const docId = `timeline_${selectedPatient.id}_${Date.now()}`;
+    const sig = await getSignatureProvider().sign({
+      documentType: 'outro',
+      documentId: docId,
+      patientId: selectedPatient.id,
+      signerName: activeOperator,
+      content: { pdfSha: pdfBase64.slice(0, 64), patientId: selectedPatient.id, events: filteredTimeline.length },
+    });
+    doc.setFontSize(7);
+    doc.setTextColor(120);
+    doc.text(`${t('hce_signature_title', 'app')}: ${activeOperator} | ${t('hce_verification_label', 'app')} ${sig.verificationCode}`, 14, 292);
+    doc.text(`Hash: ${sig.signatureHash.slice(0, 48)}...`, 14, 296);
+    await handleSaveSignature({
+      id: await genId('sig'),
+      signerId: 'current_user',
+      signerName: activeOperator,
+      signerCouncil: 'CRM',
+      signerCouncilNumber: 'CRM-PY 000000',
+      createdAt: new Date().toISOString(),
+      documentType: 'outro',
+      documentId: docId,
+      patientId: selectedPatient.id,
+      signatureHash: sig.signatureHash,
+      certificateSerial: sig.certificateSerial,
+      certificateIssuer: sig.certificateIssuer,
+      certificateValidFrom: sig.certificateValidFrom,
+      certificateValidTo: sig.certificateValidTo,
+      signedAt: sig.signedAt,
+      verificationCode: sig.verificationCode,
+      status: sig.status,
+      ipAddress: '192.168.1.1',
+      userAgent: navigator.userAgent,
+      timestampAuthority: sig.timestampAuthority,
+      timestampToken: sig.timestampToken,
+    });
+    doc.save(`${selectedPatient.id}_timeline.pdf`);
+  }, [filteredTimeline, selectedPatient, activeOperator, handleSaveSignature, genId, t, locale, formatDate]);
 
   const translateStatus = (s: string) => {
     const key = `hce_status_${s.toLowerCase().replace(/\s+/g, '_')}`;
@@ -1946,6 +2240,26 @@ const ClinicalModuleContent = ({
                   })}
                 </div>
               </div>
+
+              {/* Access gate: operador não designado na equipe assistencial */}
+              {selectedPatId && careTeamLoaded && !breakGlassActive && (
+                (() => {
+                  const isMember = careTeam.some(m => m.professionalName === activeOperator) || hasSensitiveAccess;
+                  if (isMember) return null;
+                  return (
+                    <div className="mt-3 p-3 bg-rose-50 border border-rose-200 rounded-lg text-[11px] text-rose-700 flex items-start gap-2">
+                      <Lock className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <p className="font-bold">{t('hce_access_restricted_title', 'app')}</p>
+                        <p className="mt-0.5">{t('hce_access_restricted_desc', 'app')}</p>
+                        <button onClick={() => { setHceTab('security'); }} className="mt-2 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold rounded-lg transition">
+                          {t('hce_break_glass_activate', 'app')}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })()
+              )}
 
               {/* ═══ TAB: ANAMNESE ═══ */}
               {hceTab === 'anamnese' && (
@@ -2186,9 +2500,14 @@ const ClinicalModuleContent = ({
                     )}
                   </div>
 
-                  {/* Gynecological */}
+                  {/* Gynecological (campo sensível - Lei 1682/2001) */}
                   <div className="border border-slate-100 rounded-xl p-3 space-y-2">
                     <h5 className="text-xs font-bold text-slate-600 uppercase">{t('hce_gynecological', 'app')}</h5>
+                    {!hasSensitiveAccess ? (
+                      <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-[10px] text-slate-400 flex items-center gap-2">
+                        <Lock className="w-3.5 h-3.5 flex-shrink-0" /> {t('hce_sensitive_locked', 'app')}
+                      </div>
+                    ) : (
                     <div className="grid grid-cols-4 gap-2">
                       <FormField label={t('hce_gynecological_menarche', 'app')} error={anamneseFieldErrors.menarche}>
                         <input type="text" value={anamnese.gynecological?.menarche || ''} onChange={e => setAnamnese(p => ({ ...p, gynecological: { menarche: e.target.value, gestations: p.gynecological?.gestations || 0, deliveries: p.gynecological?.deliveries || 0, abortions: p.gynecological?.abortions || 0, cesareans: p.gynecological?.cesareans || 0, lastMenstruation: p.gynecological?.lastMenstruation || '', contraceptiveMethod: p.gynecological?.contraceptiveMethod || '' } }))} className={inputCls} />
@@ -2212,11 +2531,17 @@ const ClinicalModuleContent = ({
                         <input type="text" value={anamnese.gynecological?.contraceptiveMethod || ''} onChange={e => setAnamnese(p => ({ ...p, gynecological: { ...p.gynecological!, contraceptiveMethod: e.target.value } }))} className={inputCls} />
                       </FormField>
                     </div>
+                    )}
                   </div>
 
-                  {/* Obstetric */}
+                  {/* Obstetric (campo sensível - Lei 1682/2001) */}
                   <div className="border border-slate-100 rounded-xl p-3 space-y-2">
                     <h5 className="text-xs font-bold text-slate-600 uppercase">{t('hce_obstetric', 'app')}</h5>
+                    {!hasSensitiveAccess ? (
+                      <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-[10px] text-slate-400 flex items-center gap-2">
+                        <Lock className="w-3.5 h-3.5 flex-shrink-0" /> {t('hce_sensitive_locked', 'app')}
+                      </div>
+                    ) : (
                     <div className="grid grid-cols-4 gap-2">
                       <FormField label={t('hce_obstetric_gestation_number', 'app')} error={anamneseFieldErrors.gestationNumber}>
                         <input type="text" inputMode="numeric" value={anamnese.obstetric?.gestationNumber ?? ''} onChange={e => setAnamnese(p => ({ ...p, obstetric: { gestationNumber: parseInt(e.target.value) || 0, expectedDueDate: p.obstetric?.expectedDueDate || '', prenatalStart: p.obstetric?.prenatalStart || '', riskClassification: p.obstetric?.riskClassification || '' } }))} className={inputCls} />
@@ -2231,6 +2556,7 @@ const ClinicalModuleContent = ({
                         <input type="text" value={anamnese.obstetric?.riskClassification || ''} onChange={e => setAnamnese(p => ({ ...p, obstetric: { ...p.obstetric!, riskClassification: e.target.value } }))} className={inputCls} />
                       </FormField>
                     </div>
+                    )}
                   </div>
 
                   {/* Notes */}
@@ -2893,6 +3219,40 @@ const ClinicalModuleContent = ({
                       )}
                     </div>
 
+                    {/* Alertas de segurança medicamentosa */}
+                    {safetyAlerts.length > 0 && (
+                      <div className="px-4 pb-2 space-y-1.5">
+                        {safetyAlerts.map((alert, i) => (
+                          <div key={`${alert.id}_${i}`} className={`p-2.5 rounded-lg border text-[10px] font-semibold flex items-start gap-2 ${
+                            alert.severity === 'contraindicado' ? 'bg-rose-50 border-rose-300 text-rose-700' :
+                            alert.severity === 'grave' ? 'bg-orange-50 border-orange-300 text-orange-700' :
+                            'bg-amber-50 border-amber-200 text-amber-700'
+                          }`}>
+                            <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                            <div>
+                              <p>
+                                {alert.type === 'interaction'
+                                  ? t('presc_alert_interaction', 'app').replace('{a}', alert.drugName).replace('{b}', alert.otherName)
+                                  : t('presc_alert_allergy', 'app').replace('{a}', alert.drugName).replace('{b}', alert.otherName)}
+                              </p>
+                              {alert.recommendation && <p className="mt-0.5 text-[9px] opacity-80">{alert.recommendation}</p>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* QR Code de verificação */}
+                    {prescQrDataUrl && selectedHeader?.status === 'assinado' && (
+                      <div className="px-4 pb-2 flex items-center gap-3">
+                        <Image src={prescQrDataUrl} alt={t('presc_qr_alt', 'app')} width={96} height={96} className="rounded border border-slate-200" />
+                        <div className="text-[10px] text-slate-500 space-y-0.5">
+                          <p className="font-bold text-slate-700">{t('presc_qr_title', 'app')}</p>
+                          <p>{t('presc_qr_hint', 'app')}</p>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Ações da receita */}
                     {selectedPrescriptionId && selectedHeader && (
                       <div className="px-4 pb-4 flex flex-wrap items-center gap-2">
@@ -3013,6 +3373,11 @@ const ClinicalModuleContent = ({
                             <option value="arquivado">{t('hce_prescription_arquivado', 'app')}</option>
                           </select>
                         </FormField>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button type="button" onClick={() => setPediatricDoseModal({ weight: '', height: '', dosePerKgPerDay: '', dosesPerDay: '', result: '' })} className="px-3 py-2 bg-teal-50 hover:bg-teal-100 text-teal-700 text-xs font-bold rounded-lg border border-teal-200 transition flex items-center gap-1">
+                          <Activity className="w-3.5 h-3.5" /> {t('presc_pediatric_dose_btn', 'app')}
+                        </button>
                       </div>
                       <FormField label={t('presc_instructions', 'app')} error={prescFieldErrors.notes}>
                         <input type="text" value={editingItem.notes} onChange={e => setEditingItem(prev => prev ? { ...prev, notes: e.target.value } : null)} className={inputCls} placeholder={t('hce_prescription_notes_placeholder', 'app')} />
@@ -3136,6 +3501,11 @@ const ClinicalModuleContent = ({
                         <FormField label={t('presc_add_instructions', 'app')} error={prescFieldErrors.notes}>
                           <input type="text" value={prescriptionForm.notes} onChange={e => setPrescriptionForm(p => ({ ...p, notes: e.target.value }))} className={inputCls} placeholder={t('presc_placeholder_notes', 'app')} />
                         </FormField>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button type="button" onClick={() => setPediatricDoseModal({ weight: '', height: '', dosePerKgPerDay: '', dosesPerDay: '', result: '' })} className="px-3 py-2 bg-teal-50 hover:bg-teal-100 text-teal-700 text-xs font-bold rounded-lg border border-teal-200 transition flex items-center gap-1">
+                          <Activity className="w-3.5 h-3.5" /> {t('presc_pediatric_dose_btn', 'app')}
+                        </button>
                       </div>
                       <button onClick={handleSavePrescriptionItem} disabled={!prescriptionForm.drugName.trim()} className="w-full py-2.5 bg-teal-600 hover:bg-teal-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-semibold rounded-lg text-xs transition flex items-center justify-center gap-2">
                         <Plus className="w-3.5 h-3.5" /> {t('presc_add_button', 'app')}
@@ -3533,8 +3903,8 @@ const ClinicalModuleContent = ({
                   ) : (<>
 
                   {/* Filters */}
-                  <div className="flex gap-2">
-                    <div className="relative flex-1">
+                  <div className="flex flex-wrap gap-2">
+                    <div className="relative flex-1 min-w-[200px]">
                       <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
                       <input type="text" value={timelineSearch} onChange={e => setTimelineSearch(e.target.value)} placeholder={t('hce_timeline_search', 'app')} className={`${inputCls} pl-9`} />
                     </div>
@@ -3545,7 +3915,9 @@ const ClinicalModuleContent = ({
                       ))}
                     </select>
                     <input type="text" value={timelineFilterDoctor} onChange={e => setTimelineFilterDoctor(e.target.value)} placeholder={t('hce_timeline_filter_doctor', 'app')} className={inputCls + ' w-40'} />
-                    <button className="bg-slate-800 hover:bg-slate-900 text-white text-xs px-3 py-2 rounded-lg font-bold flex items-center gap-1">
+                    <I18nDatePicker value={timelineDateFrom} onChange={setTimelineDateFrom} className={inputCls + ' w-36'} placeholder={t('hce_timeline_date_from', 'app')} />
+                    <I18nDatePicker value={timelineDateTo} onChange={setTimelineDateTo} className={inputCls + ' w-36'} placeholder={t('hce_timeline_date_to', 'app')} />
+                    <button onClick={handleExportTimelinePdf} className="bg-slate-800 hover:bg-slate-900 text-white text-xs px-3 py-2 rounded-lg font-bold flex items-center gap-1">
                       <Printer className="w-3 h-3" /> {t('hce_timeline_export_pdf', 'app')}
                     </button>
                   </div>
@@ -4083,6 +4455,67 @@ const ClinicalModuleContent = ({
                   {t('hce_cancel', 'app')}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PEDIATRIC DOSE CALCULATOR MODAL */}
+      {pediatricDoseModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setPediatricDoseModal(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 p-6 font-sans border border-slate-200" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
+              <Activity className="w-4 h-4 text-teal-600" />
+              <h3 className="font-extrabold text-slate-800 text-sm uppercase">{t('presc_pediatric_dose_title', 'app')}</h3>
+            </div>
+            <div className="space-y-3 mt-4 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('presc_pediatric_weight', 'app')} (kg)</label>
+                  <input type="text" inputMode="decimal" value={pediatricDoseModal.weight} onChange={e => setPediatricDoseModal(p => p ? { ...p, weight: e.target.value, result: '' } : p)} className={inputCls} />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('presc_pediatric_height', 'app')} (cm)</label>
+                  <input type="text" inputMode="decimal" value={pediatricDoseModal.height} onChange={e => setPediatricDoseModal(p => p ? { ...p, height: e.target.value, result: '' } : p)} className={inputCls} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('presc_pediatric_dose_kg', 'app')} (mg/kg/dia)</label>
+                  <input type="text" inputMode="decimal" value={pediatricDoseModal.dosePerKgPerDay} onChange={e => setPediatricDoseModal(p => p ? { ...p, dosePerKgPerDay: e.target.value, result: '' } : p)} className={inputCls} />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">{t('presc_pediatric_doses_per_day', 'app')}</label>
+                  <input type="text" inputMode="decimal" value={pediatricDoseModal.dosesPerDay} onChange={e => setPediatricDoseModal(p => p ? { ...p, dosesPerDay: e.target.value, result: '' } : p)} className={inputCls} />
+                </div>
+              </div>
+              {pediatricDoseModal.result && (
+                <div className="p-3 bg-teal-50 border border-teal-200 rounded-lg text-teal-800 font-bold whitespace-pre-line">
+                  {pediatricDoseModal.result}
+                </div>
+              )}
+              <button
+                onClick={() => {
+                  const weight = parseFloat(pediatricDoseModal.weight);
+                  const dosePerKg = parseFloat(pediatricDoseModal.dosePerKgPerDay);
+                  const dosesPerDay = parseFloat(pediatricDoseModal.dosesPerDay);
+                  if (!weight || !dosePerKg || !dosesPerDay) return;
+                  const result = calculatePediatricDoseByWeight({ weightKg: weight, dosePerKgPerDay: dosePerKg, dosesPerDay });
+                  const height = parseFloat(pediatricDoseModal.height);
+                  let bsaLine = '';
+                  if (height) {
+                    const bsa = calculateBodySurfaceArea(weight, height);
+                    bsaLine = `${t('presc_pediatric_bsa', 'app')}: ${bsa.toFixed(2)} m²`;
+                  }
+                  setPediatricDoseModal(p => p ? { ...p, result: `${t('presc_pediatric_result_dose', 'app')}: ${result.dosePerDoseMg} mg\n${t('presc_pediatric_result_total', 'app')}: ${result.totalPerDayMg} mg/dia\n${bsaLine}` } : p);
+                }}
+                className="w-full py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-lg text-xs cursor-pointer transition"
+              >
+                {t('presc_pediatric_calculate', 'app')}
+              </button>
+              <button onClick={() => setPediatricDoseModal(null)} className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs cursor-pointer transition">
+                {t('hce_cancel', 'app')}
+              </button>
             </div>
           </div>
         </div>
