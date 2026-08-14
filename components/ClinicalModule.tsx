@@ -963,11 +963,21 @@ const ClinicalModuleContent = ({
     activeSessionRef.current = { id: logId, patientId, fields: [tab] };
   }, [activeOperator, handleSaveAccessControl, closeAccessSession, genId]);
 
-  // Mantém hceTabRef sincronizado e acumula a aba na sessão ativa
+  // Mantém hceTabRef sincronizado e acumula a aba na sessão ativa (sem criar sessão nova)
   useEffect(() => {
     hceTabRef.current = hceTab;
-    if (selectedPatId && supabase) logHceView(selectedPatId);
-  }, [hceTab, selectedPatId, logHceView]);
+    const session = activeSessionRef.current;
+    if (session && session.patientId === selectedPatId && supabase) {
+      const tab = 'hce_' + hceTab;
+      if (!session.fields.includes(tab)) {
+        session.fields.push(tab);
+        supabase.from('access_controls')
+          .update({ fields_accessed: session.fields })
+          .eq('id', session.id);
+        setAccessLogs(prev => prev.map(l => l.id === session.id ? { ...l, fieldsAccessed: [...session.fields] } : l));
+      }
+    }
+  }, [hceTab, selectedPatId]);
 
   // Load data when patient changes
   useEffect(() => {
