@@ -539,7 +539,7 @@ const ClinicalModuleContent = ({
         .from('prescriptions')
         .select('*')
         .eq('patient_id', patientId)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: true });
 
       if (prescData) {
         const headers: PrescriptionHeader[] = prescData.map(p => ({
@@ -556,7 +556,7 @@ const ClinicalModuleContent = ({
           notes: p.notes || '',
         })) as PrescriptionHeader[];
         setPrescriptions(headers);
-        if (headers.length > 0) setSelectedPrescriptionId(headers[0].id);
+        if (headers.length > 0) setSelectedPrescriptionId(headers[headers.length - 1].id);
 
         // Load items of all headers (para exibição + timeline)
         let itemData: any[] = [];
@@ -969,6 +969,11 @@ const ClinicalModuleContent = ({
     handleSaveAccessControl(log);
     activeSessionRef.current = { id: logId, patientId, fields: [tab] };
   }, [activeOperator, handleSaveAccessControl, closeAccessSession, genId]);
+
+  // Reset do estado de envio ao trocar de receita (cada receita tem seu próprio ciclo)
+  useEffect(() => {
+    setSentChannels({ whatsapp: false, email: false });
+  }, [selectedPrescriptionId]);
 
   // Mantém hceTabRef sincronizado e acumula a aba na sessão ativa (sem criar sessão nova)
   useEffect(() => {
@@ -1458,7 +1463,7 @@ const ClinicalModuleContent = ({
       qrCodeData: '',
       title: '',
     };
-    setPrescriptions(prev => [header, ...prev]);
+    setPrescriptions(prev => [...prev, header].sort((a, b) => a.createdAt.localeCompare(b.createdAt)));
     setSelectedPrescriptionId(header.id);
     setEditingItem(null);
     clearPrescErrors();
