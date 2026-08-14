@@ -23,6 +23,14 @@ CREATE TABLE IF NOT EXISTS public.drug_interactions (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
+-- Caso a tabela já exista (criada antes desta migração), garante as colunas novas
+ALTER TABLE public.drug_interactions
+  ADD COLUMN IF NOT EXISTS drug_a_ingredient text;
+ALTER TABLE public.drug_interactions
+  ADD COLUMN IF NOT EXISTS drug_b_ingredient text;
+ALTER TABLE public.drug_interactions
+  ADD COLUMN IF NOT EXISTS source text DEFAULT 'local';
+
 CREATE INDEX IF NOT EXISTS idx_drug_interactions_a
   ON public.drug_interactions(drug_a_ingredient);
 CREATE INDEX IF NOT EXISTS idx_drug_interactions_b

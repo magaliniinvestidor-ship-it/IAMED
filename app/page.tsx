@@ -1533,6 +1533,7 @@ function HomeContent() {
                       addAuditLog={addAuditLog}
                       asos={asos}
                       setAsos={setAsos}
+                      professionals={professionals}
                       userPermissions={profile?.permissions}
                       activeOperator={activeOperator}
                     />

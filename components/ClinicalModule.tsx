@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import Image from 'next/image';
-import { Patient, AsoExam, Cid10Code, ExamRequest, Procedure, Anamnese, SoapNote, Diagnosis, PhysicalExam, VitalSigns, AllergyEntry, MedicationEntry, FamilyHistoryEntry, SurgicalEntry, ElectronicSignature, AccessControl, PatientTimelineEvent, DrugCatalogItem, sensitiveFieldConfig } from '@/lib/mockData';
+import { Patient, AsoExam, Cid10Code, ExamRequest, Procedure, Anamnese, SoapNote, Diagnosis, PhysicalExam, VitalSigns, AllergyEntry, MedicationEntry, FamilyHistoryEntry, SurgicalEntry, ElectronicSignature, AccessControl, PatientTimelineEvent, DrugCatalogItem, Professional, sensitiveFieldConfig } from '@/lib/mockData';
 import { supabase } from '@/lib/supabaseClient';
 import { useI18n } from '@/lib/i18n/I18nContext';
 import { getVitalsBands, classifyBmiForAge } from '@/lib/vitals/vitalsLimits';
@@ -31,7 +31,7 @@ import {
   Search, Filter, Pill, Stethoscope, FileText, Paperclip,
   Shield, Clock, User, Activity, AlertTriangle, QrCode, Hash,
   ChevronDown, ChevronRight, Lock, Unlock, Printer, Calendar,
-  BookOpen, Tag, FileSignature, Scan,
+  BookOpen, Tag, FileSignature, Scan, Users,
   Lock as LockIcon
 } from 'lucide-react';
 import { PermissionGate, WithPermissions, useUserPermissions } from '@/components/ui/PermissionGate';
@@ -44,6 +44,7 @@ interface ClinicalModuleProps {
   addAuditLog: (action: string, target: string) => void;
   asos: AsoExam[];
   setAsos: React.Dispatch<React.SetStateAction<AsoExam[]>>;
+  professionals?: Professional[];
   userPermissions?: string[];
   activeOperator?: string;
 }
@@ -110,6 +111,7 @@ const ClinicalModuleContent = ({
   addAuditLog,
   asos,
   setAsos,
+  professionals = [],
   activeOperator = 'Operador',
 }: ClinicalModuleProps) => {
   const { t, locale } = useI18n();
@@ -257,6 +259,8 @@ const ClinicalModuleContent = ({
   const [accessLogs, setAccessLogs] = useState<AccessControl[]>([]);
   const [careTeam, setCareTeam] = useState<{ id: string; professionalName: string; role: string }[]>([]);
   const [careTeamLoaded, setCareTeamLoaded] = useState(false);
+  const [careTeamProfId, setCareTeamProfId] = useState('');
+  const [careTeamRole, setCareTeamRole] = useState('assistencial');
 
   // Diagnostic/Laboratory states (submodule 4)
   const [imageContrast, setImageContrast] = useState(100);
@@ -842,6 +846,45 @@ const ClinicalModuleContent = ({
       setCareTeamLoaded(true);
     }
   }, []);
+
+  // ─── ADD CARE TEAM MEMBER ───
+  const handleAddCareTeamMember = useCallback(async () => {
+    if (!selectedPatient || !careTeamProfId) return;
+    const prof = professionals.find(p => p.id === careTeamProfId);
+    if (!prof) return;
+    if (careTeam.some(m => m.professionalName === prof.name)) {
+      alert(t('hce_care_team_already', 'app'));
+      return;
+    }
+    const newMember = {
+      id: await genId('ct'),
+      patientId: selectedPatient.id,
+      professionalName: prof.name,
+      role: careTeamRole,
+    };
+    setCareTeam(prev => [...prev, { id: newMember.id, professionalName: newMember.professionalName, role: newMember.role }]);
+    if (supabase) {
+      await supabase.from('patient_care_team').insert({
+        id: newMember.id,
+        patient_id: newMember.patientId,
+        professional_name: newMember.professionalName,
+        role: newMember.role,
+        active: true,
+      });
+    }
+    addAuditLog('Designou profissional na equipe assistencial', `Paciente: ${selectedPatient.name} | Prof: ${prof.name}`);
+    setCareTeamProfId('');
+  }, [selectedPatient, careTeamProfId, careTeam, careTeamRole, professionals, genId, addAuditLog, t]);
+
+  // ─── REMOVE CARE TEAM MEMBER (soft delete) ───
+  const handleRemoveCareTeamMember = useCallback(async (memberId: string) => {
+    if (!selectedPatient) return;
+    setCareTeam(prev => prev.filter(m => m.id !== memberId));
+    if (supabase) {
+      await supabase.from('patient_care_team').update({ active: false, updated_at: new Date().toISOString() }).eq('id', memberId);
+    }
+    addAuditLog('Removeu profissional da equipe assistencial', `Paciente: ${selectedPatient.name}`);
+  }, [selectedPatient, addAuditLog]);
 
   // Load data when patient changes
   useEffect(() => {
@@ -4135,6 +4178,61 @@ const ClinicalModuleContent = ({
                           </div>
                         </div>
                       ))}
+                    </div>
+                  </div>
+
+                  {/* Care Team (equipe assistencial designada) */}
+                  <div className="p-4 bg-white border border-slate-200 rounded-xl space-y-3">
+                    <h5 className="font-bold text-slate-800 flex items-center gap-2">
+                      <Users className="w-4 h-4 text-teal-600" /> {t('hce_care_team_title', 'app')}
+                    </h5>
+                    <p className="text-[11px] text-slate-500">{t('hce_care_team_desc', 'app')}</p>
+
+                    {careTeam.length === 0 ? (
+                      <p className="text-xs text-slate-400 bg-slate-50 border border-slate-100 rounded-lg p-2">
+                        {t('hce_care_team_empty', 'app')}
+                      </p>
+                    ) : (
+                      <div className="space-y-1.5">
+                        {careTeam.map(member => (
+                          <div key={member.id} className="flex items-center justify-between text-xs p-2 bg-slate-50 border border-slate-100 rounded-lg">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="font-bold text-slate-700 truncate">{member.professionalName}</span>
+                              <span className="px-1.5 py-0.5 rounded bg-teal-100 text-teal-700 text-[10px] font-bold uppercase">{member.role}</span>
+                              {member.professionalName === activeOperator && (
+                                <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 text-[10px] font-bold">{t('hce_care_team_you', 'app')}</span>
+                              )}
+                            </div>
+                            <button onClick={() => handleRemoveCareTeamMember(member.id)} className="text-rose-500 hover:text-rose-700 font-bold text-[10px] shrink-0">
+                              {t('hce_remove', 'app')}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="flex items-end gap-2">
+                      <div className="flex-1">
+                        <label className={labelCls}>{t('hce_care_team_professional', 'app')}</label>
+                        <select value={careTeamProfId} onChange={e => setCareTeamProfId(e.target.value)} className={inputCls}>
+                          <option value="">{t('agenda_select', 'app')}</option>
+                          {professionals.map(p => (
+                            <option key={p.id} value={p.id}>{p.name}{p.specialty ? ` - ${p.specialty}` : ''}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="w-36">
+                        <label className={labelCls}>{t('hce_care_team_role', 'app')}</label>
+                        <select value={careTeamRole} onChange={e => setCareTeamRole(e.target.value)} className={inputCls}>
+                          <option value="assistencial">{t('hce_care_team_role_assistencial', 'app')}</option>
+                          <option value="responsavel">{t('hce_care_team_role_responsavel', 'app')}</option>
+                          <option value="consultor">{t('hce_care_team_role_consultor', 'app')}</option>
+                          <option value="enfermagem">{t('hce_care_team_role_enfermagem', 'app')}</option>
+                        </select>
+                      </div>
+                      <button onClick={handleAddCareTeamMember} className="bg-teal-600 hover:bg-teal-700 text-white text-xs px-4 py-2 rounded-lg font-bold h-[38px]">
+                        {t('hce_add', 'app')}
+                      </button>
                     </div>
                   </div>
 
