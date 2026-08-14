@@ -886,6 +886,42 @@ const ClinicalModuleContent = ({
     addAuditLog('Removeu profissional da equipe assistencial', `Paciente: ${selectedPatient.name}`);
   }, [selectedPatient, addAuditLog]);
 
+  // ─── SAVE ACCESS CONTROL (INSERT to Supabase) ───
+  const handleSaveAccessControl = useCallback(async (log: AccessControl) => {
+    setAccessLogs(prev => [log, ...prev]);
+    if (supabase) {
+      await supabase.from('access_controls').insert({
+        id: log.id,
+        patient_id: log.patientId,
+        accessed_by: log.accessedBy,
+        accessed_at: log.accessedAt,
+        access_type: log.accessType,
+        justification: log.justification,
+        fields_accessed: log.fieldsAccessed,
+        ip_address: log.ipAddress,
+        notified_privacy_officer: log.notifiedPrivacyOfficer,
+        notification_sent_at: log.notificationSentAt || null,
+      });
+    }
+  }, []);
+
+  // ─── LOG NORMAL VIEW (registro detalhado de cada visualização) ───
+  const logHceView = useCallback(async (patientId: string) => {
+    if (!supabase) return;
+    const log: AccessControl = {
+      id: await genId('ac'),
+      patientId,
+      accessedBy: activeOperator,
+      accessedAt: new Date().toISOString(),
+      accessType: 'normal',
+      justification: 'Visualização de rotina do HCE',
+      fieldsAccessed: ['hce_' + hceTab],
+      ipAddress: '192.168.1.1',
+      notifiedPrivacyOfficer: false,
+    };
+    handleSaveAccessControl(log);
+  }, [activeOperator, handleSaveAccessControl, hceTab, genId]);
+
   // Load data when patient changes
   useEffect(() => {
     if (selectedPatId) {
@@ -893,8 +929,9 @@ const ClinicalModuleContent = ({
       loadTimelineData(selectedPatId);
       loadClinicalEvents(selectedPatId);
       loadCareTeam(selectedPatId);
+      logHceView(selectedPatId);
     }
-  }, [selectedPatId, loadPatientData, loadTimelineData, loadClinicalEvents, loadCareTeam]);
+  }, [selectedPatId, loadPatientData, loadTimelineData, loadClinicalEvents, loadCareTeam, logHceView]);
 
   // Reset form when patient changes (moved from useEffect to event handler)
   const handlePatientChange = useCallback((newPatientId: string) => {
@@ -974,25 +1011,6 @@ const ClinicalModuleContent = ({
     }
   }, [addAuditLog]);
 
-  // ─── SAVE ACCESS CONTROL (INSERT to Supabase) ───
-  const handleSaveAccessControl = useCallback(async (log: AccessControl) => {
-    setAccessLogs(prev => [log, ...prev]);
-    if (supabase) {
-      await supabase.from('access_controls').insert({
-        id: log.id,
-        patient_id: log.patientId,
-        accessed_by: log.accessedBy,
-        accessed_at: log.accessedAt,
-        access_type: log.accessType,
-        justification: log.justification,
-        fields_accessed: log.fieldsAccessed,
-        ip_address: log.ipAddress,
-        notified_privacy_officer: log.notifiedPrivacyOfficer,
-        notification_sent_at: log.notificationSentAt || null,
-      });
-    }
-  }, []);
-
   // ─── SIGNATURE (provider de Firma Electrónica Cualificada) ───
   const handleSignDocument = useCallback(async (docType: string, docId: string, content?: Record<string, unknown>) => {
     const doc: SignableDocument = {
@@ -1067,23 +1085,6 @@ const ClinicalModuleContent = ({
     setBreakGlassJustification('');
     addAuditLog('Quebra de Vidro (Emergência)', `Paciente: ${selectedPatient?.name}`);
   }, [breakGlassJustification, selectedPatient, activeOperator, addAuditLog, handleSaveAccessControl, genId]);
-
-  // ─── LOG NORMAL VIEW (registro detalhado de cada visualização) ───
-  const logHceView = useCallback(async (patientId: string) => {
-    if (!supabase) return;
-    const log: AccessControl = {
-      id: await genId('ac'),
-      patientId,
-      accessedBy: activeOperator,
-      accessedAt: new Date().toISOString(),
-      accessType: 'normal',
-      justification: 'Visualização de rotina do HCE',
-      fieldsAccessed: ['hce_' + hceTab],
-      ipAddress: '192.168.1.1',
-      notifiedPrivacyOfficer: false,
-    };
-    handleSaveAccessControl(log);
-  }, [activeOperator, handleSaveAccessControl, hceTab, genId]);
 
   // ─── SAVE ANAMNESE ───
   const handleSaveAnamnese = async () => {

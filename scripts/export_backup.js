@@ -59,7 +59,10 @@ const TABLES = [
   'clinical_attachments',
   'electronic_signatures',
   'access_controls',
-  'patient_timeline'
+  'patient_timeline',
+  'drug_catalog',
+  'drug_interactions',
+  'patient_care_team'
 ];
 
 async function backupDatabase() {
