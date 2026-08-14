@@ -344,6 +344,8 @@
   "presc_send_whatsapp": "Enviar WhatsApp",
   "presc_send_email": "Enviar Correo",
   "presc_send_success": "¡Receta enviada con éxito!",
+  "presc_send_confirm_whatsapp": "Confirmar el envio de la receta por WhatsApp?",
+  "presc_send_confirm_email": "Confirmar el envio de la receta por Correo?",
   "presc_qr_verify": "Verificar QR",
   "presc_qr_verify_placeholder": "Pega o escribe el código QR",
   "presc_qr_verify_btn": "Verificar",

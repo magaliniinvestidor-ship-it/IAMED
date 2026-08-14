@@ -1847,6 +1847,8 @@
   "presc_send_whatsapp": "Send WhatsApp",
   "presc_send_email": "Send Email",
   "presc_send_success": "Prescription sent successfully!",
+  "presc_send_confirm_whatsapp": "Confirm sending the prescription via WhatsApp?",
+  "presc_send_confirm_email": "Confirm sending the prescription via Email?",
   "presc_qr_verify": "Verify QR",
   "presc_qr_verify_placeholder": "Paste or type the QR code",
   "presc_qr_verify_btn": "Verify",

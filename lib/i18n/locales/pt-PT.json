@@ -1310,6 +1310,8 @@
   "presc_send_whatsapp": "Enviar WhatsApp",
   "presc_send_email": "Enviar E-mail",
   "presc_send_success": "Receita enviada com sucesso!",
+  "presc_send_confirm_whatsapp": "Confirma o envio da receita por WhatsApp?",
+  "presc_send_confirm_email": "Confirma o envio da receita por E-mail?",
   "presc_qr_verify": "Verificar QR",
   "presc_qr_verify_placeholder": "Cole ou digite o código do QR",
   "presc_qr_verify_btn": "Verificar",

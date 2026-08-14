@@ -194,9 +194,6 @@ const ClinicalModuleContent = ({
   const [safetyAlerts, setSafetyAlerts] = useState<SafetyAlert[]>([]);
   const [prescQrDataUrl, setPrescQrDataUrl] = useState('');
   const [pediatricDoseModal, setPediatricDoseModal] = useState<{ weight: string; height: string; dosePerKgPerDay: string; dosesPerDay: string; result: string } | null>(null);
-  const [qrVerifyModal, setQrVerifyModal] = useState(false);
-  const [qrVerifyInput, setQrVerifyInput] = useState('');
-  const [qrVerifyResult, setQrVerifyResult] = useState<'success' | 'fail' | null>(null);
   const [sendModal, setSendModal] = useState(false);
 
   // Itens e cabeçalho da receita selecionada
@@ -1681,42 +1678,23 @@ const ClinicalModuleContent = ({
     addAuditLog('Excluiu Receita', prescId);
   };
 
-  // ─── PRINT PRESCRIPTION (só a receita médica, não a página inteira) ───
+  // ─── PRINT PRESCRIPTION (só a receita médica, via CSS @media print) ───
   const handlePrintPrescription = () => {
-    const el = document.getElementById('prescription-print-area');
-    if (!el) { window.print(); return; }
-    const original = document.body.innerHTML;
-    const printContent = el.outerHTML;
-    document.body.innerHTML = `<style>
-      @page { margin: 12mm; }
-      body * { visibility: hidden; }
-      #prescription-print-area, #prescription-print-area * { visibility: visible; }
-      #prescription-print-area {
-        position: absolute; left: 0; top: 0; width: 100%;
-        border: none !important;
-      }
-      #prescription-print-area .no-print { display: none !important; }
-    </style>${printContent}`;
     window.print();
-    document.body.innerHTML = original;
-  };
-
-  // ─── VERIFY QR CODE (modal simulado) ───
-  const handleVerifyQr = () => {
-    if (!selectedHeader || !selectedHeader.qrCodeData) {
-      setQrVerifyResult('fail');
-      return;
-    }
-    const valid = qrVerifyInput.trim() === String(selectedHeader.qrCodeData).slice(0, 24);
-    setQrVerifyResult(valid ? 'success' : 'fail');
   };
 
   // ─── SEND PRESCRIPTION (envio digital simulado) ───
   const handleSendPrescription = async (channel: 'whatsapp' | 'email') => {
+    const phone = selectedPatient?.phone || t('presc_send_no_phone', 'app');
+    if (channel === 'whatsapp') {
+      if (!confirm(`${t('presc_send_confirm_whatsapp', 'app')}\n\nTelefone cadastrado: ${phone}`)) return;
+    } else {
+      if (!confirm(`${t('presc_send_confirm_email', 'app')}`)) return;
+    }
     setSendModal(false);
     await new Promise(r => setTimeout(r, 800));
     alert(t('presc_send_success', 'app'));
-    addAuditLog('Enviou Receita', `${channel.toUpperCase()} - ${selectedPatient?.name}`);
+    addAuditLog('Enviou Receita', `${channel.toUpperCase()} - ${selectedPatient?.name} - ${phone}`);
   };
 
   // ─── SAVE EXAM REQUEST ───
@@ -3432,14 +3410,9 @@ const ClinicalModuleContent = ({
                           </button>
                         )}
                         {selectedHeader.status === 'assinado' && (
-                          <>
-                            <button onClick={() => setQrVerifyModal(true)} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg flex items-center gap-1">
-                              <QrCode className="w-3.5 h-3.5" /> {t('presc_qr_verify', 'app')}
-                            </button>
-                            <button onClick={() => setSendModal(true)} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg flex items-center gap-1">
-                              <Send className="w-3.5 h-3.5" /> {t('presc_send_whatsapp', 'app')}
-                            </button>
-                          </>
+                          <button onClick={() => setSendModal(true)} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg flex items-center gap-1">
+                            <Send className="w-3.5 h-3.5" /> {t('presc_send_whatsapp', 'app')}
+                          </button>
                         )}
                         <button onClick={handlePrintPrescription} className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-lg flex items-center gap-1">
                           <Printer className="w-3.5 h-3.5" /> {t('presc_print', 'app')}
@@ -3450,30 +3423,6 @@ const ClinicalModuleContent = ({
                       </div>
                     )}
                   </div>
-
-                  {/* ═══ MODAL: VERIFICAR QR CODE ═══ */}
-                  {qrVerifyModal && (
-                    <div className="no-print fixed inset-0 z-50 bg-slate-900/70 flex items-center justify-center p-4">
-                      <div className="bg-white rounded-xl p-5 max-w-sm w-full space-y-3">
-                        <h4 className="font-bold text-slate-800 flex items-center gap-2"><QrCode className="w-4 h-4" /> {t('presc_qr_verify', 'app')}</h4>
-                        <input type="text" value={qrVerifyInput} onChange={e => { setQrVerifyInput(e.target.value); setQrVerifyResult(null); }} placeholder={t('presc_qr_verify_placeholder', 'app')} className="w-full p-2 border border-slate-200 rounded-lg text-xs" />
-                        <div className="flex gap-2 justify-end">
-                          <button onClick={() => { setQrVerifyModal(false); setQrVerifyInput(''); setQrVerifyResult(null); }} className="px-3 py-1.5 text-slate-600 text-xs font-bold rounded-lg">{t('hce_cancel', 'app')}</button>
-                          <button onClick={handleVerifyQr} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg">{t('presc_qr_verify_btn', 'app')}</button>
-                        </div>
-                        {qrVerifyResult === 'success' && (
-                          <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-xs text-green-700 flex items-center gap-2">
-                            <Check className="w-4 h-4" /> {t('presc_qr_verify_success', 'app')}
-                          </div>
-                        )}
-                        {qrVerifyResult === 'fail' && (
-                          <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-700 flex items-center gap-2">
-                            <AlertTriangle className="w-4 h-4" /> {t('presc_qr_verify_fail', 'app')}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
 
                   {/* ═══ MODAL: ENVIAR RECEITA ═══ */}
                   {sendModal && (
