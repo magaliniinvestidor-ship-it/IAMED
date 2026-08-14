@@ -1686,15 +1686,16 @@ const ClinicalModuleContent = ({
   // ─── SEND PRESCRIPTION (envio digital simulado) ───
   const handleSendPrescription = async (channel: 'whatsapp' | 'email') => {
     const phone = selectedPatient?.phone || t('presc_send_no_phone', 'app');
+    const email = selectedPatient?.email || t('presc_send_no_email', 'app');
     if (channel === 'whatsapp') {
-      if (!confirm(`${t('presc_send_confirm_whatsapp', 'app')}\n\nTelefone cadastrado: ${phone}`)) return;
+      if (!confirm(`${t('presc_send_confirm_whatsapp', 'app')}\n\n${t('presc_send_phone_label', 'app')}: ${phone}`)) return;
     } else {
-      if (!confirm(`${t('presc_send_confirm_email', 'app')}`)) return;
+      if (!confirm(`${t('presc_send_confirm_email', 'app')}\n\n${t('presc_send_email_label', 'app')}: ${email}`)) return;
     }
     setSendModal(false);
     await new Promise(r => setTimeout(r, 800));
     alert(t('presc_send_success', 'app'));
-    addAuditLog('Enviou Receita', `${channel.toUpperCase()} - ${selectedPatient?.name} - ${phone}`);
+    addAuditLog('Enviou Receita', `${channel.toUpperCase()} - ${selectedPatient?.name} - ${channel === 'whatsapp' ? phone : email}`);
   };
 
   // ─── SAVE EXAM REQUEST ───
@@ -3284,17 +3285,26 @@ const ClinicalModuleContent = ({
                     </div>
 
                     {/* Patient + Date */}
-                    <div className="bg-teal-50 px-4 py-2 flex items-center justify-between text-xs border-t border-teal-200">
-                      <div className="flex items-center gap-4">
-                        <span className="font-bold text-teal-800">{t('presc_header_patient', 'app')} <span className="font-normal text-slate-700">{selectedPatient?.name}</span></span>
-                        {selectedPatient?.birthdate && (
-                          <span className="text-slate-500">{t('presc_header_age', 'app')} {Math.floor((Date.now() - new Date(selectedPatient.birthdate).getTime()) / (365.25 * 24 * 60 * 60 * 1000))} {t('presc_header_years', 'app')}</span>
-                        )}
-                        {selectedPatient?.document_number && (
-                          <span className="text-slate-500">{t('presc_header_ci', 'app')} {selectedPatient.document_number}</span>
-                        )}
+                    <div className="bg-teal-50 px-4 py-2.5 border-t border-teal-200 space-y-1 text-xs">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4 flex-wrap">
+                          <span className="font-bold text-teal-800">{t('presc_header_patient', 'app')} <span className="font-normal text-slate-700">{selectedPatient?.name}</span></span>
+                          {selectedPatient?.birthdate && (
+                            <span className="text-slate-500">{t('presc_header_age', 'app')} {Math.floor((Date.now() - new Date(selectedPatient.birthdate).getTime()) / (365.25 * 24 * 60 * 60 * 1000))} {t('presc_header_years', 'app')}</span>
+                          )}
+                          {selectedPatient?.document_number && (
+                            <span className="text-slate-500">{t('presc_header_ci', 'app')} {selectedPatient.document_number}</span>
+                          )}
+                        </div>
+                        <span className="text-slate-500">{new Date().toLocaleDateString(locale)}</span>
                       </div>
-                      <span className="text-slate-500">{new Date().toLocaleDateString(locale)}</span>
+                      {(selectedPatient?.phone || selectedPatient?.email || selectedPatient?.address_city) && (
+                        <div className="flex items-center gap-4 flex-wrap text-[10px] text-slate-500">
+                          {selectedPatient?.phone && <span>{t('presc_send_phone_label', 'app')}: {selectedPatient.phone}</span>}
+                          {selectedPatient?.email && <span>{t('presc_send_email_label', 'app')}: {selectedPatient.email}</span>}
+                          {selectedPatient?.address_city && <span>{t('presc_header_city', 'app')}: {selectedPatient.address_city}{selectedPatient.address_neighborhood ? ` - ${selectedPatient.address_neighborhood}` : ''}</span>}
+                        </div>
+                      )}
                     </div>
 
                     {/* Title */}
@@ -3327,7 +3337,9 @@ const ClinicalModuleContent = ({
                                 <th className="py-1.5 pr-2">{t('presc_medication', 'app')}</th>
                                 <th className="py-1.5 pr-2">{t('presc_add_posology', 'app')}</th>
                                 <th className="py-1.5 pr-2">{t('presc_type', 'app')}</th>
-                                <th className="py-1.5 pr-2">{t('presc_col_actions', 'app')}</th>
+                                {selectedHeader?.status !== 'assinado' && (
+                                  <th className="py-1.5 pr-2">{t('presc_col_actions', 'app')}</th>
+                                )}
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
@@ -3350,14 +3362,19 @@ const ClinicalModuleContent = ({
                                     </span>
                                   </td>
                                   <td className="py-2 pr-2 align-top">
-                                    <div className="flex items-center gap-1">
-                                      <button onClick={() => { setEditingItem(item); clearPrescErrors(); }} className="p-1 text-slate-500 hover:text-teal-600" title={t('hce_edit', 'app')}>
-                                        <Pencil className="w-3.5 h-3.5" />
-                                      </button>
-                                      <button onClick={() => handleDeletePrescriptionItem(item.id)} className="p-1 text-slate-500 hover:text-rose-600" title={t('hce_delete', 'app')}>
-                                        <Trash2 className="w-3.5 h-3.5" />
-                                      </button>
-                                    </div>
+                                    {selectedHeader?.status !== 'assinado' && (
+                                      <div className="flex items-center gap-1">
+                                        <button onClick={() => { setEditingItem(item); clearPrescErrors(); }} className="p-1 text-slate-500 hover:text-teal-600" title={t('hce_edit', 'app')}>
+                                          <Pencil className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button onClick={() => handleDeletePrescriptionItem(item.id)} className="p-1 text-slate-500 hover:text-rose-600" title={t('hce_delete', 'app')}>
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
+                                    )}
+                                    {selectedHeader?.status === 'assinado' && (
+                                      <span className="text-[10px] text-slate-400 italic">{t('presc_signed_locked', 'app')}</span>
+                                    )}
                                   </td>
                                 </tr>
                               ))}
@@ -3428,9 +3445,12 @@ const ClinicalModuleContent = ({
                   {sendModal && (
                     <div className="no-print fixed inset-0 z-50 bg-slate-900/70 flex items-center justify-center p-4">
                       <div className="bg-white rounded-xl p-5 max-w-sm w-full space-y-3">
-                        <h4 className="font-bold text-slate-800 flex items-center gap-2"><Send className="w-4 h-4" /> {t('presc_send_whatsapp', 'app')}</h4>
-                        <p className="text-xs text-slate-500">Paciente: <b>{selectedPatient?.name}</b></p>
-                        <p className="text-xs text-slate-500">{selectedPatient?.phone || 'sem telefone'}</p>
+                        <h4 className="font-bold text-slate-800 flex items-center gap-2"><Send className="w-3.5 h-3.5" /> {t('presc_send_title', 'app')}</h4>
+                        <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-1 text-xs">
+                          <p className="text-slate-700"><b>{t('presc_header_patient', 'app')}:</b> {selectedPatient?.name}</p>
+                          <p className="text-slate-700"><b>{t('presc_send_phone_label', 'app')}:</b> {selectedPatient?.phone || '—'}</p>
+                          <p className="text-slate-700"><b>{t('presc_send_email_label', 'app')}:</b> {selectedPatient?.email || '—'}</p>
+                        </div>
                         <div className="flex flex-wrap gap-2 pt-2">
                           <button onClick={() => handleSendPrescription('whatsapp')} className="flex-1 px-3 py-2 bg-green-600 hover:bg-green-700 text-white text-xs font-bold rounded-lg flex items-center justify-center gap-1">
                             <Send className="w-3.5 h-3.5" /> {t('presc_send_whatsapp', 'app')}
