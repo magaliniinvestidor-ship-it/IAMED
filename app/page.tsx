@@ -1536,6 +1536,7 @@ function HomeContent() {
                       professionals={professionals}
                       userPermissions={profile?.permissions}
                       activeOperator={activeOperator}
+                      activeOperatorEmail={session?.user?.email || ''}
                     />
                     </ErrorBoundary>
                   </PermissionGate>

@@ -48,6 +48,7 @@ interface ClinicalModuleProps {
   professionals?: Professional[];
   userPermissions?: string[];
   activeOperator?: string;
+  activeOperatorEmail?: string;
 }
 
 // HCE Tab type
@@ -114,15 +115,21 @@ const ClinicalModuleContent = ({
   setAsos,
   professionals = [],
   activeOperator = 'Operador',
+  activeOperatorEmail = '',
 }: ClinicalModuleProps) => {
   const { t, locale } = useI18n();
   const userPermissions = useUserPermissions();
   const hasSensitiveAccess = hasPermission(userPermissions, 'view_sensitive');
   const activeProfessional = useMemo(() => {
-    const byName = professionals.find(p => p.name?.toLowerCase() === activeOperator.toLowerCase());
+    const norm = (s: string) => s?.toLowerCase().trim();
+    if (activeOperatorEmail) {
+      const byEmail = professionals.find(p => norm(p.email) === norm(activeOperatorEmail));
+      if (byEmail) return byEmail;
+    }
+    const byName = professionals.find(p => norm(p.name) === norm(activeOperator));
     if (byName) return byName;
     return professionals.find(p => p.council && p.council !== 'N/A' && p.councilNumber) || professionals[0] || null;
-  }, [professionals, activeOperator]);
+  }, [professionals, activeOperator, activeOperatorEmail]);
 
   // Patient selection
   const [selectedPatId, setSelectedPatId] = useState('');
