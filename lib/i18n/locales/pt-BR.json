@@ -2401,6 +2401,7 @@
     "fin_select_all": "Selecionar Tudo",
     "hce_prescription_notes_placeholder": "Tomar con água, depois de comer...",
     "hce_exam_name_placeholder": "Ex: Hemograma Completo",
+    "hce_exam_catalog_hint": "Selecionado do catálogo mundial de exames",
     "hce_clinical_indication_placeholder": "Indicação clínica para o exame...",
     "hce_request_exam": "Solicitar Exame",
     "hce_status_solicitado": "Solicitado",

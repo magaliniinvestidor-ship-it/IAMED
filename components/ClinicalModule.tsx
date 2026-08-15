@@ -242,7 +242,35 @@ const ClinicalModuleContent = ({
   const [examRequestForm, setExamRequestForm] = useState({
     examType: 'laboratorio' as 'laboratorio' | 'imagem' | 'anatomia_patologica' | 'outro',
     examName: '', clinicalIndication: '', urgency: 'rotina' as 'rotina' | 'urgente' | 'emergencia',
+    examCatalogId: '',
   });
+  const [examCatalog, setExamCatalog] = useState<{ id: string; examType: string; category: string; name: string }[]>([]);
+
+  // ─── LOAD EXAM CATALOG (mundial, traduzido pelo locale ativo) ───
+  const loadExamCatalog = useCallback(async () => {
+    if (!supabase) return;
+    try {
+      const [catRes, trRes] = await Promise.all([
+        supabase.from('exam_catalog').select('id, exam_type, category, active').eq('active', true),
+        supabase.from('exam_catalog_translations').select('catalog_id, locale, name'),
+      ]);
+      if (catRes.error || trRes.error) return;
+      const trans = (trRes.data || []) as { catalog_id: string; locale: string; name: string }[];
+      const lang = locale.startsWith('pt') ? (locale === 'pt-BR' ? 'pt-BR' : 'pt-PT') : locale.startsWith('es') ? locale : 'en';
+      const byCat: Record<string, Record<string, string>> = {};
+      trans.forEach(tr => { (byCat[tr.catalog_id] = byCat[tr.catalog_id] || {})[tr.locale] = tr.name; });
+      setExamCatalog((catRes.data || []).map((c: any) => ({
+        id: c.id,
+        examType: c.exam_type,
+        category: c.category || '',
+        name: (byCat[c.id] && (byCat[c.id][lang] || byCat[c.id].en || byCat[c.id]['pt-BR'] || Object.values(byCat[c.id])[0])) || c.id,
+      })));
+    } catch (err) {
+      console.error('[SUPABASE] Load exam catalog FAILED:', err);
+    }
+  }, [locale]);
+
+  useEffect(() => { loadExamCatalog(); }, [loadExamCatalog]);
 
   // ─── PROCEDURE STATE ───
   const [procedureList, setProcedureList] = useState<Procedure[]>([]);
@@ -616,6 +644,7 @@ const ClinicalModuleContent = ({
           updatedBy: e.updated_by || '',
           examType: e.exam_type,
           examName: e.exam_name,
+          examCatalogId: e.exam_catalog_id || '',
           clinicalIndication: e.clinical_indication || '',
           urgency: e.urgency || 'rotina',
           status: e.status,
@@ -1776,13 +1805,14 @@ const ClinicalModuleContent = ({
       resultFileName: '',
     };
     setExamRequests(prev => [req, ...examRequests]);
-    setExamRequestForm({ examType: 'laboratorio', examName: '', clinicalIndication: '', urgency: 'rotina' });
+    setExamRequestForm({ examType: 'laboratorio', examName: '', clinicalIndication: '', urgency: 'rotina', examCatalogId: '' });
     addAuditLog('Solicitação de Exame', `${req.examName} - ${selectedPatient?.name}`);
     if (supabase) {
       await supabase.from('exam_requests').insert({
         id: req.id, patient_id: req.patientId, created_by: req.createdBy,
         updated_by: null,
         exam_type: req.examType, exam_name: req.examName,
+        exam_catalog_id: req.examCatalogId || null,
         clinical_indication: req.clinicalIndication, urgency: req.urgency,
         status: req.status,
       });
@@ -3907,16 +3937,35 @@ const ClinicalModuleContent = ({
                       {examErrors.length > 0 && <FormErrorSummary errors={examErrors} onClose={clearExamErrors} />}
                       <div className="grid grid-cols-2 gap-3">
                         <FormField label={t('hce_exam_type', 'app')} error={examFieldErrors.examType}>
-                          <select value={examRequestForm.examType} onChange={e => setExamRequestForm(p => ({ ...p, examType: e.target.value as any }))} className={inputCls}>
+                          <select value={examRequestForm.examType} onChange={e => setExamRequestForm(p => ({ ...p, examType: e.target.value as any, examCatalogId: '', examName: '' }))} className={inputCls}>
                             <option value="laboratorio">{t('hce_exam_laboratorio', 'app')}</option>
                             <option value="imagem">{t('hce_exam_imagem', 'app')}</option>
                             <option value="anatomia_patologica">{t('hce_exam_anatomia', 'app')}</option>
                             <option value="outro">{t('hce_exam_outro', 'app')}</option>
                           </select>
                         </FormField>
-                        <FormField label={t('hce_exam_name', 'app')} error={examFieldErrors.examName}>
-                          <input type="text" value={examRequestForm.examName} onChange={e => setExamRequestForm(p => ({ ...p, examName: e.target.value }))} className={inputCls} placeholder={t('hce_exam_name_placeholder', 'app')} />
-                        </FormField>
+<FormField label={t('hce_exam_name', 'app')} error={examFieldErrors.examName}>
+  <input type="text" value={examRequestForm.examName} list="exam-catalog-options"
+    onChange={e => {
+      const v = e.target.value;
+      const match = examCatalog.find(c => c.name === v && c.examType === examRequestForm.examType);
+      setExamRequestForm(p => ({
+        ...p,
+        examName: v,
+        examCatalogId: match ? match.id : '',
+        examType: match ? match.examType as any : p.examType,
+      }));
+    }}
+    className={inputCls} placeholder={t('hce_exam_name_placeholder', 'app')} />
+  <datalist id="exam-catalog-options">
+    {examCatalog.filter(c => c.examType === examRequestForm.examType).map(c => (
+      <option key={c.id} value={c.name}>{c.category}</option>
+    ))}
+  </datalist>
+  {examRequestForm.examCatalogId && (
+    <p className="text-[10px] text-teal-600">{t('hce_exam_catalog_hint', 'app')}</p>
+  )}
+</FormField>
                         <FormField label={t('hce_clinical_indication', 'app')} className="col-span-2" error={examFieldErrors.clinicalIndication}>
                           <textarea value={examRequestForm.clinicalIndication} onChange={e => setExamRequestForm(p => ({ ...p, clinicalIndication: e.target.value }))} rows={2} className={textareaCls} placeholder={t('hce_clinical_indication_placeholder', 'app')} />
                         </FormField>
@@ -4516,7 +4565,7 @@ const ClinicalModuleContent = ({
                         <div key={log.id} className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs space-y-1">
                           <div className="flex items-center justify-between">
                             <span className="font-bold text-rose-800">⚠️ {log.accessType.toUpperCase()}</span>
-                            <span className="text-[10px] text-slate-500">{log.accessedAt.split('T')[0]}</span>
+                            <span className="text-[10px] text-slate-500">{new Date(log.accessedAt).toLocaleString(locale)}</span>
                           </div>
                           <p className="text-rose-600">{t('hce_justification', 'app')}: {log.justification}</p>
                           <p className="text-slate-500">{t('hce_accessed_by', 'app')}: {log.accessedBy}</p>

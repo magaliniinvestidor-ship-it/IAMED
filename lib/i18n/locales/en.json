@@ -2401,6 +2401,7 @@
     "fin_select_all": "Select All",
     "hce_prescription_notes_placeholder": "Take with water, after eating...",
     "hce_exam_name_placeholder": "Ex: Complete Blood Count",
+    "hce_exam_catalog_hint": "Selected from the global exam catalog",
     "hce_clinical_indication_placeholder": "Clinical indication for the exam...",
     "hce_request_exam": "Request Exam",
     "hce_status_solicitado": "Requested",

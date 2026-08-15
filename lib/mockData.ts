@@ -280,6 +280,7 @@ export interface ExamRequest {
   updatedBy?: string;
   examType: 'laboratorio' | 'imagem' | 'anatomia_patologica' | 'outro';
   examName: string;
+  examCatalogId?: string;
   clinicalIndication: string;
   urgency: 'rotina' | 'urgente' | 'emergencia';
   status: 'solicitado' | 'em_execucao' | 'laudo_pendente' | 'concluido' | 'cancelado';
