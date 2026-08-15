@@ -204,6 +204,10 @@ const ClinicalModuleContent = ({
   const [sendModal, setSendModal] = useState(false);
   const [sentChannels, setSentChannels] = useState<{ whatsapp: boolean; email: boolean }>({ whatsapp: false, email: false });
 
+  // Rastreia receitas já persistidas no banco e a entrada na aba Receituário
+  const persistedPrescIdsRef = useRef<Set<string>>(new Set());
+  const prescTabEntryRef = useRef(false);
+
   // Itens e cabeçalho da receita selecionada
   const selectedItems = useMemo(
     () => (selectedPrescriptionId
@@ -274,6 +278,7 @@ const ClinicalModuleContent = ({
   const breakGlassTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [accessLogs, setAccessLogs] = useState<AccessControl[]>([]);
   const activeSessionRef = useRef<{ id: string; patientId: string; fields: string[] } | null>(null);
+  const accessLogQueueRef = useRef<Promise<void>>(Promise.resolve());
   const hceTabRef = useRef<HCETab>(hceTab);
   const [careTeam, setCareTeam] = useState<{ id: string; professionalName: string; role: string }[]>([]);
   const [careTeamLoaded, setCareTeamLoaded] = useState(false);
@@ -563,6 +568,7 @@ const ClinicalModuleContent = ({
           notes: p.notes || '',
         })) as PrescriptionHeader[];
         setPrescriptions(headers);
+        persistedPrescIdsRef.current = new Set(headers.map(h => h.id));
         if (headers.length > 0) setSelectedPrescriptionId(headers[headers.length - 1].id);
 
         // Load items of all headers (para exibição + timeline)
@@ -941,40 +947,44 @@ const ClinicalModuleContent = ({
   // ─── LOG NORMAL VIEW (1 registro por sessão de prontuário; acumula abas) ───
   const logHceView = useCallback(async (patientId: string) => {
     if (!supabase) return;
-    const now = new Date().toISOString();
     const tab = 'hce_' + hceTabRef.current;
 
-    // Se já há sessão ativa para este paciente, apenas acumula a aba acessada
-    const session = activeSessionRef.current;
-    if (session && session.patientId === patientId) {
-      if (!session.fields.includes(tab)) {
-        session.fields.push(tab);
-        await supabase.from('access_controls')
-          .update({ fields_accessed: session.fields })
-          .eq('id', session.id);
-        setAccessLogs(prev => prev.map(l => l.id === session.id ? { ...l, fieldsAccessed: [...session.fields] } : l));
+    const enqueue = async () => {
+      const session = activeSessionRef.current;
+      // Se já há sessão ativa para este paciente, apenas acumula a aba acessada
+      if (session && session.patientId === patientId) {
+        if (!session.fields.includes(tab)) {
+          session.fields.push(tab);
+          await supabase.from('access_controls')
+            .update({ fields_accessed: session.fields })
+            .eq('id', session.id);
+          setAccessLogs(prev => prev.map(l => l.id === session.id ? { ...l, fieldsAccessed: [...session.fields] } : l));
+        }
+        return;
       }
-      return;
-    }
-
-    // Nova sessão: fecha a anterior (outro paciente) e cria novo registro
-    if (session) {
-      await closeAccessSession();
-    }
-    const logId = await genId('ac');
-    const log: AccessControl = {
-      id: logId,
-      patientId,
-      accessedBy: activeOperator,
-      accessedAt: now,
-      accessType: 'normal',
-      justification: 'Visualização de rotina do HCE',
-      fieldsAccessed: [tab],
-      ipAddress: '192.168.1.1',
-      notifiedPrivacyOfficer: false,
+      // Nova sessão: fecha a anterior (outro paciente) e cria novo registro
+      if (session) {
+        await closeAccessSession();
+      }
+      const logId = await genId('ac');
+      const log: AccessControl = {
+        id: logId,
+        patientId,
+        accessedBy: activeOperator,
+        accessedAt: new Date().toISOString(),
+        accessType: 'normal',
+        justification: 'Visualização de rotina do HCE',
+        fieldsAccessed: [tab],
+        ipAddress: '192.168.1.1',
+        notifiedPrivacyOfficer: false,
+      };
+      await handleSaveAccessControl(log);
+      activeSessionRef.current = { id: logId, patientId, fields: [tab] };
     };
-    handleSaveAccessControl(log);
-    activeSessionRef.current = { id: logId, patientId, fields: [tab] };
+
+    // Serializa chamadas concorrentes para não duplicar registros (StrictMode, troca rápida de paciente)
+    accessLogQueueRef.current = accessLogQueueRef.current.then(enqueue, enqueue);
+    await accessLogQueueRef.current;
   }, [activeOperator, handleSaveAccessControl, closeAccessSession, genId]);
 
   // Regenera o QR code (data URL) a partir do payload armazenado, ao trocar de receita ou recarregar
@@ -1482,7 +1492,22 @@ const ClinicalModuleContent = ({
     addAuditLog('Excluiu Evolução SOAP', selectedPatient?.name || '');
   };
 
-  // ─── NEW PRESCRIPTION (cria cabeçalho vazio) ───
+  // ─── NEW PRESCRIPTION (cria cabeçalho vazio em memória; só persiste ao salvar item) ───
+  const ensurePrescriptionPersisted = useCallback(async (header: PrescriptionHeader) => {
+    if (!supabase || persistedPrescIdsRef.current.has(header.id)) return;
+    await supabase.from('prescriptions').upsert({
+      id: header.id, patient_id: header.patientId, created_by: header.createdBy,
+      updated_by: null,
+      prescription_type: 'comum', drug_name: '', active_ingredient: '',
+      presentation: '', dosage: '', frequency: '', route: '', duration: '',
+      start_date: new Date().toISOString().split('T')[0], quantity: 1, unit: '',
+      refill_count: 0, notes: '', qr_code_data: '',
+      snomed_code: null, snomed_description: null,
+      status: header.status,
+    }, { onConflict: 'id' });
+    persistedPrescIdsRef.current.add(header.id);
+  }, []);
+
   const handleNewPrescription = async () => {
     if (!selectedPatient) return;
     const header: PrescriptionHeader = {
@@ -1500,24 +1525,17 @@ const ClinicalModuleContent = ({
     clearPrescErrors();
     setPrescriptionForm({ drugName: '', activeIngredient: '', presentation: '', dosage: '', frequency: '', route: 'oral', duration: '', quantity: 1, unit: 'comprimidos', notes: '', snomedCode: '', snomedDescription: '', prescriptionType: 'comum' });
     addAuditLog('Receita Criada', `${selectedPatient.name}`);
-    if (supabase) {
-      await supabase.from('prescriptions').insert({
-        id: header.id, patient_id: header.patientId, created_by: header.createdBy,
-        updated_by: null,
-        prescription_type: 'comum', drug_name: '', active_ingredient: '',
-        presentation: '', dosage: '', frequency: '', route: '', duration: '',
-        start_date: new Date().toISOString().split('T')[0], quantity: 1, unit: '',
-        refill_count: 0, notes: '', qr_code_data: '',
-        snomed_code: null, snomed_description: null,
-        status: header.status,
-      });
-    }
   };
 
-  // Ao abrir a aba de Receituário, sempre inicia com uma nova receita em rascunho
+  // Ao abrir a aba de Receituário, inicia com uma nova receita em rascunho (uma única vez por entrada)
   useEffect(() => {
-    if (hceTab !== 'prescriptions') return;
+    if (hceTab !== 'prescriptions') {
+      prescTabEntryRef.current = false;
+      return;
+    }
     if (!selectedPatient) return;
+    if (prescTabEntryRef.current) return;
+    prescTabEntryRef.current = true;
     handleNewPrescription();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hceTab, selectedPatient]);
@@ -1596,6 +1614,8 @@ const ClinicalModuleContent = ({
     clearPrescErrors();
     addAuditLog('Medicamento Adicionado à Receita', `${item.drugName} - ${selectedPatient?.name}`);
     if (supabase) {
+      const header = prescriptions.find(p => p.id === selectedPrescriptionId);
+      if (header) await ensurePrescriptionPersisted(header);
       await supabase.from('prescription_items').insert({
         id: item.id, prescription_id: item.prescriptionId, position: item.position,
         prescription_type: item.prescriptionType, drug_name: item.drugName,
@@ -1707,6 +1727,7 @@ const ClinicalModuleContent = ({
         setPrescriptions(prev => prev.map(p => p.id === prescId ? updated : p));
       }
       if (supabase) {
+        if (header) await ensurePrescriptionPersisted(header);
         await supabase.from('prescriptions').update({ status: 'assinado', signed_at: signedAt, qr_code_data: payload, signature_id: sig.id }).eq('id', prescId);
       }
     };

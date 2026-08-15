@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import Image from 'next/image';
 import { Patient, Appointment, Professional, InsuranceCompany } from '@/lib/mockData';
 import { supabase } from '@/lib/supabaseClient';
+import { resizeImageToJpeg } from '@/lib/imageUtils';
 import { useI18n } from '@/lib/i18n/I18nContext';
 import { getVitalsBands, classifyBmiForAge } from '@/lib/vitals/vitalsLimits';
 import { useFormValidation, groupErrorsByPath, validateForm } from '@/lib/validation';
@@ -531,7 +532,7 @@ export default function ReceptionModule({
       const ctx = canvas.getContext('2d');
       if (ctx) {
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const photoData = canvas.toDataURL('image/jpeg', 0.8);
+        const photoData = await resizeImageToJpeg(canvas.toDataURL('image/jpeg', 0.8));
         setWebcamPlaceholder(photoData);
         addAuditLog(t('rcpt_audit_camera_photo', 'app'), newName || 'Pendente');
         const uploadedUrl = await uploadPhotoToStorage(photoData, fileName);
@@ -870,7 +871,7 @@ export default function ReceptionModule({
     const fileName = selectedPatientId ? `patient_${selectedPatientId}_${Date.now()}.jpg` : `patient_${++photoCounterRef.current}.jpg`;
       const reader = new FileReader();
       reader.onloadend = async () => {
-        const result = reader.result as string;
+        const result = await resizeImageToJpeg(reader.result as string);
         setWebcamPlaceholder(result);
         addAuditLog(t('rcpt_audit_loaded_photo', 'app'), newName || 'Pendente');
         const uploadedUrl = await uploadPhotoToStorage(result, fileName);

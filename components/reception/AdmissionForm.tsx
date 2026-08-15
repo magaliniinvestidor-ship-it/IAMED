@@ -9,6 +9,7 @@ import {
 import { useI18n } from '@/lib/i18n/I18nContext';
 import { useModuleId } from '@/hooks/useModuleId';
 import { supabase } from '@/lib/supabaseClient';
+import { resizeImageToJpeg } from '@/lib/imageUtils';
 import { Patient, ReceptionModuleProps, AdmissionFormTab, GENDER_OPTIONS, CIVIL_STATUS_OPTIONS, DOCUMENT_TYPES, BLOOD_TYPES, HEALTH_INSURANCE_OPTIONS, LANGUAGES } from './ReceptionContext';
 import { useFormValidation, groupErrorsByPath } from '@/lib/validation';
 import { patientSchema } from '@/lib/validation/schemas';
@@ -79,7 +80,9 @@ export function AdmissionForm({ addAuditLog, onSuccess, initialPatient, onClose 
     if (!file) return;
     setPhotoFile(file);
     const reader = new FileReader();
-    reader.onloadend = () => setPhotoPreview(reader.result as string);
+    reader.onloadend = () => {
+      resizeImageToJpeg(reader.result as string).then(resized => setPhotoPreview(resized));
+    };
     reader.readAsDataURL(file);
   };
 

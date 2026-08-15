@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Image from 'next/image';
 import { supabase } from '@/lib/supabaseClient';
+import { resizeImageToJpeg } from '@/lib/imageUtils';
 import { useI18n } from '@/lib/i18n/I18nContext';
 import { Patient, Appointment, Professional, InsuranceCompany } from '@/lib/mockData';
 import {
@@ -2354,7 +2355,7 @@ const AgendaModuleContent = ({
       const ctx = canvas.getContext('2d');
       if (ctx) {
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const photoData = canvas.toDataURL('image/jpeg', 0.8);
+        const photoData = await resizeImageToJpeg(canvas.toDataURL('image/jpeg', 0.8));
         setCpWebcamPlaceholder(photoData);
         const uploadedUrl = await cpUploadPhotoToStorage(photoData, fileName);
         if (uploadedUrl) {
@@ -2393,7 +2394,7 @@ const AgendaModuleContent = ({
       : `patient_${(cpNewPatientIdRef.current || 'CLI001')}_${Date.now()}.jpg`;
     const reader = new FileReader();
     reader.onloadend = async () => {
-      const dataUrl = reader.result as string;
+      const dataUrl = await resizeImageToJpeg(reader.result as string);
       setCpWebcamPlaceholder(dataUrl);
       const uploadedUrl = await cpUploadPhotoToStorage(dataUrl, fileName);
       if (uploadedUrl) {
