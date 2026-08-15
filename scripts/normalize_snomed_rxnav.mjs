@@ -4,7 +4,7 @@
 // Re-resolve TODOS os conceitos de snomed_concepts na RxNorm e,
 // quando o código SNOMED real (SNOMEDCT_US) difere do gravado,
 // aplica a correção em snomed_concepts e nas tabelas de referência
-// (drug_catalog, prescription_items, prescriptions).
+// (drug_catalog, prescription_items).
 // Diagnósticos/condições não resolvem no RxNav e são mantidos.
 //
 // Uso:
@@ -98,7 +98,7 @@ function candidates(concept) {
 }
 
 // Tabelas com coluna snomed_code que apontam para os conceitos
-const REF_TABLES = ['drug_catalog', 'prescription_items', 'prescriptions'];
+const REF_TABLES = ['drug_catalog', 'prescription_items'];
 
 async function main() {
   const env = readEnv();

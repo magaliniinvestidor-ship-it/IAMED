@@ -7,7 +7,7 @@
 // cada conceito suspeito e atualiza:
 //   1. snomed_concepts  (concept_id corrigido / merge com o real)
 //   2. drug_catalog     (snomed_code / snomed_description)
-//   3. prescription_items / prescriptions (snomed_code gravado)
+//   3. prescription_items (snomed_code gravado)
 //
 // Uso:
 //   node scripts/fix_placeholder_snomed.mjs [--dry-run] [--limit 50] [--delay 150]
@@ -111,7 +111,7 @@ function candidates(concept) {
 }
 
 // Tabelas com coluna snomed_code que apontam para os conceitos
-const REF_TABLES = ['drug_catalog', 'prescription_items', 'prescriptions'];
+const REF_TABLES = ['drug_catalog', 'prescription_items'];
 
 async function main() {
   const env = readEnv();

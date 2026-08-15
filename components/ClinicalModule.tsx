@@ -22,7 +22,7 @@ import { FormField, FormErrorSummary } from '@/components/forms';
 import { SnomedSearchBox } from '@/components/clinical/SnomedSearchBox';
 import { getSignatureProvider, SignableDocument } from '@/lib/signature/provider';
 import { checkInteractions, checkAllergies, SafetyAlert } from '@/lib/prescription/safetyChecks';
-import { generateQrDataUrl, buildPrescriptionQrPayload } from '@/lib/prescription/qrCode';
+import { generateQrDataUrl, buildPrescriptionQrPayload, buildPrescriptionVerifyUrl } from '@/lib/prescription/qrCode';
 import { calculatePediatricDoseByWeight, calculateBodySurfaceArea } from '@/lib/prescription/pediatricDose';
 
 import {
@@ -60,13 +60,10 @@ interface PrescriptionHeader {
   patientId: string;
   createdBy: string;
   createdAt: string;
-  updatedBy?: string;
   status: 'rascunho' | 'assinado' | 'cancelado' | 'dispensado';
   signedAt?: string;
   signatureId?: string;
   qrCodeData: string;
-  title?: string;
-  notes?: string;
 }
 
 interface PrescriptionItem {
@@ -559,13 +556,10 @@ const ClinicalModuleContent = ({
           patientId: p.patient_id,
           createdBy: p.created_by,
           createdAt: p.created_at,
-          updatedBy: p.updated_by || '',
           status: p.status,
           signedAt: p.signed_at,
           signatureId: p.signature_id,
           qrCodeData: p.qr_code_data || '',
-          title: p.title || '',
-          notes: p.notes || '',
         })) as PrescriptionHeader[];
         setPrescriptions(headers);
         persistedPrescIdsRef.current = new Set(headers.map(h => h.id));
@@ -996,7 +990,7 @@ const ClinicalModuleContent = ({
       const payload = selectedHeader?.qrCodeData;
       if (payload && !prescQrDataUrlRef.current) {
         try {
-          const url = await generateQrDataUrl(payload);
+          const url = await generateQrDataUrl(buildPrescriptionVerifyUrl(payload));
           if (!cancelled) setPrescQrDataUrl(url);
         } catch (err) {
           console.error('[QR] regenerate failed:', err);
@@ -1497,13 +1491,7 @@ const ClinicalModuleContent = ({
     if (!supabase || persistedPrescIdsRef.current.has(header.id)) return;
     await supabase.from('prescriptions').upsert({
       id: header.id, patient_id: header.patientId, created_by: header.createdBy,
-      updated_by: null,
-      prescription_type: 'comum', drug_name: '', active_ingredient: '',
-      presentation: '', dosage: '', frequency: '', route: '', duration: '',
-      start_date: new Date().toISOString().split('T')[0], quantity: 1, unit: '',
-      refill_count: 0, notes: '', qr_code_data: '',
-      snomed_code: null, snomed_description: null,
-      status: header.status,
+      qr_code_data: '', status: header.status,
     }, { onConflict: 'id' });
     persistedPrescIdsRef.current.add(header.id);
   }, []);
@@ -1517,7 +1505,6 @@ const ClinicalModuleContent = ({
       createdAt: new Date().toISOString(),
       status: 'rascunho',
       qrCodeData: '',
-      title: '',
     };
     setPrescriptions(prev => [...prev, header].sort((a, b) => a.createdAt.localeCompare(b.createdAt)));
     setSelectedPrescriptionId(header.id);
@@ -1527,7 +1514,7 @@ const ClinicalModuleContent = ({
     addAuditLog('Receita Criada', `${selectedPatient.name}`);
   };
 
-  // Ao abrir a aba de Receituário, inicia com uma nova receita em rascunho (uma única vez por entrada)
+  // Ao abrir a aba de Receituário, cria um rascunho apenas se ainda não existir nenhum (não cria após assinar)
   useEffect(() => {
     if (hceTab !== 'prescriptions') {
       prescTabEntryRef.current = false;
@@ -1536,6 +1523,7 @@ const ClinicalModuleContent = ({
     if (!selectedPatient) return;
     if (prescTabEntryRef.current) return;
     prescTabEntryRef.current = true;
+    if (prescriptions.some(p => p.status === 'rascunho')) return;
     handleNewPrescription();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hceTab, selectedPatient]);
@@ -1720,7 +1708,7 @@ const ClinicalModuleContent = ({
         verificationCode: sig.verificationCode,
         items: items.map(i => ({ name: i.drugName, dosage: i.dosage, frequency: i.frequency })),
       });
-      const qrUrl = await generateQrDataUrl(payload);
+      const qrUrl = await generateQrDataUrl(buildPrescriptionVerifyUrl(payload));
       setPrescQrDataUrl(qrUrl);
       if (header) {
         const updated: PrescriptionHeader = { ...header, status: 'assinado', signedAt, qrCodeData: payload };
@@ -1737,7 +1725,10 @@ const ClinicalModuleContent = ({
     if (!confirm(t('presc_confirm_delete_receipt', 'app'))) return;
     setPrescriptions(prev => prev.filter(p => p.id !== prescId));
     setAllItems(prev => prev.filter(i => i.prescriptionId !== prescId));
-    if (selectedPrescriptionId === prescId) setSelectedPrescriptionId(null);
+    if (selectedPrescriptionId === prescId) {
+      setSelectedPrescriptionId(null);
+      setPrescQrDataUrl('');
+    }
     if (supabase) {
       await supabase.from('prescriptions').delete().eq('id', prescId);
     }
@@ -1975,7 +1966,7 @@ const ClinicalModuleContent = ({
         eventType: 'prescricao',
         eventDate: p.createdAt,
         eventTitle: `${t('hce_event_prescription', 'app')}${drugNames || p.id}`,
-        eventDescription: pItems.map(i => `${i.drugName} ${i.dosage} - ${i.frequency} - ${i.route}`).join('; ') || p.notes || '',
+        eventDescription: pItems.map(i => `${i.drugName} ${i.dosage} - ${i.frequency} - ${i.route}`).join('; '),
         eventSource: 'prescription',
         eventSourceId: p.id,
         doctorName: p.createdBy,
@@ -3482,6 +3473,14 @@ const ClinicalModuleContent = ({
                         <div className="text-[10px] text-slate-500 space-y-0.5">
                           <p className="font-bold text-slate-700">{t('presc_qr_title', 'app')}</p>
                           <p>{t('presc_qr_hint', 'app')}</p>
+                          <a
+                            href={buildPrescriptionVerifyUrl(selectedHeader?.qrCodeData || '')}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-block text-teal-600 hover:text-teal-700 font-semibold underline"
+                          >
+                            {t('presc_qr_verify', 'app')}
+                          </a>
                         </div>
                       </div>
                     )}
@@ -3576,7 +3575,7 @@ const ClinicalModuleContent = ({
                         const itemCount = allItems.filter(i => i.prescriptionId === p.id).length;
                         const active = selectedPrescriptionId === p.id;
                         return (
-                          <button key={p.id} onClick={() => { setSelectedPrescriptionId(p.id); setEditingItem(null); clearPrescErrors(); }} className={`w-full text-left px-3 py-2 rounded-lg border transition ${active ? 'border-teal-400 bg-teal-50' : 'border-slate-200 bg-white hover:bg-slate-50'}`}>
+                          <button key={p.id} onClick={() => { setSelectedPrescriptionId(p.id); setPrescQrDataUrl(''); setEditingItem(null); clearPrescErrors(); }} className={`w-full text-left px-3 py-2 rounded-lg border transition ${active ? 'border-teal-400 bg-teal-50' : 'border-slate-200 bg-white hover:bg-slate-50'}`}>
                             <span className={`block text-xs font-bold truncate ${active ? 'text-teal-700' : 'text-slate-700'}`}>
                               {t('presc_receipt_label', 'app')} #{idx + 1}
                             </span>
