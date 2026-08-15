@@ -37,9 +37,15 @@ export default function VerifyClient({ payload }: { payload: string }) {
 }
 
 function VerifyInner({ initialPayload }: { initialPayload: string }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [input, setInput] = useState(initialPayload);
   const [state, setState] = useState<VerifyState>({ status: 'idle' });
+
+  const formatBirthdate = (value?: string) => {
+    if (!value) return '—';
+    const date = new Date(value.includes('T') ? value : value + 'T12:00:00');
+    return isNaN(date.getTime()) ? '—' : date.toLocaleDateString(locale);
+  };
 
   const runVerify = async (raw: string) => {
     const trimmed = raw.trim();
@@ -105,7 +111,7 @@ function VerifyInner({ initialPayload }: { initialPayload: string }) {
       patientName: patient?.name || parsed.patientName || '—',
       patientPhone: patient?.phone || '—',
       patientEmail: patient?.email || '—',
-      patientBirthdate: patient?.birthdate || '—',
+      patientBirthdate: formatBirthdate(patient?.birthdate),
       professionalName: sig?.signer_name || prof?.name || presc.created_by || '—',
       professionalSpecialty: prof?.specialty || '—',
       professionalCouncil: sig?.signer_council || prof?.council || '—',
