@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { ValidationMessages } from './i18n-schemas';
+import { PROCEDURE_CATEGORIES } from '@/lib/procedures/catalog';
 import {
   getValidationMessages,
   createTriageSchema,
@@ -217,6 +218,7 @@ export type InsuranceFormData = z.infer<typeof insuranceSchema>;
 
 export const prescriptionSchema = z.object({
   patientId: nonEmptyString('Paciente', 20),
+  prescriptionType: nonEmptyString('Tipo de receita', 20),
   drugName: nonEmptyString('Medicamento', 200),
   activeIngredient: optionalString(200),
   dosage: nonEmptyString('Dosagem', 100),
@@ -306,12 +308,8 @@ export type SoapFormData = z.infer<typeof soapSchema>;
 export const examRequestSchema = z.object({
   patientId: nonEmptyString('Paciente', 20),
   examName: nonEmptyString('Nome do exame', 200),
-  examType: z.enum(['laboratorio', 'imagem', 'anatomia_patologica', 'outro'], {
-    message: 'Tipo de exame inválido',
-  }),
-  urgency: z.enum(['rotina', 'urgente', 'emergencia'], {
-    message: 'Urgência inválida',
-  }),
+  examType: z.string().min(1, 'Selecione o tipo de exame'),
+  urgency: z.string().min(1, 'Selecione a urgência'),
   clinicalIndication: optionalString(1000),
 });
 
@@ -319,9 +317,14 @@ export type ExamRequestFormData = z.infer<typeof examRequestSchema>;
 
 export const procedureSchema = z.object({
   patientId: nonEmptyString('Paciente', 20),
-  procedureCode: optionalString(50),
+  procedureCode: z
+    .string()
+    .min(1, 'Código do procedimento é obrigatório')
+    .max(30, 'Código do procedimento: máximo 30 caracteres'),
   procedureName: nonEmptyString('Nome do procedimento', 200),
-  procedureCategory: optionalString(100),
+  procedureCategory: z.enum(PROCEDURE_CATEGORIES, {
+    message: 'Categoria inválida',
+  }),
   quantity: z
     .number()
     .int('Quantidade deve ser inteira')
@@ -335,6 +338,8 @@ export const procedureSchema = z.object({
     .optional()
     .or(z.literal('')),
   snomedDescription: z.string().max(500, 'Descrição SNOMED-CT: máximo 500 caracteres').optional().or(z.literal('')),
+  nomenclature: z.string().min(1, 'Selecione o nomenclador'),
+  status: z.string().min(1, 'Selecione o status do procedimento'),
 });
 
 export type ProcedureFormData = z.infer<typeof procedureSchema>;
@@ -357,6 +362,27 @@ export const snomedConceptSchema = z.object({
 
 export type SnomedConceptFormData = z.infer<typeof snomedConceptSchema>;
 
+const ALLOWED_ATTACHMENT_MIME_TYPES = [
+  'application/pdf',
+  'application/dicom',
+  'image/jpeg',
+  'image/png',
+  'video/mp4',
+  'audio/wav',
+] as const;
+
+export const ATTACHMENT_CATEGORIES = [
+  'exame_imagem',
+  'exame_laboratorio',
+  'documento',
+  'receita',
+  'laudo',
+  'anexo_paciente',
+  'outro',
+] as const;
+
+export type AttachmentCategory = (typeof ATTACHMENT_CATEGORIES)[number];
+
 export const attachmentSchema = z.object({
   patientId: nonEmptyString('Paciente', 20),
   fileName: nonEmptyString('Nome do arquivo', 500),
@@ -365,8 +391,19 @@ export const attachmentSchema = z.object({
     .int('Tamanho deve ser inteiro')
     .min(1, 'Arquivo vazio')
     .max(50 * 1024 * 1024, 'Arquivo excede 50MB'),
-  mimeType: nonEmptyString('Tipo MIME', 100),
-  description: optionalString(500),
+  mimeType: z
+    .string()
+    .min(1, 'Tipo MIME é obrigatório')
+    .max(100, 'Tipo MIME muito longo')
+    .refine(
+      (m) => (ALLOWED_ATTACHMENT_MIME_TYPES as readonly string[]).includes(m),
+      'Tipo de arquivo não permitido'
+    ),
+  category: z.enum(ATTACHMENT_CATEGORIES, {
+    message: 'Selecione uma categoria',
+  }),
+  description: nonEmptyString('Descrição', 500),
+  isSensitive: z.boolean().default(false),
 });
 
 export type AttachmentFormData = z.infer<typeof attachmentSchema>;

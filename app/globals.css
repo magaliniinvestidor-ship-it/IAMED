@@ -135,10 +135,16 @@
     visibility: hidden;
   }
   #prescription-print-area,
-  #prescription-print-area * {
+  #prescription-print-area *,
+  #exam-request-print-area,
+  #exam-request-print-area *,
+  #procedure-request-print-area,
+  #procedure-request-print-area * {
     visibility: visible;
   }
-  #prescription-print-area {
+  #prescription-print-area,
+  #exam-request-print-area,
+  #procedure-request-print-area {
     position: absolute;
     left: 0;
     top: 0;

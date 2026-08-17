@@ -1,3 +1,5 @@
+import type { ProcedureNomenclature } from '@/lib/procedures/catalog';
+
 export interface ClinicalHistoryEntry {
   id: string;
   consultation_id?: string;
@@ -286,8 +288,6 @@ export interface ExamRequest {
   status: 'solicitado' | 'em_execucao' | 'laudo_pendente' | 'concluido' | 'cancelado';
   resultNotes: string;
   resultDate?: string;
-  resultFileUrl: string;
-  resultFileName: string;
   signedBy?: string;
   signedAt?: string;
   signatureId?: string;
@@ -315,6 +315,8 @@ export interface Procedure {
   signedBy?: string;
   signedAt?: string;
   signatureId?: string;
+  nomenclature?: ProcedureNomenclature;
+  financingEntity?: string;
 }
 
 // ==========================================
@@ -409,16 +411,6 @@ export interface SensitiveFieldConfig {
   fieldLabel: string;
   category: 'hiv' | 'saude_mental' | 'dependencia_quimica' | 'saude_reprodutiva' | 'outro';
   requiresElevatedPermission: boolean;
-}
-
-// ==========================================
-// HCE - NACIONAL PROCEDURES
-// ==========================================
-export interface NationalProcedure {
-  code: string;
-  name: string;
-  category: string;
-  sinascCode?: string;
 }
 
 export interface Patient {
@@ -1607,27 +1599,6 @@ export const drugInteractions: DrugInteraction[] = [
   { drugB: 'Ibuprofeno', severity: 'leve', description: 'Efeito aditivo analgésico/antipirético.', recommendation: 'Evitar uso concomitante prolongado.' },
   { drugB: 'Potássio', severity: 'grave', description: 'BNRAs podem causar hipercalemia quando associados a suplementos de potássio.', recommendation: 'Monitorar K+ séricos regularmente.' },
   { drugB: 'Paracetamol', severity: 'leve', description: 'Efeito aditivo analgésico/antipirético com AINEs.', recommendation: 'Evitar uso concomitante prolongado. Monitorar função renal.' },
-];
-
-// ==========================================
-// HCE SEED DATA - National Procedures
-// ==========================================
-export const nationalProcedures: NationalProcedure[] = [
-  { code: '10101012', name: 'Consulta Médica Geral', category: 'Consulta' },
-  { code: '10101013', name: 'Consulta Médica Especializada', category: 'Consulta' },
-  { code: '20101010', name: 'Procedimento de Pequena Cirurgia', category: 'Procedimento' },
-  { code: '30101010', name: 'Coleta de Material Biológico', category: 'Laboratório' },
-  { code: '40101010', name: 'Eletrocardiograma', category: 'Exame' },
-  { code: '40101011', name: 'Raio-X Simples', category: 'Imagem' },
-  { code: '40101012', name: 'Ressonância Magnética', category: 'Imagem' },
-  { code: '40101013', name: 'Tomografia Computadorizada', category: 'Imagem' },
-  { code: '40101014', name: 'Ultrassonografia', category: 'Imagem' },
-  { code: '40101015', name: 'Mamografia', category: 'Imagem' },
-  { code: '40201011', name: 'Ultrassonografia Obstétrica', category: 'Imagem' },
-  { code: '50101010', name: 'Fisioterapia - Sessão', category: 'Fisioterapia' },
-  { code: '60101010', name: 'Atendimento de Enfermagem', category: 'Enfermagem' },
-  { code: '70101010', name: 'Avaliação Psicológica', category: 'Psicologia' },
-  { code: '80101010', name: 'Avaliação Nutricional', category: 'Nutrição' },
 ];
 
 // ==========================================

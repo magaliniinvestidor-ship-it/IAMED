@@ -17,13 +17,28 @@ import {
   procedureSchema,
   attachmentSchema,
   diagnosisSchema,
+  ATTACHMENT_CATEGORIES,
+  type AttachmentCategory,
 } from '@/lib/validation/schemas';
 import { FormField, FormErrorSummary } from '@/components/forms';
 import { SnomedSearchBox } from '@/components/clinical/SnomedSearchBox';
+import {
+  PROCEDURE_CATEGORIES,
+  PROCEDURE_NOMENCLATURES,
+  sigtapCatalog,
+  cbhpmCatalog,
+  type ProcedureCatalogItem,
+  type ProcedureCategory,
+  type ProcedureFinanciador,
+  type ProcedureNomenclature,
+} from '@/lib/procedures/catalog';
 import { getSignatureProvider, SignableDocument } from '@/lib/signature/provider';
 import { checkInteractions, checkAllergies, SafetyAlert } from '@/lib/prescription/safetyChecks';
 import { generateQrDataUrl, buildPrescriptionQrPayload, buildPrescriptionVerifyUrl } from '@/lib/prescription/qrCode';
+import { buildExamQrPayload, buildExamVerifyUrl } from '@/lib/exam/examQr';
+import { buildProcedureQrPayload, buildProcedureVerifyUrl } from '@/lib/exam/procedureQr';
 import { calculatePediatricDoseByWeight, calculateBodySurfaceArea } from '@/lib/prescription/pediatricDose';
+import { compressImageFile } from '@/lib/imageUtils';
 
 import {
   ClipboardList, Microscope, HeartPulse, ShieldAlert,
@@ -31,12 +46,14 @@ import {
   Search, Filter, Pill, Stethoscope, FileText, Paperclip,
   Shield, Clock, User, Activity, AlertTriangle, QrCode, Hash,
   ChevronDown, ChevronRight, Lock, Unlock, Printer, Calendar,
-  BookOpen, Tag, FileSignature, Scan, Users,
+  BookOpen, Tag, FileSignature, Scan, Users, X,
   Lock as LockIcon
 } from 'lucide-react';
 import { PermissionGate, WithPermissions, useUserPermissions } from '@/components/ui/PermissionGate';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { hasPermission } from '@/lib/usePermissions';
 import I18nDatePicker from '@/components/I18nDatePicker';
+import ConfirmDialog from '@/components/ui/confirm-dialog';
 
 interface ClinicalModuleProps {
   patients: Patient[];
@@ -90,6 +107,21 @@ interface PrescriptionItem {
 
 
 const timelineEventTypes = ['consulta', 'internacao', 'cirurgia', 'exame', 'prescricao', 'vacina', 'procedimento', 'alta', 'emergencia'] as const;
+
+const PROCEDURE_CATEGORY_I18N_KEY: Record<ProcedureCategory, string> = {
+  Consulta: 'hce_category_consulta',
+  Procedimento: 'hce_category_procedimento',
+  'Laboratório': 'hce_category_laboratorio',
+  Imagem: 'hce_category_imagem',
+  Fisioterapia: 'hce_category_fisioterapia',
+  Enfermagem: 'hce_category_enfermagem',
+  Psicologia: 'hce_category_psicologia',
+  'Nutrição': 'hce_category_nutricao',
+  Odontologia: 'hce_category_odontologia',
+  'Educação Física': 'hce_category_educacao_fisica',
+  Fonoaudiologia: 'hce_category_fonoaudiologia',
+  'Terapia Ocupacional': 'hce_category_terapia_ocupacional',
+};
 
 export default function ClinicalModule(props: ClinicalModuleProps) {
   const { userPermissions = [], ...rest } = props;
@@ -188,7 +220,7 @@ const ClinicalModuleContent = ({
     drugName: '', activeIngredient: '', presentation: '',
     dosage: '', frequency: '', route: 'oral', duration: '', quantity: 1, unit: 'comprimidos', notes: '',
     snomedCode: '', snomedDescription: '',
-    prescriptionType: 'comum' as 'comum' | 'controlado' | 'arquivado',
+    prescriptionType: '' as '' | 'comum' | 'controlado' | 'arquivado',
   });
   const [drugCatalogItems, setDrugCatalogItems] = useState<DrugCatalogItem[]>([]);
   const [drugSearch, setDrugSearch] = useState('');
@@ -201,9 +233,8 @@ const ClinicalModuleContent = ({
   const [sendModal, setSendModal] = useState(false);
   const [sentChannels, setSentChannels] = useState<{ whatsapp: boolean; email: boolean }>({ whatsapp: false, email: false });
 
-  // Rastreia receitas já persistidas no banco e a entrada na aba Receituário
+  // Rastreia receitas já persistidas no banco
   const persistedPrescIdsRef = useRef<Set<string>>(new Set());
-  const prescTabEntryRef = useRef(false);
 
   // Itens e cabeçalho da receita selecionada
   const selectedItems = useMemo(
@@ -216,6 +247,14 @@ const ClinicalModuleContent = ({
     () => prescriptions.find(p => p.id === selectedPrescriptionId) || null,
     [prescriptions, selectedPrescriptionId]
   );
+
+  // Número da receita pela ordem de criação (1 = primeira receita criada)
+  const prescChronoRank = useMemo(() => {
+    const sorted = [...prescriptions].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    const rank: Record<string, number> = {};
+    sorted.forEach((p, i) => { rank[p.id] = i + 1; });
+    return rank;
+  }, [prescriptions]);
 
   const searchDrugCatalog = useCallback(async (query: string) => {
     if (!supabase) return;
@@ -240,11 +279,48 @@ const ClinicalModuleContent = ({
   // ─── EXAM REQUEST STATE ───
   const [examRequests, setExamRequests] = useState<ExamRequest[]>([]);
   const [examRequestForm, setExamRequestForm] = useState({
-    examType: 'laboratorio' as 'laboratorio' | 'imagem' | 'anatomia_patologica' | 'outro',
-    examName: '', clinicalIndication: '', urgency: 'rotina' as 'rotina' | 'urgente' | 'emergencia',
+    examType: '' as '' | 'laboratorio' | 'imagem' | 'anatomia_patologica' | 'outro',
+    examName: '', clinicalIndication: '', urgency: '' as '' | 'rotina' | 'urgente' | 'emergencia',
     examCatalogId: '',
   });
   const [examCatalog, setExamCatalog] = useState<{ id: string; examType: string; category: string; name: string }[]>([]);
+  const [examQrDataUrl, setExamQrDataUrl] = useState('');
+  const [examQrPayload, setExamQrPayload] = useState('');
+  const [examGroupSelection, setExamGroupSelection] = useState<'open' | string | null>(null);
+  const [procGroupSelection, setProcGroupSelection] = useState<'open' | string | null>(null);
+  const [procQrDataUrl, setProcQrDataUrl] = useState('');
+  const [procQrPayload, setProcQrPayload] = useState('');
+
+  const unsignedExams = useMemo(
+    () => examRequests.filter(e => e.status !== 'cancelado' && !e.signedAt),
+    [examRequests]
+  );
+
+  // Solicitação em aberto = exames ainda não assinados (inclui cancelados p/ visualização)
+  const openGroupExams = useMemo(
+    () => examRequests.filter(e => !e.signedAt).sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
+    [examRequests]
+  );
+
+  // Agrupa exames assinados pelo documento de assinatura (mesma assinatura = mesmo grupo)
+  const examSignedGroups = useMemo(() => {
+    const map = new Map<string, { signatureId: string; signedAt: string; signedBy: string; exams: ExamRequest[] }>();
+    examRequests.forEach(e => {
+      if (!e.signedAt || !e.signatureId) return;
+      const key = e.signatureId;
+      if (!map.has(key)) map.set(key, { signatureId: key, signedAt: e.signedAt || '', signedBy: e.signedBy || '', exams: [] });
+      map.get(key)!.exams.push(e);
+    });
+    return [...map.values()]
+      .map(g => ({ ...g, exams: [...g.exams].sort((a, b) => a.createdAt.localeCompare(b.createdAt)) }))
+      .sort((a, b) => b.signedAt.localeCompare(a.signedAt));
+  }, [examRequests]);
+
+  const activeExamGroupId = examGroupSelection ?? 'open';
+  const activeGroupExams = useMemo(() => {
+    if (activeExamGroupId === 'open') return openGroupExams;
+    return examSignedGroups.find(g => g.signatureId === activeExamGroupId)?.exams ?? [];
+  }, [activeExamGroupId, openGroupExams, examSignedGroups]);
 
   // ─── LOAD EXAM CATALOG (mundial, traduzido pelo locale ativo) ───
   const loadExamCatalog = useCallback(async () => {
@@ -277,14 +353,87 @@ const ClinicalModuleContent = ({
   const [procedureForm, setProcedureForm] = useState({
     procedureCode: '', procedureName: '', procedureCategory: '', quantity: 1, notes: '',
     snomedCode: '', snomedDescription: '',
-    status: 'programado' as 'programado' | 'em_execucao' | 'concluido' | 'cancelado',
+    status: '' as '' | 'programado' | 'em_execucao' | 'concluido' | 'cancelado',
+    nomenclature: '' as '' | ProcedureNomenclature,
+    financingEntity: '',
   });
+  const [procedureNomenclature, setProcedureNomenclature] = useState<'' | ProcedureNomenclature>('');
+  const [procCodeQuery, setProcCodeQuery] = useState('');
+  const [procCodeOpen, setProcCodeOpen] = useState(false);
+  const [financiadorCatalog, setFinanciadorCatalog] = useState<ProcedureCatalogItem[]>([]);
+  const [procedureCatalog, setProcedureCatalog] = useState<ProcedureCatalogItem[]>([]);
 
   // ─── ATTACHMENT STATE ───
   const [attachments, setAttachments] = useState<any[]>([]);
+  const [attachmentForm, setAttachmentForm] = useState<{
+    category: '' | AttachmentCategory;
+    description: string;
+    isSensitive: boolean;
+  }>({
+    category: '',
+    description: '',
+    isSensitive: false,
+  });
+  const [pendingDeleteAttachmentId, setPendingDeleteAttachmentId] = useState<string | null>(null);
+  const [attachmentUploading, setAttachmentUploading] = useState(false);
+  const [attachmentPreview, setAttachmentPreview] = useState<{
+    attachment: any;
+    signedUrl: string;
+    loading: boolean;
+  } | null>(null);
+  const [selectedAttachmentId, setSelectedAttachmentId] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const selectedAttachment = useMemo(
+    () => attachments.find(a => a.id === selectedAttachmentId) || null,
+    [attachments, selectedAttachmentId]
+  );
 
   // ─── SIGNATURE STATE ───
   const [signatures, setSignatures] = useState<ElectronicSignature[]>([]);
+
+  // ─── PROCEDURES: agrupamento por solicitação (assinada ou em aberto) ───
+  const unsignedProcedures = useMemo(
+    () => procedureList.filter(p => p.status !== 'cancelado' && !p.signedAt),
+    [procedureList]
+  );
+
+  // Solicitação em aberto = procedimentos ainda não assinados (inclui cancelados p/ visualização)
+  const openGroupProcedures = useMemo(
+    () => procedureList.filter(p => !p.signedAt).sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
+    [procedureList]
+  );
+
+  // Agrupa procedimentos assinados pelo documento de assinatura (mesma assinatura = mesmo grupo)
+  const procSignedGroups = useMemo(() => {
+    const map = new Map<string, { signatureId: string; signedAt: string; signedBy: string; procedures: Procedure[] }>();
+    procedureList.forEach(p => {
+      if (!p.signedAt || !p.signatureId) return;
+      const key = p.signatureId;
+      if (!map.has(key)) map.set(key, { signatureId: key, signedAt: p.signedAt || '', signedBy: p.signedBy || '', procedures: [] });
+      map.get(key)!.procedures.push(p);
+    });
+    return [...map.values()]
+      .map(g => ({ ...g, procedures: [...g.procedures].sort((a, b) => a.createdAt.localeCompare(b.createdAt)) }))
+      .sort((a, b) => b.signedAt.localeCompare(a.signedAt));
+  }, [procedureList]);
+
+  const activeProcGroupId = procGroupSelection ?? 'open';
+  const activeGroupProcedures = useMemo(() => {
+    if (activeProcGroupId === 'open') return openGroupProcedures;
+    return procSignedGroups.find(g => g.signatureId === activeProcGroupId)?.procedures ?? [];
+  }, [activeProcGroupId, openGroupProcedures, procSignedGroups]);
+
+  const activeProcSignature = useMemo(() => {
+    if (activeProcGroupId === 'open') return null;
+    return signatures.find(s => s.id === activeProcGroupId && s.documentType === 'procedimento') ?? null;
+  }, [activeProcGroupId, signatures]);
+
+  // Regenera o QR da assinatura a partir de dados persistidos (após refresh da página)
+  const activeExamSignature = useMemo(() => {
+    if (activeExamGroupId === 'open') return null;
+    return signatures.find(s => s.id === activeExamGroupId && s.documentType === 'exame') ?? null;
+  }, [activeExamGroupId, signatures]);
 
   // ─── TIMELINE STATE ───
   const [timelineSearch, setTimelineSearch] = useState('');
@@ -330,6 +479,157 @@ const ClinicalModuleContent = ({
 
   const selectedPatient = patients.find(p => p.id === selectedPatId);
 
+  // Carrega o catálogo da entidade financiadora (fee_schedules) do paciente.
+  // Quando o paciente tem convênio, o código do procedimento também pode vir
+  // da tabela do financiador (além do nomenclador nacional).
+  const financiadorType = (selectedPatient?.health_insurance_type ?? '') as ProcedureFinanciador;
+
+  useEffect(() => {
+    setFinanciadorCatalog([]);
+    const isEntity = !!financiadorType && !['Particular', 'Mercosul'].includes(financiadorType);
+    if (!supabase || !isEntity) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from('fee_schedules')
+        .select('procedure_code, procedure_name, insurance_name')
+        .eq('insurance_type', financiadorType)
+        .eq('active', true);
+      if (cancelled || !data) return;
+      const localFallback = [...sigtapCatalog, ...cbhpmCatalog];
+      const lookupPool = procedureCatalog.length ? procedureCatalog : localFallback;
+      const findCategory = (code: string) =>
+        lookupPool.find(p => p.code === code.replace(/\D/g, '') && p.nomenclature === 'cbhpm')?.category;
+      setFinanciadorCatalog(data.map(row => ({
+        code: row.procedure_code,
+        name: row.procedure_name,
+        category: findCategory(row.procedure_code) ?? 'Procedimento',
+        nomenclature: 'cbhpm' as ProcedureNomenclature,
+        financingEntity: row.insurance_name,
+      })));
+    })();
+    return () => { cancelled = true; };
+  }, [financiadorType, procedureCatalog]);
+
+  // Carrega o catálogo unificado de procedimentos (SIGTAP/CBHPM/SNS/IPS)
+  // da tabela public.procedure_catalog. Quando o Supabase não está
+  // disponível, mantém o fallback em memória (sigtapCatalog/cbhpmCatalog).
+  useEffect(() => {
+    if (!supabase) return;
+    let cancelled = false;
+    supabase
+      .from('procedure_catalog')
+      .select('code, name, nomenclature, category, financing_entity, is_active')
+      .eq('is_active', true)
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) {
+          console.error('Erro ao carregar procedure_catalog:', error.message);
+          return;
+        }
+        setProcedureCatalog((data ?? []).map((d: any) => ({
+          code: String(d.code),
+          name: String(d.name),
+          category: d.category ?? '',
+          nomenclature: d.nomenclature as ProcedureNomenclature,
+          financingEntity: d.financing_entity ?? undefined,
+        })));
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  // Resultados do autocomplete do código do procedimento: catálogo da
+  // entidade financiadora + nomenclador nacional (SIGTAP/CBHPM).
+  const procCatalogResults = useMemo(() => {
+    const q = procCodeQuery.trim().toLowerCase();
+    if (!q) return [] as ProcedureCatalogItem[];
+    const nomenclatures: ('' | ProcedureNomenclature)[] = procedureNomenclature
+      ? [procedureNomenclature]
+      : ['sigtap', 'cbhpm'];
+    const pool = procedureCatalog.length
+      ? procedureCatalog
+      : [...sigtapCatalog, ...cbhpmCatalog];
+    const national = pool.filter(it =>
+      nomenclatures.includes(it.nomenclature as '' | ProcedureNomenclature) &&
+      (it.code.toLowerCase().startsWith(q) || it.name.toLowerCase().includes(q))
+    );
+    const financiador = procedureNomenclature !== 'sigtap'
+      ? financiadorCatalog.filter(f => f.code.toLowerCase().startsWith(q) || f.name.toLowerCase().includes(q))
+      : [];
+    const seen = new Set<string>();
+    return [...financiador, ...national]
+      .filter(item => {
+        if (seen.has(item.code)) return false;
+        seen.add(item.code);
+        return true;
+      })
+      .slice(0, 30);
+  }, [procCodeQuery, procedureNomenclature, financiadorCatalog, procedureCatalog]);
+
+  const pickProcedureCatalogItem = (item: ProcedureCatalogItem) => {
+    setProcedureForm(p => ({
+      ...p,
+      procedureCode: item.code,
+      procedureName: item.name,
+      procedureCategory: item.category,
+      nomenclature: item.nomenclature,
+      financingEntity: item.financingEntity ?? '',
+    }));
+    setProcedureNomenclature(item.nomenclature);
+    setProcCodeQuery(item.code);
+    setProcCodeOpen(false);
+    clearProcErrors();
+  };
+
+  // Regenera o QR da assinatura a partir de dados persistidos (após refresh da página)
+  useEffect(() => {
+    if (!activeExamSignature || activeGroupExams.length === 0) return;
+    if (examQrDataUrl && examQrPayload) return;
+    const payload = buildExamQrPayload({
+      id: activeExamSignature.documentId || activeExamSignature.id,
+      patientId: selectedPatient?.id || activeExamSignature.patientId || '',
+      patientName: selectedPatient?.name || '',
+      createdAt: activeGroupExams.map(e => e.createdAt).sort()[0] || activeExamSignature.signedAt,
+      signedAt: activeExamSignature.signedAt,
+      verificationCode: activeExamSignature.verificationCode,
+      items: activeGroupExams.map(e => ({
+        id: e.id,
+        name: e.examName,
+        examType: e.examType,
+        urgency: e.urgency,
+      })),
+    });
+    generateQrDataUrl(buildExamVerifyUrl(payload)).then(url => {
+      setExamQrPayload(payload);
+      setExamQrDataUrl(url);
+    });
+  }, [activeExamSignature, activeGroupExams, examQrDataUrl, examQrPayload, selectedPatient]);
+
+  // Regenera o QR da assinatura de procedimentos a partir de dados persistidos
+  useEffect(() => {
+    if (!activeProcSignature || activeGroupProcedures.length === 0) return;
+    if (procQrDataUrl && procQrPayload) return;
+    const payload = buildProcedureQrPayload({
+      id: activeProcSignature.documentId || activeProcSignature.id,
+      patientId: selectedPatient?.id || activeProcSignature.patientId || '',
+      patientName: selectedPatient?.name || '',
+      createdAt: activeGroupProcedures.map(p => p.createdAt).sort()[0] || activeProcSignature.signedAt,
+      signedAt: activeProcSignature.signedAt,
+      verificationCode: activeProcSignature.verificationCode,
+      items: activeGroupProcedures.map(p => ({
+        id: p.id,
+        code: p.procedureCode,
+        name: p.procedureName,
+        category: p.procedureCategory,
+        quantity: p.quantity,
+      })),
+    });
+    generateQrDataUrl(buildProcedureVerifyUrl(payload)).then(url => {
+      setProcQrPayload(payload);
+      setProcQrDataUrl(url);
+    });
+  }, [activeProcSignature, activeGroupProcedures, procQrDataUrl, procQrPayload, selectedPatient]);
+
   const patientBirthdate = selectedPatient?.birthdate;
 
   const patientAgeMonths = useMemo(() => {
@@ -362,7 +662,7 @@ const ClinicalModuleContent = ({
   const { errors: physicalExamErrors, validate: validatePhysicalExam, clearErrors: clearPhysicalExamErrors } = useFormValidation(physicalExamSchema);
   const { errors: soapErrors, validate: validateSoap, clearErrors: clearSoapErrors } = useFormValidation(soapSchema);
   const { errors: examErrors, validate: validateExam, clearErrors: clearExamErrors } = useFormValidation(examRequestSchema);
-  const { errors: procErrors, validate: validateProc, clearErrors: clearProcErrors } = useFormValidation(procedureSchema);
+  const { errors: procErrors, validate: validateProc, clearErrors: clearProcErrors, setFieldError: setProcFieldError } = useFormValidation(procedureSchema);
   const { errors: attErrors, validate: validateAtt, clearErrors: clearAttErrors } = useFormValidation(attachmentSchema);
   const { errors: diagnosisErrors, validate: validateDiagnosis, clearErrors: clearDiagnosisErrors } = useFormValidation(diagnosisSchema);
 
@@ -383,6 +683,10 @@ const ClinicalModuleContent = ({
     clearProcErrors();
     clearAttErrors();
     setPrescErrors([]);
+    if (tab === 'exams') {
+      setExamGroupSelection('open');
+      setEditingExamRequest(null);
+    }
     setHceTab(tab);
   }, [clearAnamneseErrors, clearPhysicalExamErrors, clearSoapErrors, clearExamErrors, clearProcErrors, clearAttErrors, setPrescErrors]);
 
@@ -576,7 +880,7 @@ const ClinicalModuleContent = ({
         .from('prescriptions')
         .select('*')
         .eq('patient_id', patientId)
-        .order('created_at', { ascending: true });
+        .order('created_at', { ascending: false });
 
       if (prescData) {
         const headers: PrescriptionHeader[] = prescData.map(p => ({
@@ -591,7 +895,6 @@ const ClinicalModuleContent = ({
         })) as PrescriptionHeader[];
         setPrescriptions(headers);
         persistedPrescIdsRef.current = new Set(headers.map(h => h.id));
-        if (headers.length > 0) setSelectedPrescriptionId(headers[headers.length - 1].id);
 
         // Load items of all headers (para exibição + timeline)
         let itemData: any[] = [];
@@ -650,8 +953,6 @@ const ClinicalModuleContent = ({
           status: e.status,
           resultNotes: e.result_notes || '',
           resultDate: e.result_date,
-          resultFileUrl: e.result_file_url || '',
-          resultFileName: e.result_file_name || '',
           signedBy: e.signed_by,
           signedAt: e.signed_at,
           signatureId: e.signature_id,
@@ -685,6 +986,8 @@ const ClinicalModuleContent = ({
           signedBy: p.signed_by,
           signedAt: p.signed_at,
           signatureId: p.signature_id,
+          nomenclature: p.nomenclature_source as ProcedureNomenclature | undefined,
+          financingEntity: p.financing_entity || '',
         })));
       }
 
@@ -1080,16 +1383,20 @@ const ClinicalModuleContent = ({
     setCidSearch('');
     setEditingDiagnosis(null);
     setEditingExamRequest(null);
+    setExamGroupSelection(null);
     setEditingProcedure(null);
     setEditingItem(null);
     setSelectedPrescriptionId(null);
     setSafetyAlerts([]);
     setPrescQrDataUrl('');
+    setSelectedAttachmentId(null);
+    setAttachmentForm({ category: '', description: '', isSensitive: false });
+    clearAttErrors();
     clearDiagnosisErrors();
     clearExamErrors();
     clearProcErrors();
     clearPrescErrors();
-  }, [clearDiagnosisErrors, clearExamErrors, clearProcErrors, clearPrescErrors]);
+  }, [clearDiagnosisErrors, clearExamErrors, clearProcErrors, clearPrescErrors, clearAttErrors]);
 
   // ─── CID-10 LOOKUP ───
   const getCid10Description = useCallback((code: string, dbDescription: string, descriptionEs?: string, descriptionPt?: string) => {
@@ -1535,27 +1842,13 @@ const ClinicalModuleContent = ({
       status: 'rascunho',
       qrCodeData: '',
     };
-    setPrescriptions(prev => [...prev, header].sort((a, b) => a.createdAt.localeCompare(b.createdAt)));
+    setPrescriptions(prev => [...prev, header].sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
     setSelectedPrescriptionId(header.id);
     setEditingItem(null);
     clearPrescErrors();
-    setPrescriptionForm({ drugName: '', activeIngredient: '', presentation: '', dosage: '', frequency: '', route: 'oral', duration: '', quantity: 1, unit: 'comprimidos', notes: '', snomedCode: '', snomedDescription: '', prescriptionType: 'comum' });
+    setPrescriptionForm({ drugName: '', activeIngredient: '', presentation: '', dosage: '', frequency: '', route: 'oral', duration: '', quantity: 1, unit: 'comprimidos', notes: '', snomedCode: '', snomedDescription: '', prescriptionType: '' });
     addAuditLog('Receita Criada', `${selectedPatient.name}`);
   };
-
-  // Ao abrir a aba de Receituário, cria um rascunho apenas se ainda não existir nenhum (não cria após assinar)
-  useEffect(() => {
-    if (hceTab !== 'prescriptions') {
-      prescTabEntryRef.current = false;
-      return;
-    }
-    if (!selectedPatient) return;
-    if (prescTabEntryRef.current) return;
-    prescTabEntryRef.current = true;
-    if (prescriptions.some(p => p.status === 'rascunho')) return;
-    handleNewPrescription();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hceTab, selectedPatient]);
 
   // ─── SAVE ITEM (adiciona medicamento à receita selecionada) ───
   const runPrescriptionSafetyChecks = useCallback(async (items: PrescriptionItem[]) => {
@@ -1601,6 +1894,7 @@ const ClinicalModuleContent = ({
       notes: prescriptionForm.notes || '',
       snomedCode: prescriptionForm.snomedCode || '',
       snomedDescription: prescriptionForm.snomedDescription || '',
+      prescriptionType: prescriptionForm.prescriptionType,
     });
     if (!prescResult.success) return;
     if (!selectedPrescriptionId) return;
@@ -1611,7 +1905,7 @@ const ClinicalModuleContent = ({
       id: await genId('pitem'),
       prescriptionId: selectedPrescriptionId,
       position,
-      prescriptionType: prescriptionForm.prescriptionType,
+      prescriptionType: prescriptionForm.prescriptionType as 'comum' | 'controlado' | 'arquivado',
       drugName: prescriptionForm.drugName,
       activeIngredient: prescriptionForm.activeIngredient,
       presentation: prescriptionForm.presentation,
@@ -1627,7 +1921,7 @@ const ClinicalModuleContent = ({
       snomedDescription: prescriptionForm.snomedDescription,
     };
     setAllItems(prev => [...prev, item]);
-    setPrescriptionForm({ drugName: '', activeIngredient: '', presentation: '', dosage: '', frequency: '', route: 'oral', duration: '', quantity: 1, unit: 'comprimidos', notes: '', snomedCode: '', snomedDescription: '', prescriptionType: 'comum' });
+    setPrescriptionForm({ drugName: '', activeIngredient: '', presentation: '', dosage: '', frequency: '', route: 'oral', duration: '', quantity: 1, unit: 'comprimidos', notes: '', snomedCode: '', snomedDescription: '', prescriptionType: '' });
     clearPrescErrors();
     addAuditLog('Medicamento Adicionado à Receita', `${item.drugName} - ${selectedPatient?.name}`);
     if (supabase) {
@@ -1798,14 +2092,18 @@ const ClinicalModuleContent = ({
       patientId: selectedPatient?.id || '',
       createdBy: activeOperator,
       createdAt: new Date().toISOString(),
-      ...examRequestForm,
+      examType: examRequestForm.examType as 'laboratorio' | 'imagem' | 'anatomia_patologica' | 'outro',
+      examName: examRequestForm.examName,
+      clinicalIndication: examRequestForm.clinicalIndication,
+      urgency: examRequestForm.urgency as 'rotina' | 'urgente' | 'emergencia',
+      examCatalogId: examRequestForm.examCatalogId,
       status: 'solicitado',
       resultNotes: '',
-      resultFileUrl: '',
-      resultFileName: '',
     };
-    setExamRequests(prev => [req, ...examRequests]);
-    setExamRequestForm({ examType: 'laboratorio', examName: '', clinicalIndication: '', urgency: 'rotina', examCatalogId: '' });
+    setExamRequests(prev => [req, ...prev]);
+    setExamRequestForm({ examType: '', examName: '', clinicalIndication: '', urgency: '', examCatalogId: '' });
+    setExamQrDataUrl('');
+    setExamQrPayload('');
     addAuditLog('Solicitação de Exame', `${req.examName} - ${selectedPatient?.name}`);
     if (supabase) {
       await supabase.from('exam_requests').insert({
@@ -1822,10 +2120,32 @@ const ClinicalModuleContent = ({
   // ─── DELETE EXAM REQUEST ───
   const handleDeleteExamRequest = async (examId: string) => {
     setExamRequests(prev => prev.filter(e => e.id !== examId));
+    setExamQrDataUrl('');
+    setExamQrPayload('');
     if (supabase) {
       await supabase.from('exam_requests').delete().eq('id', examId);
     }
     addAuditLog('Excluiu Solicitação de Exame', examId);
+  };
+
+  // ─── DELETE EXAM GROUP (solicitação inteira, aberta ou assinada) ───
+  const handleDeleteExamGroup = async (groupId: string) => {
+    const groupExams = groupId === 'open' ? openGroupExams : (examSignedGroups.find(g => g.signatureId === groupId)?.exams ?? []);
+    if (groupExams.length === 0) return;
+    if (!confirm(t('hce_exam_confirm_delete_group', 'app').replace('{count}', String(groupExams.length)))) return;
+    const ids = groupExams.map(e => e.id);
+    setExamRequests(prev => prev.filter(e => !ids.includes(e.id)));
+    setExamQrDataUrl('');
+    setExamQrPayload('');
+    if (supabase) {
+      await supabase.from('exam_requests').delete().in('id', ids);
+      if (groupId !== 'open') {
+        await supabase.from('electronic_signatures').delete().eq('id', groupId);
+      }
+    }
+    setExamGroupSelection('open');
+    setEditingExamRequest(null);
+    addAuditLog('Excluiu Solicitação de Exames', `${groupExams.length} exames - ${selectedPatient?.name}`);
   };
 
   // ─── SAVE PROCEDURE ───
@@ -1839,8 +2159,18 @@ const ClinicalModuleContent = ({
       notes: procedureForm.notes || '',
       snomedCode: procedureForm.snomedCode || '',
       snomedDescription: procedureForm.snomedDescription || '',
+      nomenclature: procedureForm.nomenclature,
+      status: procedureForm.status,
     });
     if (!result.success) return;
+
+    // O catálogo (SIGTAP/CBHPM/financiador) e a base SNOMED-CT são
+    // apenas fontes de sugestão/autocomplete. Como ainda não temos
+    // todos os códigos, não bloqueamos o salvamento quando o código
+    // digitado não está nas bases — aceitamos qualquer código
+    // informado pelo profissional (modo "catálogo aberto").
+    const nomenclature = procedureForm.nomenclature as ProcedureNomenclature;
+    const matchedFinanciador = financiadorCatalog.find(f => f.code === procedureForm.procedureCode.replace(/\D/g, ''));
     const proc: Procedure = {
       id: await genId('proc'),
       patientId: selectedPatient?.id || '',
@@ -1848,20 +2178,32 @@ const ClinicalModuleContent = ({
       createdAt: new Date().toISOString(),
       ...procedureForm,
       procedureCode: procedureForm.procedureCode,
+      nomenclature,
+      status: procedureForm.status as Procedure['status'],
+      financingEntity: matchedFinanciador?.financingEntity ?? (selectedPatient?.health_insurance_company || ''),
       complications: '',
     };
     setProcedureList(prev => [proc, ...procedureList]);
-    setProcedureForm({ procedureCode: '', procedureName: '', procedureCategory: '', quantity: 1, notes: '', snomedCode: '', snomedDescription: '', status: 'programado' });
+    setProcedureForm({ procedureCode: '', procedureName: '', procedureCategory: '', quantity: 1, notes: '', snomedCode: '', snomedDescription: '', status: '', nomenclature: '', financingEntity: '' });
+    setProcedureNomenclature('');
+    setProcCodeQuery('');
+    setProcCodeOpen(false);
     addAuditLog('Procedimento Registrado', `${proc.procedureName} - ${selectedPatient?.name}`);
     if (supabase) {
-      await supabase.from('procedures').insert({
+      const { error: insertErr } = await supabase.from('procedures').insert({
         id: proc.id, patient_id: proc.patientId, created_by: proc.createdBy,
         updated_by: null,
         procedure_code: proc.procedureCode, procedure_name: proc.procedureName,
         procedure_category: proc.procedureCategory, quantity: proc.quantity,
         notes: proc.notes, complications: proc.complications, status: proc.status,
         snomed_code: proc.snomedCode || null, snomed_description: proc.snomedDescription || null,
+        nomenclature_source: proc.nomenclature || null,
+        financing_entity: proc.financingEntity || null,
       });
+      if (insertErr) {
+        console.error('Erro ao salvar procedimento no Supabase:', insertErr.message, insertErr.details, insertErr.hint);
+        alert(t('hce_proc_save_db_error', 'app') + '\n' + insertErr.message);
+      }
     }
   };
 
@@ -1897,15 +2239,172 @@ const ClinicalModuleContent = ({
   // ─── UPDATE EXAM REQUEST ───
   const handleUpdateExamRequest = async (exam: ExamRequest) => {
     setExamRequests(prev => prev.map(e => e.id === exam.id ? exam : e));
+    setExamQrDataUrl('');
+    setExamQrPayload('');
     addAuditLog('Atualizou Solicitação de Exame', `${exam.examName} - ${selectedPatient?.name}`);
     if (supabase) {
       await supabase.from('exam_requests').update({
+        exam_type: exam.examType,
+        exam_name: exam.examName,
+        exam_catalog_id: exam.examCatalogId || null,
         status: exam.status,
         result_notes: exam.resultNotes,
         result_date: exam.resultDate || null,
         updated_by: activeOperator,
       }).eq('id', exam.id);
     }
+  };
+
+  // ─── SIGN ALL EXAM REQUESTS (um único documento assinado) ───
+  const handleSignExamRequests = async () => {
+    if (!selectedPatient || unsignedExams.length === 0) return;
+    const signedAt = new Date().toISOString();
+    const sigDocId = await genId('sig');
+    const sig = await handleSignDocument('exame', sigDocId, {
+      examRequestIds: unsignedExams.map(e => e.id),
+      patientId: selectedPatient.id,
+      patientName: selectedPatient.name || '',
+      operator: activeOperator,
+      exams: unsignedExams.map(e => ({
+        id: e.id,
+        examType: e.examType,
+        examName: e.examName,
+        clinicalIndication: e.clinicalIndication,
+        urgency: e.urgency,
+      })),
+    });
+    const signedIds = new Set(unsignedExams.map(e => e.id));
+    setExamRequests(prev => prev.map(e =>
+      signedIds.has(e.id) ? { ...e, signedBy: activeOperator, signedAt, signatureId: sig.id } : e
+    ));
+    if (supabase) {
+      await Promise.all(unsignedExams.map(e =>
+        supabase.from('exam_requests').update({
+          signed_by: activeOperator,
+          signed_at: signedAt,
+          signature_id: sig.id,
+          updated_by: activeOperator,
+        }).eq('id', e.id)
+      ));
+    }
+    const payload = buildExamQrPayload({
+      id: sigDocId,
+      patientId: selectedPatient.id,
+      patientName: selectedPatient.name || '',
+      createdAt: unsignedExams.map(e => e.createdAt).sort()[0] || signedAt,
+      signedAt,
+      verificationCode: sig.verificationCode,
+      items: unsignedExams.map(e => ({
+        id: e.id,
+        name: e.examName,
+        examType: e.examType,
+        urgency: e.urgency,
+      })),
+    });
+    const qrUrl = await generateQrDataUrl(buildExamVerifyUrl(payload));
+    setExamQrPayload(payload);
+    setExamQrDataUrl(qrUrl);
+    addAuditLog('Assinou Solicitação de Exames', `${unsignedExams.length} exames - ${selectedPatient?.name}`);
+  };
+
+  // ─── PRINT EXAM REQUESTS (só a solicitação, via CSS @media print) ───
+  const handlePrintExams = () => {
+    window.print();
+  };
+
+  // ─── SIGN ALL PROCEDURES (um único documento assinado) ───
+  const handleSignProcedures = async () => {
+    if (!selectedPatient || unsignedProcedures.length === 0) return;
+    const signedAt = new Date().toISOString();
+    const sigDocId = await genId('sig');
+    const sig = await handleSignDocument('procedimento', sigDocId, {
+      procedureIds: unsignedProcedures.map(p => p.id),
+      patientId: selectedPatient.id,
+      patientName: selectedPatient.name || '',
+      operator: activeOperator,
+      procedures: unsignedProcedures.map(p => ({
+        id: p.id,
+        code: p.procedureCode,
+        name: p.procedureName,
+        category: p.procedureCategory,
+        quantity: p.quantity,
+      })),
+    });
+    const signedIds = new Set(unsignedProcedures.map(p => p.id));
+    setProcedureList(prev => prev.map(p =>
+      signedIds.has(p.id) ? { ...p, signedBy: activeOperator, signedAt, signatureId: sig.id } : p
+    ));
+    if (supabase) {
+      const results = await Promise.all(unsignedProcedures.map(p =>
+        supabase.from('procedures').update({
+          signed_by: activeOperator,
+          signed_at: signedAt,
+          signature_id: sig.id,
+          updated_by: activeOperator,
+        }).eq('id', p.id)
+      ));
+      const failed = results.find(r => r.error);
+      if (failed && failed.error) {
+        console.error('Erro ao vincular assinatura aos procedimentos:', failed.error.message);
+      }
+    }
+    const payload = buildProcedureQrPayload({
+      id: sigDocId,
+      patientId: selectedPatient.id,
+      patientName: selectedPatient.name || '',
+      createdAt: unsignedProcedures.map(p => p.createdAt).sort()[0] || signedAt,
+      signedAt,
+      verificationCode: sig.verificationCode,
+      items: unsignedProcedures.map(p => ({
+        id: p.id,
+        code: p.procedureCode,
+        name: p.procedureName,
+        category: p.procedureCategory,
+        quantity: p.quantity,
+      })),
+    });
+    const qrUrl = await generateQrDataUrl(buildProcedureVerifyUrl(payload));
+    setProcQrPayload(payload);
+    setProcQrDataUrl(qrUrl);
+    setProcGroupSelection(sig.id);
+    setEditingProcedure(null);
+    addAuditLog('Assinou Solicitação de Procedimentos', `${unsignedProcedures.length} procedimentos - ${selectedPatient?.name}`);
+  };
+
+  // ─── DELETE PROCEDURE GROUP (solicitação inteira, aberta ou assinada) ───
+  const handleDeleteProcedureGroup = async (groupId: string) => {
+    const groupProcedures = groupId === 'open' ? openGroupProcedures : (procSignedGroups.find(g => g.signatureId === groupId)?.procedures ?? []);
+    if (groupProcedures.length === 0) return;
+    if (!confirm(t('hce_proc_confirm_delete_group', 'app').replace('{count}', String(groupProcedures.length)))) return;
+    const ids = groupProcedures.map(p => p.id);
+    setProcedureList(prev => prev.filter(p => !ids.includes(p.id)));
+    setProcQrDataUrl('');
+    setProcQrPayload('');
+    if (supabase) {
+      await supabase.from('procedures').delete().in('id', ids);
+      if (groupId !== 'open') {
+        await supabase.from('electronic_signatures').delete().eq('id', groupId);
+      }
+    }
+    setProcGroupSelection('open');
+    setEditingProcedure(null);
+    addAuditLog('Excluiu Solicitação de Procedimentos', `${groupProcedures.length} procedimentos - ${selectedPatient?.name}`);
+  };
+
+  // ─── PRINT PROCEDURE REQUESTS (só a solicitação, via CSS @media print) ───
+  const handlePrintProcedures = () => {
+    window.print();
+  };
+
+  // ─── NEW PROCEDURE GROUP (solicitação em aberto) ───
+  const handleNewProcGroup = () => {
+    setProcGroupSelection('open');
+    setEditingProcedure(null);
+    setProcedureForm({ procedureCode: '', procedureName: '', procedureCategory: '', quantity: 1, notes: '', snomedCode: '', snomedDescription: '', status: '', nomenclature: '', financingEntity: '' });
+    setProcedureNomenclature('');
+    setProcCodeQuery('');
+    setProcCodeOpen(false);
+    clearProcErrors();
   };
 
   // ─── UPDATE PROCEDURE ───
@@ -1916,6 +2415,7 @@ const ClinicalModuleContent = ({
       await supabase.from('procedures').update({
         status: proc.status,
         complications: proc.complications,
+        notes: proc.notes,
         performed_at: proc.performedAt || null,
         snomed_code: proc.snomedCode || null,
         snomed_description: proc.snomedDescription || null,
@@ -1924,44 +2424,181 @@ const ClinicalModuleContent = ({
     }
   };
 
-  // ─── SAVE ATTACHMENT (INSERT to Supabase) ───
+  // ─── SAVE ATTACHMENT (compress + upload to Supabase Storage + INSERT row) ───
   const handleSaveAttachment = async (file: File) => {
+    const { file: fileToUpload, originalSize, compressedSize, wasCompressed } = await compressImageFile(file);
+    if (wasCompressed) {
+      console.info(`[Attachment] Compressed ${file.name}: ${(originalSize / 1024).toFixed(1)} KB → ${(compressedSize / 1024).toFixed(1)} KB`);
+    }
+
     const result = validateAtt({
       patientId: selectedPatient?.id || '',
-      fileName: file.name,
-      fileSizeBytes: file.size,
-      mimeType: file.type || 'application/octet-stream',
-      description: '',
+      fileName: fileToUpload.name,
+      fileSizeBytes: fileToUpload.size,
+      mimeType: fileToUpload.type || 'application/octet-stream',
+      category: attachmentForm.category || 'outro',
+      description: attachmentForm.description,
+      isSensitive: attachmentForm.isSensitive,
     });
     if (!result.success) return;
+
+    const newId = await genId('att');
+    const patientId = selectedPatient?.id || '';
+    const storagePath = `attachments/${patientId}/${newId}-${fileToUpload.name}`;
+    let uploadedPath = storagePath;
+
+    if (supabase) {
+      setAttachmentUploading(true);
+      try {
+        const { error: uploadError } = await supabase.storage
+          .from('clinical-attachments')
+          .upload(storagePath, fileToUpload, { contentType: fileToUpload.type || 'application/octet-stream', upsert: false });
+        if (uploadError) {
+          console.error('Upload failed:', uploadError.message);
+          alert(t('hce_attachment_upload_failed', 'app'));
+          setAttachmentUploading(false);
+          return;
+        }
+        uploadedPath = storagePath;
+      } catch (err) {
+        console.error('Upload error:', err);
+        alert(t('hce_attachment_upload_failed', 'app'));
+        setAttachmentUploading(false);
+        return;
+      }
+      setAttachmentUploading(false);
+    }
+
     const att = {
-      id: await genId('att'),
-      patient_id: selectedPatient?.id || '',
+      id: newId,
+      patient_id: patientId,
       created_by: activeOperator,
       updated_by: null,
-      file_name: file.name,
-      file_path: `attachments/${selectedPatient?.id}/${file.name}`,
-      file_size_bytes: file.size,
-      mime_type: file.type || 'application/octet-stream',
-      category: 'outro',
-      description: '',
-      is_sensitive: false,
+      file_name: fileToUpload.name,
+      file_path: uploadedPath,
+      file_size_bytes: fileToUpload.size,
+      mime_type: fileToUpload.type || 'application/octet-stream',
+      category: attachmentForm.category,
+      description: attachmentForm.description,
+      is_sensitive: attachmentForm.isSensitive,
     };
-    setAttachments(prev => [{ ...att, createdAt: new Date().toISOString(), createdBy: att.created_by }, ...prev]);
+    const attMapped = {
+      id: att.id,
+      patientId: att.patient_id,
+      createdBy: att.created_by,
+      createdAt: new Date().toISOString(),
+      updatedBy: '',
+      fileName: att.file_name,
+      filePath: att.file_path,
+      fileSizeBytes: att.file_size_bytes,
+      mimeType: att.mime_type,
+      category: att.category,
+      description: att.description,
+      isSensitive: att.is_sensitive,
+    };
+    setAttachments(prev => [attMapped, ...prev]);
+    setSelectedAttachmentId(attMapped.id);
     if (supabase) {
-      await supabase.from('clinical_attachments').insert(att);
+      const { error: insertError } = await supabase.from('clinical_attachments').insert(att);
+      if (insertError) {
+        console.error('Insert failed, rolling back storage upload:', insertError.message);
+        try {
+          await supabase.storage.from('clinical-attachments').remove([uploadedPath]);
+        } catch (rollbackErr) {
+          console.warn('Storage rollback failed (orphan file):', rollbackErr);
+        }
+        setAttachments(prev => prev.filter((a: any) => a.id !== newId));
+        setSelectedAttachmentId(prev => prev === newId ? null : prev);
+        alert(t('hce_attachment_upload_failed', 'app'));
+        return;
+      }
     }
-    addAuditLog('Anexo Clínico Adicionado', `${file.name} - ${selectedPatient?.name}`);
+    setAttachmentForm({ category: '', description: '', isSensitive: false });
+    addAuditLog('Anexo Clínico Adicionado', `${fileToUpload.name} - ${selectedPatient?.name}`);
   };
 
-  // ─── DELETE ATTACHMENT (DELETE from Supabase) ───
+  // ─── CONFIRMED DELETE ATTACHMENT (after ConfirmDialog) ───
   const handleDeleteAttachment = async (attId: string) => {
+    const target = attachments.find((a: any) => a.id === attId);
     setAttachments(prev => prev.filter((a: any) => a.id !== attId));
     if (supabase) {
+      if (target?.filePath) {
+        try {
+          await supabase.storage.from('clinical-attachments').remove([target.filePath]);
+        } catch (err) {
+          console.warn('Storage remove failed (continuing):', err);
+        }
+      }
       await supabase.from('clinical_attachments').delete().eq('id', attId);
     }
     addAuditLog('Excluiu Anexo Clínico', attId);
   };
+
+  // ─── VIEW ATTACHMENT (abre preview — signedUrl carregado via useEffect) ───
+  const handleViewAttachment = (att: any) => {
+    if (!att.filePath) {
+      console.warn('Attachment sem filePath:', att.id);
+      return;
+    }
+    setAttachmentPreview({ attachment: att, signedUrl: '', loading: true });
+  };
+
+  // ─── DOWNLOAD ATTACHMENT (fetch blob + anchor para permitir escolha de local) ───
+  const handleDownloadAttachment = async () => {
+    if (!attachmentPreview?.signedUrl) return;
+    try {
+      const response = await fetch(attachmentPreview.signedUrl);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = attachmentPreview.attachment.fileName;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (err) {
+      console.error('Download failed:', err);
+      window.open(attachmentPreview.signedUrl, '_blank');
+    }
+  };
+
+  // ─── EFFECT: gera signed URL quando o modal abre ───
+  useEffect(() => {
+    if (!attachmentPreview || !attachmentPreview.loading) return;
+    if (!supabase) {
+      setAttachmentPreview(prev => prev ? { ...prev, loading: false } : null);
+      return;
+    }
+    const filePath = attachmentPreview.attachment.filePath;
+    if (!filePath) {
+      setAttachmentPreview(prev => prev ? { ...prev, loading: false } : null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data, error } = await supabase.storage
+          .from('clinical-attachments')
+          .createSignedUrl(filePath, 3600);
+        if (cancelled) return;
+        if (error || !data) {
+          console.error('Signed URL failed:', error?.message);
+          setAttachmentPreview(prev => prev ? { ...prev, loading: false } : null);
+          return;
+        }
+        setAttachmentPreview(prev => prev ? { ...prev, signedUrl: data.signedUrl, loading: false } : null);
+      } catch (err) {
+        if (cancelled) return;
+        console.error('View attachment error:', err);
+        setAttachmentPreview(prev => prev ? { ...prev, loading: false } : null);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attachmentPreview?.attachment?.id, attachmentPreview?.loading]);
 
 
   const filteredTimeline = useMemo(() => {
@@ -2164,6 +2801,11 @@ const ClinicalModuleContent = ({
     const date = new Date(dateStr.includes('T') ? dateStr : dateStr + 'T12:00:00');
     return isNaN(date.getTime()) ? '' : date.toLocaleDateString(locale);
   }, [locale]);
+  const formatDateTime = useCallback((dateStr: string) => {
+    if (!dateStr) return '';
+    const date = new Date(dateStr.includes('T') ? dateStr : dateStr + 'T12:00:00');
+    return isNaN(date.getTime()) ? '' : `${date.toLocaleDateString(locale)} ${date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}`;
+  }, [locale]);
   // ─── FILTERED TIMELINE ───
   const handleExportTimelinePdf = useCallback(async () => {
     if (!filteredTimeline.length || !selectedPatient) return;
@@ -2235,6 +2877,23 @@ const ClinicalModuleContent = ({
     const key = `hce_status_${s.toLowerCase().replace(/\s+/g, '_')}`;
     const translated = t(key, 'app');
     return translated !== key ? translated : s;
+  };
+
+  const translateProcStatus = (s: string) => {
+    const map: Record<string, string> = {
+      programado: 'hce_procedure_programado',
+      em_execucao: 'hce_procedure_em_execucao',
+      concluido: 'hce_procedure_concluido',
+      cancelado: 'hce_status_cancelado',
+    };
+    const key = map[s] || `hce_status_${s}`;
+    const translated = t(key, 'app');
+    return translated !== key ? translated : s;
+  };
+
+  const translateProcCategory = (cat: string) => {
+    const key = PROCEDURE_CATEGORY_I18N_KEY[cat as ProcedureCategory];
+    return key ? t(key, 'app') : cat;
   };
 
   return (
@@ -3607,11 +4266,12 @@ const ClinicalModuleContent = ({
                         return (
                           <button key={p.id} onClick={() => { setSelectedPrescriptionId(p.id); setPrescQrDataUrl(''); setEditingItem(null); clearPrescErrors(); }} className={`w-full text-left px-3 py-2 rounded-lg border transition ${active ? 'border-teal-400 bg-teal-50' : 'border-slate-200 bg-white hover:bg-slate-50'}`}>
                             <span className={`block text-xs font-bold truncate ${active ? 'text-teal-700' : 'text-slate-700'}`}>
-                              {t('presc_receipt_label', 'app')} #{idx + 1}
+                              {t('presc_receipt_label', 'app')} #{prescChronoRank[p.id] ?? idx + 1}
                             </span>
                             <span className="block text-[10px] text-slate-500 truncate">
                               {itemCount > 0 ? t('presc_item_count', 'app').replace('{count}', String(itemCount)) : t('presc_no_items_label', 'app')}
                             </span>
+                            <span className="block text-[10px] text-slate-400">{formatDateTime(p.createdAt)}</span>
                             <div className="flex items-center gap-1 mt-0.5">
                               <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
                                 p.status === 'assinado' ? 'bg-green-100 text-green-700' :
@@ -3709,6 +4369,7 @@ const ClinicalModuleContent = ({
                         </FormField>
                         <FormField label={t('presc_type', 'app')} error={prescFieldErrors.prescriptionType}>
                           <select value={editingItem.prescriptionType} onChange={e => setEditingItem(prev => prev ? { ...prev, prescriptionType: e.target.value as any } : null)} className={inputCls}>
+                            <option value="">{t('hce_select_option', 'app')}</option>
                             <option value="comum">{t('hce_prescription_comum', 'app')}</option>
                             <option value="controlado">{t('hce_prescription_controlado', 'app')}</option>
                             <option value="arquivado">{t('hce_prescription_arquivado', 'app')}</option>
@@ -3831,14 +4492,14 @@ const ClinicalModuleContent = ({
                         </FormField>
                       </div>
                       <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className={labelCls}>{t('presc_add_type', 'app')}</label>
+                        <FormField label={t('presc_add_type', 'app')} error={prescFieldErrors.prescriptionType}>
                           <select value={prescriptionForm.prescriptionType} onChange={e => setPrescriptionForm(p => ({ ...p, prescriptionType: e.target.value as any }))} className={inputCls}>
+                            <option value="">{t('hce_select_option', 'app')}</option>
                             <option value="comum">{t('hce_prescription_comum', 'app')}</option>
                             <option value="controlado">{t('hce_prescription_controlado', 'app')}</option>
                             <option value="arquivado">{t('hce_prescription_arquivado', 'app')}</option>
                           </select>
-                        </div>
+                        </FormField>
                         <FormField label={t('presc_add_instructions', 'app')} error={prescFieldErrors.notes}>
                           <input type="text" value={prescriptionForm.notes} onChange={e => setPrescriptionForm(p => ({ ...p, notes: e.target.value }))} className={inputCls} placeholder={t('presc_placeholder_notes', 'app')} />
                         </FormField>
@@ -3851,7 +4512,7 @@ const ClinicalModuleContent = ({
                       <button onClick={handleSavePrescriptionItem} disabled={!prescriptionForm.drugName.trim()} className="w-full py-2.5 bg-teal-600 hover:bg-teal-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-semibold rounded-lg text-xs transition flex items-center justify-center gap-2">
                         <Plus className="w-3.5 h-3.5" /> {t('presc_add_button', 'app')}
                       </button>
-                    </>
+</>
                   )}
                     </div>
                   </div>
@@ -3871,25 +4532,193 @@ const ClinicalModuleContent = ({
                       <AlertTriangle className="w-10 h-10 text-amber-400 mb-3" />
                       <p className="text-sm font-semibold text-slate-600">{t('agenda_alert_select_patient', 'app')}</p>
                     </div>
-                  ) : (
+                  ) : (<>
+                  {/* ═══ SOLICITAÇÃO DE EXAMES - DOCUMENTO TIMBRADO (igual receituário) ═══ */}
+                  <div id="exam-request-print-area" className="border-2 border-teal-600 rounded-xl overflow-hidden">
+                    <div className="bg-teal-600 text-white p-4 flex items-center gap-4">
+                      <div className="w-14 h-14 bg-white rounded-full flex items-center justify-center flex-shrink-0">
+                        <Scan className="w-7 h-7 text-teal-600" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-lg truncate">{activeProfessional?.name || activeOperator}</p>
+                        <p className="text-teal-100 text-xs">{t('presc_header_rne_crm', 'app')} {activeProfessional?.council || '—'} {activeProfessional?.councilNumber ? `— ${activeProfessional.councilNumber}` : '— —'}</p>
+                        <p className="text-teal-100 text-xs">{t('presc_header_specialty', 'app')} {activeProfessional?.specialty || '— —'}</p>
+                      </div>
+                      <div className="text-right text-[10px] text-teal-100 flex-shrink-0">
+                        <p>{t('presc_header_address', 'app')} {activeProfessional?.locationId ? `Sede ${activeProfessional.locationId.replace('loc_', '')}` : '— —'}</p>
+                        <p>{t('presc_header_phone', 'app')} {activeProfessional?.phone || '— —'}</p>
+                      </div>
+                    </div>
+
+                    <div className="bg-teal-50 px-4 py-2.5 border-t border-teal-200 space-y-1 text-xs">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4 flex-wrap">
+                          <span className="font-bold text-teal-800">{t('presc_patient_name', 'app')} <span className="font-normal text-slate-700">{selectedPatient?.name}</span></span>
+                          {selectedPatient?.birthdate && (
+                            <span className="text-slate-500">{t('presc_patient_birthdate', 'app')} {new Date(selectedPatient.birthdate).toLocaleDateString(locale)}</span>
+                          )}
+                          {selectedPatient?.document_type && (
+                            <span className="text-slate-500">{t('presc_patient_doc_type', 'app')}: {selectedPatient.document_type}</span>
+                          )}
+                          {selectedPatient?.document_number && (
+                            <span className="text-slate-500">{t('presc_patient_doc_number', 'app')}: {selectedPatient.document_number}</span>
+                          )}
+                        </div>
+                        <span className="text-slate-500">{new Date().toLocaleDateString(locale)}</span>
+                      </div>
+                      {(selectedPatient?.phone || selectedPatient?.email || selectedPatient?.address_city) && (
+                        <div className="flex items-center gap-4 flex-wrap text-[10px] text-slate-500">
+                          {selectedPatient?.phone && <span>{t('presc_send_phone_label', 'app')}: {selectedPatient.phone}</span>}
+                          {selectedPatient?.email && <span>{t('presc_send_email_label', 'app')}: {selectedPatient.email}</span>}
+                          {selectedPatient?.address_city && <span>{t('presc_header_city', 'app')}: {selectedPatient.address_city}{selectedPatient.address_neighborhood ? ` - ${selectedPatient.address_neighborhood}` : ''}</span>}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="text-center py-2 border-b border-teal-200">
+                      <h3 className="font-bold text-teal-800 text-sm tracking-wider uppercase">{t('hce_exam_request_title', 'app')}</h3>
+                    </div>
+
+                    <div className="p-4">
+                      {activeGroupExams.length === 0 ? (
+                        <p className="text-center text-slate-400 text-xs py-4">{examRequests.length === 0 ? t('hce_no_exam_records', 'app') : t('hce_exam_select_group', 'app')}</p>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-xs">
+                            <thead>
+                              <tr className="text-left text-[10px] uppercase tracking-wider text-slate-500 border-b border-slate-200">
+                                <th className="py-1.5 pr-2">#</th>
+                                <th className="py-1.5 pr-2">{t('hce_exam_name', 'app')}</th>
+                                <th className="py-1.5 pr-2">{t('hce_exam_type', 'app')}</th>
+                                <th className="py-1.5 pr-2">{t('hce_clinical_indication', 'app')}</th>
+                                <th className="py-1.5 pr-2">{t('hce_urgency', 'app')}</th>
+                                <th className="py-1.5 pr-2">{t('hce_diagnosis_status', 'app')}</th>
+                                <th className="py-1.5 pr-2">{t('presc_col_actions', 'app')}</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                              {activeGroupExams.map((e, idx) => (
+                                <tr key={e.id}>
+                                  <td className="py-2 pr-2 font-bold text-teal-600">{idx + 1}.</td>
+                                  <td className="py-2 pr-2 align-top">
+                                    <p className="font-bold text-slate-800">{e.examName}</p>
+                                    {e.signedAt && <p className="text-[10px] text-green-600 font-semibold">{t('hce_exam_signed', 'app')} — {t('hce_exam_signed_by', 'app')} {e.signedBy || '—'} · {formatDate(e.signedAt)}</p>}
+                                  </td>
+                                  <td className="py-2 pr-2 align-top">
+                                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600">
+                                      {e.examType === 'laboratorio' ? t('hce_exam_laboratorio', 'app') : e.examType === 'imagem' ? t('hce_exam_imagem', 'app') : e.examType === 'anatomia_patologica' ? t('hce_exam_anatomia', 'app') : t('hce_exam_outro', 'app')}
+                                    </span>
+                                  </td>
+                                  <td className="py-2 pr-2 align-top text-slate-500">{e.clinicalIndication || '—'}</td>
+                                  <td className="py-2 pr-2 align-top">
+                                    <span className="text-slate-600">{e.urgency === 'rotina' ? t('hce_urgency_rotina', 'app') : e.urgency === 'urgente' ? t('hce_urgency_urgente', 'app') : t('hce_urgency_emergencia', 'app')}</span>
+                                  </td>
+                                  <td className="py-2 pr-2 align-top">
+                                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${e.status === 'concluido' ? 'bg-green-100 text-green-700' : e.status === 'cancelado' ? 'bg-rose-100 text-rose-700' : e.status === 'em_execucao' ? 'bg-blue-100 text-blue-700' : e.status === 'laudo_pendente' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>{translateStatus(e.status)}</span>
+                                  </td>
+                                  <td className="py-2 pr-2 align-top">
+                                    {activeExamGroupId === 'open' ? (
+                                      <div className="flex items-center gap-1">
+                                        <button onClick={() => { setEditingExamRequest(e); clearExamErrors(); }} className="p-1 text-slate-500 hover:text-teal-600" title={t('hce_edit', 'app')}>
+                                          <Pencil className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button onClick={() => { if (window.confirm(t('hce_exam_confirm_delete', 'app'))) handleDeleteExamRequest(e.id); }} className="p-1 text-slate-500 hover:text-rose-600" title={t('hce_delete', 'app')}>
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <div className="flex items-center gap-1.5">
+                                        <button onClick={() => { setEditingExamRequest(e); clearExamErrors(); }} className="p-1 text-slate-500 hover:text-teal-600" title={t('hce_edit', 'app')}>
+                                          <Pencil className="w-3.5 h-3.5" />
+                                        </button>
+                                        <span className="text-[10px] text-slate-400 italic">{t('hce_exam_signed_locked', 'app')}</span>
+                                      </div>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+
+                    {activeExamGroupId !== 'open' && activeGroupExams.length > 0 && (
+                      <div className="px-4 pb-2 flex items-center gap-3">
+                        {examQrDataUrl ? (
+                          <Image src={examQrDataUrl} alt={t('hce_exam_qr_alt', 'app')} width={96} height={96} className="rounded border border-slate-200" />
+                        ) : (
+                          <div className="w-24 h-24 rounded border border-slate-200 bg-slate-50 flex items-center justify-center">
+                            <QrCode className="w-8 h-8 text-slate-300" />
+                          </div>
+                        )}
+                        <div className="text-[10px] text-slate-500 space-y-0.5">
+                          <p className="font-bold text-slate-700">{t('hce_exam_qr_title', 'app')}</p>
+                          <p>{t('hce_exam_qr_hint', 'app')}</p>
+                          {examQrPayload && (
+                            <a
+                              href={buildExamVerifyUrl(examQrPayload)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-block text-teal-600 hover:text-teal-700 font-semibold underline"
+                            >
+                              {t('hce_exam_qr_verify', 'app')}
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="no-print px-4 pb-4 flex flex-wrap items-center gap-2">
+                      {activeExamGroupId === 'open' && unsignedExams.length > 0 && (
+                        <button onClick={handleSignExamRequests} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-xs font-bold rounded-lg flex items-center gap-1">
+                          <FileSignature className="w-3.5 h-3.5" /> {t('hce_exam_sign_all', 'app')} ({unsignedExams.length})
+                        </button>
+                      )}
+                      {activeExamGroupId === 'open' && openGroupExams.length > 0 && unsignedExams.length === 0 && (
+                        <span className="text-[10px] text-slate-400 italic">{t('hce_exam_no_pending_sign', 'app')}</span>
+                      )}
+                      {activeGroupExams.length > 0 && (
+                        <button onClick={handlePrintExams} className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-lg flex items-center gap-1">
+                          <Printer className="w-3.5 h-3.5" /> {t('hce_exam_print', 'app')}
+                        </button>
+                      )}
+                      {activeGroupExams.length > 0 && (
+                        <button onClick={() => handleDeleteExamGroup(activeExamGroupId)} className="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold rounded-lg flex items-center gap-1">
+                          <Trash2 className="w-3.5 h-3.5" /> {t('hce_exam_delete_group', 'app')}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
                   <div className="flex gap-4">
                     <div className="w-52 shrink-0 space-y-2">
                       <p className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">{t('hce_exam_history', 'app')}</p>
-                      <button onClick={() => { setEditingExamRequest(null); }} className="w-full py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg transition flex items-center justify-center gap-1">
-                        <Plus className="w-3.5 h-3.5" /> {t('hce_exam_new', 'app')}
+                      <button onClick={() => { setExamGroupSelection('open'); setEditingExamRequest(null); clearExamErrors(); }} className="w-full py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg transition flex items-center justify-center gap-1">
+                        <Plus className="w-3.5 h-3.5" /> {t('hce_exam_new_group', 'app')}
                       </button>
                       {examRequests.length === 0 && (
                         <p className="text-[10px] text-slate-400 italic">{t('hce_no_exam_records', 'app')}</p>
                       )}
-                      {examRequests.map((e, idx) => {
-                        const active = editingExamRequest?.id === e.id;
+                      {openGroupExams.length > 0 && (
+                        <button onClick={() => { setExamGroupSelection('open'); setEditingExamRequest(null); clearExamErrors(); }} className={`w-full text-left px-3 py-2 rounded-lg border transition ${activeExamGroupId === 'open' ? 'border-teal-400 bg-teal-50' : 'border-slate-200 bg-white hover:bg-slate-50'}`}>
+                          <span className={`block text-xs font-bold truncate ${activeExamGroupId === 'open' ? 'text-teal-700' : 'text-slate-700'}`}>
+                            {t('hce_exam_open_label', 'app')}
+                          </span>
+                          <span className="block text-[10px] text-slate-500">{t('hce_exam_open_count', 'app').replace('{count}', String(openGroupExams.length))}</span>
+                          <span className="block text-[10px] text-slate-400">{formatDateTime(openGroupExams[0].createdAt)}</span>
+                          <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-700">{t('hce_exam_status_open', 'app')}</span>
+                        </button>
+                      )}
+                      {examSignedGroups.map(g => {
+                        const active = activeExamGroupId === g.signatureId;
                         return (
-                          <button key={e.id} onClick={() => { setEditingExamRequest(e); clearExamErrors(); }} className={`w-full text-left px-3 py-2 rounded-lg border transition ${active ? 'border-teal-400 bg-teal-50' : 'border-slate-200 bg-white hover:bg-slate-50'}`}>
+                          <button key={g.signatureId} onClick={() => { setExamGroupSelection(g.signatureId); setEditingExamRequest(null); clearExamErrors(); }} className={`w-full text-left px-3 py-2 rounded-lg border transition ${active ? 'border-teal-400 bg-teal-50' : 'border-slate-200 bg-white hover:bg-slate-50'}`}>
                             <span className={`block text-xs font-bold truncate ${active ? 'text-teal-700' : 'text-slate-700'}`}>
-                              {e.examName}
+                              {t('hce_exam_group_signed', 'app').replace('{count}', String(g.exams.length))}
                             </span>
-                            <span className="block text-[10px] text-slate-500">{e.examType}</span>
-                            <span className="block text-[10px] text-slate-400">{formatDate(e.createdAt)}</span>
+                            <span className="block text-[10px] text-slate-400">{formatDateTime(g.signedAt)}</span>
+                            <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-green-100 text-green-700">{t('hce_exam_signed', 'app')}</span>
                           </button>
                         );
                       })}
@@ -3902,20 +4731,50 @@ const ClinicalModuleContent = ({
                       <div className="grid grid-cols-2 gap-2">
                         <div>
                           <label className={labelCls}>{t('hce_exam_type', 'app')}</label>
-                          <input type="text" value={editingExamRequest.examType} className={inputCls} readOnly />
+                          {editingExamRequest.signedAt ? (
+                            <input type="text" value={editingExamRequest.examType} className={inputCls} readOnly />
+                          ) : (
+                            <select value={editingExamRequest.examType} onChange={ev => setEditingExamRequest(prev => prev ? { ...prev, examType: ev.target.value as any, examCatalogId: ev.target.value !== prev.examType ? '' : prev.examCatalogId } : null)} className={inputCls}>
+                              <option value="laboratorio">{t('hce_exam_laboratorio', 'app')}</option>
+                              <option value="imagem">{t('hce_exam_imagem', 'app')}</option>
+                              <option value="anatomia_patologica">{t('hce_exam_anatomia', 'app')}</option>
+                              <option value="outro">{t('hce_exam_outro', 'app')}</option>
+                            </select>
+                          )}
                         </div>
                         <div>
                           <label className={labelCls}>{t('hce_exam_name', 'app')}</label>
-                          <input type="text" value={editingExamRequest.examName} className={inputCls} readOnly />
+                          {editingExamRequest.signedAt ? (
+                            <input type="text" value={editingExamRequest.examName} className={inputCls} readOnly />
+                          ) : (
+                            <input type="text" value={editingExamRequest.examName} list="exam-catalog-options-edit" onChange={ev => {
+                              const v = ev.target.value;
+                              const match = examCatalog.find(c => c.name === v && c.examType === editingExamRequest.examType);
+                              setEditingExamRequest(prev => prev ? { ...prev, examName: v, examCatalogId: match ? match.id : prev.examCatalogId } : null);
+                            }} className={inputCls} placeholder={t('hce_exam_name_placeholder', 'app')} />
+                          )}
+                          {!editingExamRequest.signedAt && (
+                            <datalist id="exam-catalog-options-edit">
+                              {examCatalog.filter(c => c.examType === editingExamRequest.examType).map(c => (
+                                <option key={c.id} value={c.name}>{c.category}</option>
+                              ))}
+                            </datalist>
+                          )}
                         </div>
                       </div>
+                      {editingExamRequest.signedAt && (
+                        <div className="flex items-center gap-1.5 text-[10px] text-green-600 font-semibold">
+                          <Check className="w-3.5 h-3.5" /> {t('hce_exam_signed', 'app')} — {t('hce_exam_signed_by', 'app')} {editingExamRequest.signedBy || '—'} · {formatDate(editingExamRequest.signedAt)}
+                        </div>
+                      )}
                       <div className="border border-teal-200 rounded-xl p-3 space-y-2">
                         <div className="grid grid-cols-3 gap-2">
                           <div>
                             <label className={labelCls}>{t('hce_diagnosis_status', 'app')}</label>
                             <select value={editingExamRequest.status} onChange={ev => setEditingExamRequest(prev => prev ? { ...prev, status: ev.target.value as any } : null)} className={inputCls}>
                               <option value="solicitado">{t('hce_status_solicitado', 'app')}</option>
-                              <option value="em_andamento">{t('hce_status_em_andamento', 'app')}</option>
+                              <option value="em_execucao">{t('hce_status_em_execucao', 'app')}</option>
+                              <option value="laudo_pendente">{t('hce_status_laudo_pendente', 'app')}</option>
                               <option value="concluido">{t('hce_status_concluido', 'app')}</option>
                               <option value="cancelado">{t('hce_status_cancelado', 'app')}</option>
                             </select>
@@ -3927,17 +4786,21 @@ const ClinicalModuleContent = ({
                         </div>
                       </div>
                       <div className="flex justify-end gap-2">
-                        <button onClick={() => { if (window.confirm(t('hce_confirm_delete_prescription', 'app'))) { handleDeleteExamRequest(editingExamRequest.id); setEditingExamRequest(null); } }} className="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold rounded-lg">{t('hce_delete', 'app')}</button>
+                        {!editingExamRequest.signedAt && (
+                          <button onClick={() => { if (window.confirm(t('hce_exam_confirm_delete', 'app'))) { handleDeleteExamRequest(editingExamRequest.id); setEditingExamRequest(null); } }} className="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold rounded-lg">{t('hce_delete', 'app')}</button>
+                        )}
                         <button onClick={() => { setEditingExamRequest(null); clearExamErrors(); }} className="px-4 py-2 text-slate-600 hover:text-slate-800 text-xs font-bold rounded-lg">{t('hce_cancel', 'app')}</button>
                         <button onClick={() => { if (!editingExamRequest) return; handleUpdateExamRequest({ ...editingExamRequest, resultDate: editingExamRequest.status === 'concluido' ? new Date().toISOString() : editingExamRequest.resultDate }); setEditingExamRequest(null); }} className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg">{t('app_save', 'app')}</button>
                       </div>
                     </>
-                  ) : (
+                  ) : activeExamGroupId === 'open' ? (
                     <>
                       {examErrors.length > 0 && <FormErrorSummary errors={examErrors} onClose={clearExamErrors} />}
+                      <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">{t('hce_exam_new', 'app')}</p>
                       <div className="grid grid-cols-2 gap-3">
                         <FormField label={t('hce_exam_type', 'app')} error={examFieldErrors.examType}>
                           <select value={examRequestForm.examType} onChange={e => setExamRequestForm(p => ({ ...p, examType: e.target.value as any, examCatalogId: '', examName: '' }))} className={inputCls}>
+                            <option value="">{t('hce_select_option', 'app')}</option>
                             <option value="laboratorio">{t('hce_exam_laboratorio', 'app')}</option>
                             <option value="imagem">{t('hce_exam_imagem', 'app')}</option>
                             <option value="anatomia_patologica">{t('hce_exam_anatomia', 'app')}</option>
@@ -3971,6 +4834,7 @@ const ClinicalModuleContent = ({
                         </FormField>
                         <FormField label={t('hce_urgency', 'app')} error={examFieldErrors.urgency}>
                           <select value={examRequestForm.urgency} onChange={e => setExamRequestForm(p => ({ ...p, urgency: e.target.value as any }))} className={inputCls}>
+                            <option value="">{t('hce_select_option', 'app')}</option>
                             <option value="rotina">{t('hce_urgency_rotina', 'app')}</option>
                             <option value="urgente">{t('hce_urgency_urgente', 'app')}</option>
                             <option value="emergencia">{t('hce_urgency_emergencia', 'app')}</option>
@@ -3983,10 +4847,14 @@ const ClinicalModuleContent = ({
                         </div>
                       </div>
                     </>
+                  ) : activeExamGroupId ? (
+                    <p className="text-xs text-slate-400 italic">{t('hce_exam_signed_locked', 'app')}</p>
+                  ) : (
+                    <p className="text-xs text-slate-400 italic">{t('hce_exam_select_to_add', 'app')}</p>
                   )}
                     </div>
                   </div>
-                  )}
+                  </>)}
                 </div>
               )}
 
@@ -4002,25 +4870,197 @@ const ClinicalModuleContent = ({
                       <AlertTriangle className="w-10 h-10 text-amber-400 mb-3" />
                       <p className="text-sm font-semibold text-slate-600">{t('agenda_alert_select_patient', 'app')}</p>
                     </div>
-                  ) : (
+                  ) : (<>
+                  {/* ═══ SOLICITAÇÃO DE PROCEDIMENTOS - DOCUMENTO TIMBRADO (igual solicitação de exames) ═══ */}
+                  <div id="procedure-request-print-area" className="border-2 border-teal-600 rounded-xl overflow-hidden">
+                    <div className="bg-teal-600 text-white p-4 flex items-center gap-4">
+                      <div className="w-14 h-14 bg-white rounded-full flex items-center justify-center flex-shrink-0">
+                        <Activity className="w-7 h-7 text-teal-600" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-lg truncate">{activeProfessional?.name || activeOperator}</p>
+                        <p className="text-teal-100 text-xs">{t('presc_header_rne_crm', 'app')} {activeProfessional?.council || '—'} {activeProfessional?.councilNumber ? `— ${activeProfessional.councilNumber}` : '— —'}</p>
+                        <p className="text-teal-100 text-xs">{t('presc_header_specialty', 'app')} {activeProfessional?.specialty || '— —'}</p>
+                      </div>
+                      <div className="text-right text-[10px] text-teal-100 flex-shrink-0">
+                        <p>{t('presc_header_address', 'app')} {activeProfessional?.locationId ? `Sede ${activeProfessional.locationId.replace('loc_', '')}` : '— —'}</p>
+                        <p>{t('presc_header_phone', 'app')} {activeProfessional?.phone || '— —'}</p>
+                      </div>
+                    </div>
+
+                    <div className="bg-teal-50 px-4 py-2.5 border-t border-teal-200 space-y-1 text-xs">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4 flex-wrap">
+                          <span className="font-bold text-teal-800">{t('presc_patient_name', 'app')} <span className="font-normal text-slate-700">{selectedPatient?.name}</span></span>
+                          {selectedPatient?.birthdate && (
+                            <span className="text-slate-500">{t('presc_patient_birthdate', 'app')} {new Date(selectedPatient.birthdate).toLocaleDateString(locale)}</span>
+                          )}
+                          {selectedPatient?.document_type && (
+                            <span className="text-slate-500">{t('presc_patient_doc_type', 'app')}: {selectedPatient.document_type}</span>
+                          )}
+                          {selectedPatient?.document_number && (
+                            <span className="text-slate-500">{t('presc_patient_doc_number', 'app')}: {selectedPatient.document_number}</span>
+                          )}
+                        </div>
+                        <span className="text-slate-500">{new Date().toLocaleDateString(locale)}</span>
+                      </div>
+                      {(selectedPatient?.phone || selectedPatient?.email || selectedPatient?.address_city) && (
+                        <div className="flex items-center gap-4 flex-wrap text-[10px] text-slate-500">
+                          {selectedPatient?.phone && <span>{t('presc_send_phone_label', 'app')}: {selectedPatient.phone}</span>}
+                          {selectedPatient?.email && <span>{t('presc_send_email_label', 'app')}: {selectedPatient.email}</span>}
+                          {selectedPatient?.address_city && <span>{t('presc_header_city', 'app')}: {selectedPatient.address_city}{selectedPatient.address_neighborhood ? ` - ${selectedPatient.address_neighborhood}` : ''}</span>}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="text-center py-2 border-b border-teal-200">
+                      <h3 className="font-bold text-teal-800 text-sm tracking-wider uppercase">{t('hce_proc_request_title', 'app')}</h3>
+                    </div>
+
+                    <div className="p-4">
+                      {activeGroupProcedures.length === 0 ? (
+                        <p className="text-center text-slate-400 text-xs py-4">{procedureList.length === 0 ? t('hce_no_procedure_records', 'app') : t('hce_proc_select_group', 'app')}</p>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-xs">
+                            <thead>
+                              <tr className="text-left text-[10px] uppercase tracking-wider text-slate-500 border-b border-slate-200">
+                                <th className="py-1.5 pr-2">#</th>
+                                <th className="py-1.5 pr-2">{t('hce_procedure_code', 'app')}</th>
+                                <th className="py-1.5 pr-2">{t('hce_procedure_name', 'app')}</th>
+                                <th className="py-1.5 pr-2">{t('hce_procedure_category', 'app')}</th>
+                                <th className="py-1.5 pr-2">{t('hce_procedure_quantity', 'app')}</th>
+                                <th className="py-1.5 pr-2">{t('hce_procedure_status', 'app')}</th>
+                                <th className="py-1.5 pr-2">{t('presc_col_actions', 'app')}</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                              {activeGroupProcedures.map((p, idx) => (
+                                <tr key={p.id}>
+                                  <td className="py-2 pr-2 font-bold text-teal-600">{idx + 1}.</td>
+                                  <td className="py-2 pr-2 align-top">
+                                    <span className="font-mono text-[10px] font-bold text-teal-700">{p.procedureCode}</span>
+                                    {p.signedAt && <p className="text-[10px] text-green-600 font-semibold">{t('hce_proc_signed', 'app')} — {t('hce_proc_signed_by', 'app')} {p.signedBy || '—'} · {formatDate(p.signedAt)}</p>}
+                                  </td>
+                                  <td className="py-2 pr-2 align-top">
+                                    <p className="font-bold text-slate-800">{p.procedureName}</p>
+                                    {(p.nomenclature || p.financingEntity) && (
+                                      <p className="text-[10px] text-slate-400">
+                                        {p.nomenclature && <span className="font-bold uppercase text-indigo-500">{p.nomenclature === 'sigtap' ? t('hce_procedure_nomenclature_sigtap', 'app') : t('hce_procedure_nomenclature_cbhpm', 'app')}</span>}
+                                        {p.financingEntity && <span> · {p.financingEntity}</span>}
+                                      </p>
+                                    )}
+                                  </td>
+                                  <td className="py-2 pr-2 align-top">
+                                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600">{translateProcCategory(p.procedureCategory)}</span>
+                                  </td>
+                                  <td className="py-2 pr-2 align-top text-slate-600">×{p.quantity}</td>
+                                  <td className="py-2 pr-2 align-top">
+                                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${p.status === 'concluido' ? 'bg-green-100 text-green-700' : p.status === 'cancelado' ? 'bg-rose-100 text-rose-700' : p.status === 'em_execucao' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'}`}>{translateProcStatus(p.status)}</span>
+                                  </td>
+                                  <td className="py-2 pr-2 align-top">
+                                    {activeProcGroupId === 'open' ? (
+                                      <div className="flex items-center gap-1">
+                                        <button onClick={() => { setEditingProcedure(p); clearProcErrors(); }} className="p-1 text-slate-500 hover:text-teal-600" title={t('hce_edit', 'app')}>
+                                          <Pencil className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button onClick={() => { if (window.confirm(t('hce_proc_confirm_delete', 'app'))) handleDeleteProcedure(p.id); }} className="p-1 text-slate-500 hover:text-rose-600" title={t('hce_delete', 'app')}>
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <div className="flex items-center gap-1.5">
+                                        <button onClick={() => { setEditingProcedure(p); clearProcErrors(); }} className="p-1 text-slate-500 hover:text-teal-600" title={t('hce_edit', 'app')}>
+                                          <Pencil className="w-3.5 h-3.5" />
+                                        </button>
+                                        <span className="text-[10px] text-slate-400 italic">{t('hce_proc_signed_locked', 'app')}</span>
+                                      </div>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+
+                    {activeProcGroupId !== 'open' && activeGroupProcedures.length > 0 && (
+                      <div className="px-4 pb-2 flex items-center gap-3">
+                        {procQrDataUrl ? (
+                          <Image src={procQrDataUrl} alt={t('hce_proc_qr_alt', 'app')} width={96} height={96} className="rounded border border-slate-200" />
+                        ) : (
+                          <div className="w-24 h-24 rounded border border-slate-200 bg-slate-50 flex items-center justify-center">
+                            <QrCode className="w-8 h-8 text-slate-300" />
+                          </div>
+                        )}
+                        <div className="text-[10px] text-slate-500 space-y-0.5">
+                          <p className="font-bold text-slate-700">{t('hce_proc_qr_title', 'app')}</p>
+                          <p>{t('hce_proc_qr_hint', 'app')}</p>
+                          {procQrPayload && (
+                            <a
+                              href={buildProcedureVerifyUrl(procQrPayload)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-block text-teal-600 hover:text-teal-700 font-semibold underline"
+                            >
+                              {t('hce_proc_qr_verify', 'app')}
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="no-print px-4 pb-4 flex flex-wrap items-center gap-2">
+                      {activeProcGroupId === 'open' && unsignedProcedures.length > 0 && (
+                        <button onClick={handleSignProcedures} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-xs font-bold rounded-lg flex items-center gap-1">
+                          <FileSignature className="w-3.5 h-3.5" /> {t('hce_proc_sign_all', 'app')} ({unsignedProcedures.length})
+                        </button>
+                      )}
+                      {activeProcGroupId === 'open' && openGroupProcedures.length > 0 && unsignedProcedures.length === 0 && (
+                        <span className="text-[10px] text-slate-400 italic">{t('hce_proc_no_pending_sign', 'app')}</span>
+                      )}
+                      {activeGroupProcedures.length > 0 && (
+                        <button onClick={handlePrintProcedures} className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-lg flex items-center gap-1">
+                          <Printer className="w-3.5 h-3.5" /> {t('hce_proc_print', 'app')}
+                        </button>
+                      )}
+                      {activeGroupProcedures.length > 0 && (
+                        <button onClick={() => handleDeleteProcedureGroup(activeProcGroupId)} className="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold rounded-lg flex items-center gap-1">
+                          <Trash2 className="w-3.5 h-3.5" /> {t('hce_proc_delete_group', 'app')}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
                   <div className="flex gap-4">
                     <div className="w-52 shrink-0 space-y-2">
                       <p className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">{t('hce_procedure_history', 'app')}</p>
-                      <button onClick={() => { setEditingProcedure(null); }} className="w-full py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg transition flex items-center justify-center gap-1">
-                        <Plus className="w-3.5 h-3.5" /> {t('hce_procedure_new', 'app')}
+                      <button onClick={handleNewProcGroup} className="w-full py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg transition flex items-center justify-center gap-1">
+                        <Plus className="w-3.5 h-3.5" /> {t('hce_proc_new_group', 'app')}
                       </button>
                       {procedureList.length === 0 && (
                         <p className="text-[10px] text-slate-400 italic">{t('hce_no_procedure_records', 'app')}</p>
                       )}
-                      {procedureList.map((p, idx) => {
-                        const active = editingProcedure?.id === p.id;
+                      {openGroupProcedures.length > 0 && (
+                        <button onClick={() => { setProcGroupSelection('open'); setEditingProcedure(null); clearProcErrors(); }} className={`w-full text-left px-3 py-2 rounded-lg border transition ${activeProcGroupId === 'open' ? 'border-teal-400 bg-teal-50' : 'border-slate-200 bg-white hover:bg-slate-50'}`}>
+                          <span className={`block text-xs font-bold truncate ${activeProcGroupId === 'open' ? 'text-teal-700' : 'text-slate-700'}`}>
+                            {t('hce_proc_open_label', 'app')}
+                          </span>
+                          <span className="block text-[10px] text-slate-500">{t('hce_proc_open_count', 'app').replace('{count}', String(openGroupProcedures.length))}</span>
+                          <span className="block text-[10px] text-slate-400">{formatDateTime(openGroupProcedures[0].createdAt)}</span>
+                          <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-700">{t('hce_proc_status_open', 'app')}</span>
+                        </button>
+                      )}
+                      {procSignedGroups.map(g => {
+                        const active = activeProcGroupId === g.signatureId;
                         return (
-                          <button key={p.id} onClick={() => { setEditingProcedure(p); clearProcErrors(); }} className={`w-full text-left px-3 py-2 rounded-lg border transition ${active ? 'border-teal-400 bg-teal-50' : 'border-slate-200 bg-white hover:bg-slate-50'}`}>
+                          <button key={g.signatureId} onClick={() => { setProcGroupSelection(g.signatureId); setEditingProcedure(null); clearProcErrors(); }} className={`w-full text-left px-3 py-2 rounded-lg border transition ${active ? 'border-teal-400 bg-teal-50' : 'border-slate-200 bg-white hover:bg-slate-50'}`}>
                             <span className={`block text-xs font-bold truncate ${active ? 'text-teal-700' : 'text-slate-700'}`}>
-                              {p.procedureCode} — {p.procedureName}
+                              {t('hce_proc_group_signed', 'app').replace('{count}', String(g.procedures.length))}
                             </span>
-                            <span className="block text-[10px] text-slate-500">{p.procedureCategory}</span>
-                            <span className="block text-[10px] text-slate-400">{formatDate(p.createdAt)}</span>
+                            <span className="block text-[10px] text-slate-400">{formatDateTime(g.signedAt)}</span>
+                            <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-green-100 text-green-700">{t('hce_proc_signed', 'app')}</span>
                           </button>
                         );
                       })}
@@ -4044,6 +5084,20 @@ const ClinicalModuleContent = ({
                           <input type="text" value={editingProcedure.procedureCategory} className={inputCls} readOnly />
                         </div>
                       </div>
+                      {(editingProcedure.nomenclature || editingProcedure.financingEntity) && (
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-bold rounded bg-indigo-50 text-indigo-600">
+                            <Hash className="w-3 h-3" />
+                            {t('hce_procedure_nomenclature', 'app')}: {editingProcedure.nomenclature === 'sigtap' ? t('hce_procedure_nomenclature_sigtap', 'app') : t('hce_procedure_nomenclature_cbhpm', 'app')}
+                          </span>
+                          {editingProcedure.financingEntity && (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-bold rounded bg-slate-100 text-slate-600">
+                              <Shield className="w-3 h-3" />
+                              {t('hce_procedure_financiador', 'app')}: {editingProcedure.financingEntity}
+                            </span>
+                          )}
+                        </div>
+                      )}
                       <div className="grid grid-cols-2 gap-2">
                         <div>
                           <label className={labelCls}>{t('hce_snomed_code', 'app')}</label>
@@ -4079,33 +5133,101 @@ const ClinicalModuleContent = ({
                             <input type="text" value={editingProcedure.complications ?? ''} onChange={ev => setEditingProcedure(prev => prev ? { ...prev, complications: ev.target.value } : null)} className={inputCls} placeholder={t('hce_describe_complications_placeholder', 'app')} />
                           </div>
                         </div>
+                        <FormField label={t('hce_notes', 'app')}>
+                          <textarea
+                            value={editingProcedure.notes ?? ''}
+                            onChange={ev => setEditingProcedure(prev => prev ? { ...prev, notes: ev.target.value } : null)}
+                            rows={2}
+                            className={textareaCls}
+                            placeholder={t('hce_notes_placeholder', 'app')}
+                          />
+                        </FormField>
                       </div>
                       <div className="flex justify-end gap-2">
-                        <button onClick={() => { if (window.confirm(t('hce_confirm_delete_prescription', 'app'))) { handleDeleteProcedure(editingProcedure.id); setEditingProcedure(null); } }} className="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold rounded-lg">{t('hce_delete', 'app')}</button>
+                        <button onClick={() => { if (window.confirm(t('hce_proc_confirm_delete', 'app'))) { handleDeleteProcedure(editingProcedure.id); setEditingProcedure(null); } }} className="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold rounded-lg">{t('hce_delete', 'app')}</button>
                         <button onClick={() => { setEditingProcedure(null); clearProcErrors(); }} className="px-4 py-2 text-slate-600 hover:text-slate-800 text-xs font-bold rounded-lg">{t('hce_cancel', 'app')}</button>
                         <button onClick={() => { if (!editingProcedure) return; handleUpdateProcedure({ ...editingProcedure, performedAt: editingProcedure.status === 'concluido' ? new Date().toISOString() : editingProcedure.performedAt }); setEditingProcedure(null); }} className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg">{t('app_save', 'app')}</button>
                       </div>
                     </>
-                  ) : (
+                  ) : activeProcGroupId === 'open' ? (
                     <>
                       {procErrors.length > 0 && <FormErrorSummary errors={procErrors} onClose={clearProcErrors} />}
                       <div className="grid grid-cols-3 gap-2">
-                        <FormField label={t('hce_procedure_code', 'app')} error={procFieldErrors.procedureCode}>
-                          <input type="text" value={procedureForm.procedureCode} onChange={e => setProcedureForm(p => ({ ...p, procedureCode: e.target.value }))} className={inputCls} placeholder={t('hce_procedure_code_placeholder', 'app')} />
+                        <FormField label={t('hce_procedure_code', 'app')} error={procFieldErrors.procedureCode} className="col-span-2">
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={procCodeQuery}
+                              onChange={e => { const v = e.target.value; setProcCodeQuery(v); setProcedureForm(p => ({ ...p, procedureCode: v })); setProcCodeOpen(true); }}
+                              onFocus={() => setProcCodeOpen(true)}
+                              onBlur={() => setTimeout(() => setProcCodeOpen(false), 150)}
+                              className={inputCls}
+                              placeholder={t('hce_procedure_code_placeholder', 'app')}
+                            />
+                            {procCodeOpen && procCodeQuery.trim() && (
+                              <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-56 overflow-y-auto">
+                                {procCatalogResults.length === 0 && (
+                                  <p className="px-3 py-2 text-[10px] text-slate-400 italic">{t('hce_procedure_catalog_empty', 'app')}</p>
+                                )}
+                                {procCatalogResults.map(item => (
+                                  <button key={`${item.nomenclature}-${item.code}`} type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => pickProcedureCatalogItem(item)} className="w-full text-left px-3 py-2 hover:bg-teal-50 transition border-b border-slate-50 last:border-0">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-mono text-[10px] text-teal-700 font-bold shrink-0">{item.code}</span>
+                                      <span className="text-xs text-slate-700 flex-1 min-w-0 truncate">{item.name}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1 mt-0.5">
+                                      <span className="text-[9px] bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded">{item.nomenclature.toUpperCase()}</span>
+                                      {item.financingEntity && (
+                                        <span className="text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">{item.financingEntity}</span>
+                                      )}
+                                    </div>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                         </FormField>
+                        <FormField label={t('hce_procedure_nomenclature', 'app')} error={procFieldErrors.nomenclature}>
+                          <select
+                            value={procedureNomenclature}
+                            onChange={e => {
+                              const next = e.target.value as '' | ProcedureNomenclature;
+                              setProcedureNomenclature(next);
+                              setProcedureForm(p => ({ ...p, nomenclature: next, procedureCode: '', procedureName: '', procedureCategory: '', snomedCode: '', snomedDescription: '', financingEntity: '' }));
+                              setProcCodeQuery('');
+                            }}
+                            className={inputCls}
+                          >
+                            <option value="">{t('hce_select_option', 'app')}</option>
+                            {PROCEDURE_NOMENCLATURES.map(n => (
+                              <option key={n} value={n}>{n === 'sigtap' ? t('hce_procedure_nomenclature_sigtap', 'app') : t('hce_procedure_nomenclature_cbhpm', 'app')}</option>
+                            ))}
+                          </select>
+                        </FormField>
+                      </div>
+
+                      {financiadorType && !['Particular', 'Mercosul'].includes(financiadorType) && (
+                        <p className="text-[10px] text-slate-500 flex items-center gap-1">
+                          <Shield className="w-3 h-3 text-teal-600" />
+                          <span className="font-bold uppercase">{t('hce_procedure_financiador', 'app')}:</span>{' '}
+                          {selectedPatient?.health_insurance_company || financiadorType}
+                        </p>
+                      )}
+
+                      <div className="grid grid-cols-3 gap-2">
                         <FormField label={t('hce_procedure_name', 'app')} error={procFieldErrors.procedureName}>
                           <input type="text" value={procedureForm.procedureName} onChange={e => setProcedureForm(p => ({ ...p, procedureName: e.target.value }))} className={inputCls} />
                         </FormField>
                         <FormField label={t('hce_procedure_category', 'app')} error={procFieldErrors.procedureCategory}>
                           <select value={procedureForm.procedureCategory} onChange={e => setProcedureForm(p => ({ ...p, procedureCategory: e.target.value }))} className={inputCls}>
-                            <option value="">{t('hce_select_placeholder', 'app')}</option>
-                            <option value="Consulta">{t('hce_category_consulta', 'app')}</option>
-                            <option value="Procedimento">{t('hce_category_procedimento', 'app')}</option>
-                            <option value="Laboratório">{t('hce_category_laboratorio', 'app')}</option>
-                            <option value="Imagem">{t('hce_category_imagem', 'app')}</option>
-                            <option value="Fisioterapia">{t('hce_category_fisioterapia', 'app')}</option>
-                            <option value="Enfermagem">{t('hce_category_enfermagem', 'app')}</option>
+                            <option value="">{t('hce_select_option', 'app')}</option>
+                            {PROCEDURE_CATEGORIES.map(cat => (
+                              <option key={cat} value={cat}>{t(PROCEDURE_CATEGORY_I18N_KEY[cat], 'app')}</option>
+                            ))}
                           </select>
+                        </FormField>
+                        <FormField label={t('hce_procedure_quantity', 'app')} error={procFieldErrors.quantity}>
+                          <input type="text" inputMode="numeric" value={procedureForm.quantity} onChange={e => setProcedureForm(p => ({ ...p, quantity: parseInt(e.target.value) || 1 }))} className={inputCls} />
                         </FormField>
                       </div>
                       <div className="grid grid-cols-2 gap-2">
@@ -4127,28 +5249,36 @@ const ClinicalModuleContent = ({
                         </FormField>
                       </div>
                       <div className="grid grid-cols-3 gap-2">
-                        <FormField label={t('hce_procedure_quantity', 'app')} error={procFieldErrors.quantity}>
-                          <input type="text" inputMode="numeric" value={procedureForm.quantity} onChange={e => setProcedureForm(p => ({ ...p, quantity: parseInt(e.target.value) || 1 }))} className={inputCls} />
-                        </FormField>
-                        <div>
-                          <label className={labelCls}>{t('hce_procedure_status', 'app')}</label>
+                        <FormField label={t('hce_procedure_status', 'app')} error={procFieldErrors.status}>
                           <select value={procedureForm.status} onChange={e => setProcedureForm(p => ({ ...p, status: e.target.value as any }))} className={inputCls}>
+                            <option value="">{t('hce_select_option', 'app')}</option>
                             <option value="programado">{t('hce_procedure_programado', 'app')}</option>
                             <option value="em_execucao">{t('hce_procedure_em_execucao', 'app')}</option>
                             <option value="concluido">{t('hce_procedure_concluido', 'app')}</option>
                           </select>
-                        </div>
-                        <div className="flex items-end">
+                        </FormField>
+                        <div className="col-span-2 flex items-end">
                           <button onClick={handleSaveProcedure} className="w-full py-2 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-lg text-xs transition">
                             {t('hce_register_procedure', 'app')}
                           </button>
                         </div>
                       </div>
+                      <FormField label={t('hce_notes', 'app')} error={procFieldErrors.notes}>
+                        <textarea
+                          value={procedureForm.notes}
+                          onChange={e => setProcedureForm(p => ({ ...p, notes: e.target.value }))}
+                          rows={2}
+                          className={textareaCls}
+                          placeholder={t('hce_notes_placeholder', 'app')}
+                        />
+                      </FormField>
                     </>
+                  ) : (
+                    <p className="text-xs text-slate-400 italic">{t('hce_proc_signed_locked', 'app')}</p>
                   )}
                     </div>
                   </div>
-                  )}
+                  </>)}
                 </div>
               )}
 
@@ -4166,37 +5296,298 @@ const ClinicalModuleContent = ({
                       <AlertTriangle className="w-10 h-10 text-amber-400 mb-3" />
                       <p className="text-sm font-semibold text-slate-600">{t('agenda_alert_select_patient', 'app')}</p>
                     </div>
-                  ) : (<>
+                  ) : (
+                    <div className="flex gap-3 min-h-[420px]">
+                      {/* ─── SIDEBAR: HISTÓRICO ─── */}
+                      <div className="w-56 shrink-0 space-y-2 border-r border-slate-200 pr-3">
+                        <h4 className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">
+                          {t('hce_attachment_history_title', 'app')}
+                        </h4>
+                        {attachments.length === 0 ? (
+                          <p className="text-[11px] text-slate-400 italic py-3">{t('hce_attachment_history_empty', 'app')}</p>
+                        ) : (
+                          attachments.map((a: any) => {
+                            const active = selectedAttachmentId === a.id;
+                            const catLabel =
+                              a.category === 'exame_imagem' ? t('hce_attachment_exame_imagem', 'app') :
+                              a.category === 'exame_laboratorio' ? t('hce_attachment_exame_laboratorio', 'app') :
+                              a.category === 'documento' ? t('hce_attachment_documento', 'app') :
+                              a.category === 'receita' ? t('hce_attachment_receita', 'app') :
+                              a.category === 'laudo' ? t('hce_attachment_laudo', 'app') :
+                              a.category === 'anexo_paciente' ? t('hce_attachment_paciente', 'app') :
+                              t('hce_attachment_outro', 'app');
+                            return (
+                              <button
+                                key={a.id}
+                                type="button"
+                                onClick={() => { setSelectedAttachmentId(a.id); setAttachmentPreview(null); }}
+                                className={`w-full text-left px-2.5 py-2 rounded-lg border transition ${active ? 'border-teal-400 bg-teal-50' : 'border-slate-200 bg-white hover:bg-slate-50'}`}
+                              >
+                                <div className="flex items-center gap-1.5 mb-0.5">
+                                  {a.isSensitive && <Shield className="w-3 h-3 text-amber-600 shrink-0" />}
+                                  <FileText className="w-3 h-3 text-teal-600 shrink-0" />
+                                  <span className={`text-[11px] font-bold truncate ${active ? 'text-teal-700' : 'text-slate-700'}`}>
+                                    {catLabel}
+                                  </span>
+                                </div>
+                                <span className="block text-[9px] text-slate-400">{formatDateTime(a.createdAt)}</span>
+                                {a.description && (
+                                  <span className="block text-[9px] text-slate-500 truncate italic mt-0.5">&ldquo;{a.description}&rdquo;</span>
+                                )}
+                              </button>
+                            );
+                          })
+                        )}
+                      </div>
 
-                  <FormField error={attFieldErrors.fileName || attFieldErrors.fileSizeBytes || attFieldErrors.mimeType || attFieldErrors.description}>
-                  <div className="p-6 border-2 border-dashed border-slate-300 rounded-xl text-center hover:border-teal-400 transition cursor-pointer">
-                    <Paperclip className="w-8 h-8 mx-auto text-slate-400 mb-2" />
-                    <p className="text-xs text-slate-500 font-medium">{t('hce_drag_files_or_click', 'app')}</p>
-                    <p className="text-[10px] text-slate-400 mt-1">{t('hce_supported_formats', 'app')}</p>
-                    <input type="file" className="hidden" accept=".pdf,.dcm,.jpg,.jpeg,.png,.mp4,.wav" multiple onChange={e => {
-                      const files = Array.from(e.target.files || []);
-                      files.forEach(f => {
-                        handleSaveAttachment(f);
-                      });
-                    }} />
-                  </div>
-                </FormField>
-                  <div className="space-y-2">
-                    {attachments.map((a: any) => (
-                      <div key={a.id} className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-xs">
-                        <div className="flex items-center gap-2">
-                          <FileText className="w-4 h-4 text-teal-600" />
-                          <div>
-                            <p className="font-bold text-slate-800">{a.fileName}</p>
-                            <p className="text-[10px] text-slate-400">{a.mimeType} | {(a.fileSizeBytes / 1024).toFixed(1)} KB</p>
+                      {/* ─── MAIN: CARD (selecionado) OU FORM (sem seleção) ─── */}
+                      <div className="flex-1 min-w-0 space-y-3">
+                        {selectedAttachment ? (
+                          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                            <div className="flex items-start justify-between gap-2 mb-3">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-1.5">
+                                  {selectedAttachment.isSensitive && <Shield className="w-4 h-4 text-amber-600 shrink-0" />}
+                                  <h4 className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">
+                                    {t('hce_attachment_category', 'app')}
+                                  </h4>
+                                </div>
+                                <p className="text-sm font-bold text-slate-800 mt-1">
+                                  {selectedAttachment.category === 'exame_imagem' ? t('hce_attachment_exame_imagem', 'app') :
+                                   selectedAttachment.category === 'exame_laboratorio' ? t('hce_attachment_exame_laboratorio', 'app') :
+                                   selectedAttachment.category === 'documento' ? t('hce_attachment_documento', 'app') :
+                                   selectedAttachment.category === 'receita' ? t('hce_attachment_receita', 'app') :
+                                   selectedAttachment.category === 'laudo' ? t('hce_attachment_laudo', 'app') :
+                                   selectedAttachment.category === 'anexo_paciente' ? t('hce_attachment_paciente', 'app') :
+                                   t('hce_attachment_outro', 'app')}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-1 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => handleViewAttachment(selectedAttachment)}
+                                  className="text-teal-600 hover:text-teal-800 p-1.5 rounded-md hover:bg-teal-50"
+                                  title={t('hce_attachment_view', 'app')}
+                                  aria-label={t('hce_attachment_view', 'app')}
+                                >
+                                  <Eye className="w-4 h-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setPendingDeleteAttachmentId(selectedAttachment.id)}
+                                  className="text-rose-500 hover:text-rose-700 p-1.5 rounded-md hover:bg-rose-50"
+                                  title={t('hce_attachment_confirm_delete_title', 'app')}
+                                  aria-label={t('hce_attachment_confirm_delete_title', 'app')}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedAttachmentId(null)}
+                                  className="text-slate-500 hover:text-slate-700 p-1.5 rounded-md hover:bg-slate-200"
+                                  title={t('hce_attachment_close', 'app')}
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                            <div className="space-y-2">
+                              <div>
+                                <span className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">{t('hce_attachment_description', 'app')}</span>
+                                <p className="text-sm text-slate-800 break-words">{selectedAttachment.description || '-'}</p>
+                              </div>
+                              <p className="text-[10px] text-slate-400">{formatDateTime(selectedAttachment.createdAt)}</p>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <FormField label={t('hce_attachment_category', 'app')} required error={attFieldErrors.category}>
+                              <select
+                                value={attachmentForm.category}
+                                onChange={e => setAttachmentForm(p => ({ ...p, category: e.target.value as '' | AttachmentCategory }))}
+                                className={inputCls}
+                              >
+                                <option value="">{t('hce_attachment_select_category', 'app')}</option>
+                                {ATTACHMENT_CATEGORIES.map(cat => (
+                                  <option key={cat} value={cat}>
+                                    {cat === 'exame_imagem' && t('hce_attachment_exame_imagem', 'app')}
+                                    {cat === 'exame_laboratorio' && t('hce_attachment_exame_laboratorio', 'app')}
+                                    {cat === 'documento' && t('hce_attachment_documento', 'app')}
+                                    {cat === 'receita' && t('hce_attachment_receita', 'app')}
+                                    {cat === 'laudo' && t('hce_attachment_laudo', 'app')}
+                                    {cat === 'anexo_paciente' && t('hce_attachment_paciente', 'app')}
+                                    {cat === 'outro' && t('hce_attachment_outro', 'app')}
+                                  </option>
+                                ))}
+                              </select>
+                            </FormField>
+
+                            <FormField label={t('hce_attachment_description', 'app')} required error={attFieldErrors.description}>
+                              <input
+                                type="text"
+                                value={attachmentForm.description}
+                                onChange={e => setAttachmentForm(p => ({ ...p, description: e.target.value }))}
+                                className={inputCls}
+                                maxLength={500}
+                              />
+                            </FormField>
+
+                            <FormField error={attFieldErrors.isSensitive}>
+                              <label className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={attachmentForm.isSensitive}
+                                  onChange={e => setAttachmentForm(p => ({ ...p, isSensitive: e.target.checked }))}
+                                  className="w-4 h-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+                                />
+                                <Shield className="w-3.5 h-3.5 text-amber-600" />
+                                <span className="font-semibold">{t('hce_attachment_sensitive', 'app')}</span>
+                              </label>
+                            </FormField>
+
+                            <FormField error={attFieldErrors.fileName || attFieldErrors.fileSizeBytes || attFieldErrors.mimeType}>
+                              <div
+                                role="button"
+                                tabIndex={0}
+                                className="p-6 border-2 border-dashed border-slate-300 rounded-xl text-center hover:border-teal-400 transition cursor-pointer"
+                                onClick={() => fileInputRef.current?.click()}
+                                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInputRef.current?.click(); } }}
+                                onDragOver={e => { e.preventDefault(); }}
+                                onDrop={e => {
+                                  e.preventDefault();
+                                  const files = Array.from(e.dataTransfer.files || []);
+                                  files.forEach(f => handleSaveAttachment(f));
+                                }}
+                              >
+                                <Paperclip className="w-8 h-8 mx-auto text-slate-400 mb-2" />
+                                <p className="text-xs text-slate-500 font-medium">{t('hce_drag_files_or_click', 'app')}</p>
+                                <p className="text-[10px] text-slate-400 mt-1">{t('hce_supported_formats', 'app')}</p>
+                                <input
+                                  ref={fileInputRef}
+                                  type="file"
+                                  className="hidden"
+                                  accept=".pdf,.dcm,.jpg,.jpeg,.png,.mp4,.wav,application/pdf,application/dicom,image/jpeg,image/png,video/mp4,audio/wav"
+                                  multiple
+                                  disabled={attachmentUploading}
+                                  onClick={e => e.stopPropagation()}
+                                  onChange={e => {
+                                    const files = Array.from(e.target.files || []);
+                                    files.forEach(f => {
+                                      handleSaveAttachment(f);
+                                    });
+                                    e.target.value = '';
+                                  }}
+                                />
+                              </div>
+                            </FormField>
+
+                            {attachmentUploading && (
+                              <p className="text-xs text-teal-600 font-semibold text-center">{t('hce_attachment_uploading', 'app')}</p>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  <ConfirmDialog
+                    open={pendingDeleteAttachmentId !== null}
+                    onOpenChange={open => { if (!open) setPendingDeleteAttachmentId(null); }}
+                    title={t('hce_attachment_confirm_delete_title', 'app')}
+                    message={t('hce_attachment_confirm_delete_msg', 'app')}
+                    variant="danger"
+                    onConfirm={() => {
+                      if (pendingDeleteAttachmentId) {
+                        handleDeleteAttachment(pendingDeleteAttachmentId);
+                        setPendingDeleteAttachmentId(null);
+                        if (selectedAttachmentId === pendingDeleteAttachmentId) setSelectedAttachmentId(null);
+                      }
+                    }}
+                  />
+
+                  <Dialog open={attachmentPreview !== null} onOpenChange={open => { if (!open) setAttachmentPreview(null); }}>
+                    <DialogContent showCloseButton={false} className="sm:max-w-3xl p-0 bg-white rounded-2xl shadow-xl border-0 overflow-hidden">
+                      {attachmentPreview && (
+                        <div className="flex flex-col">
+                          <div className="flex items-center justify-between p-4 border-b border-slate-200 bg-slate-50">
+                            <div className="min-w-0 flex-1">
+                              <h3 className="text-sm font-bold text-slate-800 truncate">
+                                {attachmentPreview.attachment.fileName}
+                              </h3>
+                              <p className="text-[10px] text-slate-500 truncate">
+                                {attachmentPreview.attachment.mimeType} | {((attachmentPreview.attachment.fileSizeBytes || 0) / 1024).toFixed(1)} KB
+                                {attachmentPreview.attachment.description && ` | ${attachmentPreview.attachment.description}`}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setAttachmentPreview(null)}
+                              className="ml-3 p-1.5 rounded-md text-slate-500 hover:text-white hover:bg-rose-500 transition cursor-pointer"
+                              aria-label={t('hce_attachment_close', 'app')}
+                              title={t('hce_attachment_close', 'app')}
+                            >
+                              <X className="w-5 h-5" />
+                            </button>
+                          </div>
+                          <div className="bg-slate-900 min-h-[400px] max-h-[70vh] flex items-center justify-center overflow-auto">
+                            {attachmentPreview.loading ? (
+                              <p className="text-sm text-slate-300 p-6">{t('hce_attachment_preview_loading', 'app')}</p>
+                            ) : !attachmentPreview.signedUrl ? (
+                              <p className="text-sm text-rose-300 p-6">{t('hce_attachment_preview_error', 'app')}</p>
+                            ) : attachmentPreview.attachment.mimeType?.startsWith('image/') ? (
+                              <Image
+                                src={attachmentPreview.signedUrl}
+                                alt={attachmentPreview.attachment.fileName}
+                                width={800}
+                                height={600}
+                                unoptimized
+                                className="max-w-full max-h-[70vh] object-contain"
+                              />
+                            ) : attachmentPreview.attachment.mimeType === 'application/pdf' ? (
+                              <iframe
+                                src={attachmentPreview.signedUrl}
+                                title={attachmentPreview.attachment.fileName}
+                                className="w-full h-[70vh] bg-white"
+                              />
+                            ) : (
+                              <div className="text-center p-8 text-slate-300">
+                                <FileText className="w-16 h-16 mx-auto mb-3 text-slate-400" />
+                                <p className="text-sm font-semibold mb-1">{attachmentPreview.attachment.fileName}</p>
+                                <p className="text-xs text-slate-400 mb-4">{t('hce_attachment_preview_error', 'app')}</p>
+                                <button
+                                  type="button"
+                                  onClick={handleDownloadAttachment}
+                                  className="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg text-xs font-semibold hover:bg-teal-700 cursor-pointer"
+                                >
+                                  <FileDown className="w-4 h-4" />
+                                  {t('hce_attachment_download', 'app')}
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex justify-end gap-2 p-3 border-t border-slate-200 bg-slate-50">
+                            {attachmentPreview.signedUrl && (
+                              <button
+                                type="button"
+                                onClick={handleDownloadAttachment}
+                                className="inline-flex items-center gap-2 px-3 py-1.5 bg-teal-600 text-white rounded-lg text-xs font-semibold hover:bg-teal-700 cursor-pointer"
+                              >
+                                <FileDown className="w-3.5 h-3.5" />
+                                {t('hce_attachment_download', 'app')}
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => setAttachmentPreview(null)}
+                              className="px-3 py-1.5 bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold hover:bg-slate-300 cursor-pointer"
+                            >
+                              {t('hce_attachment_close', 'app')}
+                            </button>
                           </div>
                         </div>
-                        <button onClick={() => handleDeleteAttachment(a.id)} className="text-rose-500 hover:text-rose-700"><Trash2 className="w-3 h-3" /></button>
-                      </div>
-                    ))}
-                  </div>
-
-                  </>)}
+                      )}
+                    </DialogContent>
+                  </Dialog>
                 </div>
               )}
 

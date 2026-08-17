@@ -1,0 +1,80 @@
+-- ============================================================
+-- Seed inicial da tabela public.procedure_catalog
+-- Popula com os códigos que estavam em lib/procedures/catalog.ts
+-- (42 SIGTAP + 19 CBHPM = 61 registros).
+--
+-- Após rodar esta seed, os registros podem ser ampliados via
+-- scripts/import_procedure_catalog.mjs (próxima fase).
+-- ============================================================
+
+insert into public.procedure_catalog
+  (id, code, name, nomenclature, category, country, financing_entity, is_active, source, source_updated_at)
+values
+  ('pcat_00001', '0101010010', 'Atividade educativa / orientação em grupo na atenção primária', 'sigtap', 'Enfermagem', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00002', '0205010032', 'Ecocardiografia transtorácica', 'sigtap', 'Imagem', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00003', '0205010040', 'Ultrassonografia doppler colorido de vasos (até 3 vasos)', 'sigtap', 'Imagem', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00004', '0205010059', 'Ultrassonografia doppler de fluxo obstétrico', 'sigtap', 'Imagem', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00005', '0205020038', 'Ultrassonografia de abdômen superior (fígado, vesícula, vias biliares)', 'sigtap', 'Imagem', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00006', '0205020046', 'Ultrassonografia de abdômen total', 'sigtap', 'Imagem', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00007', '0205020054', 'Ultrassonografia de aparelho urinário', 'sigtap', 'Imagem', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00008', '0205020089', 'Ultrassonografia de globo ocular / órbita (monocular)', 'sigtap', 'Imagem', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00009', '0205020097', 'Ultrassonografia mamária bilateral', 'sigtap', 'Imagem', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00010', '0205020100', 'Ultrassonografia de próstata (via abdominal)', 'sigtap', 'Imagem', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00011', '0205020119', 'Ultrassonografia de próstata (via transretal)', 'sigtap', 'Imagem', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00012', '0205020127', 'Ultrassonografia de tireóide', 'sigtap', 'Imagem', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00013', '0205020135', 'Ultrassonografia de tórax (extracardíaca)', 'sigtap', 'Imagem', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00014', '0205020143', 'Ultrassonografia obstétrica', 'sigtap', 'Imagem', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00015', '0205020151', 'Ultrassonografia obstétrica com doppler colorido e pulsado', 'sigtap', 'Imagem', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00016', '0205020160', 'Ultrassonografia pélvica (ginecológica)', 'sigtap', 'Imagem', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00017', '0205020186', 'Ultrassonografia transvaginal', 'sigtap', 'Imagem', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00018', '0206010044', 'Tomografia computadorizada de crânio', 'sigtap', 'Imagem', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00019', '0206010052', 'Tomografia computadorizada de pescoço', 'sigtap', 'Imagem', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00020', '0206020031', 'Tomografia computadorizada de tórax', 'sigtap', 'Imagem', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00021', '0206030010', 'Tomografia computadorizada de pelve / abdômen inferior', 'sigtap', 'Imagem', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00022', '0209010029', 'Colonoscopia', 'sigtap', 'Procedimento', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00023', '0209010037', 'Esofagogastroduodenoscopia', 'sigtap', 'Procedimento', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00024', '0209040017', 'Broncoscopia (broncofibroscopia)', 'sigtap', 'Procedimento', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00025', '0211020010', 'Cateterismo cardíaco', 'sigtap', 'Procedimento', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00026', '0211020036', 'Eletrocardiograma', 'sigtap', 'Imagem', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00027', '0211020044', 'Monitoramento pelo sistema Holter 24 horas (3 canais)', 'sigtap', 'Imagem', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00028', '0211020052', 'Monitorização ambulatorial de pressão arterial (M.A.P.A.)', 'sigtap', 'Imagem', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00029', '0211020060', 'Teste de esforço / teste ergométrico', 'sigtap', 'Imagem', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00030', '0211020079', 'Oximetria de pulso (teste do coraçãozinho)', 'sigtap', 'Imagem', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00031', '0301010021', 'Consulta com identificação de casos novos de tuberculose', 'sigtap', 'Consulta', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00032', '0301010030', 'Consulta de profissionais de nível superior na atenção primária (exceto médico)', 'sigtap', 'Consulta', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00033', '0301010048', 'Consulta de profissionais de nível superior na atenção especializada (exceto médico)', 'sigtap', 'Consulta', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00034', '0301010056', 'Consulta médica em saúde do trabalhador', 'sigtap', 'Consulta', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00035', '0301010064', 'Consulta médica em atenção primária', 'sigtap', 'Consulta', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00036', '0301010072', 'Consulta médica em atenção especializada', 'sigtap', 'Consulta', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00037', '0301010153', 'Primeira consulta odontológica programática', 'sigtap', 'Consulta', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00038', '0301040044', 'Terapia individual', 'sigtap', 'Psicologia', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00039', '0301080178', 'Atendimento individual em psicoterapia', 'sigtap', 'Psicologia', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00040', '0303090014', 'Artrocentese de grandes articulações', 'sigtap', 'Procedimento', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00041', '0401010066', 'Excisão e/ou sutura simples de pequenas lesões de pele e anexos', 'sigtap', 'Procedimento', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00042', '0401010074', 'Exérese de tumor de pele e anexos', 'sigtap', 'Procedimento', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00043', '10101012', 'Consulta em consultório (no horário normal ou preestabelecido)', 'cbhpm', 'Consulta', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00044', '10101020', 'Consulta em domicílio', 'cbhpm', 'Consulta', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00045', '10101039', 'Consulta em pronto socorro', 'cbhpm', 'Consulta', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00046', '10102019', 'Visita hospitalar (paciente internado)', 'cbhpm', 'Consulta', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00047', '10103015', 'Atendimento ao recém-nascido em berçário', 'cbhpm', 'Procedimento', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00048', '10103023', 'Atendimento ao recém-nascido em sala de parto (parto normal ou operatório de baixo risco)', 'cbhpm', 'Procedimento', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00049', '10104011', 'Atendimento do intensivista diarista (por dia e por paciente)', 'cbhpm', 'Procedimento', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00050', '20101015', 'Acompanhamento clínico ambulatorial pós-transplante renal', 'cbhpm', 'Consulta', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00051', '20101074', 'Avaliação nutricional (contempla a consulta médica)', 'cbhpm', 'Nutrição', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00052', '20101104', 'Avaliação da composição corporal por bioimpedanciometria', 'cbhpm', 'Nutrição', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00053', '20102011', 'Holter de 24 horas - 2 ou mais canais - analógico', 'cbhpm', 'Imagem', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00054', '20102020', 'Holter de 24 horas - 3 canais - digital', 'cbhpm', 'Imagem', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00055', '20102038', 'Monitorização ambulatorial da pressão arterial - MAPA (24 horas)', 'cbhpm', 'Imagem', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00056', '20103140', 'Bloqueio fenólico, alcoólico ou com toxina botulínica (de pontos motores)', 'cbhpm', 'Procedimento', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00057', '30201012', 'Biópsia de pele', 'cbhpm', 'Procedimento', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00058', '40901181', 'Ultrassonografia de abdome inferior feminino (bexiga, útero, ovário e anexos)', 'cbhpm', 'Imagem', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00059', '40901246', 'Ultrassonografia obstétrica com doppler colorido', 'cbhpm', 'Imagem', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00060', '40901530', 'Ultrassonografia diagnóstica monocular', 'cbhpm', 'Imagem', 'BR', null, true, 'seed_initial', null),
+  ('pcat_00061', '40901750', 'Ultrassonografia de próstata (via abdominal)', 'cbhpm', 'Imagem', 'BR', null, true, 'seed_initial', null)
+on conflict (nomenclature, code) do update set
+  name = excluded.name,
+  category = excluded.category,
+  country = excluded.country,
+  is_active = excluded.is_active,
+  source = excluded.source,
+  updated_at = now();

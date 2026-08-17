@@ -1,5 +1,5 @@
 import type { Patient, AsoExam, Cid10Code, Prescription, ExamRequest, Procedure, Anamnese, SoapNote, Diagnosis, PhysicalExam, VitalSigns, AllergyEntry, MedicationEntry, FamilyHistoryEntry, SurgicalEntry, ElectronicSignature, AccessControl, PatientTimelineEvent, DrugCatalogItem } from '@/lib/mockData';
-import { nationalProcedures, sensitiveFieldConfig } from '@/lib/mockData';
+import { sensitiveFieldConfig } from '@/lib/mockData';
 
 export type { Patient, AsoExam, Cid10Code, Prescription, ExamRequest, Procedure, Anamnese, SoapNote, Diagnosis, PhysicalExam, VitalSigns, AllergyEntry, MedicationEntry, FamilyHistoryEntry, SurgicalEntry, ElectronicSignature, AccessControl, PatientTimelineEvent, DrugCatalogItem };
 
@@ -39,4 +39,4 @@ export const EMPTY_SOAP_NOTE: SoapNote = {
   subjective: '', objective: '', assessment: '', plan: '', notes: '',
 };
 
-export { nationalProcedures, sensitiveFieldConfig };
+export { sensitiveFieldConfig };
