@@ -391,6 +391,10 @@ const ClinicalModuleContent = ({
 
   // ─── SIGNATURE STATE ───
   const [signatures, setSignatures] = useState<ElectronicSignature[]>([]);
+  const [signFilterType, setSignFilterType] = useState('all');
+  const [signFilterProfessional, setSignFilterProfessional] = useState('all');
+  const [signDateFrom, setSignDateFrom] = useState('');
+  const [signDateTo, setSignDateTo] = useState('');
 
   // ─── PROCEDURES: agrupamento por solicitação (assinada ou em aberto) ───
   const unsignedProcedures = useMemo(
@@ -441,8 +445,6 @@ const ClinicalModuleContent = ({
   const [timelineFilterDoctor, setTimelineFilterDoctor] = useState('');
   const [timelineDateFrom, setTimelineDateFrom] = useState('');
   const [timelineDateTo, setTimelineDateTo] = useState('');
-  const [timelineAssignments, setTimelineAssignments] = useState<{ locationName: string; assignedAt: string; completedAt: string | null }[]>([]);
-  const [timelineLoading, setTimelineLoading] = useState(false);
   const [timelineInternments, setTimelineInternments] = useState<PatientTimelineEvent[]>([]);
   const [timelineSurgeries, setTimelineSurgeries] = useState<PatientTimelineEvent[]>([]);
 
@@ -1079,50 +1081,6 @@ const ClinicalModuleContent = ({
     }
   }, [makeAnamnese, makePhysicalExam, makeSoapNote]);
 
-  const loadTimelineData = useCallback(async (patientId: string) => {
-    if (!supabase || !patientId) return;
-    setTimelineLoading(true);
-    try {
-      const { data: allAssignments } = await supabase
-        .from('patient_location_assignments')
-        .select('*, hospital_locations!inner(name)')
-        .eq('patient_id', patientId)
-        .order('assigned_at', { ascending: true });
-      if (allAssignments && allAssignments.length > 0) {
-        setTimelineAssignments(allAssignments.map((a: any) => ({
-          locationName: a.hospital_locations?.name || t('hce_location_default', 'app'),
-          assignedAt: a.assigned_at,
-          completedAt: a.completed_at || null,
-        })));
-      } else {
-        const { data: freshHistory } = await supabase
-          .from('clinical_history')
-          .select('*')
-          .eq('patient_id', patientId)
-          .order('created_at', { ascending: true });
-        if (freshHistory && freshHistory.length > 0) {
-          const meds = freshHistory.filter((h: any) => h.type === 'Consulta Médica' && h.location_name);
-          if (meds.length > 0) {
-            setTimelineAssignments(meds.map((m: any, i: number) => ({
-              locationName: m.location_name,
-              assignedAt: m.created_at || m.date,
-              completedAt: meds[i + 1]?.created_at || null,
-            })));
-          } else {
-            setTimelineAssignments([]);
-          }
-        } else {
-          setTimelineAssignments([]);
-        }
-      }
-    } catch (err) {
-      console.error('[SUPABASE] Load timeline assignments FAILED:', err);
-      setTimelineAssignments([]);
-    } finally {
-      setTimelineLoading(false);
-    }
-  }, [t]);
-
   const loadClinicalEvents = useCallback(async (patientId: string) => {
     if (!supabase || !patientId) return;
     const internments: PatientTimelineEvent[] = [];
@@ -1362,12 +1320,11 @@ const ClinicalModuleContent = ({
   useEffect(() => {
     if (selectedPatId) {
       loadPatientData(selectedPatId);
-      loadTimelineData(selectedPatId);
       loadClinicalEvents(selectedPatId);
       loadCareTeam(selectedPatId);
       logHceView(selectedPatId);
     }
-  }, [selectedPatId, loadPatientData, loadTimelineData, loadClinicalEvents, loadCareTeam, logHceView]);
+  }, [selectedPatId, loadPatientData, loadClinicalEvents, loadCareTeam, logHceView]);
 
   useEffect(() => {
     return () => {
@@ -2607,11 +2564,12 @@ const ClinicalModuleContent = ({
     // Add existing clinical history as timeline events
     if (selectedPatient?.clinicalHistory) {
       selectedPatient.clinicalHistory.forEach(h => {
+        if (h.type?.toLowerCase().includes('vacina')) return;
         events.push({
           id: h.id,
           patientId: selectedPatient.id,
           eventType: 'consulta',
-          eventDate: h.date,
+          eventDate: h.created_at || h.date,
           eventTitle: h.type,
           eventDescription: h.notes,
           eventSource: 'clinical_history',
@@ -2689,7 +2647,7 @@ const ClinicalModuleContent = ({
             id: h.id,
             patientId: selectedPatient.id,
             eventType: 'vacina',
-            eventDate: h.date,
+            eventDate: h.created_at || h.date,
             eventTitle: t('hce_event_vacina', 'app'),
             eventDescription: h.notes || h.diagnosis || '',
             eventSource: 'clinical_history',
@@ -2751,6 +2709,94 @@ const ClinicalModuleContent = ({
     });
   }, [selectedPatient, prescriptions, allItems, examRequests, procedureList, anamnese, soapNote, timelineSearch, timelineFilterType, timelineFilterDoctor, timelineDateFrom, timelineDateTo, timelineInternments, timelineSurgeries, t]);
 
+  const groupedTimeline = useMemo(() => {
+    type Section =
+      | { kind: 'consultation'; group: { key: string; isLegacy: boolean; number: number; dateLabel: string; repDate: string; triage: any[]; meds: any[]; completedAt: string } }
+      | { kind: 'event'; evt: (typeof filteredTimeline)[number] };
+    const sections: Section[] = [];
+    const history = selectedPatient?.clinicalHistory || [];
+    const grouped: Record<string, any[]> = {};
+    history.forEach((entry: any) => {
+      const key = entry.consultation_id || '__legacy__';
+      if (!grouped[key]) grouped[key] = [];
+      grouped[key].push(entry);
+    });
+    const sortedKeys = Object.keys(grouped).sort((a, b) => {
+      if (a === '__legacy__') return -1;
+      if (b === '__legacy__') return 1;
+      const dateA = new Date(grouped[a][0].triaged_at || grouped[a][0].created_at || 0).getTime();
+      const dateB = new Date(grouped[b][0].triaged_at || grouped[b][0].created_at || 0).getTime();
+      return dateA - dateB;
+    });
+    let consultationNumber = 0;
+    sortedKeys.forEach(key => {
+      const entries = grouped[key];
+      const isLegacy = key === '__legacy__';
+      if (!isLegacy) consultationNumber++;
+      const triageEntries = entries.filter((e: any) => e.type?.includes('Triagem'));
+      const medEntries = entries.filter((e: any) => !e.type?.includes('Triagem') && e.type !== 'Vacina');
+      triageEntries.sort((a: any, b: any) => new Date(a.triaged_at || a.created_at || 0).getTime() - new Date(b.triaged_at || b.created_at || 0).getTime());
+      medEntries.sort((a: any, b: any) => new Date(a.created_at || a.date || 0).getTime() - new Date(b.created_at || b.date || 0).getTime());
+      const firstEntry = entries[0];
+      const repDate = firstEntry?.triaged_at || firstEntry?.created_at || firstEntry?.date || '';
+      const dateLabel = firstEntry?.triaged_at
+        ? new Date(firstEntry.triaged_at).toLocaleDateString(locale, { day: '2-digit', month: '2-digit', year: 'numeric' })
+        : firstEntry?.date || '—';
+      const lastEntry = entries[entries.length - 1];
+      sections.push({
+        kind: 'consultation',
+        group: {
+          key,
+          isLegacy,
+          number: consultationNumber,
+          dateLabel,
+          repDate,
+          triage: triageEntries,
+          meds: medEntries,
+          completedAt: lastEntry?.created_at || lastEntry?.triaged_at || '',
+        },
+      });
+    });
+    filteredTimeline.forEach(evt => {
+      if (evt.eventSource === 'clinical_history' && evt.eventType === 'consulta') return;
+      sections.push({ kind: 'event', evt });
+    });
+    const getDate = (section: Section): number | null => {
+      const raw = section.kind === 'consultation' ? section.group.repDate : section.evt.eventDate;
+      if (!raw) return null;
+      const d = new Date(raw.includes('T') ? raw : raw + 'T12:00:00');
+      return isNaN(d.getTime()) ? null : d.getTime();
+    };
+    sections.sort((a, b) => {
+      const da = getDate(a);
+      const db = getDate(b);
+      if (da === null && db === null) return 0;
+      if (da === null) return 1;
+      if (db === null) return -1;
+      return db - da;
+    });
+    return sections.filter(section => {
+      if (section.kind === 'event') return true;
+      const g = section.group;
+      if (timelineFilterType !== 'all' && timelineFilterType !== 'consulta') return false;
+      if (timelineFilterDoctor) {
+        const doctorMatch = [...g.triage, ...g.meds].some((e: any) => (e.doctor || '').toLowerCase().includes(timelineFilterDoctor.toLowerCase()));
+        if (!doctorMatch) return false;
+      }
+      if (timelineDateFrom && g.repDate && g.repDate < timelineDateFrom) return false;
+      if (timelineDateTo && g.repDate && g.repDate > timelineDateTo + 'T23:59:59') return false;
+      if (timelineSearch) {
+        const q = timelineSearch.toLowerCase();
+        const haystack = [...g.triage, ...g.meds]
+          .map((e: any) => `${e.diagnosis || ''} ${e.notes || ''} ${e.cid10 || ''} ${e.doctor || ''} ${e.location_name || ''} ${e.type || ''} ${JSON.stringify(e.vital_signs || {})}`)
+          .join(' ')
+          .toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [selectedPatient, filteredTimeline, timelineSearch, timelineFilterType, timelineFilterDoctor, timelineDateFrom, timelineDateTo, locale]);
+
   // ─── ASO & CAT HANDLERS ───
   const handleCreateAso = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -2808,45 +2854,102 @@ const ClinicalModuleContent = ({
   }, [locale]);
   // ─── FILTERED TIMELINE ───
   const handleExportTimelinePdf = useCallback(async () => {
-    if (!filteredTimeline.length || !selectedPatient) return;
-    const jsPDF = (await import('jspdf')).default;
-    const doc = new jsPDF();
-    doc.setFontSize(14);
-    doc.text(t('hce_timeline_export_title', 'app').replace('{name}', selectedPatient.name), 14, 16);
-    doc.setFontSize(9);
-    doc.text(`${t('hce_patient', 'app')}: ${selectedPatient.name} | CI: ${selectedPatient.document_number || '—'}`, 14, 24);
-    doc.text(`${t('hce_timeline_export_date', 'app')}: ${new Date().toLocaleDateString(locale)}`, 14, 30);
-    let y = 38;
-    filteredTimeline.slice(0, 60).forEach(evt => {
-      if (y > 275) { doc.addPage(); y = 20; }
-      doc.setFontSize(9);
-      doc.setTextColor(20);
-      const dateLabel = evt.eventDate ? formatDate(evt.eventDate.split('T')[0]) : '—';
-      doc.text(`${dateLabel} | ${evt.eventTitle}${evt.doctorName ? ' | ' + evt.doctorName : ''}`, 14, y);
-      y += 5;
-      if (evt.eventDescription) {
-        doc.setFontSize(7.5);
-        doc.setTextColor(90);
-        const lines = doc.splitTextToSize(evt.eventDescription, 180);
-        lines.slice(0, 3).forEach((line: string) => { doc.text(line, 16, y); y += 4; });
-        doc.setTextColor(20);
+    if (!groupedTimeline.length || !selectedPatient) return;
+    const { jsPDF } = await import('jspdf');
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+    const pat = selectedPatient;
+    let y = 20;
+    const checkPage = (inc: number) => { if (y + inc > 270) { doc.addPage(); y = 20; } };
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text(t('hce_timeline_export_title', 'app').replace('{name}', pat.name), 15, y); y += 8;
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100, 116, 139);
+    doc.text(`${t('hce_patient', 'app')}: ${pat.name} | ${t('hce_timeline_doc_number', 'app')} ${pat.document_number || '—'}`, 15, y); y += 5;
+    doc.text(`${t('hce_timeline_export_date', 'app')}: ${new Date().toLocaleDateString(locale)}`, 15, y); y += 8;
+    doc.setDrawColor(13, 148, 136); doc.setLineWidth(0.5); doc.line(15, y, 195, y); y += 8;
+
+    groupedTimeline.slice(0, 60).forEach(section => {
+      if (section.kind === 'consultation') {
+        const g = section.group;
+        checkPage(20);
+        doc.setFillColor(248, 250, 252);
+        doc.setDrawColor(203, 213, 225);
+        doc.roundedRect(15, y - 3, 180, 10, 2, 2, 'FD');
+        doc.setTextColor(51, 65, 85); doc.setFontSize(10); doc.setFont('helvetica', 'bold');
+        doc.text(g.isLegacy ? t('rcpt_timeline_legacy_records', 'app') : `${t('rcpt_timeline_consultation', 'app')} #${g.number} — ${g.dateLabel}`, 19, y + 3);
+        y += 14;
+
+        g.triage.forEach((triageEntry: any) => {
+          doc.setTextColor(13, 148, 136); doc.setFontSize(10); doc.setFont('helvetica', 'bold');
+          doc.text(t('rcpt_pdf_triage', 'app'), 15, y); y += 5;
+          doc.setTextColor(100, 116, 139); doc.setFontSize(8); doc.setFont('helvetica', 'normal');
+          if (triageEntry.triaged_at) { doc.text(`${t('rcpt_pdf_date', 'app')}: ${new Date(triageEntry.triaged_at).toLocaleString(locale)}`, 19, y); y += 4; }
+          if (triageEntry.vital_signs) {
+            const vs = triageEntry.vital_signs;
+            let vitals = '';
+            if (vs.bp) vitals += `${t('rcpt_triage_bp_label', 'app')}: ${vs.bp}  `;
+            if (vs.temp) vitals += `${t('rcpt_triage_temp_label', 'app')}: ${vs.temp}C  `;
+            if (vs.spo2) vitals += `${t('rcpt_triage_spo2_label', 'app')}: ${vs.spo2}%  `;
+            if (vs.hr) vitals += `${t('rcpt_triage_hr_label', 'app')}: ${vs.hr} BPM  `;
+            if (vs.rr) vitals += `${t('rcpt_triage_rr_label', 'app')}: ${vs.rr} IRPM`;
+            doc.text(vitals, 19, y); y += 4;
+          }
+          y += 2;
+        });
+
+        g.meds.forEach((med: any) => {
+          checkPage(30);
+          doc.setDrawColor(226, 232, 240); doc.setFillColor(248, 250, 252);
+          doc.roundedRect(15, y - 4, 180, 38, 2, 2, 'FD');
+          doc.setTextColor(13, 148, 136); doc.setFontSize(10); doc.setFont('helvetica', 'bold');
+          doc.text(med.location_name || t('rcpt_timeline_medical_consultation', 'app'), 19, y + 2); y += 7;
+          doc.setTextColor(100, 116, 139); doc.setFontSize(8); doc.setFont('helvetica', 'normal');
+          if (med.created_at) { doc.text(`${t('rcpt_pdf_date', 'app')}: ${new Date(med.created_at).toLocaleString(locale)}`, 19, y); y += 4; }
+          if (med.diagnosis) { doc.setFont('helvetica', 'bold'); doc.text(t('rcpt_timeline_diagnosis', 'app') + ': ', 19, y); doc.setFont('helvetica', 'normal'); doc.text(med.diagnosis, 52, y); y += 4; }
+          if (med.cid10 && med.cid10 !== 'Z00.0') { doc.setFont('helvetica', 'bold'); doc.text(t('rcpt_timeline_cid10', 'app') + ': ', 19, y); doc.setFont('helvetica', 'normal'); doc.text(med.cid10, 40, y); y += 4; }
+          if (med.prescriptions && med.prescriptions.length > 0 && med.prescriptions[0] !== t('rcpt_triage_no_procedure', 'app')) { doc.setFont('helvetica', 'bold'); doc.text(t('rcpt_timeline_prescription', 'app') + ': ', 19, y); doc.setFont('helvetica', 'normal'); doc.text(med.prescriptions.join(', '), 52, y); y += 4; }
+          if (med.notes && med.notes !== t('rcpt_triage_default_note', 'app')) { doc.setFont('helvetica', 'bold'); doc.text(t('rcpt_timeline_medical_notes', 'app') + ': ', 19, y); doc.setFont('helvetica', 'normal'); doc.text(med.notes, 54, y); y += 4; }
+          y += 4;
+        });
+
+        y += 2; checkPage(8);
+        doc.setTextColor(148, 163, 184); doc.setFontSize(8); doc.setFont('helvetica', 'normal');
+        doc.text(`${t('rcpt_pdf_visit_completed', 'app')} - ${g.completedAt ? new Date(g.completedAt).toLocaleString(locale) : '—'}`, 105, y, { align: 'center' });
+        y += 8;
+      } else {
+        const evt = section.evt;
+        checkPage(12);
+        doc.setFontSize(9); doc.setFont('helvetica', 'bold'); doc.setTextColor(20);
+        doc.text(evt.eventTitle, 19, y); y += 5;
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(100, 116, 139);
+        const dateLabel = evt.eventDate ? (evt.eventDate.includes('T') ? new Date(evt.eventDate).toLocaleString(locale) : formatDate(evt.eventDate.split('T')[0])) : '—';
+        doc.text(`${dateLabel}${evt.doctorName ? ' | ' + evt.doctorName : ''}`, 19, y); y += 5;
+        if (evt.eventDescription) {
+          const lines = doc.splitTextToSize(evt.eventDescription, 176);
+          lines.slice(0, 3).forEach((line: string) => { doc.text(line, 19, y); y += 4; });
+        }
+        if (evt.cid10Code) { doc.text(`${t('hce_timeline_cid10', 'app')} ${evt.cid10Code}`, 19, y); y += 4; }
+        y += 3;
       }
-      if (evt.cid10Code) { doc.setFontSize(7.5); doc.text(`CID: ${evt.cid10Code}`, 16, y); y += 4; }
-      y += 3;
     });
     const pdfBase64 = doc.output('datauristring').split(',')[1];
-    const docId = `timeline_${selectedPatient.id}_${Date.now()}`;
+    const docId = `timeline_${selectedPatient.id}_${typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : selectedPatient.id}`;
     const sig = await getSignatureProvider().sign({
       documentType: 'outro',
       documentId: docId,
       patientId: selectedPatient.id,
       signerName: activeOperator,
-      content: { pdfSha: pdfBase64.slice(0, 64), patientId: selectedPatient.id, events: filteredTimeline.length },
+      content: { pdfSha: pdfBase64.slice(0, 64), patientId: selectedPatient.id, events: groupedTimeline.length },
     });
+    y += 6; checkPage(10);
+    doc.setDrawColor(13, 148, 136); doc.setLineWidth(0.5); doc.line(15, y, 195, y);
+    y += 6;
     doc.setFontSize(7);
     doc.setTextColor(120);
-    doc.text(`${t('hce_signature_title', 'app')}: ${activeOperator} | ${t('hce_verification_label', 'app')} ${sig.verificationCode}`, 14, 292);
-    doc.text(`Hash: ${sig.signatureHash.slice(0, 48)}...`, 14, 296);
+    doc.text(`${t('hce_signature_title', 'app')}: ${activeOperator} | ${t('hce_verification_label', 'app')} ${sig.verificationCode}`, 15, y);
+    doc.text(`${t('hce_signature_hash', 'app')} ${sig.signatureHash.slice(0, 48)}...`, 15, y + 4);
     await handleSaveSignature({
       id: await genId('sig'),
       signerId: 'current_user',
@@ -2871,7 +2974,7 @@ const ClinicalModuleContent = ({
       timestampToken: sig.timestampToken,
     });
     doc.save(`${selectedPatient.id}_timeline.pdf`);
-  }, [filteredTimeline, selectedPatient, activeOperator, handleSaveSignature, genId, t, locale, formatDate]);
+  }, [groupedTimeline, selectedPatient, activeOperator, handleSaveSignature, genId, t, locale, formatDate]);
 
   const translateStatus = (s: string) => {
     const key = `hce_status_${s.toLowerCase().replace(/\s+/g, '_')}`;
@@ -2895,6 +2998,43 @@ const ClinicalModuleContent = ({
     const key = PROCEDURE_CATEGORY_I18N_KEY[cat as ProcedureCategory];
     return key ? t(key, 'app') : cat;
   };
+
+  const SIGN_DOC_I18N_KEY: Record<string, string> = {
+    prescricao: 'hce_sign_doc_prescricao',
+    receita: 'hce_sign_doc_receita',
+    laudo: 'hce_sign_doc_laudo',
+    atestado: 'hce_sign_doc_atestado',
+    alta: 'hce_sign_doc_alta',
+    procedimento: 'hce_sign_doc_procedimento',
+    exame: 'hce_sign_doc_exame',
+    outro: 'hce_sign_doc_outro',
+  };
+
+  const translateDocType = (docType: string) => {
+    const key = SIGN_DOC_I18N_KEY[docType];
+    return key ? t(key, 'app') : docType;
+  };
+
+  const signatureProfessionals = useMemo(
+    () => Array.from(new Set(signatures.map(s => s.signerName).filter(Boolean))).sort(),
+    [signatures]
+  );
+
+  const signatureDocTypes = useMemo(
+    () => Array.from(new Set(signatures.map(s => s.documentType))).sort(),
+    [signatures]
+  );
+
+  const filteredSignatures = useMemo(() => {
+    return signatures.filter(s => {
+      if (signFilterType !== 'all' && s.documentType !== signFilterType) return false;
+      if (signFilterProfessional !== 'all' && s.signerName !== signFilterProfessional) return false;
+      const signedDate = new Date(s.signedAt);
+      if (signDateFrom && signedDate < new Date(signDateFrom + 'T00:00:00')) return false;
+      if (signDateTo && signedDate > new Date(signDateTo + 'T23:59:59')) return false;
+      return true;
+    });
+  }, [signatures, signFilterType, signFilterProfessional, signDateFrom, signDateTo]);
 
   return (
     <div className="space-y-6">
@@ -2986,7 +3126,7 @@ const ClinicalModuleContent = ({
                     const isLegacy = key === '__legacy__';
                     if (!isLegacy) consultationNumber++;
                     const triageEntries = entries.filter((e: any) => e.type?.includes('Triagem'));
-                    const medEntries = entries.filter((e: any) => e.type === 'Consulta Médica');
+                    const medEntries = entries.filter((e: any) => !e.type?.includes('Triagem') && e.type !== 'Vacina');
                     triageEntries.sort((a: any, b: any) => new Date(a.triaged_at || a.created_at || 0).getTime() - new Date(b.triaged_at || b.created_at || 0).getTime());
                     medEntries.sort((a: any, b: any) => new Date(a.created_at || a.date || 0).getTime() - new Date(b.created_at || b.date || 0).getTime());
                     const firstEntry = entries[0];
@@ -5610,26 +5750,46 @@ const ClinicalModuleContent = ({
                     <p className="mt-1">{t('hce_signature_crypto_info', 'app')}</p>
                     <p>{t('hce_signature_legal_info', 'app')}</p>
                   </div>
+                  <div className="flex flex-wrap gap-2">
+                    <select value={signFilterType} onChange={e => setSignFilterType(e.target.value)} className={inputCls + ' w-44'}>
+                      <option value="all">{t('hce_sign_filter_all', 'app')}</option>
+                      {signatureDocTypes.map(type => (
+                        <option key={type} value={type}>{translateDocType(type)}</option>
+                      ))}
+                    </select>
+                    <select value={signFilterProfessional} onChange={e => setSignFilterProfessional(e.target.value)} className={inputCls + ' w-48'}>
+                      <option value="all">{t('hce_sign_filter_all_professionals', 'app')}</option>
+                      {signatureProfessionals.map(name => (
+                        <option key={name} value={name}>{name}</option>
+                      ))}
+                    </select>
+                    <I18nDatePicker value={signDateFrom} onChange={setSignDateFrom} className={inputCls + ' w-32'} placeholder={t('hce_sign_filter_date_from', 'app')} />
+                    <I18nDatePicker value={signDateTo} onChange={setSignDateTo} className={inputCls + ' w-32'} placeholder={t('hce_sign_filter_date_to', 'app')} />
+                    <span className="text-xs text-slate-500 self-center">{filteredSignatures.length} / {signatures.length}</span>
+                  </div>
                   <div className="space-y-2">
                     {signatures.length === 0 ? (
                       <p className="text-xs text-slate-400 text-center py-4">{t('hce_no_signatures', 'app')}</p>
+                    ) : filteredSignatures.length === 0 ? (
+                      <p className="text-xs text-slate-400 text-center py-4">{t('hce_no_results', 'app')}</p>
                     ) : (
-                      signatures.map(s => (
+                      filteredSignatures.map(s => (
                         <div key={s.id} className={`p-3 border rounded-xl text-xs space-y-1 ${
                           s.status === 'valida' ? 'bg-green-50 border-green-200' :
                           s.status === 'revogada' ? 'bg-rose-50 border-rose-200' :
                           'bg-amber-50 border-amber-200'
                         }`}>
                           <div className="flex items-center justify-between">
-                            <span className="font-bold text-slate-800">{s.documentType}: {s.documentId}</span>
+                            <span className="font-bold text-slate-800">{translateDocType(s.documentType)}: {s.documentId}</span>
                             <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                               s.status === 'valida' ? 'bg-green-100 text-green-700' : 'bg-rose-100 text-rose-700'
                             }`}>{s.status === 'valida' ? t('hce_signature_valid', 'app') : s.status === 'revogada' ? t('hce_signature_revoked', 'app') : t('hce_signature_expired', 'app')}</span>
                           </div>
                           <p className="text-slate-500">{t('hce_signer_label', 'app')} {s.signerName} | {s.signerCouncil} {s.signerCouncilNumber}</p>
+                          <p className="text-slate-500">{t('hce_signature_signed_at', 'app')} {formatDateTime(s.signedAt)}</p>
                           <p className="text-slate-500">{t('hce_issued_by_label', 'app')} {s.certificateIssuer}</p>
-                          <p className="text-[9px] text-slate-400 font-mono">Hash: {s.signatureHash.substring(0, 40)}...</p>
-                          <p className="text-[9px] text-slate-400 font-mono">{t('hce_verification_label', 'app')} {s.verificationCode} | TSA: {s.timestampAuthority}</p>
+                          <p className="text-[9px] text-slate-400 font-mono">{t('hce_signature_hash', 'app')} {s.signatureHash.substring(0, 40)}...</p>
+                          <p className="text-[9px] text-slate-400 font-mono">{t('hce_verification_label', 'app')} {s.verificationCode} | {t('hce_signature_tsa', 'app')} {s.timestampAuthority}</p>
                         </div>
                       ))
                     )}
@@ -5673,160 +5833,122 @@ const ClinicalModuleContent = ({
                     </button>
                   </div>
 
-                  {timelineLoading ? (
-                    <p className="text-xs text-slate-400 text-center py-8">{t('loading', 'app')}</p>
-                  ) : (
-                    <div className="space-y-0">
-                      {/* Triage Event */}
-                      {(() => {
-                        const triageEntry = selectedPatient?.clinicalHistory?.find((h: any) => h.type?.includes('Triagem'));
-                        const filteredByDoctor = timelineFilterDoctor && !triageEntry?.doctor?.toLowerCase().includes(timelineFilterDoctor.toLowerCase());
-                        const filteredByType = timelineFilterType !== 'all';
-                        if (!triageEntry || filteredByDoctor || filteredByType) return null;
-                        return (
-                          <div className="flex gap-3">
-                            <div className="flex flex-col items-center">
-                              <div className="w-3 h-3 rounded-full bg-green-500 flex-shrink-0"></div>
-                              <div className="w-0.5 flex-1 bg-slate-200"></div>
-                            </div>
-                            <div className="pb-4 flex-1">
-                              <p className="text-xs font-bold text-slate-800">{t('hce_timeline_triage', 'app')}</p>
-                              <p className="text-[10px] text-slate-400">
-                                {triageEntry.triaged_at ? new Date(triageEntry.triaged_at).toLocaleString(locale) : triageEntry.date ? formatDate(triageEntry.date.split('T')[0]) : '—'}
+                  <div className="space-y-0">
+                    {groupedTimeline.length === 0 ? (
+                      <p className="text-sm text-slate-400 text-center py-8">{t('hce_timeline_no_history', 'app')}</p>
+                    ) : (
+                      groupedTimeline.map(section => section.kind === 'consultation' ? (
+                        <div key={section.group.key} className="mb-5">
+                          {!section.group.isLegacy && (
+                            <div className="bg-slate-50 rounded-lg p-3 mb-3 border border-slate-200">
+                              <p className="text-xs font-bold text-slate-700">
+                                📋 {t('rcpt_timeline_consultation', 'app')} #{section.group.number} — {section.group.dateLabel}
                               </p>
-                              {triageEntry.vital_signs && (
-                                <div className="mt-1 text-[10px] text-slate-500 space-y-0.5">
-                                  {triageEntry.vital_signs.bp && <p>{t('rcpt_triage_bp_label', 'app')}: {triageEntry.vital_signs.bp}</p>}
-                                  {triageEntry.vital_signs.spo2 && <p>{t('rcpt_triage_spo2_label', 'app')}: {triageEntry.vital_signs.spo2}</p>}
-                                  {triageEntry.vital_signs.temp && <p>{t('rcpt_triage_temp_label', 'app')}: {triageEntry.vital_signs.temp}</p>}
-                                  {triageEntry.vital_signs.hr && <p>{t('rcpt_triage_hr_label', 'app')}: {triageEntry.vital_signs.hr}</p>}
-                                  {triageEntry.vital_signs.rr && <p>{t('rcpt_triage_rr_label', 'app')}: {triageEntry.vital_signs.rr}</p>}
-                                </div>
-                              )}
                             </div>
-                          </div>
-                        );
-                      })()}
-
-                      {/* Location Assignments with Medical Data */}
-                      {(() => {
-                        const usedEventIds = new Set<string>();
-                        const allMeds = (selectedPatient?.clinicalHistory || [])
-                          .filter((h: any) => h.type === 'Consulta Médica')
-                          .sort((a: any, b: any) => new Date(a.created_at || a.date || 0).getTime() - new Date(b.created_at || b.date || 0).getTime());
-
-                        if (timelineAssignments.length === 0) return null;
-
-                        return timelineAssignments.map((assignment, idx) => {
-                          let filteredByDoctor = false;
-                          let filteredByType = false;
-                          if (timelineFilterDoctor) {
-                            const medsHere = allMeds.filter((h: any) => h.location_name === assignment.locationName);
-                            filteredByDoctor = medsHere.length > 0 && !medsHere.some((h: any) => (h.doctor || '').toLowerCase().includes(timelineFilterDoctor.toLowerCase()));
-                          }
-                          if (timelineFilterType !== 'all') {
-                            filteredByType = true;
-                          }
-                          if (filteredByDoctor && !filteredByType) return null;
-
-                          const isLast = idx === timelineAssignments.length - 1;
-                          const isFinished = selectedPatient?.status === 'atendido';
-                          const locationMeds = allMeds.filter((h: any) => h.location_name === assignment.locationName && !usedEventIds.has(h.id));
-                          const med = locationMeds[0] || null;
-                          if (med) usedEventIds.add(med.id);
-                          return (
-                            <div key={idx} className="flex gap-3">
+                          )}
+                          {section.group.triage.map((triageEntry: any, tIdx: number) => (
+                            <div key={`triage-${section.group.key}-${tIdx}`} className="flex gap-3">
+                              <div className="flex flex-col items-center">
+                                <div className="w-3 h-3 rounded-full bg-green-500 flex-shrink-0"></div>
+                                <div className="w-0.5 flex-1 bg-slate-200"></div>
+                              </div>
+                              <div className="pb-4 flex-1">
+                                <p className="text-xs font-bold text-slate-800">{t('rcpt_timeline_triage', 'app')}</p>
+                                <p className="text-[10px] text-slate-400">
+                                  {triageEntry.triaged_at ? new Date(triageEntry.triaged_at).toLocaleString(locale) : '—'}
+                                </p>
+                                {triageEntry.vital_signs && (
+                                  <div className="mt-1 text-[10px] text-slate-500 space-y-0.5">
+                                    {triageEntry.vital_signs.bp && <p>{t('rcpt_triage_bp_label', 'app')}: {triageEntry.vital_signs.bp}</p>}
+                                    {triageEntry.vital_signs.spo2 && <p>{t('rcpt_triage_spo2_label', 'app')}: {triageEntry.vital_signs.spo2}</p>}
+                                    {triageEntry.vital_signs.temp && <p>{t('rcpt_triage_temp_label', 'app')}: {triageEntry.vital_signs.temp}</p>}
+                                    {triageEntry.vital_signs.hr && <p>{t('rcpt_triage_hr_label', 'app')}: {triageEntry.vital_signs.hr}</p>}
+                                    {triageEntry.vital_signs.rr && <p>{t('rcpt_triage_rr_label', 'app')}: {triageEntry.vital_signs.rr}</p>}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                          {section.group.meds.map((med: any, mIdx: number) => (
+                            <div key={`med-${section.group.key}-${mIdx}`} className="flex gap-3">
                               <div className="flex flex-col items-center">
                                 <div className="w-3 h-3 rounded-full bg-blue-500 flex-shrink-0"></div>
                                 <div className="w-0.5 flex-1 bg-slate-200"></div>
                               </div>
                               <div className="pb-4 flex-1">
-                                <p className="text-xs font-bold text-slate-800">🏥 {assignment.locationName}</p>
+                                <p className="text-xs font-bold text-slate-800">🏥 {med.location_name || t('rcpt_timeline_medical_consultation', 'app')}</p>
                                 <p className="text-[10px] text-slate-400">
-                                  {t('rcpt_timeline_entry', 'app')} {new Date(assignment.assignedAt).toLocaleString(locale)}
+                                  {med.created_at ? new Date(med.created_at).toLocaleString(locale) : med.date || '—'}
                                 </p>
-                                {assignment.completedAt ? (
-                                  <p className="text-[10px] text-slate-400">
-                                    {t('rcpt_timeline_exit', 'app')} {new Date(assignment.completedAt).toLocaleString(locale)}
-                                  </p>
-                                ) : isLast && isFinished ? (
-                                  <p className="text-[10px] text-slate-400">{t('rcpt_timeline_exit', 'app')} —</p>
-                                ) : (
-                                  <p className="text-[10px] text-amber-500 font-semibold">{t('rcpt_timeline_ongoing', 'app')}</p>
-                                )}
-                                {med && (
-                                  <div className="mt-1.5 text-[10px] text-slate-500 space-y-0.5 border-l-2 border-blue-200 pl-2">
-                                    {med.diagnosis && (
-                                      <p>• <span className="font-semibold">{t('rcpt_timeline_diagnosis', 'app')}</span> {med.diagnosis}</p>
-                                    )}
-                                    {med.cid10 && med.cid10 !== 'Z00.0' && (
-                                      <p>• <span className="font-semibold">{t('rcpt_timeline_cid10', 'app')}</span> {med.cid10}</p>
-                                    )}
-                                    {med.prescriptions && med.prescriptions.length > 0 && med.prescriptions[0] !== 'Nenhum procedimento' && (
-                                      <p>• <span className="font-semibold">{t('rcpt_timeline_prescription', 'app')}</span> {med.prescriptions.join(', ')}</p>
-                                    )}
-                                    {med.notes && med.notes !== 'Paciente atendido e orientado.' && (
-                                      <p>• <span className="font-semibold">{t('rcpt_timeline_medical_notes', 'app')}</span> {med.notes}</p>
-                                    )}
-                                  </div>
-                                )}
+                                <div className="mt-1.5 text-[10px] text-slate-500 space-y-0.5 border-l-2 border-blue-200 pl-2">
+                                  {med.triage_edits && (
+                                    <div className="mb-1">
+                                      {med.triage_edits.diagnosis && (
+                                        <p>• <span className="font-semibold text-amber-600">{t('rcpt_timeline_triage_edited', 'app')}</span> {med.triage_edits.diagnosis}</p>
+                                      )}
+                                      {med.triage_edits.vital_signs && (
+                                        <div className="ml-2 space-y-0.5">
+                                          {med.triage_edits.vital_signs.bp && <p className="text-amber-600">{t('rcpt_triage_bp_label', 'app')}: {med.triage_edits.vital_signs.bp}</p>}
+                                          {med.triage_edits.vital_signs.temp && <p className="text-amber-600">{t('rcpt_triage_temp_label', 'app')}: {med.triage_edits.vital_signs.temp}°C</p>}
+                                          {med.triage_edits.vital_signs.spo2 && <p className="text-amber-600">{t('rcpt_triage_spo2_label', 'app')}: {med.triage_edits.vital_signs.spo2}%</p>}
+                                          {med.triage_edits.vital_signs.hr && <p className="text-amber-600">{t('rcpt_triage_hr_label', 'app')}: {med.triage_edits.vital_signs.hr} BPM</p>}
+                                          {med.triage_edits.vital_signs.rr && <p className="text-amber-600">{t('rcpt_triage_rr_label', 'app')}: {med.triage_edits.vital_signs.rr} IRPM</p>}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                  {med.diagnosis && (
+                                    <p>• <span className="font-semibold">{t('rcpt_timeline_diagnosis', 'app')}</span> {med.diagnosis}</p>
+                                  )}
+                                  {med.cid10 && med.cid10 !== 'Z00.0' && (
+                                    <p>• <span className="font-semibold">{t('rcpt_timeline_cid10', 'app')}</span> {med.cid10}</p>
+                                  )}
+                                  {med.prescriptions && med.prescriptions.length > 0 && med.prescriptions[0] !== t('rcpt_triage_no_procedure', 'app') && (
+                                    <p>• <span className="font-semibold">{t('rcpt_timeline_prescription', 'app')}</span> {med.prescriptions.join(', ')}</p>
+                                  )}
+                                  {med.notes && med.notes !== t('rcpt_triage_default_note', 'app') && (
+                                    <p>• <span className="font-semibold">{t('rcpt_timeline_medical_notes', 'app')}</span> {med.notes}</p>
+                                  )}
+                                </div>
                               </div>
                             </div>
-                          );
-                        });
-                      })()}
-
-                      {/* Remaining consultations without location */}
-                      {(() => {
-                        if (timelineAssignments.length > 0) return null;
-                        return filteredTimeline.map(evt => (
-                          <div key={evt.id} className="flex gap-3">
+                          ))}
+                          <div className="flex gap-3">
                             <div className="flex flex-col items-center">
-                              <div className={`w-3 h-3 rounded-full flex-shrink-0 ${
-                                evt.eventType === 'emergencia' ? 'bg-red-500' :
-                                evt.eventType === 'prescricao' ? 'bg-blue-500' :
-                                evt.eventType === 'exame' ? 'bg-purple-500' :
-                                evt.eventType === 'procedimento' ? 'bg-amber-500' :
-                                'bg-teal-500'
-                              }`}></div>
-                              <div className="w-0.5 flex-1 bg-slate-200"></div>
+                              <div className="w-3 h-3 rounded-full bg-green-600 flex-shrink-0"></div>
                             </div>
-                            <div className="pb-4 flex-1">
-                              <p className="text-xs font-bold text-slate-800">{evt.eventTitle}</p>
-                              <p className="text-[10px] text-slate-400">{formatDate(evt.eventDate.split('T')[0])} | {evt.doctorName}</p>
-                              <p className="text-[10px] text-slate-500 line-clamp-2 mt-0.5">{evt.eventDescription}</p>
-                              {evt.cid10Code && (
-                                <span className="text-[9px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded border border-slate-200 font-bold mt-1 inline-block">CID: {evt.cid10Code}</span>
-                              )}
+                            <div>
+                              <p className="text-xs font-bold text-green-700">{t('rcpt_timeline_visit_completed', 'app')}</p>
+                              <p className="text-[10px] text-slate-400">
+                                {section.group.completedAt ? new Date(section.group.completedAt).toLocaleString(locale) : '—'}
+                              </p>
                             </div>
-                          </div>
-                        ));
-                      })()}
-
-                      {/* Visit Completed */}
-                      {timelineAssignments.length > 0 && (timelineAssignments[timelineAssignments.length - 1]?.completedAt || selectedPatient?.status === 'atendido') && (
-                        <div className="flex gap-3">
-                          <div className="flex flex-col items-center">
-                            <div className="w-3 h-3 rounded-full bg-green-600 flex-shrink-0"></div>
-                          </div>
-                          <div>
-                            <p className="text-xs font-bold text-green-700">{t('rcpt_timeline_visit_completed', 'app')}</p>
-                            <p className="text-[10px] text-slate-400">
-                              {(() => {
-                                const last = timelineAssignments[timelineAssignments.length - 1];
-                                const completedTime = last?.completedAt || last?.assignedAt;
-                                return completedTime ? new Date(completedTime).toLocaleString(locale) : '—';
-                              })()}
-                            </p>
                           </div>
                         </div>
-                      )}
-
-                      {timelineAssignments.length === 0 && filteredTimeline.length === 0 && (
-                        <p className="text-sm text-slate-400 text-center py-8">{t('hce_timeline_no_history', 'app')}</p>
-                      )}
-                    </div>
-                  )}
+                      ) : (
+                        <div key={section.evt.id} className="flex gap-3">
+                          <div className="flex flex-col items-center">
+                            <div className={`w-3 h-3 rounded-full flex-shrink-0 ${
+                              section.evt.eventType === 'emergencia' ? 'bg-red-500' :
+                              section.evt.eventType === 'prescricao' ? 'bg-blue-500' :
+                              section.evt.eventType === 'exame' ? 'bg-purple-500' :
+                              section.evt.eventType === 'procedimento' ? 'bg-amber-500' :
+                              'bg-teal-500'
+                            }`}></div>
+                            <div className="w-0.5 flex-1 bg-slate-200"></div>
+                          </div>
+                          <div className="pb-4 flex-1">
+                            <p className="text-xs font-bold text-slate-800">{section.evt.eventTitle}</p>
+                            <p className="text-[10px] text-slate-400">{section.evt.eventDate ? (section.evt.eventDate.includes('T') ? new Date(section.evt.eventDate).toLocaleString(locale) : formatDate(section.evt.eventDate.split('T')[0])) : '—'} | {section.evt.doctorName}</p>
+                            <p className="text-[10px] text-slate-500 line-clamp-2 mt-0.5">{section.evt.eventDescription}</p>
+                            {section.evt.cid10Code && (
+                              <span className="text-[9px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded border border-slate-200 font-bold mt-1 inline-block">{t('hce_timeline_cid10', 'app')} {section.evt.cid10Code}</span>
+                            )}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
 
                   </>)}
                 </div>

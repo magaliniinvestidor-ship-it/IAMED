@@ -452,6 +452,7 @@ function HomeContent() {
               preliminary_procedures: h.preliminary_procedures || undefined,
               attached_files: h.attached_files || undefined,
               triaged_at: h.triaged_at || undefined,
+              created_at: h.created_at || undefined,
             });
           });
         }
@@ -473,6 +474,11 @@ function HomeContent() {
                 prescriptions: h.prescriptions || [],
                 notes: h.notes,
                 doctor: h.doctor,
+                consultation_id: h.consultation_id || undefined,
+                location_name: h.location_name || undefined,
+                triaged_at: h.triaged_at || undefined,
+                created_at: h.created_at || undefined,
+                triage_edits: h.triage_edits || undefined,
                 vital_signs: h.vital_signs || undefined,
                 triage_priority: h.triage_priority || undefined,
                 triage_color: h.triage_color || undefined,

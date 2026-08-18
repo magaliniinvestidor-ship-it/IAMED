@@ -34,6 +34,15 @@ const PLACEHOLDER_MAP: Record<string, string> = {
   'es-PY': 'dd/mm/aaaa',
 };
 
+const DATE_FORMAT_MAP: Record<string, string> = {
+  'pt-BR': 'dd/MM/yyyy',
+  'pt-PT': 'dd/MM/yyyy',
+  'en': 'MM/dd/yyyy',
+  'es': 'dd/MM/yyyy',
+  'es-AR': 'dd/MM/yyyy',
+  'es-PY': 'dd/MM/yyyy',
+};
+
 function toDateString(d: Date | null): string {
   if (!d) return '';
   const y = d.getFullYear();
@@ -101,6 +110,7 @@ export default function I18nDatePicker({
   const { locale } = useI18n();
   const dpLocale = LOCALE_MAP[locale] || ptBR;
   const placeholderText = placeholder || PLACEHOLDER_MAP[locale] || 'dd/mm/yyyy';
+  const dateFormat = DATE_FORMAT_MAP[locale] || 'dd/MM/yyyy';
 
   useEffect(() => {
     injectStyles();
@@ -114,7 +124,7 @@ export default function I18nDatePicker({
       id={id}
       selected={selected}
       onChange={(date: Date | null) => onChange(toDateString(date))}
-      dateFormat="dd/MM/yyyy"
+      dateFormat={dateFormat}
       placeholderText={placeholderText}
       minDate={minDateObj ?? undefined}
       className={className}

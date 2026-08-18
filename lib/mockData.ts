@@ -30,6 +30,7 @@ export interface ClinicalHistoryEntry {
     url?: string;
   }[];
   triaged_at?: string;
+  created_at?: string;
   location_name?: string;
   triage_edits?: {
     diagnosis?: string | null;
@@ -1252,24 +1253,56 @@ export const initialPatients: Patient[] = [
     document_number: "1234567",
     clinicalHistory: [
       {
+        id: "his_1t",
+        consultation_id: "cons_1",
+        date: "2026-03-10",
+        type: "Triagem de Enfermagem",
+        diagnosis: "",
+        cid10: "Z00.0",
+        prescriptions: [],
+        notes: "",
+        doctor: "Enf. Camila Farias",
+        triaged_at: "2026-03-10T08:30:00",
+        vital_signs: { bp: "120/80", temp: "36.5", spo2: "98", hr: "72", rr: "16" }
+      },
+      {
         id: "his_1",
+        consultation_id: "cons_1",
         date: "2026-03-10",
         type: "Consulta Ortopédica",
         diagnosis: "Tendinite de Aquiles",
         cid10: "M76.6",
         prescriptions: ["Ibuprofeno 600mg", "Fisioterapia 10 sessões"],
         notes: "Paciente relata dor ao correr. Iniciado tratamento conservador.",
-        doctor: "Dr. Adriano Lima"
+        doctor: "Dr. Adriano Lima",
+        created_at: "2026-03-10T09:00:00",
+        location_name: "Consultório 3"
+      },
+      {
+        id: "his_2t",
+        consultation_id: "cons_2",
+        date: "2026-05-22",
+        type: "Triagem de Enfermagem",
+        diagnosis: "",
+        cid10: "Z00.0",
+        prescriptions: [],
+        notes: "",
+        doctor: "Enf. Camila Farias",
+        triaged_at: "2026-05-22T10:00:00",
+        vital_signs: { bp: "140/90", temp: "36.7", spo2: "97", hr: "78", rr: "18" }
       },
       {
         id: "his_2",
+        consultation_id: "cons_2",
         date: "2026-05-22",
         type: "Consulta Geral",
         diagnosis: "Hipertensão arterial primária",
         cid10: "I10",
         prescriptions: ["Losartana Potássica 50mg"],
         notes: "Pressão aferida: 140/90 mmHg. Recomendado acompanhamento.",
-        doctor: "Dra. Amanda Silva"
+        doctor: "Dra. Amanda Silva",
+        created_at: "2026-05-22T10:30:00",
+        location_name: "Consultório 1"
       }
     ]
   },
@@ -1286,14 +1319,30 @@ export const initialPatients: Patient[] = [
     document_number: "9876543",
     clinicalHistory: [
       {
+        id: "his_3t",
+        consultation_id: "cons_3",
+        date: "2026-04-15",
+        type: "Triagem de Enfermagem",
+        diagnosis: "",
+        cid10: "Z00.0",
+        prescriptions: [],
+        notes: "",
+        doctor: "Enf. Camila Farias",
+        triaged_at: "2026-04-15T08:00:00",
+        vital_signs: { bp: "110/70", temp: "36.6", spo2: "99", hr: "80", rr: "17" }
+      },
+      {
         id: "his_3",
+        consultation_id: "cons_3",
         date: "2026-04-15",
         type: "Acompanhamento Ginecológico",
         diagnosis: "Gravidez de baixo risco (Pré-natal)",
         cid10: "Z34.0",
         prescriptions: ["Ácido Fólico 5mg", "Sulfato Ferroso 40mg"],
         notes: "Primeiro trimestre, ultrassom inicial confirma 8 semanas normais.",
-        doctor: "Dra. Amanda Silva"
+        doctor: "Dra. Amanda Silva",
+        created_at: "2026-04-15T08:40:00",
+        location_name: "Consultório 2"
       }
     ]
   },
@@ -1310,14 +1359,30 @@ export const initialPatients: Patient[] = [
     document_number: "1122334",
     clinicalHistory: [
       {
+        id: "his_4t",
+        consultation_id: "cons_4",
+        date: "2026-01-20",
+        type: "Triagem de Enfermagem",
+        diagnosis: "",
+        cid10: "Z00.0",
+        prescriptions: [],
+        notes: "",
+        doctor: "Enf. Camila Farias",
+        triaged_at: "2026-01-20T09:10:00",
+        vital_signs: { bp: "150/95", temp: "36.4", spo2: "96", hr: "74", rr: "16" }
+      },
+      {
         id: "his_4",
+        consultation_id: "cons_4",
         date: "2026-01-20",
         type: "Consulta Ortopédica",
         diagnosis: "Lombocatalgia crônica",
         cid10: "M54.5",
         prescriptions: ["Pregabalina 75mg", "Alongamentos diários"],
         notes: "Dor lombar há mais de 3 anos, irradia para membro inferior esquerdo.",
-        doctor: "Dr. Adriano Lima"
+        doctor: "Dr. Adriano Lima",
+        created_at: "2026-01-20T09:50:00",
+        location_name: "Consultório 3"
       }
     ]
   },
@@ -1334,14 +1399,30 @@ export const initialPatients: Patient[] = [
     document_number: "5566778",
     clinicalHistory: [
       {
+        id: "his_6t",
+        consultation_id: "cons_6",
+        date: "2026-06-10",
+        type: "Triagem de Enfermagem",
+        diagnosis: "",
+        cid10: "Z00.0",
+        prescriptions: [],
+        notes: "",
+        doctor: "Enf. Camila Farias",
+        triaged_at: "2026-06-10T14:00:00",
+        vital_signs: { bp: "100/65", temp: "38.2", spo2: "98", hr: "98", rr: "20" }
+      },
+      {
         id: "his_6",
+        consultation_id: "cons_6",
         date: "2026-06-10",
         type: "Consulta Pediátrica",
         diagnosis: "Otite média aguda",
         cid10: "H65.1",
         prescriptions: ["Amoxicilina 500mg", "Ibuprofeno 200mg"],
         notes: "Febre alta, dor no ouvido direito. Antibioticoterapia por 10 dias.",
-        doctor: "Dra. Amanda Silva"
+        doctor: "Dra. Amanda Silva",
+        created_at: "2026-06-10T14:30:00",
+        location_name: "Consultório 4"
       }
     ]
   },
@@ -1358,14 +1439,30 @@ export const initialPatients: Patient[] = [
     document_number: "9988776",
     clinicalHistory: [
       {
+        id: "his_5t",
+        consultation_id: "cons_5",
+        date: "2025-06-20",
+        type: "Triagem de Enfermagem",
+        diagnosis: "",
+        cid10: "Z00.0",
+        prescriptions: [],
+        notes: "",
+        doctor: "Enf. João Pedro",
+        triaged_at: "2025-06-20T07:45:00",
+        vital_signs: { bp: "125/80", temp: "36.3", spo2: "98", hr: "70", rr: "15" }
+      },
+      {
         id: "his_5",
+        consultation_id: "cons_5",
         date: "2025-06-20",
         type: "Exame de Medicina do Trabalho",
         diagnosis: "Aptidão no trabalho em altura (NR-35)",
         cid10: "Z02.7",
         prescriptions: [],
         notes: "Exame de acuidade visual, ECG e EEG normais. Homologado.",
-        doctor: "Dr. Bruno Castro"
+        doctor: "Dr. Bruno Castro",
+        created_at: "2025-06-20T08:20:00",
+        location_name: "Sala de Exames Ocupacionais"
       }
     ]
   }
