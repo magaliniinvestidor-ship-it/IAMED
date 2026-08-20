@@ -4,6 +4,7 @@ import { useCallback } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useSupabaseQuery } from './useSupabaseQuery';
 import { useModuleId } from './useModuleId';
+import type { InsuranceCompany } from '@/lib/mockData';
 
 export interface Dte {
   id: string;
@@ -39,22 +40,7 @@ export interface FinancialPosting {
   patient_id?: string;
 }
 
-export interface Insurance {
-  id: string;
-  name: string;
-  type?: string;
-  ruc?: string;
-  contact?: string;
-  phone?: string;
-  email?: string;
-  has_webservice?: boolean;
-  webservice_url?: string;
-  requires_authorization?: boolean;
-  requires_pre_approval?: boolean;
-  copay_rules?: string;
-  coverage_ceiling?: number;
-  active?: boolean;
-}
+export type Insurance = InsuranceCompany;
 
 export function useFinance(options: { enabled?: boolean } = {}) {
   const { enabled = true } = options;
@@ -73,7 +59,7 @@ export function useFinance(options: { enabled?: boolean } = {}) {
     enabled,
   });
 
-  const insurancesQuery = useSupabaseQuery<Insurance>('insurances', {
+  const insurancesQuery = useSupabaseQuery<Insurance>('insurance_companies', {
     select: '*',
     order: { column: 'name', ascending: true },
     enabled,
@@ -157,7 +143,7 @@ export function useFinance(options: { enabled?: boolean } = {}) {
       if (!supabase) return null;
       const id = insurance.id || (await genModuleId('ins'));
       const { data, error } = await supabase
-        .from('insurances')
+        .from('insurance_companies')
         .insert({ ...insurance, id, active: insurance.active ?? true, created_at: new Date().toISOString() })
         .select()
         .single();
@@ -175,7 +161,7 @@ export function useFinance(options: { enabled?: boolean } = {}) {
     async (id: string, updates: Partial<Insurance>) => {
       if (!supabase) return null;
       const { data, error } = await supabase
-        .from('insurances')
+        .from('insurance_companies')
         .update(updates as Record<string, unknown>)
         .eq('id', id)
         .select()

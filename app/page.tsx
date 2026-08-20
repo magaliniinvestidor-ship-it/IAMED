@@ -116,6 +116,7 @@ function HomeContent() {
   const [insurances, setInsurances] = useState<InsuranceCompany[]>(initialInsurances);
   const [feeSchedules, setFeeSchedules] = useState<FeeSchedule[]>(initialFeeSchedules);
   const [preAuthorizations, setPreAuthorizations] = useState<PreAuthorization[]>(initialPreAuthorizations);
+  const [procedureCatalog, setProcedureCatalog] = useState<{ code: string; name: string; nomenclature?: string; financing_entity?: string }[]>([]);
   const [batchInvoices, setBatchInvoices] = useState<BatchInvoice[]>(initialBatchInvoices);
   const [eligibilityChecks, setEligibilityChecks] = useState<EligibilityCheck[]>(initialEligibilityChecks);
   const [settlements, setSettlements] = useState<ProfessionalSettlement[]>(initialSettlements);
@@ -393,7 +394,7 @@ function HomeContent() {
 
     setDataLoading(true);
     try {
-      const [patientsRes, appointmentsRes, bedsRes, logsRes, financeRes, stockRes, asosRes, dtesRes, professionalsRes, professionalRolesRes, pharmacyItemsRes, stockMovementsRes, inventoryCountsRes, adverseEventsRes, qualityDeviationsRes, batchRecallsRes, locationsRes, clinicalRoomsRes, clinicalHistoryRes, insurancesRes] = await Promise.all([
+      const [patientsRes, appointmentsRes, bedsRes, logsRes, financeRes, stockRes, asosRes, dtesRes, professionalsRes, professionalRolesRes, pharmacyItemsRes, stockMovementsRes, inventoryCountsRes, adverseEventsRes, qualityDeviationsRes, batchRecallsRes, locationsRes, clinicalRoomsRes, clinicalHistoryRes, insurancesRes, feeSchedulesRes, preAuthorizationsRes, procedureCatalogRes] = await Promise.all([
         supabase.from('patients').select('*').order('created_at', { ascending: false }),
         supabase.from('appointments').select('*').order('date', { ascending: true }),
         supabase.from('beds').select('*').order('name'),
@@ -414,6 +415,9 @@ function HomeContent() {
         supabase.from('clinical_rooms').select('*').order('name', { ascending: true }),
         supabase.from('clinical_history').select('*').order('date', { ascending: false }),
         supabase.from('insurance_companies').select('*').order('name', { ascending: true }),
+        supabase.from('fee_schedules').select('*').order('insurance_name', { ascending: true }),
+        supabase.from('pre_authorizations').select('*').order('request_date', { ascending: false }),
+        supabase.from('procedure_catalog').select('code, name, nomenclature, category, financing_entity, is_active').eq('is_active', true),
       ]);
 
       const pharmacyHasError = !!(
@@ -838,6 +842,60 @@ function HomeContent() {
         setInsurances(initialInsurances);
       }
 
+      // Fee schedules (tabela de honorários)
+      if (feeSchedulesRes.data && !feeSchedulesRes.error && feeSchedulesRes.data.length > 0) {
+        const mappedFee = feeSchedulesRes.data.map((f: any) => ({
+          id: f.id,
+          insurance_type: f.insurance_type,
+          insurance_name: f.insurance_name,
+          specialty: f.specialty || '',
+          procedure_code: f.procedure_code,
+          procedure_name: f.procedure_name,
+          base_price: Number(f.base_price) || 0,
+          repasse_percent: Number(f.repasse_percent) || 0,
+          copay_amount: Number(f.copay_amount) || 0,
+          copay_percent: Number(f.copay_percent) || 0,
+          coverage_limit: Number(f.coverage_limit) || 0,
+          requires_authorization: !!f.requires_authorization,
+          active: f.active === undefined ? true : !!f.active,
+        }));
+        setFeeSchedules(mappedFee);
+      } else {
+        setFeeSchedules(initialFeeSchedules);
+      }
+
+      // Pre-authorizations (autorizações prévias)
+      if (preAuthorizationsRes.data && !preAuthorizationsRes.error && preAuthorizationsRes.data.length > 0) {
+        const mappedPre = preAuthorizationsRes.data.map((p: any) => ({
+          id: p.id,
+          patient_id: p.patient_id,
+          patient_name: p.patient_name,
+          insurance_id: p.insurance_id || '',
+          insurance_name: p.insurance_name,
+          procedure_code: p.procedure_code,
+          procedure_name: p.procedure_name,
+          requested_amount: Number(p.requested_amount) || 0,
+          authorized_amount: Number(p.authorized_amount) || 0,
+          status: p.status || 'solicitada',
+          authorization_number: p.authorization_number || '',
+          request_date: p.request_date || '',
+          response_date: p.response_date || '',
+          notes: p.notes || '',
+        }));
+        setPreAuthorizations(mappedPre);
+      } else {
+        setPreAuthorizations(initialPreAuthorizations);
+      }
+
+      if (procedureCatalogRes.data && !procedureCatalogRes.error) {
+        setProcedureCatalog(procedureCatalogRes.data.map((p: any) => ({
+          code: String(p.code),
+          name: String(p.name),
+          nomenclature: p.nomenclature || undefined,
+          financing_entity: p.financing_entity || undefined,
+        })));
+      }
+
       setIsDbConnected(!hasError);
     } catch (err) {
       console.warn("Failing to load from Supabase database. Falling back to mock data.", err);
@@ -904,6 +962,14 @@ function HomeContent() {
   // ──────────────────────────────────────────────
    
   const addAuditLog = useCallback(async (action: string, target: string) => {
+    let clientIp = '192.168.1.1';
+    try {
+      const ipRes = await fetch('/api/client-ip');
+      if (ipRes.ok) {
+        const ipData = await ipRes.json();
+        if (ipData?.ip) clientIp = ipData.ip;
+      }
+    } catch {}
     const newLog: AuditLog = {
       id: crypto.randomUUID(),
       operator: activeOperator,
@@ -911,7 +977,7 @@ function HomeContent() {
       action,
       target,
       timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
-      ip: '192.168.1.1',
+      ip: clientIp,
     };
 
     // Optimistic update in UI
@@ -968,6 +1034,19 @@ function HomeContent() {
       const newCount = loginAttemptCount + 1;
       setLoginAttemptCount(newCount);
 
+      // Persiste tentativa falha no banco
+      if (supabase) {
+        try {
+          await supabase.from('login_attempts').insert({
+            email: loginEmail,
+            success: false,
+            ip_address: '192.168.1.1',
+            user_agent: typeof navigator !== 'undefined' ? navigator.userAgent || 'Unknown' : 'Unknown',
+            failure_reason: 'Credenciais inválidas',
+          });
+        } catch {}
+      }
+
       if (newCount >= 5) {
         const lockDuration = 30; // minutes
         const lockTime = new Date(Date.now() + lockDuration * 60000).toISOString();
@@ -984,6 +1063,42 @@ function HomeContent() {
       setLoginAttemptCount(0);
       setLockedUntil(null);
       updateLastActivityTime();
+
+      // Grava o horário do último login na tabela system_users
+      const { user } = data;
+      if (user) {
+        await supabase
+          .from('system_users')
+          .update({ last_login: new Date().toISOString() })
+          .eq('auth_user_id', user.id);
+      }
+
+      // Persiste tentativa bem-sucedida e cria sessão no banco
+      if (supabase && user) {
+        const now = new Date();
+        try {
+          await supabase.from('login_attempts').insert({
+            email: loginEmail,
+            success: true,
+            ip_address: '192.168.1.1',
+            user_agent: typeof navigator !== 'undefined' ? navigator.userAgent || 'Unknown' : 'Unknown',
+          });
+        } catch {}
+
+        try {
+          await supabase.from('user_sessions').insert({
+            user_id: user.id,
+            user_name: activeOperator || loginEmail,
+            ip_address: '192.168.1.1',
+            device_info: typeof navigator !== 'undefined' ? navigator.userAgent || 'Unknown' : 'Unknown',
+            login_at: now.toISOString(),
+            last_activity_at: now.toISOString(),
+            expires_at: new Date(now.getTime() + SESSION_TIMEOUT_MS).toISOString(),
+            active: true,
+            revoked: false,
+          });
+        } catch {}
+      }
     }
   };
 
@@ -1621,6 +1736,7 @@ function HomeContent() {
                     setFeeSchedules={setFeeSchedules}
                     preAuthorizations={preAuthorizations}
                     setPreAuthorizations={setPreAuthorizations}
+                    procedureCatalog={procedureCatalog}
                     batchInvoices={batchInvoices}
                     setBatchInvoices={setBatchInvoices}
                     eligibilityChecks={eligibilityChecks}

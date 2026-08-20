@@ -291,24 +291,6 @@ create table if not exists public.stock_items (
   created_at timestamptz default now()
 );
 
-create table if not exists public.insurances (
-  id text primary key,
-  name text not null,
-  type text,
-  ruc text,
-  contact text,
-  phone text,
-  email text,
-  has_webservice boolean default false,
-  webservice_url text,
-  requires_authorization boolean default false,
-  requires_pre_approval boolean default false,
-  copay_rules text,
-  coverage_ceiling numeric(15,2),
-  active boolean default true,
-  created_at timestamptz default now()
-);
-
 -- ─── INTERNACAO ───
 create table if not exists public.surgeries (
   id text primary key,

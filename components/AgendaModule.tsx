@@ -368,7 +368,15 @@ const AgendaModuleContent = ({
   const { locale, t } = useI18n();
   const userPermissions = useUserPermissions();
 
-  const insuranceTypeOptions = INSURANCE_TYPES;
+  const insuranceTypeOptions = [
+    ...INSURANCE_TYPES.filter(t => t.value === 'Particular'),
+    ...insurances.filter(i => i.active).map(i => ({
+      value: i.name,
+      labelKey: '',
+      quotaPresencial: 0,
+      quotaVirtual: 0,
+    })),
+  ];
   const canEdit = userPermissions?.includes('agenda_edit') || 
                   userPermissions?.includes('admin:*') || 
                   userPermissions?.includes('perform_admit') ||

@@ -187,10 +187,7 @@ export type ProfessionalFormData = z.infer<typeof professionalSchema>;
 
 export const insuranceSchema = z.object({
   name: nonEmptyString('Nome', 200),
-  type: z.enum([
-    'IPS', 'Sanidade Militar', 'Sanidade Policial', 'EMP', 'Seguro Privado',
-    'Corporativo', 'Particular', 'Mercosul',
-  ]),
+  type: z.string().min(1, 'Tipo é obrigatório').max(50, 'Tipo muito longo'),
   ruc: nonEmptyString('RUC', 20).regex(/^[\d\-]+$/, 'RUC deve conter apenas números e hífens'),
   contact: optionalString(200),
   phone: phoneSchema.optional().or(z.literal('')),
@@ -214,6 +211,20 @@ export const insuranceSchema = z.object({
   },
   { message: 'URL do Web Service é obrigatória quando habilitado', path: ['webservice_url'] }
 );
+
+export const feeScheduleSchema = z.object({
+  insurance_id: z.string().min(1, 'Convênio é obrigatório'),
+  specialty: z.string().min(1, 'Especialidade é obrigatória').max(80),
+  procedure_code: z.string().min(1, 'Código do procedimento é obrigatório').max(40),
+  procedure_name: z.string().min(1, 'Nome do procedimento é obrigatório').max(200),
+  base_price: z.number({ message: 'Preço base é obrigatório' }).positive('Preço base deve ser maior que zero'),
+  repasse_percent: z.number().min(0).max(100).optional(),
+  copay_amount: z.number().min(0).optional(),
+  copay_percent: z.number().min(0).max(100).optional(),
+  coverage_limit: z.number().min(0).optional(),
+  requires_authorization: z.boolean().optional(),
+  active: z.boolean().optional(),
+});
 
 export type InsuranceFormData = z.infer<typeof insuranceSchema>;
 

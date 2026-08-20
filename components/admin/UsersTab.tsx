@@ -153,6 +153,9 @@ export function UsersTab({
             status: (u.status as SystemUser['status']) || 'ativo',
             twoFactorEnabled: u.two_factor_enabled as boolean | undefined,
             twoFactorMethod: u.two_factor_method as SystemUser['twoFactorMethod'],
+            lastLogin: u.last_login as string | null | undefined,
+            passwordChangedAt: u.password_changed_at as string | null | undefined,
+            mustChangePassword: u.must_change_password as boolean | undefined,
             createdAt: (u.created_at as string) || new Date().toISOString(),
           };
         })
@@ -253,6 +256,8 @@ export function UsersTab({
           status: userStatus,
           professionalId: userProfessionalId || undefined,
           password: userPassword || undefined,
+          twoFactorEnabled: user2FA,
+          twoFactorMethod: user2FAMethod,
         }),
       });
       if (!response.ok) {
@@ -277,6 +282,8 @@ export function UsersTab({
           location: userLocation,
           ci: userCi,
           professionalId: userProfessionalId || undefined,
+          twoFactorEnabled: user2FA,
+          twoFactorMethod: user2FAMethod,
         }),
       });
       if (!response.ok) {

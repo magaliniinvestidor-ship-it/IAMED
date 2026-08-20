@@ -546,7 +546,6 @@ export interface Professional {
   color?: string;
   permissions?: string[];
   locationId?: string;
-  userId?: string;
   updatedAt?: string;
 }
 
@@ -570,6 +569,8 @@ export interface SystemUser {
   twoFactorEnabled?: boolean;
   twoFactorMethod?: 'totp' | 'sms' | 'email' | 'none';
   lastLogin?: string | null;
+  passwordChangedAt?: string | null;
+  mustChangePassword?: boolean;
   createdAt: string;
   updatedAt?: string;
 }
@@ -598,6 +599,7 @@ export interface UserSession {
   lastActivityAt: string;
   expiresAt: string;
   active: boolean;
+  revoked?: boolean;
 }
 
 export interface LoginAttempt {
@@ -705,10 +707,11 @@ export interface DteItem {
 // FATURAMENTO - NOVAS INTERFACES (SIFEN/DNIT)
 // ==========================================
 
-export type InsuranceType = 'IPS' | 'Sanidade Militar' | 'Sanidade Policial' | 'EMP' | 'Seguro Privado' | 'Corporativo' | 'Particular' | 'Mercosul';
+export type InsuranceType = 'IPS' | 'Sanidade Militar' | 'Sanidade Policial' | 'EMP' | 'Seguro Privado' | 'Corporativo' | 'Particular' | 'Mercosul' | (string & {});
 
 export interface FeeSchedule {
   id: string;
+  insurance_id?: string;
   insurance_type: InsuranceType;
   insurance_name: string;
   specialty: string;

@@ -66,6 +66,7 @@ interface AdminFinanceModuleProps {
   setFeeSchedules?: React.Dispatch<React.SetStateAction<FeeSchedule[]>>;
   preAuthorizations?: PreAuthorization[];
   setPreAuthorizations?: React.Dispatch<React.SetStateAction<PreAuthorization[]>>;
+  procedureCatalog?: { code: string; name: string; nomenclature?: string; financing_entity?: string }[];
   batchInvoices?: BatchInvoice[];
   setBatchInvoices?: React.Dispatch<React.SetStateAction<BatchInvoice[]>>;
   eligibilityChecks?: EligibilityCheck[];
@@ -239,6 +240,7 @@ export default function AdminFinanceModule({
   setFeeSchedules: setFeeSchedulesProp,
   preAuthorizations: preAuthsProp,
   setPreAuthorizations: setPreAuthsProp,
+  procedureCatalog: procedureCatalogProp = [],
   batchInvoices: batchInvoicesProp,
   setBatchInvoices: setBatchInvoicesProp,
   eligibilityChecks: eligProp,
@@ -427,6 +429,8 @@ export default function AdminFinanceModule({
           twoFactorEnabled: u.two_factor_enabled,
           twoFactorMethod: u.two_factor_method,
           lastLogin: u.last_login,
+          passwordChangedAt: u.password_changed_at,
+          mustChangePassword: u.must_change_password,
           createdAt: u.created_at,
           updatedAt: u.updated_at,
         };
@@ -812,6 +816,106 @@ const resetProfForm = () => {
   const [ssoProviders, setSSOProviders] = useState<SSOProvider[]>(initialSSOProviders);
   const [passwordPolicySaved, setPasswordPolicySaved] = useState(false);
 
+  const loadUserSessionsFromSupabase = async () => {
+    const { data } = await supabase
+      .from('user_sessions')
+      .select('*')
+      .order('login_at', { ascending: false })
+      .limit(100);
+    if (data) {
+      setUserSessions(data.map((s: Record<string, unknown>) => ({
+        id: String(s.id),
+        userId: String(s.user_id),
+        userName: (s.user_name as string) || '',
+        ipAddress: (s.ip_address as string) || '',
+        deviceInfo: (s.device_info as string) || '',
+        loginAt: (s.login_at as string) || '',
+        lastActivityAt: (s.last_activity_at as string) || '',
+        expiresAt: (s.expires_at as string) || '',
+        active: (s.active as boolean) ?? true,
+        revoked: (s.revoked as boolean) ?? false,
+      })));
+    }
+  };
+
+  const loadLoginAttemptsFromSupabase = async () => {
+    const { data } = await supabase
+      .from('login_attempts')
+      .select('*')
+      .order('attempted_at', { ascending: false })
+      .limit(100);
+    if (data) {
+      setLoginAttempts(data.map((a: Record<string, unknown>) => ({
+        id: String(a.id),
+        email: (a.email as string) || '',
+        success: (a.success as boolean) ?? false,
+        ipAddress: (a.ip_address as string) || '',
+        userAgent: (a.user_agent as string) || '',
+        attemptedAt: (a.attempted_at as string) || '',
+        failureReason: (a.failure_reason as string) || undefined,
+      })));
+    }
+  };
+
+  const loadPasswordPolicyFromSupabase = async () => {
+    const { data } = await supabase
+      .from('password_policy')
+      .select('*')
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .single();
+    if (data) {
+      const policy: PasswordPolicy = {
+        enabled: (data.enabled as boolean) ?? true,
+        minLength: (data.min_length as number) ?? 8,
+        requireUppercase: (data.require_uppercase as boolean) ?? true,
+        requireLowercase: (data.require_lowercase as boolean) ?? true,
+        requireNumbers: (data.require_numbers as boolean) ?? true,
+        requireSpecialChars: (data.require_special_chars as boolean) ?? true,
+        expirationDays: (data.expiration_days as number) ?? 90,
+        historyCount: (data.history_count as number) ?? 5,
+        maxLoginAttempts: (data.max_login_attempts as number) ?? 5,
+        lockoutDurationMinutes: (data.lockout_duration_minutes as number) ?? 30,
+        sessionTimeoutMinutes: (data.session_timeout_minutes as number) ?? 60,
+      };
+      setPasswordPolicy(policy);
+      onPasswordPolicyChange?.(policy);
+    }
+  };
+
+  const savePasswordPolicyToSupabase = async (policy: PasswordPolicy) => {
+    const { data: existing } = await supabase
+      .from('password_policy')
+      .select('id')
+      .limit(1);
+    const payload = {
+      enabled: policy.enabled,
+      min_length: policy.minLength,
+      require_uppercase: policy.requireUppercase,
+      require_lowercase: policy.requireLowercase,
+      require_numbers: policy.requireNumbers,
+      require_special_chars: policy.requireSpecialChars,
+      expiration_days: policy.expirationDays,
+      history_count: policy.historyCount,
+      max_login_attempts: policy.maxLoginAttempts,
+      lockout_duration_minutes: policy.lockoutDurationMinutes,
+      session_timeout_minutes: policy.sessionTimeoutMinutes,
+      updated_by: activeOperatorProfile,
+    };
+    if (existing && existing.length > 0) {
+      await supabase.from('password_policy').update(payload).eq('id', existing[0].id);
+    } else {
+      await supabase.from('password_policy').insert(payload);
+    }
+  };
+
+  React.useEffect(() => {
+    loadUserSessionsFromSupabase();
+    loadLoginAttemptsFromSupabase();
+    loadPasswordPolicyFromSupabase();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // User form state
   const [userFormOpen, setUserFormOpen] = useState(false);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
@@ -882,7 +986,11 @@ const resetProfForm = () => {
           insurances={insurances}
           setInsurances={setInsurances}
           preAuthorizations={preAuthorizations}
+          setPreAuthorizations={setPreAuthorizations}
           feeSchedules={feeSchedules}
+          setFeeSchedules={setFeeSchedules}
+          professionals={professionals}
+          procedureCatalog={procedureCatalogProp}
           addAuditLog={addAuditLog}
         />
       )}
@@ -2050,7 +2158,7 @@ const resetProfForm = () => {
                     </div>
                   </div>
 
-                  <button onClick={() => { setPasswordPolicySaved(true); addAuditLog('Alterou Política de Senhas', JSON.stringify(passwordPolicy)); setTimeout(() => setPasswordPolicySaved(false), 3000); }} className="w-full py-3 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-lg text-xs cursor-pointer transition flex items-center justify-center gap-2">
+                  <button onClick={() => { savePasswordPolicyToSupabase(passwordPolicy); setPasswordPolicySaved(true); addAuditLog('Alterou Política de Senhas', JSON.stringify(passwordPolicy)); setTimeout(() => setPasswordPolicySaved(false), 3000); }} className="w-full py-3 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-lg text-xs cursor-pointer transition flex items-center justify-center gap-2">
                     {passwordPolicySaved ? <><CheckCheck className="w-4 h-4" /> {t('fin_password_policy_saved', 'app')}</> : t('fin_save_password_policy', 'app')}
                   </button>
                 </div>
@@ -2160,7 +2268,7 @@ const resetProfForm = () => {
                         <label className="block text-[10px] font-semibold text-slate-600 mb-1">Código de Verificação (6 dígitos)</label>
                         <input type="text" maxLength={6} value={twoFactorCode} onChange={e => setTwoFactorCode(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="000000" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono text-center tracking-widest" />
                       </div>
-                       <button onClick={() => { if (twoFactorCode.length === 6) { setTwoFactorVerified(true); addAuditLog('Verificou 2FA TOTP', 'Código validado com sucesso'); } else { alert(t('fin_alert_6_digit_code', 'app')); } }} className="px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-lg text-xs cursor-pointer transition">
+                       <button onClick={() => { if (twoFactorCode.length === 6) { setTwoFactorVerified(true); addAuditLog('Verificou 2FA TOTP', 'Código validado com sucesso'); supabase.auth.getUser().then(({ data }) => { if (data.user) supabase.from('two_factor_logs').insert({ user_id: data.user.id, method: 'totp', success: true, ip_address: '192.168.1.1' }); }); } else { alert(t('fin_alert_6_digit_code', 'app')); } }} className="px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-lg text-xs cursor-pointer transition">
                         Verificar
                       </button>
                     </div>
@@ -2368,7 +2476,7 @@ const resetProfForm = () => {
                         <span>Expira: {s.expiresAt}</span>
                       </div>
                       {s.active && (
-                        <button onClick={() => { setUserSessions(prev => prev.map(x => x.id === s.id ? { ...x, active: false, revoked: true } : x)); addAuditLog('Revogou Sessão', s.userName); }} className="text-[9px] text-rose-600 font-bold hover:text-rose-800 cursor-pointer">
+                        <button onClick={() => { setUserSessions(prev => prev.map(x => x.id === s.id ? { ...x, active: false, revoked: true } : x)); supabase.from('user_sessions').update({ active: false, revoked: true }).eq('id', s.id); addAuditLog('Revogou Sessão', s.userName); }} className="text-[9px] text-rose-600 font-bold hover:text-rose-800 cursor-pointer">
                           Revogar Sessão
                         </button>
                       )}
@@ -2411,7 +2519,7 @@ const resetProfForm = () => {
                   <span className="text-[10px] text-slate-600 font-medium">
                     Últimas {loginAttempts.length} tentativas registradas. As tentativas são armazenadas por 90 dias conforme política de retenção.
                   </span>
-                  <button onClick={() => { addAuditLog('Limpou Tentativas de Login', `${loginAttempts.length} registros removidos`); setLoginAttempts([]); }} className="text-[10px] text-rose-600 font-bold hover:text-rose-800 cursor-pointer shrink-0">
+                  <button onClick={() => { addAuditLog('Limpou Tentativas de Login', `${loginAttempts.length} registros removidos`); supabase.from('login_attempts').delete().neq('id', '00000000-0000-0000-0000-000000000000'); setLoginAttempts([]); }} className="text-[10px] text-rose-600 font-bold hover:text-rose-800 cursor-pointer shrink-0">
                     Limpar Log
                   </button>
                 </div>

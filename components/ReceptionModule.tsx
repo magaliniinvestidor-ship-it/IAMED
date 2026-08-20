@@ -2699,20 +2699,29 @@ if (hasAnyField) {
                       <div className="grid grid-cols-2 gap-2">
                         <div>
                           <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">{t('rcpt_insurance_type', 'app')} *</label>
-                          <select 
-                            value={healthInsuranceType} 
-                            onChange={e => setHealthInsuranceType(e.target.value as any)}
+                          <select
+                            value={healthInsuranceType}
+                            onChange={e => {
+                              const val = e.target.value;
+                              if (val === 'Particular') {
+                                setHealthInsuranceType('Particular');
+                                setHealthInsuranceCompany('');
+                              } else if (val === '') {
+                                setHealthInsuranceType('');
+                                setHealthInsuranceCompany('');
+                              } else {
+                                const ins = insurances.find(i => i.name === val);
+                                setHealthInsuranceType((ins?.type as typeof healthInsuranceType) || '');
+                                setHealthInsuranceCompany(ins?.name || val);
+                              }
+                            }}
                             className="w-full p-2 bg-white border border-slate-200 rounded-md text-xs font-sans focus:outline-teal-500"
                           >
                             <option value="">{t('rcpt_select', 'app')}</option>
                             <option value="Particular">{t('rcpt_insurance_particular', 'app')}</option>
-                            <option value="IPS">{t('rcpt_insurance_ips', 'app')}</option>
-                            <option value="Sanidade Militar">{t('rcpt_insurance_military', 'app')}</option>
-                            <option value="Sanidade Policial">{t('rcpt_insurance_police', 'app')}</option>
-                            <option value="EMP">{t('rcpt_insurance_emp', 'app')}</option>
-                            <option value="Seguro Privado">{t('rcpt_insurance_international', 'app')}</option>
-                            <option value="Corporativo">{t('rcpt_insurance_corporative', 'app')}</option>
-                            <option value="Mercosul">{t('rcpt_insurance_mercosul', 'app')}</option>
+                            {insurances.filter(i => i.active).map(ins => (
+                              <option key={ins.id} value={ins.name}>{ins.name}</option>
+                            ))}
                           </select>
                         </div>
                         <div>

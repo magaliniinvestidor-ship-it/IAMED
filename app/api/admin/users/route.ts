@@ -70,7 +70,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { email, password, name, role, location, ci, professionalId } = await req.json();
+    const { email, password, name, role, location, ci, professionalId, twoFactorEnabled, twoFactorMethod } = await req.json();
 
     if (!email || !password || !name) {
       return NextResponse.json(
@@ -158,6 +158,8 @@ export async function POST(req: NextRequest) {
         location,
         permissions: [],
         status: 'ativo',
+        two_factor_enabled: twoFactorEnabled ?? false,
+        two_factor_method: twoFactorMethod ?? 'none',
       });
       if (insertError) {
         console.error('[POST /api/admin/users] insertError (existing auth user):', extractError(insertError));
@@ -204,6 +206,8 @@ export async function POST(req: NextRequest) {
         location,
         permissions: [],
         status: 'ativo',
+        two_factor_enabled: twoFactorEnabled ?? false,
+        two_factor_method: twoFactorMethod ?? 'none',
       };
       console.log('[POST /api/admin/users] about to insert:', JSON.stringify(insertPayload));
       const { error: insertError } = await supabaseAdmin.from('system_users').insert(insertPayload);
@@ -232,7 +236,7 @@ export async function POST(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   try {
-    const { id, email, name, role, location, ci, professionalId, status, password } = await req.json();
+    const { id, email, name, role, location, ci, professionalId, status, password, twoFactorEnabled, twoFactorMethod } = await req.json();
 
     if (!id) {
       return NextResponse.json({ error: 'ID do usuário é obrigatório' }, { status: 400 });
@@ -252,6 +256,8 @@ export async function PUT(req: NextRequest) {
       location,
       professional_id: professionalId || null,
       status,
+      two_factor_enabled: twoFactorEnabled ?? undefined,
+      two_factor_method: twoFactorMethod ?? undefined,
     }).eq('id', id);
 
     if (updateError) {
@@ -268,6 +274,23 @@ export async function PUT(req: NextRequest) {
         updateData.ban_duration = 'none';
       }
       const { error: authUpdateError } = await supabaseAdmin.auth.admin.updateUserById(sysUser.auth_user_id, updateData);
+
+      if (password) {
+        const { error: passwordStampError } = await supabaseAdmin
+          .from('system_users')
+          .update({
+            password_changed_at: new Date().toISOString(),
+            must_change_password: false,
+          })
+          .eq('id', id);
+        if (passwordStampError) {
+          console.error('[PUT /api/admin/users] passwordStampError:', extractError(passwordStampError));
+          return NextResponse.json(
+            { error: `Senha alterada no Auth, mas falhou ao registrar a troca: ${extractError(passwordStampError)}` },
+            { status: 400 }
+          );
+        }
+      }
       if (authUpdateError) {
         console.error('[PUT /api/admin/users] authUpdateError:', extractError(authUpdateError));
         if (status === 'inativo' || status === 'bloqueado') {
