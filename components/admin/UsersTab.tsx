@@ -2,50 +2,118 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Users as UsersIcon, Edit2, Trash2, Plus, X, Mail, IdCard, MapPin, Fingerprint, UserCheck, UserX, Search } from 'lucide-react';
+import { Users as UsersIcon, Edit2, Trash2, Plus, X, Mail, IdCard, MapPin, Fingerprint, UserCheck, UserX, Search, Copy } from 'lucide-react';
 import { useI18n } from '@/lib/i18n/I18nContext';
 import { supabase } from '@/lib/supabaseClient';
-import { SystemUser, AdminFinanceModuleProps } from './AdminContext';
-import type { SystemRole } from '@/lib/mockData';
+import { SystemUser } from './AdminContext';
+import type { SystemRole, Professional } from '@/lib/mockData';
 import { useFormValidation, groupErrorsByPath } from '@/lib/validation';
-import { systemUserSchema, passwordChangeSchema } from '@/lib/validation/schemas';
+import { systemUserCreateSchema, systemUserEditSchema } from '@/lib/validation/schemas';
 import { FormErrorSummary } from '@/components/forms';
 
 const ROLES: SystemRole[] = [
   'SuperAdmin', 'Administrador', 'Gestor', 'Diretor Clínico', 'Médico',
   'Enfermeiro', 'Recepcionista', 'Financeiro', 'Farmacêutico', 'Visualizador',
+  'Auxiliar de Enfermagem', 'Anestesiologista', 'Cirurgião(ã)', 'Terapeuta Ocupacional',
+  'Educador Físico', 'Assistente Social', 'Fonoaudiólogo(a)', 'Dentista',
+  'Biomédico(a)', 'Técnico(a) em Radiologia', 'Técnico(a) em Farmácia',
+  'Técnico(a) de Laboratório', 'Nutricionista', 'Psicólogo(a)', 'Técnico(a) de Enfermagem',
 ];
 
-const TWO_FA_METHODS = [
-  { value: 'none', label: 'Desativado' },
-  { value: 'totp', label: 'TOTP (Authenticator)' },
-  { value: 'sms', label: 'SMS' },
-  { value: 'email', label: 'E-mail' },
-];
+const PROFESSIONAL_ROLE_TO_SYSTEM_ROLE: Record<string, SystemRole> = {
+  'Médico(a)': 'Médico',
+  'Enfermeiro(a)': 'Enfermeiro',
+  'Fisioterapeuta': 'Visualizador',
+  'Psicólogo(a)': 'Psicólogo(a)',
+  'Nutricionista': 'Nutricionista',
+  'Técnico(a) de Enfermagem': 'Técnico(a) de Enfermagem',
+  'Auxiliar de Enfermagem': 'Auxiliar de Enfermagem',
+  'Anestesiologista': 'Anestesiologista',
+  'Cirurgião(ã)': 'Cirurgião(ã)',
+  'Terapeuta Ocupacional': 'Terapeuta Ocupacional',
+  'Educador Físico': 'Educador Físico',
+  'Assistente Social': 'Assistente Social',
+  'Fonoaudiólogo(a)': 'Fonoaudiólogo(a)',
+  'Farmacêutico(a)': 'Farmacêutico',
+  'Dentista': 'Dentista',
+  'Biomédico(a)': 'Biomédico(a)',
+  'Técnico(a) em Radiologia': 'Técnico(a) em Radiologia',
+  'Técnico(a) em Farmácia': 'Técnico(a) em Farmácia',
+  'Técnico(a) de Laboratório': 'Técnico(a) de Laboratório',
+  'Administrador(a)': 'Administrador',
+  'Recepcionista': 'Recepcionista',
+};
+
+function generateDefaultPassword(): string {
+  const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const lower = 'abcdefghijkmnopqrstuvwxyz';
+  const digits = '23456789';
+  const specials = '!@#$%&*';
+  const all = upper + lower + digits + specials;
+  const parts = [
+    upper[Math.floor(Math.random() * upper.length)],
+    lower[Math.floor(Math.random() * lower.length)],
+    digits[Math.floor(Math.random() * digits.length)],
+    specials[Math.floor(Math.random() * specials.length)],
+  ];
+  for (let i = 0; i < 8; i++) {
+    parts.push(all[Math.floor(Math.random() * all.length)]);
+  }
+  return parts.sort(() => Math.random() - 0.5).join('');
+}
 
 interface UsersTabProps {
   addAuditLog: (action: string, target: string) => void;
+  pendingProfessional?: Professional | null;
+  onPendingProfessionalConsumed?: () => void;
+  professionals?: Professional[];
+  locations?: Array<{ id: string; name: string; status?: string }>;
 }
 
-export function UsersTab({ addAuditLog }: UsersTabProps) {
+export function UsersTab({
+  addAuditLog,
+  pendingProfessional,
+  onPendingProfessionalConsumed,
+  professionals = [],
+  locations = [],
+}: UsersTabProps) {
   const { t } = useI18n();
-  const { errors, validate } = useFormValidation(systemUserSchema);
+  const { errors, validate, clearErrors } = useFormValidation(systemUserEditSchema);
+  const { errors: createErrors, validate: validateCreate, clearErrors: clearCreateErrors } = useFormValidation(systemUserCreateSchema);
+  const clearAllErrors = () => { clearErrors(); clearCreateErrors(); };
+
+  const initialPendingPassword = pendingProfessional ? generateDefaultPassword() : '';
 
   const [users, setUsers] = useState<SystemUser[]>([]);
   const [search, setSearch] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [showForm, setShowForm] = useState(false);
+  const [showForm, setShowForm] = useState(!!pendingProfessional);
 
-  const [userName, setUserName] = useState('');
-  const [userEmail, setUserEmail] = useState('');
+  const [userName, setUserName] = useState(pendingProfessional?.name ?? '');
+  const [userEmail, setUserEmail] = useState(pendingProfessional?.email ?? '');
   const [userCi, setUserCi] = useState('');
-  const [userRole, setUserRole] = useState<SystemRole>('Recepcionista');
-  const [userLocation, setUserLocation] = useState('');
-  const [userStatus, setUserStatus] = useState<'ativo' | 'inativo' | 'bloqueado'>('ativo');
+  const [userRole, setUserRole] = useState<string>(
+    pendingProfessional ? (PROFESSIONAL_ROLE_TO_SYSTEM_ROLE[pendingProfessional.role] || '') : ''
+  );
+  const [userLocation, setUserLocation] = useState(
+    () => (pendingProfessional?.locationId ? locations.find((l) => l.id === pendingProfessional.locationId)?.name || '' : '')
+  );
+  const [userStatus, setUserStatus] = useState<'ativo' | 'inativo' | 'bloqueado' | ''>(pendingProfessional ? 'ativo' : '');
   const [user2FA, setUser2FA] = useState(false);
-  const [user2FAMethod, setUser2FAMethod] = useState<'totp' | 'sms' | 'email' | 'none'>('none');
-  const [userPassword, setUserPassword] = useState('');
-  const [userPasswordConfirm, setUserPasswordConfirm] = useState('');
+  const [user2FAMethod, setUser2FAMethod] = useState<'totp' | 'sms' | 'email' | 'none' | ''>(pendingProfessional ? 'none' : '');
+  const [userPassword, setUserPassword] = useState(initialPendingPassword);
+  const [userPasswordConfirm, setUserPasswordConfirm] = useState(initialPendingPassword);
+  const [userProfessionalId, setUserProfessionalId] = useState<string | null>(pendingProfessional?.id ?? null);
+  const [copied, setCopied] = useState(false);
+
+  const activeErrors = editingId ? errors : createErrors;
+
+  const twoFaMethods = [
+    { value: 'none', label: t('fin_2fa_method_none', 'app') },
+    { value: 'totp', label: t('fin_2fa_method_totp', 'app') },
+    { value: 'sms', label: t('fin_2fa_method_sms', 'app') },
+    { value: 'email', label: t('fin_2fa_method_email', 'app') },
+  ];
 
   const loadUsers = async () => {
     if (!supabase) return;
@@ -96,22 +164,44 @@ export function UsersTab({ addAuditLog }: UsersTabProps) {
     void loadUsers();
   }, []);
 
+  useEffect(() => {
+    if (!pendingProfessional) return;
+    setEditingId(null);
+    setUserProfessionalId(pendingProfessional.id);
+    setUserName(pendingProfessional.name);
+    setUserEmail(pendingProfessional.email || '');
+    setUserRole(PROFESSIONAL_ROLE_TO_SYSTEM_ROLE[pendingProfessional.role] || '');
+    const loc = locations.find((l) => l.id === pendingProfessional.locationId);
+    setUserLocation(loc?.name || '');
+    setUserCi('');
+    setUserStatus('ativo');
+    setUser2FA(false);
+    setUser2FAMethod('none');
+    const generatedPassword = generateDefaultPassword();
+    setUserPassword(generatedPassword);
+    setUserPasswordConfirm(generatedPassword);
+    setSearch('');
+    setShowForm(true);
+  }, [pendingProfessional, locations]);
+
   const resetForm = () => {
     setEditingId(null);
     setUserName('');
     setUserEmail('');
     setUserCi('');
-    setUserRole('Recepcionista');
+    setUserRole('');
     setUserLocation('');
-    setUserStatus('ativo');
+    setUserStatus('');
     setUser2FA(false);
-    setUser2FAMethod('none');
+    setUser2FAMethod('');
     setUserPassword('');
     setUserPasswordConfirm('');
+    setUserProfessionalId(null);
   };
 
   const openNew = () => {
     resetForm();
+    clearAllErrors();
     setShowForm(true);
   };
 
@@ -125,6 +215,8 @@ export function UsersTab({ addAuditLog }: UsersTabProps) {
     setUserStatus(u.status);
     setUser2FA(u.twoFactorEnabled || false);
     setUser2FAMethod(u.twoFactorMethod || 'none');
+    setUserProfessionalId(u.professionalId || null);
+    clearAllErrors();
     setShowForm(true);
   };
 
@@ -140,21 +232,12 @@ export function UsersTab({ addAuditLog }: UsersTabProps) {
       status: userStatus,
       twoFactorEnabled: user2FA,
       twoFactorMethod: user2FAMethod,
+      password: userPassword,
+      confirmPassword: userPasswordConfirm,
     };
 
-    const result = validate(userData);
+    const result = editingId ? validate(userData) : validateCreate(userData);
     if (!result.success) return;
-
-    if (!editingId) {
-      const passResult = passwordChangeSchema.safeParse({ password: userPassword, confirmPassword: userPasswordConfirm });
-      if (!passResult.success) {
-        if (typeof window !== 'undefined') {
-          const firstError = passResult.error.issues[0];
-          alert(firstError?.message || 'Erro de senha');
-        }
-        return;
-      }
-    }
 
     if (editingId) {
       const response = await fetch('/api/admin/users', {
@@ -168,11 +251,12 @@ export function UsersTab({ addAuditLog }: UsersTabProps) {
           location: userLocation,
           ci: userCi,
           status: userStatus,
+          professionalId: userProfessionalId || undefined,
           password: userPassword || undefined,
         }),
       });
       if (!response.ok) {
-        let msg = t('admin_alert_update_user_error', 'app');
+        let msg = t('fin_alert_error_update_user', 'app');
         try {
           const errData = await response.json();
           if (errData?.error) msg += errData.error;
@@ -192,10 +276,11 @@ export function UsersTab({ addAuditLog }: UsersTabProps) {
           role: userRole,
           location: userLocation,
           ci: userCi,
+          professionalId: userProfessionalId || undefined,
         }),
       });
       if (!response.ok) {
-        let msg = t('admin_alert_create_user_error', 'app');
+        let msg = t('fin_alert_error_create_user', 'app');
         try {
           const errData = await response.json();
           if (errData?.error) msg += errData.error;
@@ -208,6 +293,7 @@ export function UsersTab({ addAuditLog }: UsersTabProps) {
 
     resetForm();
     setShowForm(false);
+    onPendingProfessionalConsumed?.();
     await loadUsers();
   };
 
@@ -216,14 +302,35 @@ export function UsersTab({ addAuditLog }: UsersTabProps) {
   const handleToggleStatus = async (u: SystemUser) => {
     const nextStatus = u.status === 'ativo' ? 'inativo' : 'ativo';
     if (typeof window !== 'undefined') {
-      const msg = (nextStatus === 'ativo'
-        ? t('fin_confirm_activate_user', 'app')
-        : t('fin_confirm_deactivate_user', 'app')
-      ) + ` usuário ${u.name}?`;
+      const msg = t('fin_confirm_toggle_user', 'app')
+        .replace('{action}', nextStatus === 'ativo' ? t('fin_confirm_activate_user', 'app') : t('fin_confirm_deactivate_user', 'app'))
+        .replace('{name}', u.name);
       if (!confirm(msg)) return;
     }
     if (supabase) {
-      await supabase.from('system_users').update({ status: nextStatus }).eq('id', u.id);
+      const response = await fetch('/api/admin/users', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: u.id,
+          email: u.email,
+          name: u.name,
+          role: u.systemRole,
+          location: u.location,
+          ci: u.ci,
+          professionalId: u.professionalId,
+          status: nextStatus,
+        }),
+      });
+      if (!response.ok) {
+        let msg = t('fin_alert_error_update_user', 'app');
+        try {
+          const errData = await response.json();
+          if (errData?.error) msg += errData.error;
+        } catch {}
+        if (typeof window !== 'undefined') alert(msg);
+        return;
+      }
     }
     addAuditLog('Alterou Status Usuário', `${u.name} → ${nextStatus}`);
     await loadUsers();
@@ -234,7 +341,20 @@ export function UsersTab({ addAuditLog }: UsersTabProps) {
       if (!confirm(t('fin_confirm_delete_user', 'app').replace('{name}', u.name))) return;
     }
     if (supabase) {
-      await supabase.from('system_users').delete().eq('id', u.id);
+      const response = await fetch('/api/admin/users', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: u.id }),
+      });
+      if (!response.ok) {
+        let msg = t('fin_alert_error_delete_user', 'app');
+        try {
+          const errData = await response.json();
+          if (errData?.error) msg += errData.error;
+        } catch {}
+        if (typeof window !== 'undefined') alert(msg);
+        return;
+      }
     }
     addAuditLog('Excluiu Usuário', u.name);
     await loadUsers();
@@ -266,13 +386,13 @@ export function UsersTab({ addAuditLog }: UsersTabProps) {
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <div className="flex items-center gap-2">
             <UsersIcon className="w-5 h-5 text-teal-600" />
-            <h3 className="font-semibold text-slate-800 text-base">Usuários do Sistema ({users.length})</h3>
+            <h3 className="font-semibold text-slate-800 text-base">{t('fin_users_title', 'app').replace('{count}', String(users.length))}</h3>
           </div>
           <button
             onClick={openNew}
             className="flex items-center gap-2 py-2 px-4 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-lg transition"
           >
-            <Plus className="w-3.5 h-3.5" /> Novo Usuário
+            <Plus className="w-3.5 h-3.5" /> {t('fin_new_user', 'app')}
           </button>
         </div>
 
@@ -282,7 +402,7 @@ export function UsersTab({ addAuditLog }: UsersTabProps) {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar por nome, e-mail ou CI..."
+            placeholder={t('fin_users_search_placeholder', 'app')}
             className="w-full pl-10 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs"
           />
         </div>
@@ -344,7 +464,7 @@ export function UsersTab({ addAuditLog }: UsersTabProps) {
           ))}
           {filtered.length === 0 && (
             <div className="text-center py-8 text-slate-400 font-semibold text-xs">
-              Nenhum usuário encontrado.
+              {t('fin_users_empty', 'app')}
             </div>
           )}
         </div>
@@ -355,124 +475,157 @@ export function UsersTab({ addAuditLog }: UsersTabProps) {
           <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl border border-slate-200 overflow-hidden">
             <div className="px-5 py-3 border-b border-slate-100 bg-teal-50 flex items-center justify-between">
               <h3 className="font-bold text-teal-800 text-sm">
-                {editingId ? t('fin_edit_user', 'app') : t('fin_create_user', 'app')}
+                {editingId ? t('fin_edit_user', 'app') : userProfessionalId ? t('fin_create_user_from_professional', 'app') : t('fin_create_user', 'app')}
               </h3>
-              <button onClick={() => { resetForm(); setShowForm(false); }} className="text-slate-500 hover:text-slate-700">
+              <button onClick={() => { resetForm(); setShowForm(false); onPendingProfessionalConsumed?.(); }} className="text-slate-500 hover:text-slate-700">
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <form onSubmit={handleSave} className="p-5 space-y-3 text-xs">
-              {errors.length > 0 && <FormErrorSummary errors={errors} />}
+            <form onSubmit={handleSave} noValidate className="p-5 space-y-3 text-xs">
+              {activeErrors.length > 0 && <FormErrorSummary errors={activeErrors} />}
+              {userProfessionalId && (
+                <div className="flex items-center gap-2 p-2 bg-teal-50 border border-teal-200 rounded-lg">
+                  <UserCheck className="w-4 h-4 text-teal-600" />
+                  <span className="text-[10px] font-semibold text-teal-800">
+                    {t('fin_user_linked_professional', 'app').replace('{name}', professionals.find((p) => p.id === userProfessionalId)?.name || '')}
+                  </span>
+                </div>
+              )}
               <div>
-                <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Nome Completo *</label>
+                <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">{t('fin_user_name_label', 'app')} *</label>
                 <input
                   type="text"
                   value={userName}
                   onChange={(e) => setUserName(e.target.value)}
-                  placeholder="Ex: João da Silva"
+                  placeholder={t('fin_user_name_placeholder', 'app')}
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
                 />
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">E-mail</label>
+                  <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">{t('fin_user_email_label', 'app')} *</label>
                   <input
                     type="text"
                     value={userEmail}
                     onChange={(e) => setUserEmail(e.target.value)}
-                    placeholder="usuario@hospital.com"
+                    placeholder={t('fin_user_email_placeholder', 'app')}
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">CI</label>
+                  <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">{t('fin_user_ci_label', 'app')} *</label>
                   <input
                     type="text"
                     value={userCi}
                     onChange={(e) => setUserCi(e.target.value)}
-                    placeholder="Cédula de Identidad"
+                    placeholder={t('fin_user_ci_placeholder', 'app')}
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
                   />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Função</label>
+                  <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">{t('fin_user_role_label', 'app')} *</label>
                   <select
                     value={userRole}
-                    onChange={(e) => setUserRole(e.target.value as SystemRole)}
+                    onChange={(e) => setUserRole(e.target.value)}
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
                   >
+                    <option value="">{t('fin_select_option', 'app')}</option>
                     {ROLES.map((r) => (
                       <option key={r} value={r}>{r}</option>
                     ))}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Localização</label>
-                  <input
-                    type="text"
+                  <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">{t('fin_user_location_label', 'app')} *</label>
+                  <select
                     value={userLocation}
                     onChange={(e) => setUserLocation(e.target.value)}
-                    placeholder="Sede / Ala"
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
-                  />
+                  >
+                    <option value="">{t('fin_select_location', 'app')}</option>
+                    {locations.map((l) => (
+                      <option key={l.id} value={l.name}>{l.name}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Status</label>
+                  <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">{t('fin_status_label', 'app')} *</label>
                   <select
                     value={userStatus}
-                    onChange={(e) => setUserStatus(e.target.value as 'ativo' | 'inativo' | 'bloqueado')}
+                    onChange={(e) => setUserStatus(e.target.value as 'ativo' | 'inativo' | 'bloqueado' | '')}
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
                   >
-                    <option value="ativo">Ativo</option>
-                    <option value="inativo">Inativo</option>
-                    <option value="bloqueado">Bloqueado</option>
+                    <option value="">{t('fin_select_option', 'app')}</option>
+                    <option value="ativo">{t('fin_active', 'app')}</option>
+                    <option value="inativo">{t('fin_inactive', 'app')}</option>
+                    <option value="bloqueado">{t('fin_user_status_blocked', 'app')}</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">2FA</label>
+                  <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">{t('fin_user_2fa_label', 'app')} *</label>
                   <select
                     value={user2FAMethod}
                     onChange={(e) => {
-                      const method = e.target.value as 'totp' | 'sms' | 'email' | 'none';
+                      const method = e.target.value as 'totp' | 'sms' | 'email' | 'none' | '';
                       setUser2FAMethod(method);
-                      setUser2FA(method !== 'none');
+                      setUser2FA(method !== 'none' && method !== '');
                     }}
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
                   >
-                    {TWO_FA_METHODS.map((m) => (
+                    <option value="">{t('fin_select_option', 'app')}</option>
+                    {twoFaMethods.map((m) => (
                       <option key={m.value} value={m.value}>{m.label}</option>
                     ))}
                   </select>
                 </div>
               </div>
-              {!editingId && (
-                <>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Senha *</label>
-                      <input
-                        type="password"
-                        value={userPassword}
-                        onChange={(e) => setUserPassword(e.target.value)}
-                        placeholder="Mínimo 6 caracteres"
-                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Confirmar Senha *</label>
-                      <input
-                        type="password"
-                        value={userPasswordConfirm}
-                        onChange={(e) => setUserPasswordConfirm(e.target.value)}
-                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
-                      />
-                    </div>
-                  </div>
-                </>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">{t('fin_user_password_label', 'app')}{!editingId ? ' *' : ''}</label>
+                  <input
+                    type="password"
+                    value={userPassword}
+                    onChange={(e) => setUserPassword(e.target.value)}
+                    placeholder={t('fin_user_password_placeholder', 'app')}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">{t('fin_confirm_password_label', 'app')}{!editingId ? ' *' : ''}</label>
+                  <input
+                    type="password"
+                    value={userPasswordConfirm}
+                    onChange={(e) => setUserPasswordConfirm(e.target.value)}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
+                  />
+                </div>
+              </div>
+              {editingId && (
+                <p className="text-[10px] text-amber-600 font-semibold">{t('fin_user_password_keep_hint', 'app')}</p>
+              )}
+              {!editingId && userProfessionalId && (
+                <div className="flex items-center justify-between gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                  <span className="text-[10px] font-semibold text-slate-500">
+                    {t('fin_generated_password_label', 'app')} <code className="px-1.5 py-0.5 bg-slate-100 border border-slate-200 rounded font-mono text-teal-700">{userPassword}</code>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (typeof navigator === 'undefined' || !userPassword) return;
+                      navigator.clipboard.writeText(userPassword).then(() => {
+                        setCopied(true);
+                        window.setTimeout(() => setCopied(false), 2000);
+                      });
+                    }}
+                    className="flex items-center gap-1 py-1 px-2 bg-teal-600 hover:bg-teal-700 text-white font-bold text-[10px] rounded-md transition cursor-pointer"
+                  >
+                    <Copy className="w-3 h-3" /> {copied ? t('fin_copied', 'app') : t('fin_copy', 'app')}
+                  </button>
+                </div>
               )}
               <div className="flex gap-3 pt-2">
                 <button
@@ -483,7 +636,7 @@ export function UsersTab({ addAuditLog }: UsersTabProps) {
                 </button>
                 <button
                   type="button"
-                  onClick={() => { resetForm(); setShowForm(false); }}
+                  onClick={() => { resetForm(); setShowForm(false); onPendingProfessionalConsumed?.(); }}
                   className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs transition"
                 >
                   {t('app_cancel', 'app')}

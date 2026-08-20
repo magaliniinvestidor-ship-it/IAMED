@@ -374,6 +374,12 @@ export default function AdminFinanceModule({
   // ── Admin tab (submodule 14) ────────────────────────────────────────────────────────
   type AdminTab = 'users' | 'security' | 'password-policy' | 'two-factor' | 'sso' | 'sessions' | 'professionals' | 'locations' | 'rooms' | 'roles' | 'snomed';
   const [adminTab, setAdminTab] = useState<AdminTab>('users');
+  const [pendingUserProfessional, setPendingUserProfessional] = useState<Professional | null>(null);
+
+  const handleCreateUserForProfessional = (prof: Professional) => {
+    setPendingUserProfessional(prof);
+    setAdminTab('users');
+  };
 
   // ── Locations & Rooms State ────────────────────────────────────────────────────────
   const [locations, setLocations] = useState<Location[]>(locationsProp || initialLocations);
@@ -1987,7 +1993,13 @@ const resetProfForm = () => {
           </div>
 
           {adminTab === 'users' && (
-            <UsersTab addAuditLog={addAuditLog} />
+            <UsersTab
+              addAuditLog={addAuditLog}
+              pendingProfessional={pendingUserProfessional}
+              onPendingProfessionalConsumed={() => setPendingUserProfessional(null)}
+              professionals={professionals}
+              locations={locations}
+            />
           )}
 
           {adminTab === 'password-policy' && (
@@ -2681,7 +2693,9 @@ const resetProfForm = () => {
               professionals={professionals}
               setProfessionals={setProfessionals ?? (() => {})}
               professionalRoles={professionalRoles.map(r => r.name)}
+              locations={locations}
               addAuditLog={addAuditLog}
+              onCreateUser={handleCreateUserForProfessional}
             />
           )}
 

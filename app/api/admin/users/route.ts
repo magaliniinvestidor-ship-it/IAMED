@@ -29,6 +29,45 @@ function extractError(err: unknown): string {
   return String(err);
 }
 
+export async function GET(req: NextRequest) {
+  try {
+    const professionalId = req.nextUrl.searchParams.get('professional_id');
+
+    if (!supabaseUrl || !supabaseServiceKey) {
+      return NextResponse.json({ error: 'Supabase URL ou Service Role Key não configurados' }, { status: 500 });
+    }
+
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+
+    if (professionalId) {
+      const { data, error } = await supabaseAdmin
+        .from('system_users')
+        .select('id')
+        .eq('professional_id', professionalId);
+      if (error) {
+        console.error('[GET /api/admin/users] professionalId lookup error:', extractError(error));
+        return NextResponse.json({ error: `Erro ao buscar usuários vinculados: ${extractError(error)}` }, { status: 500 });
+      }
+      return NextResponse.json({
+        count: data?.length ?? 0,
+        ids: (data ?? []).map((u) => u.id as string),
+      });
+    }
+
+    const { data, error } = await supabaseAdmin.from('system_users').select('*').order('created_at', { ascending: true });
+    if (error) {
+      console.error('[GET /api/admin/users] list error:', extractError(error));
+      return NextResponse.json({ error: `Erro ao listar usuários: ${extractError(error)}` }, { status: 500 });
+    }
+    return NextResponse.json({ users: data ?? [] });
+  } catch (error: unknown) {
+    console.error('List users error:', error);
+    return NextResponse.json({ error: extractError(error) || 'Erro interno do servidor' }, { status: 500 });
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { email, password, name, role, location, ci, professionalId } = await req.json();
@@ -223,15 +262,76 @@ export async function PUT(req: NextRequest) {
     if (sysUser?.auth_user_id) {
       const updateData: any = { user_metadata: { full_name: name, role, location, ci } };
       if (password) updateData.password = password;
+      if (status === 'inativo' || status === 'bloqueado') {
+        updateData.ban_duration = '876000h';
+      } else if (status === 'ativo') {
+        updateData.ban_duration = 'none';
+      }
       const { error: authUpdateError } = await supabaseAdmin.auth.admin.updateUserById(sysUser.auth_user_id, updateData);
       if (authUpdateError) {
         console.error('[PUT /api/admin/users] authUpdateError:', extractError(authUpdateError));
+        if (status === 'inativo' || status === 'bloqueado') {
+          return NextResponse.json(
+            { error: `Usuário atualizado na tabela, mas falhou ao bloquear acesso no Auth: ${extractError(authUpdateError)}` },
+            { status: 400 }
+          );
+        }
       }
     }
 
     return NextResponse.json({ message: 'Usuário atualizado com sucesso' });
   } catch (error: unknown) {
     console.error('Update user error:', error);
+    return NextResponse.json({ error: extractError(error) || 'Erro interno do servidor' }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const { id } = await req.json();
+
+    if (!id) {
+      return NextResponse.json({ error: 'ID do usuário é obrigatório' }, { status: 400 });
+    }
+
+    if (!supabaseUrl || !supabaseServiceKey) {
+      return NextResponse.json({ error: 'Supabase URL ou Service Role Key não configurados' }, { status: 500 });
+    }
+
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+
+    const { data: sysUser, error: fetchError } = await supabaseAdmin
+      .from('system_users')
+      .select('auth_user_id')
+      .eq('id', id)
+      .single();
+    if (fetchError) {
+      console.error('[DELETE /api/admin/users] fetchError:', extractError(fetchError));
+      return NextResponse.json({ error: `Erro ao buscar usuário: ${extractError(fetchError)}` }, { status: 400 });
+    }
+
+    if (sysUser?.auth_user_id) {
+      const { error: authDeleteError } = await supabaseAdmin.auth.admin.deleteUser(sysUser.auth_user_id);
+      if (authDeleteError) {
+        console.error('[DELETE /api/admin/users] authDeleteError:', extractError(authDeleteError));
+        return NextResponse.json(
+          { error: `Falha ao excluir usuário do Auth: ${extractError(authDeleteError)}` },
+          { status: 400 }
+        );
+      }
+    }
+
+    const { error: deleteError } = await supabaseAdmin.from('system_users').delete().eq('id', id);
+    if (deleteError) {
+      console.error('[DELETE /api/admin/users] deleteError:', extractError(deleteError));
+      return NextResponse.json({ error: `Erro ao excluir usuário do sistema: ${extractError(deleteError)}` }, { status: 400 });
+    }
+
+    return NextResponse.json({ message: 'Usuário excluído com sucesso' });
+  } catch (error: unknown) {
+    console.error('Delete user error:', error);
     return NextResponse.json({ error: extractError(error) || 'Erro interno do servidor' }, { status: 500 });
   }
 }

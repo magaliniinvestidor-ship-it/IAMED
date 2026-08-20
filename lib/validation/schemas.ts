@@ -176,10 +176,11 @@ export const professionalSchema = z.object({
   ]),
   councilNumber: nonEmptyString('Número do Conselho', 30),
   shift: z.enum(['Manhã', 'Tarde', 'Noite', 'Integral', 'Plantão 12h', 'Plantão 24h']),
-  email: emailSchema.optional().or(z.literal('')),
-  phone: phoneSchema.optional().or(z.literal('')),
+  email: emailSchema,
+  phone: phoneSchema,
   admissionDate: dateSchema,
   status: z.enum(['ativo', 'inativo', 'férias']),
+  locationId: nonEmptyString('Sede', 30),
 });
 
 export type ProfessionalFormData = z.infer<typeof professionalSchema>;
@@ -457,36 +458,82 @@ export type LocationFormData = z.infer<typeof locationSchema>;
 export const clinicalRoomSchema = z.object({
   name: nonEmptyString('Nome da Sala', 100),
   location_id: nonEmptyString('Sede', 30),
-  status: z.enum(['ativo', 'inativo']).optional(),
+  type: nonEmptyString('Tipo', 100),
+  capacity: z.number().int().min(1).max(500),
+  equipment: z.array(z.string()).optional(),
+  status: z.enum(['ativo', 'inativo', 'manutenção']).optional(),
 });
 
 export type ClinicalRoomFormData = z.infer<typeof clinicalRoomSchema>;
 
-export const systemUserSchema = z.object({
+export const professionalRoleSchema = z.object({
+  name: nonEmptyString('Nome da Profissão', 200),
+  description: nonEmptyString('Descrição', 500),
+  category: optionalString(100),
+  active: z.boolean().optional(),
+});
+
+export type ProfessionalRoleFormData = z.infer<typeof professionalRoleSchema>;
+
+const systemUserBaseSchema = z.object({
   name: nonEmptyString('Nome', 200),
-  email: emailSchema.optional().or(z.literal('')),
-  ci: optionalString(30),
-  systemRole: z.enum([
-    'SuperAdmin', 'Administrador', 'Gestor', 'Diretor Clínico', 'Médico',
-    'Enfermeiro', 'Recepcionista', 'Financeiro', 'Farmacêutico', 'Visualizador',
-    'Auxiliar de Enfermagem', 'Anestesiologista', 'Cirurgião(ã)', 'Terapeuta Ocupacional',
-    'Educador Físico', 'Assistente Social', 'Fonoaudiólogo(a)', 'Dentista',
-    'Biomédico(a)', 'Técnico(a) em Radiologia', 'Técnico(a) em Farmácia',
-    'Técnico(a) de Laboratório', 'Nutricionista', 'Psicólogo(a)', 'Técnico(a) de Enfermagem',
-  ]),
-  location: optionalString(100),
-  status: z.enum(['ativo', 'inativo', 'bloqueado']),
+  email: emailSchema,
+  ci: nonEmptyString('Documento', 30),
+  systemRole: nonEmptyString('Função', 60),
+  location: nonEmptyString('Sede', 100),
+  status: nonEmptyString('Status', 20),
   twoFactorEnabled: z.boolean().optional(),
-  twoFactorMethod: z.enum(['totp', 'sms', 'email', 'none']).optional(),
-}).refine(
-  (data) => {
-    if (data.twoFactorEnabled && (data.twoFactorMethod === 'none' || !data.twoFactorMethod)) {
-      return false;
+  twoFactorMethod: nonEmptyString('2FA', 10),
+});
+
+const twoFaRefine = (data: { twoFactorEnabled?: boolean; twoFactorMethod?: string }): boolean =>
+  !(data.twoFactorEnabled && data.twoFactorMethod === 'none');
+
+export const systemUserSchema = systemUserBaseSchema.refine(twoFaRefine, {
+  message: 'Selecione um método de 2FA quando ativado',
+  path: ['twoFactorMethod'],
+});
+
+export const systemUserCreateSchema = systemUserBaseSchema
+  .extend({
+    password: nonEmptyString('Senha', 100).min(6, 'Mínimo 6 caracteres'),
+    confirmPassword: nonEmptyString('Confirmação', 100),
+  })
+  .refine(twoFaRefine, {
+    message: 'Selecione um método de 2FA quando ativado',
+    path: ['twoFactorMethod'],
+  })
+  .refine(
+    (data) => data.password === data.confirmPassword,
+    { message: 'Senhas não coincidem', path: ['confirmPassword'] }
+  );
+
+export const systemUserEditSchema = systemUserBaseSchema
+  .extend({
+    password: z.string().optional(),
+    confirmPassword: z.string().optional(),
+  })
+  .refine(twoFaRefine, {
+    message: 'Selecione um método de 2FA quando ativado',
+    path: ['twoFactorMethod'],
+  })
+  .superRefine((data, ctx) => {
+    const pw = data.password ?? '';
+    const confirm = data.confirmPassword ?? '';
+    if (pw === '' && confirm === '') return;
+    if (pw === '') {
+      ctx.addIssue({ code: 'custom', message: 'Senha é obrigatória', path: ['password'] });
+      return;
     }
-    return true;
-  },
-  { message: 'Selecione um método de 2FA quando ativado', path: ['twoFactorMethod'] }
-);
+    if (pw.length < 6) {
+      ctx.addIssue({ code: 'custom', message: 'Mínimo 6 caracteres', path: ['password'] });
+    }
+    if (confirm === '') {
+      ctx.addIssue({ code: 'custom', message: 'Confirmação é obrigatória', path: ['confirmPassword'] });
+    } else if (pw !== confirm) {
+      ctx.addIssue({ code: 'custom', message: 'Senhas não coincidem', path: ['confirmPassword'] });
+    }
+  });
 
 export type SystemUserFormData = z.infer<typeof systemUserSchema>;
 

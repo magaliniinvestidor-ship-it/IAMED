@@ -1,15 +1,15 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Stethoscope, Edit2, Trash2, Plus, X } from 'lucide-react';
+import { Stethoscope, Edit2, Trash2, Plus, UserPlus } from 'lucide-react';
 import { useI18n } from '@/lib/i18n/I18nContext';
-import { useModuleId } from '@/hooks/useModuleId';
 import { supabase } from '@/lib/supabaseClient';
-import { Professional, AdminFinanceModuleProps } from './AdminContext';
+import { Professional } from './AdminContext';
 import type { ProfessionalCouncil, ProfessionalShift } from '@/lib/mockData';
 import { useFormValidation, groupErrorsByPath } from '@/lib/validation';
 import { professionalSchema } from '@/lib/validation/schemas';
 import { FormErrorSummary } from '@/components/forms';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import I18nDatePicker from '@/components/I18nDatePicker';
 
 const ROLE_TO_COUNCIL: Record<string, ProfessionalCouncil> = {
@@ -72,17 +72,20 @@ interface ProfessionalsTabProps {
   professionals: Professional[];
   setProfessionals: React.Dispatch<React.SetStateAction<Professional[]>>;
   professionalRoles: string[];
+  locations?: Array<{ id: string; name: string; status?: string }>;
   addAuditLog: (action: string, target: string) => void;
+  onCreateUser?: (prof: Professional) => void;
 }
 
 export function ProfessionalsTab({
   professionals,
   setProfessionals,
   professionalRoles,
+  locations = [],
   addAuditLog,
+  onCreateUser,
 }: ProfessionalsTabProps) {
   const { t } = useI18n();
-  const genModuleId = useModuleId();
   const { errors, validate } = useFormValidation(professionalSchema);
 
   const [showForm, setShowForm] = useState(false);
@@ -96,6 +99,25 @@ export function ProfessionalsTab({
   const [profEmail, setProfEmail] = useState('');
   const [profPhone, setProfPhone] = useState('');
   const [profAdmission, setProfAdmission] = useState(new Date().toISOString().split('T')[0]);
+  const [profLocationId, setProfLocationId] = useState('');
+  const [linkedUserProfs, setLinkedUserProfs] = useState<Set<string>>(new Set());
+
+  const loadLinkedUserProfs = async () => {
+    try {
+      const res = await fetch('/api/admin/users');
+      if (!res.ok) return;
+      const data = await res.json();
+      const users = Array.isArray(data?.users) ? data.users : [];
+      const ids = users
+        .filter((u: Record<string, unknown>) => u.professional_id)
+        .map((u: Record<string, unknown>) => u.professional_id as string);
+      setLinkedUserProfs(new Set(ids));
+    } catch {}
+  };
+
+  useEffect(() => {
+    void loadLinkedUserProfs();
+  }, []);
 
   const resetForm = () => {
     setEditingId(null);
@@ -108,6 +130,7 @@ export function ProfessionalsTab({
     setProfEmail('');
     setProfPhone('');
     setProfAdmission(new Date().toISOString().split('T')[0]);
+    setProfLocationId('');
   };
 
   const openNew = () => {
@@ -126,7 +149,17 @@ export function ProfessionalsTab({
     setProfEmail(prof.email);
     setProfPhone(prof.phone);
     setProfAdmission(prof.admissionDate);
+    setProfLocationId(prof.locationId || '');
     setShowForm(true);
+  };
+
+  const generateProfessionalId = async (): Promise<string> => {
+    if (supabase) {
+      const { data, error } = await supabase.rpc('next_professional_id');
+      if (!error && data) return data as string;
+      console.error('Erro ao gerar ID de profissional via RPC:', error?.message);
+    }
+    return `PRF${String(professionals.length + 1).padStart(3, '0')}`;
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -143,6 +176,7 @@ export function ProfessionalsTab({
       phone: profPhone,
       admissionDate: profAdmission,
       status: 'ativo' as const,
+      locationId: profLocationId,
     });
 
     if (!result.success) {
@@ -150,7 +184,7 @@ export function ProfessionalsTab({
     }
 
     const profData: Professional = {
-      id: editingId || (await genModuleId('prof')),
+      id: editingId || (await generateProfessionalId()),
       name: profName,
       role: profRole,
       specialty: profSpecialty,
@@ -161,18 +195,34 @@ export function ProfessionalsTab({
       phone: profPhone,
       status: 'ativo',
       admissionDate: profAdmission,
+      locationId: profLocationId,
+    };
+
+    const profDbRow = {
+      id: profData.id,
+      name: profData.name,
+      role: profData.role,
+      specialty: profData.specialty,
+      council: profData.council,
+      council_number: profData.councilNumber,
+      shift: profData.shift,
+      email: profData.email,
+      phone: profData.phone,
+      status: profData.status,
+      admission_date: profData.admissionDate,
+      location_id: profData.locationId || null,
     };
 
     if (editingId) {
       setProfessionals((prev) => prev.map((p) => (p.id === editingId ? profData : p)));
       if (supabase) {
-        await supabase.from('professionals').update(profData as unknown as Record<string, unknown>).eq('id', editingId);
+        await supabase.from('professionals').update(profDbRow).eq('id', editingId);
       }
       addAuditLog('Atualizou Profissional', profName);
     } else {
       setProfessionals((prev) => [...prev, profData]);
       if (supabase) {
-        await supabase.from('professionals').insert({ ...profData, created_at: new Date().toISOString() });
+        await supabase.from('professionals').insert({ ...profDbRow, created_at: new Date().toISOString() });
       }
       addAuditLog('Cadastrou Profissional', profName);
     }
@@ -191,12 +241,50 @@ export function ProfessionalsTab({
     addAuditLog(newStatus === 'ativo' ? 'Ativou Profissional' : 'Desativou Profissional', prof.name);
   };
 
-  const handleDelete = (prof: Professional) => {
+  const handleCreateUserClick = (prof: Professional) => {
+    setLinkedUserProfs((prev) => new Set(prev).add(prof.id));
+    onCreateUser?.(prof);
+  };
+
+  const handleDelete = async (prof: Professional) => {
     if (typeof window === 'undefined') return;
-    if (!confirm(t('fin_confirm_delete_professional', 'app').replace('{name}', prof.name))) return;
+
+    let linkedUserIds: string[] = [];
+    try {
+      const res = await fetch(`/api/admin/users?professional_id=${encodeURIComponent(prof.id)}`);
+      if (res.ok) {
+        const data = await res.json();
+        linkedUserIds = Array.isArray(data?.ids) ? data.ids : [];
+      }
+    } catch {}
+
+    const baseMsg = t('fin_confirm_delete_professional', 'app').replace('{name}', prof.name);
+    const msg = linkedUserIds.length > 0
+      ? t('fin_confirm_delete_professional_with_user', 'app').replace('{name}', prof.name)
+      : baseMsg;
+    if (!confirm(msg)) return;
+
+    for (const uid of linkedUserIds) {
+      const response = await fetch('/api/admin/users', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: uid }),
+      });
+      if (!response.ok) {
+        let errMsg = t('fin_alert_error_delete_user', 'app');
+        try {
+          const errData = await response.json();
+          if (errData?.error) errMsg += errData.error;
+        } catch {}
+        if (typeof window !== 'undefined') alert(errMsg);
+        return;
+      }
+      addAuditLog('Excluiu Usuário Vinculado', prof.name);
+    }
+
     setProfessionals((prev) => prev.filter((p) => p.id !== prof.id));
     if (supabase) {
-      supabase.from('professionals').delete().eq('id', prof.id);
+      await supabase.from('professionals').delete().eq('id', prof.id);
     }
     addAuditLog('Removeu Profissional', prof.name);
   };
@@ -209,27 +297,26 @@ export function ProfessionalsTab({
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
-          <Stethoscope className="w-4 h-4 text-teal-600" /> Profissionais ({professionals.length})
+          <Stethoscope className="w-4 h-4 text-teal-600" /> {t('fin_registered_professionals', 'app')} ({professionals.length})
         </h3>
         <button
           onClick={openNew}
           className="flex items-center gap-2 py-2 px-4 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-lg transition"
         >
-          <Plus className="w-3.5 h-3.5" /> Novo Profissional
+          <Plus className="w-3.5 h-3.5" /> {t('fin_new_professional', 'app')}
         </button>
       </div>
 
       {showForm && (
-        <div className="bg-white rounded-xl border border-teal-200 shadow-sm p-5 space-y-4">
-          <div className="flex items-center justify-between">
-            <h4 className="font-black text-slate-800 text-sm">
-              {editingId ? t('fin_edit_professional', 'app') : t('fin_new_professional', 'app')}
-            </h4>
-            <button onClick={() => { resetForm(); setShowForm(false); }}>
-              <X className="w-4 h-4 text-slate-400" />
-            </button>
-          </div>
-          <form onSubmit={handleSave} className="space-y-4 text-xs">
+        <Dialog open={showForm} onOpenChange={(open) => { if (!open) { resetForm(); setShowForm(false); } }}>
+          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto bg-white rounded-2xl shadow-xl border-0">
+            <DialogHeader>
+              <DialogTitle className="text-sm font-extrabold text-slate-800 flex items-center gap-2">
+                <Stethoscope className="w-5 h-5 text-teal-600" />
+                {editingId ? t('fin_edit_professional', 'app') : t('fin_new_professional', 'app')}
+              </DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleSave} noValidate className="space-y-4 text-xs">
             {errors.length > 0 && <FormErrorSummary errors={errors} />}
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1">{t('professional_name', 'app')} *</label>
@@ -237,7 +324,7 @@ export function ProfessionalsTab({
                 type="text"
                 value={profName}
                 onChange={(e) => setProfName(e.target.value)}
-                placeholder="Ex: Dra. Amanda Silva"
+                placeholder={t('fin_professional_name_placeholder', 'app')}
                 className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
               />
             </div>
@@ -266,7 +353,7 @@ export function ProfessionalsTab({
                   type="text"
                   value={profSpecialty}
                   onChange={(e) => setProfSpecialty(e.target.value)}
-                  placeholder="Ex: Cardiologia"
+                  placeholder={t('fin_professional_specialty_placeholder', 'app')}
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
                 />
               </div>
@@ -292,7 +379,7 @@ export function ProfessionalsTab({
                   type="text"
                   value={profCouncilNumber}
                   onChange={(e) => setProfCouncilNumber(e.target.value)}
-                  placeholder="Ex: CRM-SP 12345"
+                  placeholder={t('fin_professional_council_number_placeholder', 'app')}
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
                 />
               </div>
@@ -322,24 +409,38 @@ export function ProfessionalsTab({
               </div>
             </div>
 
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1">{t('fin_professional_location_label', 'app')} *</label>
+              <select
+                value={profLocationId}
+                onChange={(e) => setProfLocationId(e.target.value)}
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg font-medium"
+              >
+                <option value="">{t('fin_select_location', 'app')}</option>
+                {locations.map((loc) => (
+                  <option key={loc.id} value={loc.id}>{loc.name}</option>
+                ))}
+              </select>
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">E-mail</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">{t('fin_email_label', 'app')} *</label>
                 <input
                   type="text"
                   value={profEmail}
                   onChange={(e) => setProfEmail(e.target.value)}
-                  placeholder="email@hospital.com"
+                  placeholder={t('fin_email_placeholder', 'app')}
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">{t('rcpt_label_phone', 'app')}</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">{t('rcpt_label_phone', 'app')} *</label>
                 <input
                   type="text"
                   value={profPhone}
                   onChange={(e) => setProfPhone(e.target.value)}
-                  placeholder="+595..."
+                  placeholder={t('fin_phone_placeholder', 'app')}
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
                 />
               </div>
@@ -354,7 +455,8 @@ export function ProfessionalsTab({
               </button>
             </div>
           </form>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -384,19 +486,31 @@ export function ProfessionalsTab({
                     : 'bg-slate-100 text-slate-500 border-slate-200'
                 }`}
               >
-                {prof.status === 'ativo' ? 'Ativo' : 'Inativo'}
+                {prof.status === 'ativo' ? t('fin_active', 'app') : t('fin_inactive', 'app')}
               </button>
             </div>
             <div className="space-y-1 text-[11px] text-slate-600">
               <p>🏥 <span className="font-semibold">{prof.specialty}</span></p>
               <p>📜 {prof.council} {prof.councilNumber}</p>
               <p>🕐 {prof.shift}</p>
+              {locations.find((loc) => loc.id === prof.locationId)?.name && (
+                <p>📍 {locations.find((loc) => loc.id === prof.locationId)?.name}</p>
+              )}
               {prof.email && <p>✉️ {prof.email}</p>}
               {prof.phone && <p>📞 {prof.phone}</p>}
-              <p className="text-slate-400">Admissão: {prof.admissionDate}</p>
+              <p className="text-slate-400">{t('fin_admission_label', 'app')}: {prof.admissionDate}</p>
             </div>
             <div className="flex items-center gap-1 pt-1 border-t border-slate-100">
               <div className="flex-1" />
+              {onCreateUser && !linkedUserProfs.has(prof.id) && (
+                <button
+                  onClick={() => handleCreateUserClick(prof)}
+                  className="p-1.5 rounded hover:bg-teal-50 text-teal-600 hover:text-teal-800"
+                  title={t('fin_create_user_for_professional', 'app')}
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                </button>
+              )}
               <button
                 onClick={() => openEdit(prof)}
                 className="p-1.5 rounded hover:bg-slate-100 text-slate-500"
