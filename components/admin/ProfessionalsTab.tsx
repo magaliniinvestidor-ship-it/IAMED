@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Stethoscope, Edit2, Trash2, Plus, UserPlus } from 'lucide-react';
 import { useI18n } from '@/lib/i18n/I18nContext';
 import { supabase } from '@/lib/supabaseClient';
+import { authFetch } from '@/lib/auth/authFetch';
 import { Professional } from './AdminContext';
 import type { ProfessionalCouncil, ProfessionalShift } from '@/lib/mockData';
 import { useFormValidation, groupErrorsByPath } from '@/lib/validation';
@@ -33,6 +34,34 @@ const ROLE_TO_COUNCIL: Record<string, ProfessionalCouncil> = {
   'Administrador(a)': 'CRA',
   'Fonoaudiólogo(a)': 'CREFONO',
   'Técnico(a) em Radiologia': 'CRTR',
+};
+
+const TAILWIND_TO_HEX: Record<string, string> = {
+  'bg-teal-500': '#14b8a6', 'bg-teal-600': '#0d9488', 'bg-teal-700': '#0f766e',
+  'bg-indigo-500': '#6366f1', 'bg-indigo-600': '#4f46e5',
+  'bg-rose-500': '#f43f5e', 'bg-rose-600': '#e11d48',
+  'bg-sky-500': '#0ea5e9', 'bg-sky-600': '#0284c7',
+  'bg-violet-500': '#8b5cf6', 'bg-violet-600': '#7c3aed',
+  'bg-amber-500': '#f59e0b', 'bg-amber-600': '#d97706',
+  'bg-emerald-500': '#10b981', 'bg-emerald-600': '#059669',
+  'bg-red-500': '#ef4444', 'bg-red-600': '#dc2626',
+  'bg-blue-500': '#3b82f6', 'bg-blue-600': '#2563eb',
+  'bg-purple-500': '#a855f7', 'bg-purple-600': '#9333ea',
+  'bg-pink-500': '#ec4899', 'bg-pink-600': '#db2777',
+  'bg-orange-500': '#f97316', 'bg-orange-600': '#ea580c',
+  'bg-yellow-500': '#eab308', 'bg-yellow-600': '#ca8a04',
+  'bg-green-500': '#22c55e', 'bg-green-600': '#16a34a',
+  'bg-cyan-500': '#06b6d4', 'bg-cyan-600': '#0891b2',
+  'bg-slate-500': '#64748b', 'bg-slate-600': '#475569',
+  'bg-gray-500': '#6b7280', 'bg-gray-600': '#4b5563',
+  'bg-fuchsia-500': '#d946ef', 'bg-fuchsia-600': '#c026d3',
+  'bg-lime-500': '#84cc16', 'bg-lime-600': '#65a30d',
+};
+
+const resolveColor = (color?: string): string => {
+  if (!color) return '#0d9488';
+  if (color.startsWith('#') || color.startsWith('rgb')) return color;
+  return TAILWIND_TO_HEX[color] || '#0d9488';
 };
 
 const DEFAULT_ROLES: string[] = [
@@ -75,6 +104,7 @@ interface ProfessionalsTabProps {
   locations?: Array<{ id: string; name: string; status?: string }>;
   addAuditLog: (action: string, target: string) => void;
   onCreateUser?: (prof: Professional) => void;
+  onUsersChanged?: () => void;
 }
 
 export function ProfessionalsTab({
@@ -84,8 +114,15 @@ export function ProfessionalsTab({
   locations = [],
   addAuditLog,
   onCreateUser,
+  onUsersChanged,
 }: ProfessionalsTabProps) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+
+  const formatDate = (iso?: string) => {
+    if (!iso) return '';
+    const d = new Date(`${iso}T00:00:00`);
+    return isNaN(d.getTime()) ? iso : d.toLocaleDateString(locale);
+  };
   const { errors, validate } = useFormValidation(professionalSchema);
 
   const [showForm, setShowForm] = useState(false);
@@ -100,11 +137,12 @@ export function ProfessionalsTab({
   const [profPhone, setProfPhone] = useState('');
   const [profAdmission, setProfAdmission] = useState(new Date().toISOString().split('T')[0]);
   const [profLocationId, setProfLocationId] = useState('');
+  const [profColor, setProfColor] = useState('#0d9488');
   const [linkedUserProfs, setLinkedUserProfs] = useState<Set<string>>(new Set());
 
   const loadLinkedUserProfs = async () => {
     try {
-      const res = await fetch('/api/admin/users');
+      const res = await authFetch('/api/admin/users');
       if (!res.ok) return;
       const data = await res.json();
       const users = Array.isArray(data?.users) ? data.users : [];
@@ -131,6 +169,7 @@ export function ProfessionalsTab({
     setProfPhone('');
     setProfAdmission(new Date().toISOString().split('T')[0]);
     setProfLocationId('');
+    setProfColor('#0d9488');
   };
 
   const openNew = () => {
@@ -150,6 +189,7 @@ export function ProfessionalsTab({
     setProfPhone(prof.phone);
     setProfAdmission(prof.admissionDate);
     setProfLocationId(prof.locationId || '');
+    setProfColor(resolveColor(prof.color));
     setShowForm(true);
   };
 
@@ -196,6 +236,7 @@ export function ProfessionalsTab({
       status: 'ativo',
       admissionDate: profAdmission,
       locationId: profLocationId,
+      color: profColor,
     };
 
     const profDbRow = {
@@ -211,6 +252,7 @@ export function ProfessionalsTab({
       status: profData.status,
       admission_date: profData.admissionDate,
       location_id: profData.locationId || null,
+      color: profData.color,
     };
 
     if (editingId) {
@@ -251,7 +293,7 @@ export function ProfessionalsTab({
 
     let linkedUserIds: string[] = [];
     try {
-      const res = await fetch(`/api/admin/users?professional_id=${encodeURIComponent(prof.id)}`);
+      const res = await authFetch(`/api/admin/users?professional_id=${encodeURIComponent(prof.id)}`);
       if (res.ok) {
         const data = await res.json();
         linkedUserIds = Array.isArray(data?.ids) ? data.ids : [];
@@ -265,7 +307,7 @@ export function ProfessionalsTab({
     if (!confirm(msg)) return;
 
     for (const uid of linkedUserIds) {
-      const response = await fetch('/api/admin/users', {
+      const response = await authFetch('/api/admin/users', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: uid }),
@@ -287,6 +329,7 @@ export function ProfessionalsTab({
       await supabase.from('professionals').delete().eq('id', prof.id);
     }
     addAuditLog('Removeu Profissional', prof.name);
+    onUsersChanged?.();
   };
 
   const roleOptions = professionalRoles.length > 0
@@ -423,6 +466,26 @@ export function ProfessionalsTab({
               </select>
             </div>
 
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1">{t('professional_color', 'app')}</label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="color"
+                  value={profColor}
+                  onChange={(e) => setProfColor(e.target.value)}
+                  className="w-8 h-8 rounded border border-slate-200 cursor-pointer"
+                  title={t('professional_color', 'app')}
+                />
+                <input
+                  type="text"
+                  value={profColor}
+                  onChange={(e) => setProfColor(e.target.value)}
+                  className="flex-1 p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono uppercase"
+                  placeholder="#0d9488"
+                />
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1">{t('fin_email_label', 'app')} *</label>
@@ -469,7 +532,7 @@ export function ProfessionalsTab({
               <div className="flex items-center gap-3">
                 <div
                   className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold"
-                  style={{ backgroundColor: prof.color || '#0d9488' }}
+                  style={{ backgroundColor: resolveColor(prof.color) }}
                 >
                   {prof.name.split(' ').map((n) => n[0]).slice(0, 2).join('')}
                 </div>
@@ -498,7 +561,7 @@ export function ProfessionalsTab({
               )}
               {prof.email && <p>✉️ {prof.email}</p>}
               {prof.phone && <p>📞 {prof.phone}</p>}
-              <p className="text-slate-400">{t('fin_admission_label', 'app')}: {prof.admissionDate}</p>
+              <p className="text-slate-400">{t('fin_admission_label', 'app')}: {formatDate(prof.admissionDate)}</p>
             </div>
             <div className="flex items-center gap-1 pt-1 border-t border-slate-100">
               <div className="flex-1" />

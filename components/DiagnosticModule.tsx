@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import { canAccessTab } from '@/lib/rbac/catalog';
 import {
   Patient, DicomStudy, DicomModality, ImagingReport, WorklistEntry, Hl7Message,
   LabOrder, LabResult, LabAlert, LabTest, ReportTemplate, modalityList,
@@ -11,6 +12,7 @@ import {
 import { useI18n } from '@/lib/i18n/I18nContext';
 import { supabase } from '@/lib/supabaseClient';
 import { useModuleId } from '@/hooks/useModuleId';
+import { hasPermission } from '@/lib/usePermissions';
 import {
   Microscope, Eye, FileText, Layers, Settings2, Search, Filter, Sliders,
   Plus, Trash2, Check, AlertTriangle, AlertCircle, Send, Clock, User,
@@ -21,6 +23,7 @@ import {
   RefreshCw, ClipboardCheck, Package, CheckCircle, XCircle, AlertOctagon,
   Lock as LockIcon
 } from 'lucide-react';
+import Image from 'next/image';
 import { motion, AnimatePresence } from 'motion/react';
 import { PermissionGate, WithPermissions } from '@/components/ui/PermissionGate';
 
@@ -86,12 +89,22 @@ const DiagnosticModuleContent = ({
   patients,
   activeSubmodule,
   addAuditLog,
+  userPermissions,
 }: DiagnosticModuleProps) => {
   const { t } = useI18n();
 
   // ─── SEQUENTIAL ID GENERATION (Postgres RPC) ───
   const genModuleId = useModuleId();
   const [diagTab, setDiagTab] = useState<DiagnosticTab>('pacs');
+
+  // Guarda RBAC: aba ativa não pode ficar órfã quando permissões mudam
+  useEffect(() => {
+    if (canAccessTab(userPermissions, 'diagnostic', diagTab)) return;
+    const order: DiagnosticTab[] = ['pacs', 'laudos', 'worklist', 'laboratorio'];
+    const next = order.find(id => canAccessTab(userPermissions, 'diagnostic', id));
+    if (next) setDiagTab(next);
+  }, [userPermissions, diagTab]);
+
   const [selectedPatId, setSelectedPatId] = useState(patients[0]?.id || '');
 
   // ── PACS STATE ──
@@ -106,6 +119,8 @@ const DiagnosticModuleContent = ({
   const [windowLevel, setWindowLevel] = useState({ center: 40, width: 400 });
   const [pacsAnnotation, setPacsAnnotation] = useState('');
   const [pacsMeasurements, setPacsMeasurements] = useState<{ id: string; label: string; value: string; unit: string }[]>([]);
+  const [mprActive, setMprActive] = useState(false);
+  const [selectedKeyImages, setSelectedKeyImages] = useState<string[]>([]);
 
   // ── LAUDOS STATE ──
   const [reports, setReports] = useState<ImagingReport[]>(initialImagingReports);
@@ -141,9 +156,25 @@ const DiagnosticModuleContent = ({
   const [labResultDetailOpen, setLabResultDetailOpen] = useState(false);
   const [alertFilter, setAlertFilter] = useState<string>('all');
   const [showCriticalAlert, setShowCriticalAlert] = useState(true);
+  const [patientSearch, setPatientSearch] = useState('');
+  const [patientDropdownOpen, setPatientDropdownOpen] = useState(false);
 
   // ── Derived lists ──
-  const selectedPatient = patients.find(p => p.id === selectedPatId) || patients[0];
+  const filteredPatients = useMemo(() => {
+    if (!patientSearch.trim()) return patients;
+    const q = patientSearch.toLowerCase();
+    return patients.filter(p =>
+      p.name.toLowerCase().includes(q) ||
+      (p.document_number && p.document_number.toLowerCase().includes(q)) ||
+      (p.email && p.email.toLowerCase().includes(q)) ||
+      (p.phone && p.phone.includes(q))
+    );
+  }, [patients, patientSearch]);
+
+  const selectedPatient = useMemo(() => {
+    if (!selectedPatId) return null;
+    return patients.find(p => p.id === selectedPatId) || null;
+  }, [patients, selectedPatId]);
 
   const filteredStudies = useMemo(() => {
     return dicomStudies.filter(s => {
@@ -213,7 +244,7 @@ const DiagnosticModuleContent = ({
     setPacsMeasurements(prev => [...prev, m]);
     setPacsAnnotation('');
     addAuditLog('Medición DICOM', `${m.label}: ${m.value}${m.unit} en ${selectedStudy.accessionNumber}`);
-  }, [selectedStudy, pacsAnnotation, addAuditLog]);
+  }, [selectedStudy, pacsAnnotation, addAuditLog, genModuleId]);
 
   const handleZoomIn = useCallback(() => setImageZoom(prev => Math.min(prev + 25, 400)), []);
   const handleZoomOut = useCallback(() => setImageZoom(prev => Math.max(prev - 25, 25)), []);
@@ -278,7 +309,7 @@ const DiagnosticModuleContent = ({
       modality: selectedStudy?.modality || 'RX', templateId: selectedTemplate?.id,
       technique: reportEditor.technique, findings: reportEditor.findings,
       impression: reportEditor.impression, recommendations: reportEditor.recommendations,
-      keyImages: [], bodyPart: reportEditor.bodyPart || selectedStudy?.bodyPart || '',
+      keyImages: selectedKeyImages, bodyPart: reportEditor.bodyPart || selectedStudy?.bodyPart || '',
       status: 'pre_laudo', reportedBy: 'Dra. Amanda Silva', createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(), reportedAt: new Date().toISOString(),
       distributionChannels: [], voiceTranscriptionUsed: voiceLog.length > 0,
@@ -286,13 +317,13 @@ const DiagnosticModuleContent = ({
     setReports(prev => [report, ...prev]);
     setSelectedReport(report);
     addAuditLog('Laudo Guardado', `${report.modality} — ${selectedPatient?.name}`);
-  }, [reportEditor, selectedStudy, selectedPatient, selectedTemplate, voiceLog, addAuditLog, dicomStudies]);
+  }, [reportEditor, selectedStudy, selectedPatient, selectedTemplate, voiceLog, addAuditLog, dicomStudies, genModuleId, selectedKeyImages]);
 
   const handleSignReport = useCallback(async (reportId: string) => {
     const sigId = await genModuleId('sig');
     setReports(prev => prev.map(r => r.id === reportId ? { ...r, status: 'laudado', signedBy: 'Dra. Amanda Silva', signedAt: new Date().toISOString(), signatureId: sigId } : r));
     addAuditLog('Laudo Firmado', reportId);
-  }, [addAuditLog]);
+  }, [addAuditLog, genModuleId]);
 
   const handleDistributeReport = useCallback(() => {
     if (!selectedReport) return;
@@ -327,7 +358,7 @@ const DiagnosticModuleContent = ({
     };
     setHl7Messages(prev => [msg, ...prev]);
     addAuditLog('HL7 ACK Enviado', msg.controlId);
-  }, [selectedPatient, addAuditLog]);
+  }, [selectedPatient, addAuditLog, genModuleId]);
 
   // ── LAB HANDLERS ──
   const handleAckAlert = useCallback((alertId: string) => {
@@ -347,12 +378,14 @@ const DiagnosticModuleContent = ({
     { key: 'laboratorio', label: t('diag_tab_lab', 'app'), icon: Microscope },
   ];
 
+  const visibleDiagTabs = diagTabs.filter(tb => canAccessTab(userPermissions, 'diagnostic', tb.key));
+
   return (
     <div className="space-y-5">
       {/* Tab Navigation */}
       <div className={sectionCls + ' pb-1'}>
         <div className="flex gap-1 overflow-x-auto border-b border-slate-100">
-          {diagTabs.map(tab => {
+          {visibleDiagTabs.map(tab => {
             const Icon = tab.icon;
             return (
               <button key={tab.key} onClick={() => setDiagTab(tab.key)}
@@ -362,6 +395,53 @@ const DiagnosticModuleContent = ({
               </button>
             );
           })}
+        </div>
+      </div>
+
+      {/* Patient Selector */}
+      <div className={sectionCls}>
+        <div className="flex items-center gap-3">
+          <User className="w-4 h-4 text-teal-600 shrink-0" />
+          <label className="text-xs font-bold text-slate-600 shrink-0">{t('diag_patient', 'app')}:</label>
+          <div className="relative flex-1">
+            <input
+              type="text"
+              value={patientDropdownOpen ? patientSearch : (selectedPatient ? `${selectedPatient.name}${selectedPatient.document_number ? ' — ' + selectedPatient.document_number : ''}` : '')}
+              onChange={e => { setPatientSearch(e.target.value); setPatientDropdownOpen(true); }}
+              onFocus={() => { setPatientSearch(''); setPatientDropdownOpen(true); }}
+              onBlur={() => setTimeout(() => setPatientDropdownOpen(false), 200)}
+              placeholder={t('diag_patient_search', 'app')}
+              className={inputCls}
+            />
+            {patientDropdownOpen && (
+              <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                <div
+                  onClick={() => { setSelectedPatId(''); setPatientSearch(''); setPatientDropdownOpen(false); }}
+                  className="px-3 py-2 text-xs text-slate-500 hover:bg-slate-50 cursor-pointer font-semibold border-b border-slate-100"
+                >
+                  {t('diag_patient_all', 'app')} ({patients.length})
+                </div>
+                {filteredPatients.map(p => (
+                  <div
+                    key={p.id}
+                    onClick={() => { setSelectedPatId(p.id); setPatientSearch(''); setPatientDropdownOpen(false); }}
+                    className={`px-3 py-2 text-xs cursor-pointer hover:bg-teal-50 flex justify-between items-center ${selectedPatId === p.id ? 'bg-teal-50 text-teal-700 font-bold' : 'text-slate-700'}`}
+                  >
+                    <span className="truncate">{p.name}</span>
+                    <span className="text-[9px] text-slate-400 shrink-0 ml-2">{p.document_number || p.phone || ''}</span>
+                  </div>
+                ))}
+                {filteredPatients.length === 0 && (
+                  <div className="px-3 py-2 text-xs text-slate-400">{t('diag_patient_none', 'app')}</div>
+                )}
+              </div>
+            )}
+          </div>
+          {selectedPatient && (
+            <button onClick={() => { setSelectedPatId(''); }} className="text-[10px] text-slate-400 hover:text-rose-500 transition" title={t('diag_patient_clear', 'app')}>
+              <XCircle className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -375,16 +455,16 @@ const DiagnosticModuleContent = ({
             <div className={sectionCls}>
               <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
                 <MonitorPlay className="w-5 h-5 text-teal-600" />
-                <h3 className="font-bold text-slate-800 text-sm">Estudios DICOM</h3>
+                <h3 className="font-bold text-slate-800 text-sm">{t('diag_pacs_title', 'app')}</h3>
               </div>
               {/* Filters */}
               <div className="space-y-2">
                 <div className="relative">
                   <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
-                  <input type="text" value={pacsSearchQuery} onChange={e => setPacsSearchQuery(e.target.value)} placeholder="Buscar por paciente, ACC..." className={`${inputCls} pl-9`} />
+                  <input type="text" value={pacsSearchQuery} onChange={e => setPacsSearchQuery(e.target.value)} placeholder={t('diag_pacs_search', 'app')} className={`${inputCls} pl-9`} />
                 </div>
                 <div className="flex flex-wrap gap-1">
-                  <button onClick={() => setPacsModalityFilter('all')} className={`text-[10px] font-bold px-2 py-1 rounded-lg border transition ${pacsModalityFilter === 'all' ? 'bg-teal-600 text-white border-teal-700' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'}`}>Todos</button>
+                  <button onClick={() => setPacsModalityFilter('all')} className={`text-[10px] font-bold px-2 py-1 rounded-lg border transition ${pacsModalityFilter === 'all' ? 'bg-teal-600 text-white border-teal-700' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'}`}>{t('diag_pacs_all', 'app')}</button>
                   {modalityList.map(m => (
                     <button key={m.code} onClick={() => setPacsModalityFilter(m.code)} className={`text-[10px] font-bold px-2 py-1 rounded-lg border transition ${pacsModalityFilter === m.code ? modalityColors[m.code] + ' border-current font-black' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'}`}>{m.code}</button>
                   ))}
@@ -393,7 +473,7 @@ const DiagnosticModuleContent = ({
               {/* Study list */}
               <div className="space-y-2 max-h-[400px] overflow-y-auto">
                 {filteredStudies.length === 0 ? (
-                  <p className="text-xs text-slate-400 text-center py-4">Sin estudios disponibles</p>
+                  <p className="text-xs text-slate-400 text-center py-4">{t('diag_pacs_empty', 'app')}</p>
                 ) : filteredStudies.map(s => (
                   <div key={s.id} onClick={() => { setSelectedStudy(s); setImageContrast(100); setImageBrightness(100); setImageZoom(100); setImageRotation(0); setPacsMeasurements([]); }}
                     className={`p-3 rounded-xl border text-xs cursor-pointer transition ${selectedStudy?.id === s.id ? 'bg-teal-50 border-teal-300 shadow-sm' : 'bg-slate-50 border-slate-200 hover:bg-slate-100'}`}>
@@ -434,15 +514,19 @@ const DiagnosticModuleContent = ({
                   </div>
 
                   {/* DICOM Viewer */}
-                  <div className="relative bg-black rounded-lg flex items-center justify-center overflow-hidden border border-slate-800 h-[380px] select-none">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={selectedStudy.thumbnailUrl || 'https://picsum.photos/seed/xray/600/400'} alt="DICOM Study"
-                      referrerPolicy="no-referrer"
-                      style={{
-                        filter: `contrast(${imageContrast}%) brightness(${imageBrightness}%) grayscale(100%)`,
-                        transform: `scale(${imageZoom / 100}) rotate(${imageRotation}deg)`,
-                      }}
-                      className="object-cover max-h-full max-w-full transition duration-150" />
+                    <div className="relative bg-black rounded-lg flex items-center justify-center overflow-hidden border border-slate-800 h-[380px] select-none">
+                      <Image
+                        src={selectedStudy.thumbnailUrl || 'https://picsum.photos/seed/xray/600/400'}
+                        alt="DICOM Study"
+                        referrerPolicy="no-referrer"
+                        fill
+                        className="object-cover transition duration-150"
+                        style={{
+                          filter: `contrast(${imageContrast}%) brightness(${imageBrightness}%) grayscale(100%)`,
+                          transform: `scale(${imageZoom / 100}) rotate(${imageRotation}deg)`,
+                        }}
+                        unoptimized
+                      />
 
                     {/* Patient info overlay */}
                     <div className="absolute top-3 left-3 bg-black/80 p-2 rounded-md font-mono text-[9px] text-teal-400 space-y-0.5 pointer-events-none">
@@ -474,13 +558,13 @@ const DiagnosticModuleContent = ({
                     <div className="grid grid-cols-2 gap-4">
                       <div className="flex items-center gap-3">
                         <Sliders className="w-4 h-4 text-slate-500 shrink-0" />
-                        <span className="font-semibold text-slate-600 w-16 text-[10px]">Contraste:</span>
+                        <span className="font-semibold text-slate-600 w-16 text-[10px]">{t('diag_pacs_contrast', 'app')}</span>
                         <input type="range" min="25" max="200" value={imageContrast} onChange={e => setImageContrast(Number(e.target.value))} className="flex-1 accent-teal-600" />
                         <span className="w-10 text-right font-bold text-[10px]">{imageContrast}%</span>
                       </div>
                       <div className="flex items-center gap-3">
                         <Sliders className="w-4 h-4 text-slate-500 shrink-0" />
-                        <span className="font-semibold text-slate-600 w-16 text-[10px]">Brilho:</span>
+                        <span className="font-semibold text-slate-600 w-16 text-[10px]">{t('diag_pacs_brightness', 'app')}</span>
                         <input type="range" min="25" max="200" value={imageBrightness} onChange={e => setImageBrightness(Number(e.target.value))} className="flex-1 accent-teal-600" />
                         <span className="w-10 text-right font-bold text-[10px]">{imageBrightness}%</span>
                       </div>
@@ -489,7 +573,7 @@ const DiagnosticModuleContent = ({
                     {/* Zoom / Rotation / Window-Level */}
                     <div className="grid grid-cols-3 gap-3">
                       <div>
-                        <label className={labelCls}>Zoom</label>
+                        <label className={labelCls}>{t('diag_pacs_zoom', 'app')}</label>
                         <div className="flex gap-1">
                           <button onClick={handleZoomOut} className="px-2 py-1 bg-slate-200 hover:bg-slate-300 rounded text-[10px] font-bold">−</button>
                           <input type="range" min="25" max="400" value={imageZoom} onChange={e => setImageZoom(Number(e.target.value))} className="flex-1 accent-teal-600" />
@@ -497,7 +581,7 @@ const DiagnosticModuleContent = ({
                         </div>
                       </div>
                       <div>
-                        <label className={labelCls}>Rotación</label>
+                        <label className={labelCls}>{t('diag_pacs_rotation', 'app')}</label>
                         <div className="flex gap-1">
                           <button onClick={() => setImageRotation(prev => prev - 90)} className="flex-1 py-1 bg-slate-200 hover:bg-slate-300 rounded text-[10px] font-bold"><RotateCw className="w-3 h-3 inline" /> -90°</button>
                           <button onClick={() => setImageRotation(0)} className="flex-1 py-1 bg-slate-200 hover:bg-slate-300 rounded text-[10px] font-bold">0°</button>
@@ -505,7 +589,7 @@ const DiagnosticModuleContent = ({
                         </div>
                       </div>
                       <div>
-                        <label className={labelCls}>Window/Level</label>
+                        <label className={labelCls}>{t('diag_pacs_window_level', 'app')}</label>
                         <div className="flex gap-1">
                           <input type="number" value={windowLevel.width} onChange={e => setWindowLevel(p => ({ ...p, width: +e.target.value }))} className={`${inputCls} w-16`} placeholder="W" />
                           <input type="number" value={windowLevel.center} onChange={e => setWindowLevel(p => ({ ...p, center: +e.target.value }))} className={`${inputCls} w-16`} placeholder="L" />
@@ -515,10 +599,10 @@ const DiagnosticModuleContent = ({
 
                     {/* Measurements */}
                     <div className="border border-slate-200 rounded-lg p-3 space-y-2">
-                      <h5 className="text-[10px] font-bold text-slate-600 uppercase flex items-center gap-1"><Hash className="w-3 h-3" /> Mediciones / Anotaciones</h5>
+                      <h5 className="text-[10px] font-bold text-slate-600 uppercase flex items-center gap-1"><Hash className="w-3 h-3" /> {t('diag_pacs_annotations', 'app')}</h5>
                       <div className="flex gap-2">
-                        <input type="text" value={pacsAnnotation} onChange={e => setPacsAnnotation(e.target.value)} placeholder="Ej: Distancia AP, Diámetro cardíaco..." className={`${inputCls} flex-1`} />
-                        <button onClick={handleAnnotateStudy} className="bg-slate-800 hover:bg-slate-900 text-white px-3 py-1.5 rounded-lg text-[10px] font-bold flex items-center gap-1"><Plus className="w-3 h-3" /> Agregar</button>
+                        <input type="text" value={pacsAnnotation} onChange={e => setPacsAnnotation(e.target.value)} placeholder={t('diag_pacs_annotation_placeholder', 'app')} className={`${inputCls} flex-1`} />
+                        <button onClick={handleAnnotateStudy} className="bg-slate-800 hover:bg-slate-900 text-white px-3 py-1.5 rounded-lg text-[10px] font-bold flex items-center gap-1"><Plus className="w-3 h-3" /> {t('diag_pacs_add_annotation', 'app')}</button>
                       </div>
                       {pacsMeasurements.length > 0 && (
                         <div className="flex flex-wrap gap-1">
@@ -532,21 +616,96 @@ const DiagnosticModuleContent = ({
                       )}
                     </div>
 
-                    {/* Reset */}
-                    <button onClick={handleResetImage} className="w-full py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold rounded-lg text-[10px] flex items-center justify-center gap-1 transition">
-                      <RefreshCw className="w-3 h-3" /> Restablecer imagen
-                    </button>
+                    {/* Reset + MPR */}
+                    <div className="flex gap-2">
+                      <button onClick={handleResetImage} className="flex-1 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold rounded-lg text-[10px] flex items-center justify-center gap-1 transition">
+                        <RefreshCw className="w-3 h-3" /> {t('diag_pacs_reset', 'app')}
+                      </button>
+                      <button onClick={() => setMprActive(!mprActive)} className={`flex-1 py-2 font-semibold rounded-lg text-[10px] flex items-center justify-center gap-1 transition ${mprActive ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'bg-slate-200 hover:bg-slate-300 text-slate-700'}`}>
+                        <Layers className="w-3 h-3" /> MPR
+                      </button>
+                    </div>
+
+                    {/* Key Images selector */}
+                    <div className="border border-slate-200 rounded-lg p-3 space-y-2">
+                      <h5 className="text-[10px] font-bold text-slate-600 uppercase flex items-center gap-1">
+                        <svg className="w-3 h-3 text-indigo-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg> {t('diag_pacs_key_images', 'app')}
+                        {selectedKeyImages.length > 0 && <span className="px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[8px]">{selectedKeyImages.length}</span>}
+                      </h5>
+                      <div className="flex gap-2">
+                        <button onClick={() => {
+                          const url = selectedStudy.thumbnailUrl || `https://picsum.photos/seed/${selectedStudy.id}/600/400`;
+                          setSelectedKeyImages(prev => prev.includes(url) ? prev : [...prev, url]);
+                        }} className="flex-1 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded text-[10px] font-bold border border-indigo-200 transition">
+                          {t('diag_pacs_add_key_image', 'app')}
+                        </button>
+                        {selectedKeyImages.length > 0 && (
+                          <button onClick={() => setSelectedKeyImages([])} className="py-1.5 px-3 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded text-[10px] font-bold border border-rose-200 transition">
+                            {t('diag_pacs_clear_key_images', 'app')}
+                          </button>
+                        )}
+                      </div>
+                      {selectedKeyImages.length > 0 && (
+                        <div className="flex gap-1 flex-wrap">
+                          {selectedKeyImages.map((url, i) => (
+                            <div key={i} className="relative group">
+                              <Image src={url} alt={`Key ${i + 1}`} width={48} height={36} className="rounded border border-indigo-200 object-cover" unoptimized />
+                              <button onClick={() => setSelectedKeyImages(prev => prev.filter((_, idx) => idx !== i))} className="absolute -top-1 -right-1 bg-rose-500 text-white rounded-full w-3.5 h-3.5 text-[8px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition">×</button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 
+                {/* MPR View */}
+                {mprActive && (
+                  <div className={sectionCls}>
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                      <div className="flex items-center gap-2">
+                        <Layers className="w-5 h-5 text-indigo-600" />
+                        <h5 className="text-xs font-bold text-slate-600 uppercase">{t('diag_pacs_mpr_title', 'app')}</h5>
+                      </div>
+                      <button onClick={() => setMprActive(false)} className="text-slate-400 hover:text-slate-700"><XCircle className="w-4 h-4" /></button>
+                    </div>
+                    <div className="grid grid-cols-3 gap-3">
+                      {([
+                        { label: t('diag_pacs_mpr_axial', 'app'), rotateX: 0, rotateY: 0, rotateZ: 0 },
+                        { label: t('diag_pacs_mpr_sagittal', 'app'), rotateX: 0, rotateY: 90, rotateZ: 0 },
+                        { label: t('diag_pacs_mpr_coronal', 'app'), rotateX: 90, rotateY: 0, rotateZ: 0 },
+                      ]).map(plane => (
+                        <div key={plane.label} className="space-y-1">
+                          <p className="text-[9px] font-bold text-slate-500 uppercase text-center">{plane.label}</p>
+                          <div className="relative bg-black rounded-lg overflow-hidden border border-slate-700 h-[160px] flex items-center justify-center">
+                            <Image
+                              src={selectedStudy.thumbnailUrl || 'https://picsum.photos/seed/xray/600/400'}
+                              alt={plane.label}
+                              fill
+                              className="object-cover"
+                              style={{
+                                filter: `contrast(${imageContrast}%) brightness(${imageBrightness}%) grayscale(100%)`,
+                                transform: `perspective(400px) rotateX(${plane.rotateX}deg) rotateY(${plane.rotateY}deg) rotateZ(${plane.rotateZ}deg) scale(0.9)`,
+                              }}
+                              unoptimized
+                            />
+                            <div className="absolute bottom-1 left-1 bg-black/70 text-[7px] text-indigo-400 px-1 rounded font-mono">{plane.label}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-[9px] text-slate-400 text-center">{t('diag_pacs_mpr_note', 'app')}</p>
+                  </div>
+                )}
+
                 {/* Study Details */}
                 <div className={sectionCls}>
-                  <h5 className="text-xs font-bold text-slate-600 uppercase flex items-center gap-1"><Info className="w-3.5 h-3.5" /> Detalles del Estudio</h5>
+                  <h5 className="text-xs font-bold text-slate-600 uppercase flex items-center gap-1"><Info className="w-3.5 h-3.5" /> {t('diag_pacs_details', 'app')}</h5>
                   <div className="grid grid-cols-2 gap-3 text-xs">
-                    <div><span className="font-bold text-slate-500">Indicación clínica:</span> <span className="text-slate-700">{selectedStudy.clinicalHistory}</span></div>
-                    <div><span className="font-bold text-slate-500">Solicitante:</span> <span className="text-slate-700">{selectedStudy.referringPhysician}</span></div>
-                    <div><span className="font-bold text-slate-500">Equipo:</span> <span className="text-slate-700">{selectedStudy.stationName} ({selectedStudy.vendor})</span></div>
-                    <div><span className="font-bold text-slate-500">Programado:</span> <span className="text-slate-700">{selectedStudy.scheduledAt ? new Date(selectedStudy.scheduledAt).toLocaleString('es') : 'N/A'}</span></div>
+                    <div><span className="font-bold text-slate-500">{t('diag_pacs_clinical_history', 'app')}</span> <span className="text-slate-700">{selectedStudy.clinicalHistory}</span></div>
+                    <div><span className="font-bold text-slate-500">{t('diag_pacs_referring', 'app')}</span> <span className="text-slate-700">{selectedStudy.referringPhysician}</span></div>
+                    <div><span className="font-bold text-slate-500">{t('diag_pacs_equipment', 'app')}</span> <span className="text-slate-700">{selectedStudy.stationName} ({selectedStudy.vendor})</span></div>
+                    <div><span className="font-bold text-slate-500">{t('diag_pacs_scheduled', 'app')}</span> <span className="text-slate-700">{selectedStudy.scheduledAt ? new Date(selectedStudy.scheduledAt).toLocaleString('es') : 'N/A'}</span></div>
                     <div><span className="font-bold text-slate-500">UID:</span> <span className="text-[9px] font-mono text-slate-500 break-all">{selectedStudy.studyInstanceUID}</span></div>
                   </div>
                 </div>
@@ -554,7 +713,7 @@ const DiagnosticModuleContent = ({
             ) : (
               <div className={sectionCls + ' flex flex-col items-center justify-center py-16 text-slate-400'}>
                 <MonitorPlay className="w-10 h-10 mb-3" />
-                <p className="text-sm font-bold">Seleccione un estudio DICOM para visualizar</p>
+                <p className="text-sm font-bold">{t('diag_pacs_select', 'app')}</p>
               </div>
             )}
           </div>
@@ -571,20 +730,20 @@ const DiagnosticModuleContent = ({
             <div className={sectionCls}>
               <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
                 <FileText className="w-5 h-5 text-teal-600" />
-                <h3 className="font-bold text-slate-800 text-sm">Laudos de Imagen</h3>
+                <h3 className="font-bold text-slate-800 text-sm">{t('diag_reports_title', 'app')}</h3>
               </div>
               <div className="space-y-2">
                 <div className="relative">
                   <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
-                  <input type="text" value={reportSearchQuery} onChange={e => setReportSearchQuery(e.target.value)} placeholder="Buscar laudo..." className={`${inputCls} pl-9`} />
+                  <input type="text" value={reportSearchQuery} onChange={e => setReportSearchQuery(e.target.value)} placeholder={t('diag_reports_search', 'app')} className={`${inputCls} pl-9`} />
                 </div>
                 <select value={reportStatusFilter} onChange={e => setReportStatusFilter(e.target.value)} className={inputCls}>
-                  <option value="all">Todos los estados</option>
-                  <option value="rascunho">Borrador</option>
-                  <option value="pre_laudo">Pre-laudo</option>
-                  <option value="laudado">Laudado</option>
-                  <option value="corrigido">Corregido</option>
-                  <option value="cancelado">Cancelado</option>
+                  <option value="all">{t('diag_reports_all_status', 'app')}</option>
+                  <option value="rascunho">{t('diag_reports_status_draft', 'app')}</option>
+                  <option value="pre_laudo">{t('diag_reports_status_pre', 'app')}</option>
+                  <option value="laudado">{t('diag_reports_status_signed', 'app')}</option>
+                  <option value="corrigido">{t('diag_reports_status_corrected', 'app')}</option>
+                  <option value="cancelado">{t('diag_reports_status_cancelled', 'app')}</option>
                 </select>
               </div>
               <div className="space-y-2 max-h-[400px] overflow-y-auto">
@@ -596,7 +755,7 @@ const DiagnosticModuleContent = ({
                       <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${r.status === 'laudado' ? 'bg-green-100 text-green-700' : r.status === 'rascunho' ? 'bg-slate-100 text-slate-600' : 'bg-amber-100 text-amber-700'}`}>{r.status.toUpperCase()}</span>
                     </div>
                     <p className="font-bold text-slate-800">{r.patientName}</p>
-                    <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">{r.impression || r.findings || 'Sin contenido...'}</p>
+                    <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">{r.impression || r.findings || t('diag_reports_no_content', 'app')}</p>
                     <p className="text-[9px] text-slate-400 mt-1">{r.reportedBy} | {r.createdAt.split('T')[0]}</p>
                   </div>
                 ))}
@@ -609,12 +768,12 @@ const DiagnosticModuleContent = ({
             <div className={sectionCls}>
               <div className="flex justify-between items-center border-b border-slate-100 pb-3">
                 <div>
-                  <h4 className="font-bold text-slate-800 text-sm">Editor de Laudo</h4>
-                  <p className="text-[10px] text-slate-500">Plantillas configurables · Dictado por voz · Firma electrónica (Lei 6822/2021)</p>
+                  <h4 className="font-bold text-slate-800 text-sm">{t('diag_reports_editor', 'app')}</h4>
+                  <p className="text-[10px] text-slate-500">{t('diag_reports_subtitle', 'app')}</p>
                 </div>
                 <div className="flex gap-2">
                   <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${selectedReport?.status === 'laudado' ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-amber-100 text-amber-700 border border-amber-200'}`}>
-                    {selectedReport?.status === 'laudado' ? 'FIRMADO Y DISTRIBUIDO' : selectedReport?.status?.toUpperCase() || 'NUEVO'}
+                    {selectedReport?.status === 'laudado' ? t('diag_reports_status_signed_distributed', 'app') : selectedReport?.status?.toUpperCase() || t('diag_reports_status_new', 'app')}
                   </span>
                 </div>
               </div>
@@ -622,18 +781,18 @@ const DiagnosticModuleContent = ({
               {/* Template selector & Voice */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={labelCls}>Plantilla por modalidad</label>
+                  <label className={labelCls}>{t('diag_reports_template', 'app')}</label>
                   <select value={selectedTemplate?.id || ''} onChange={e => { const t = templates.find(x => x.id === e.target.value); setSelectedTemplate(t || null); }} className={inputCls}>
-                    <option value="">Seleccionar plantilla...</option>
+                    <option value="">{t('diag_reports_select_template', 'app')}</option>
                     {templates.filter(t => t.active).map(t => <option key={t.id} value={t.id}>{t.name} ({t.modality})</option>)}
                   </select>
                 </div>
                 <div className="flex items-end gap-2">
                   <button onClick={handleLoadTemplate} className="py-2 px-3 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-[10px] font-bold transition flex items-center gap-1">
-                    <ClipboardCheck className="w-3 h-3" /> Cargar plantilla
+                    <ClipboardCheck className="w-3 h-3" /> {t('diag_reports_load_template', 'app')}
                   </button>
                   <button onClick={handleVoiceToggle} className={`py-2 px-3 rounded-lg text-[10px] font-bold transition flex items-center gap-1 ${voiceActive ? 'bg-rose-600 text-white animate-pulse' : 'bg-slate-200 hover:bg-slate-300 text-slate-700'}`}>
-                    <Volume2 className="w-3 h-3" /> {voiceActive ? 'Detener dictado' : 'Dictar por voz (ES)'}
+                    <Volume2 className="w-3 h-3" /> {voiceActive ? t('diag_reports_voice_stop', 'app') : t('diag_reports_voice_start', 'app')}
                   </button>
                 </div>
               </div>
@@ -648,19 +807,19 @@ const DiagnosticModuleContent = ({
               {/* Report form */}
               <div className="space-y-3">
                 <div className="grid grid-cols-2 gap-3">
-                  <div><label className={labelCls}>Cuerpo / Región</label><input type="text" value={reportEditor.bodyPart} onChange={e => setReportEditor(p => ({ ...p, bodyPart: e.target.value }))} className={inputCls} placeholder="Ej: Tórax PA y lateral" /></div>
-                  <div><label className={labelCls}>Modalidad</label><input type="text" value={selectedReport?.modality || selectedStudy?.modality || ''} className={inputCls} readOnly /></div>
+                  <div><label className={labelCls}>{t('diag_reports_body_part', 'app')}</label><input type="text" value={reportEditor.bodyPart} onChange={e => setReportEditor(p => ({ ...p, bodyPart: e.target.value }))} className={inputCls} placeholder={t('diag_reports_body_part_placeholder', 'app')} /></div>
+                  <div><label className={labelCls}>{t('diag_reports_modality', 'app')}</label><input type="text" value={selectedReport?.modality || selectedStudy?.modality || ''} className={inputCls} readOnly /></div>
                 </div>
-                <div><label className={labelCls}>Técnica</label><textarea value={reportEditor.technique} onChange={e => setReportEditor(p => ({ ...p, technique: e.target.value }))} rows={2} className={textareaCls} placeholder="Descripción de la técnica utilizada..." /></div>
-                <div><label className={labelCls}>Hallazgos</label><textarea value={reportEditor.findings} onChange={e => setReportEditor(p => ({ ...p, findings: e.target.value }))} rows={5} className={textareaCls} placeholder="Hallazgos radiológicos detallados..." /></div>
-                <div><label className={labelCls}>Impresión diagnóstica</label><textarea value={reportEditor.impression} onChange={e => setReportEditor(p => ({ ...p, impression: e.target.value }))} rows={3} className={textareaCls} placeholder="Impresión diagnóstica..." /></div>
-                <div><label className={labelCls}>Recomendaciones</label><textarea value={reportEditor.recommendations} onChange={e => setReportEditor(p => ({ ...p, recommendations: e.target.value }))} rows={2} className={textareaCls} placeholder="Recomendaciones clínicas..." /></div>
+                <div><label className={labelCls}>{t('diag_reports_technique', 'app')}</label><textarea value={reportEditor.technique} onChange={e => setReportEditor(p => ({ ...p, technique: e.target.value }))} rows={2} className={textareaCls} placeholder={t('diag_reports_technique_placeholder', 'app')} /></div>
+                <div><label className={labelCls}>{t('diag_reports_findings', 'app')}</label><textarea value={reportEditor.findings} onChange={e => setReportEditor(p => ({ ...p, findings: e.target.value }))} rows={5} className={textareaCls} placeholder={t('diag_reports_findings_placeholder', 'app')} /></div>
+                <div><label className={labelCls}>{t('diag_reports_impression', 'app')}</label><textarea value={reportEditor.impression} onChange={e => setReportEditor(p => ({ ...p, impression: e.target.value }))} rows={3} className={textareaCls} placeholder={t('diag_reports_impression_placeholder', 'app')} /></div>
+                <div><label className={labelCls}>{t('diag_reports_recommendations', 'app')}</label><textarea value={reportEditor.recommendations} onChange={e => setReportEditor(p => ({ ...p, recommendations: e.target.value }))} rows={2} className={textareaCls} placeholder={t('diag_reports_recommendations_placeholder', 'app')} /></div>
               </div>
 
               {/* Vocabulary hints */}
               {selectedTemplate && (
                 <div className="p-2 bg-slate-50 border border-slate-200 rounded-lg text-[9px]">
-                  <span className="font-bold text-slate-600 uppercase">Vocabulario sugerido:</span>{' '}
+                  <span className="font-bold text-slate-600 uppercase">{t('diag_reports_vocabulary', 'app')}</span>{' '}
                   {selectedTemplate.vocabularyHints.map((v, i) => (
                     <span key={i} className="bg-white border border-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-semibold cursor-pointer hover:bg-teal-50 hover:text-teal-700 hover:border-teal-200 transition mx-0.5 inline-block" onClick={() => setReportEditor(p => ({ ...p, findings: p.findings ? p.findings + ', ' + v : v }))}>{v}</span>
                   ))}
@@ -671,18 +830,20 @@ const DiagnosticModuleContent = ({
               <div className="flex justify-between items-center">
                 <div className="flex gap-2">
                   <button onClick={handleSaveReport} className="py-2 px-4 bg-slate-800 hover:bg-slate-900 text-white font-semibold rounded-lg text-[10px] transition">
-                    Guardar borrador
+                    {t('diag_reports_save', 'app')}
                   </button>
-                  {selectedReport && selectedReport.status !== 'laudado' && (
+                  {selectedReport && selectedReport.status !== 'laudado' && hasPermission(userPermissions, 'perform_diagnostic_sign') && (
                     <button onClick={() => handleSignReport(selectedReport.id)} className="py-2 px-4 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg text-[10px] transition flex items-center gap-1">
-                      <FileSignature className="w-3 h-3" /> Firmar laudo
+                      <FileSignature className="w-3 h-3" /> {t('diag_reports_sign', 'app')}
                     </button>
                   )}
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => setShowDistributeDialog(true)} className="py-2 px-3 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-lg text-[10px] transition flex items-center gap-1">
-                    <Send className="w-3 h-3" /> Distribuir laudo
-                  </button>
+                  {hasPermission(userPermissions, 'perform_diagnostic_report') && (
+                    <button onClick={() => setShowDistributeDialog(true)} className="py-2 px-3 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-lg text-[10px] transition flex items-center gap-1">
+                      <Send className="w-3 h-3" /> {t('diag_reports_distribute', 'app')}
+                    </button>
+                  )}
                   <button className="py-2 px-3 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold rounded-lg text-[10px] transition flex items-center gap-1">
                     <Printer className="w-3 h-3" /> PDF
                   </button>
@@ -692,12 +853,12 @@ const DiagnosticModuleContent = ({
               {/* Distribution dialog */}
               {showDistributeDialog && (
                 <div className="p-4 bg-teal-50 border border-teal-200 rounded-xl space-y-2">
-                  <h5 className="text-xs font-bold text-teal-800 flex items-center gap-1"><Send className="w-3.5 h-3.5" /> Distribución automática del laudo</h5>
+                  <h5 className="text-xs font-bold text-teal-800 flex items-center gap-1"><Send className="w-3.5 h-3.5" /> {t('diag_reports_dist_title', 'app')}</h5>
                   <div className="grid grid-cols-3 gap-2 text-[10px]">
                     {[
-                      { label: 'Portal del paciente', icon: Globe, key: 'portal_paciente' },
-                      { label: 'Email al médico solicitante', icon: Send, key: 'email_solicitante' },
-                      { label: 'WhatsApp al paciente', icon: MessageSquare, key: 'whatsapp' },
+                      { label: t('diag_reports_dist_portal', 'app'), icon: Globe, key: 'portal_paciente' },
+                      { label: t('diag_reports_dist_email', 'app'), icon: Send, key: 'email_solicitante' },
+                      { label: t('diag_reports_dist_whatsapp', 'app'), icon: MessageSquare, key: 'whatsapp' },
                     ].map(ch => (
                       <label key={ch.key} className="flex items-center gap-2 p-2 bg-white border border-teal-100 rounded-lg cursor-pointer hover:bg-teal-100 transition">
                         <input type="checkbox" defaultChecked className="accent-teal-600" />
@@ -717,11 +878,11 @@ const DiagnosticModuleContent = ({
               {selectedReport && selectedReport.status === 'laudado' && (
                 <div className="p-4 bg-green-50 border border-green-200 rounded-xl text-xs space-y-2">
                   <div className="flex items-center justify-between">
-                    <h5 className="font-bold text-green-800 flex items-center gap-1"><Check className="w-3.5 h-3.5" /> Laudo firmado electrónicamente</h5>
+                    <h5 className="font-bold text-green-800 flex items-center gap-1"><Check className="w-3.5 h-3.5" /> {t('diag_reports_signed_title', 'app')}</h5>
                     <span className="text-[9px] text-green-600">{selectedReport.signedAt ? new Date(selectedReport.signedAt).toLocaleString('es') : ''}</span>
                   </div>
-                  <p className="text-green-700">Firmante: {selectedReport.signedBy} | Verificación: {selectedReport.signatureId}</p>
-                  <p className="text-green-600">Canales de distribución: {selectedReport.distributionChannels.join(', ')}</p>
+                  <p className="text-green-700">{t('diag_reports_signed_by', 'app')}: {selectedReport.signedBy} | {t('diag_reports_signed_verification', 'app')}: {selectedReport.signatureId}</p>
+                  <p className="text-green-600">{t('diag_reports_signed_channels', 'app')}: {selectedReport.distributionChannels.join(', ')}</p>
                 </div>
               )}
             </div>
@@ -739,20 +900,20 @@ const DiagnosticModuleContent = ({
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
                 <Layers className="w-5 h-5 text-teal-600" />
-                <h3 className="font-bold text-slate-800 text-sm">Worklist DICOM (DMWL)</h3>
+                <h3 className="font-bold text-slate-800 text-sm">{t('diag_worklist_title', 'app')}</h3>
               </div>
               <div className="flex gap-2">
                 <div className="relative">
                   <Search className="w-4 h-4 absolute left-3 top-2 text-slate-400" />
-                  <input type="text" value={worklistSearchQuery} onChange={e => setWorklistSearchQuery(e.target.value)} placeholder="Buscar..." className={`${inputCls} pl-8 w-48`} />
+                  <input type="text" value={worklistSearchQuery} onChange={e => setWorklistSearchQuery(e.target.value)} placeholder={t('diag_worklist_search', 'app')} className={`${inputCls} pl-8 w-48`} />
                 </div>
                 <select value={worklistStatusFilter} onChange={e => setWorklistStatusFilter(e.target.value)} className={inputCls + ' w-36'}>
-                  <option value="all">Todos</option>
-                  <option value="pendente">Pendiente</option>
-                  <option value="em_execucao">En proceso</option>
-                  <option value="concluido">Completado</option>
-                  <option value="cancelado">Cancelado</option>
-                  <option value="nao_compareceu">No asistió</option>
+                  <option value="all">{t('diag_worklist_all', 'app')}</option>
+                  <option value="pendente">{t('diag_worklist_status_pending', 'app')}</option>
+                  <option value="em_execucao">{t('diag_worklist_status_in_progress', 'app')}</option>
+                  <option value="concluido">{t('diag_worklist_status_completed', 'app')}</option>
+                  <option value="cancelado">{t('diag_worklist_status_cancelled', 'app')}</option>
+                  <option value="nao_compareceu">{t('diag_worklist_status_no_show', 'app')}</option>
                 </select>
               </div>
             </div>
@@ -760,14 +921,14 @@ const DiagnosticModuleContent = ({
               <table className="w-full text-[10px]">
                 <thead>
                   <tr className="border-b border-slate-200">
-                    <th className="text-left p-2 font-bold text-slate-600 uppercase">Paciente</th>
-                    <th className="text-left p-2 font-bold text-slate-600 uppercase">Programado</th>
-                    <th className="text-left p-2 font-bold text-slate-600 uppercase">Modalidad</th>
-                    <th className="text-left p-2 font-bold text-slate-600 uppercase">Procedimiento</th>
-                    <th className="text-left p-2 font-bold text-slate-600 uppercase">Solicitante</th>
-                    <th className="text-left p-2 font-bold text-slate-600 uppercase">Indicación</th>
-                    <th className="text-left p-2 font-bold text-slate-600 uppercase">Estado</th>
-                    <th className="text-left p-2 font-bold text-slate-600 uppercase">Acciones</th>
+                    <th className="text-left p-2 font-bold text-slate-600 uppercase">{t('diag_worklist_col_patient', 'app')}</th>
+                    <th className="text-left p-2 font-bold text-slate-600 uppercase">{t('diag_worklist_col_scheduled', 'app')}</th>
+                    <th className="text-left p-2 font-bold text-slate-600 uppercase">{t('diag_worklist_col_modality', 'app')}</th>
+                    <th className="text-left p-2 font-bold text-slate-600 uppercase">{t('diag_worklist_col_procedure', 'app')}</th>
+                    <th className="text-left p-2 font-bold text-slate-600 uppercase">{t('diag_worklist_col_referring', 'app')}</th>
+                    <th className="text-left p-2 font-bold text-slate-600 uppercase">{t('diag_worklist_col_indication', 'app')}</th>
+                    <th className="text-left p-2 font-bold text-slate-600 uppercase">{t('diag_worklist_col_status', 'app')}</th>
+                    <th className="text-left p-2 font-bold text-slate-600 uppercase">{t('diag_worklist_col_actions', 'app')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -782,9 +943,9 @@ const DiagnosticModuleContent = ({
                       <td className="p-2"><span className={`px-2 py-0.5 rounded text-[9px] font-bold ${worklistStatusColors[w.status]}`}>{w.status === 'em_execucao' ? 'EN PROCESO' : w.status === 'concluido' ? 'COMPLETADO' : w.status.toUpperCase()}</span></td>
                       <td className="p-2">
                         <div className="flex gap-1">
-                          {w.status === 'pendente' && <button onClick={() => handleUpdateWorklist(w.id, 'em_execucao')} className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-[9px] font-bold">Iniciar</button>}
-                          {w.status === 'em_execucao' && <button onClick={() => handleUpdateWorklist(w.id, 'concluido')} className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-[9px] font-bold">Completar</button>}
-                          {w.status === 'pendente' && <button onClick={() => handleUpdateWorklist(w.id, 'nao_compareceu')} className="bg-amber-500 hover:bg-amber-600 text-white px-2 py-1 rounded text-[9px] font-bold">No asistió</button>}
+                          {w.status === 'pendente' && <button onClick={() => handleUpdateWorklist(w.id, 'em_execucao')} className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-[9px] font-bold">{t('diag_worklist_start', 'app')}</button>}
+                          {w.status === 'em_execucao' && <button onClick={() => handleUpdateWorklist(w.id, 'concluido')} className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-[9px] font-bold">{t('diag_worklist_complete', 'app')}</button>}
+                          {w.status === 'pendente' && <button onClick={() => handleUpdateWorklist(w.id, 'nao_compareceu')} className="bg-amber-500 hover:bg-amber-600 text-white px-2 py-1 rounded text-[9px] font-bold">{t('diag_worklist_no_show', 'app')}</button>}
                         </div>
                       </td>
                     </tr>
@@ -799,15 +960,15 @@ const DiagnosticModuleContent = ({
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
                 <Zap className="w-5 h-5 text-amber-600" />
-                <h3 className="font-bold text-slate-800 text-sm">Mensageria HL7 v2.x / ASTM</h3>
+                <h3 className="font-bold text-slate-800 text-sm">{t('diag_hl7_title', 'app')}</h3>
               </div>
               <div className="flex gap-2">
                 <div className="relative">
                   <Search className="w-4 h-4 absolute left-3 top-2 text-slate-400" />
-                  <input type="text" value={hl7SearchQuery} onChange={e => setHl7SearchQuery(e.target.value)} placeholder="Buscar mensaje..." className={`${inputCls} pl-8 w-48`} />
+                  <input type="text" value={hl7SearchQuery} onChange={e => setHl7SearchQuery(e.target.value)} placeholder={t('diag_hl7_search', 'app')} className={`${inputCls} pl-8 w-48`} />
                 </div>
                 <button onClick={handleSendHl7} className="py-1.5 px-3 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-[10px] font-bold flex items-center gap-1">
-                  <Send className="w-3 h-3" /> Enviar ACK
+                  <Send className="w-3 h-3" /> {t('diag_hl7_send_ack', 'app')}
                 </button>
               </div>
             </div>
@@ -843,26 +1004,26 @@ const DiagnosticModuleContent = ({
           <div className={sectionCls}>
             <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
               <Globe className="w-5 h-5 text-indigo-600" />
-              <h3 className="font-bold text-slate-800 text-sm">FHIR R4 — Interoperabilidade Moderna</h3>
+              <h3 className="font-bold text-slate-800 text-sm">{t('diag_fhir_title', 'app')}</h3>
             </div>
             <div className="grid grid-cols-2 gap-3 text-xs">
               <div>
-                <label className={labelCls}>Endpoint FHIR R4</label>
+                <label className={labelCls}>{t('diag_fhir_endpoint', 'app')}</label>
                 <input type="text" value={fhirEndpoint} onChange={e => setFhirEndpoint(e.target.value)} className={inputCls} />
               </div>
               <div>
-                <label className={labelCls}>Versão</label>
+                <label className={labelCls}>{t('diag_fhir_version', 'app')}</label>
                 <input type="text" value="FHIR R4 (4.0.1)" className={inputCls} readOnly />
               </div>
             </div>
             <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-xl text-xs text-indigo-700 space-y-1">
-              <p className="font-bold">Recursos FHIR soportados:</p>
+              <p className="font-bold">{t('diag_fhir_resources', 'app')}</p>
               <div className="flex flex-wrap gap-1 mt-1">
                 {['Patient', 'Observation', 'DiagnosticReport', 'ImagingStudy', 'ServiceRequest', 'Practitioner', 'Organization'].map(r => (
                   <span key={r} className="bg-white border border-indigo-200 text-indigo-600 px-2 py-0.5 rounded text-[9px] font-bold">{r}</span>
                 ))}
               </div>
-              <p className="mt-2 text-[10px] text-indigo-600">Integración futura con HIS, IPS (International Patient Summary) y Superintendencia de Salud.</p>
+              <p className="mt-2 text-[10px] text-indigo-600">{t('diag_fhir_future', 'app')}</p>
             </div>
           </div>
         </div>
@@ -879,8 +1040,8 @@ const DiagnosticModuleContent = ({
               <div className="flex items-center gap-3">
                 <AlertOctagon className="w-5 h-5 text-red-600" />
                 <div>
-                  <p className="font-bold text-red-800 text-xs">⚠️ {filteredLabAlerts.filter(a => !a.acknowledgedAt && a.severity === 'critical').length} Valores CRÍTICOS sin confirmar</p>
-                  <p className="text-[10px] text-red-600">Se notificó al médico solicitante automáticamente.</p>
+                  <p className="font-bold text-red-800 text-xs">⚠️ {filteredLabAlerts.filter(a => !a.acknowledgedAt && a.severity === 'critical').length} {t('diag_lab_alerts_critical', 'app')}</p>
+                  <p className="text-[10px] text-red-600">{t('diag_lab_alerts_notified', 'app')}</p>
                 </div>
               </div>
               <button onClick={() => setShowCriticalAlert(false)} className="text-red-400 hover:text-red-700"><XCircle className="w-5 h-5" /></button>
@@ -892,19 +1053,19 @@ const DiagnosticModuleContent = ({
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
                 <Bell className="w-5 h-5 text-amber-600" />
-                <h3 className="font-bold text-slate-800 text-sm">Alertas de Laboratorio</h3>
-                <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-700">{filteredLabAlerts.filter(a => !a.acknowledgedAt).length} pendientes</span>
+                <h3 className="font-bold text-slate-800 text-sm">{t('diag_lab_alerts_title', 'app')}</h3>
+                <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-700">{filteredLabAlerts.filter(a => !a.acknowledgedAt).length} {t('diag_lab_alerts_pending', 'app')}</span>
               </div>
               <select value={alertFilter} onChange={e => setAlertFilter(e.target.value)} className={inputCls + ' w-32'}>
-                <option value="all">Todos</option>
-                <option value="critical">Crítico</option>
-                <option value="warning">Advertencia</option>
-                <option value="info">Info</option>
+                <option value="all">{t('diag_lab_alerts_all', 'app')}</option>
+                <option value="critical">{t('diag_lab_critical', 'app')}</option>
+                <option value="warning">{t('diag_lab_alerts_warning', 'app')}</option>
+                <option value="info">{t('diag_lab_alerts_info', 'app')}</option>
               </select>
             </div>
             <div className="space-y-2 max-h-[200px] overflow-y-auto">
               {filteredLabAlerts.length === 0 ? (
-                <p className="text-xs text-slate-400 text-center py-3">Sin alertas</p>
+                <p className="text-xs text-slate-400 text-center py-3">{t('diag_lab_alerts_empty', 'app')}</p>
               ) : filteredLabAlerts.map(a => (
                 <div key={a.id} className={`p-3 border rounded-xl text-xs ${alertSeverityColors[a.severity]} ${a.acknowledgedAt ? 'opacity-50' : ''}`}>
                   <div className="flex items-center justify-between">
@@ -919,7 +1080,7 @@ const DiagnosticModuleContent = ({
                     <p className="text-[9px]">Paciente: {a.patientName} | Notificado a: {a.notifiedTo.join(', ')}</p>
                     {!a.acknowledgedAt && (
                       <button onClick={() => handleAckAlert(a.id)} className="bg-white/50 hover:bg-white px-2 py-0.5 rounded text-[9px] font-bold transition">
-                        <Check className="w-3 h-3 inline mr-0.5" /> Confirmar
+                        <Check className="w-3 h-3 inline mr-0.5" /> {t('diag_lab_alerts_confirm', 'app')}
                       </button>
                     )}
                   </div>
@@ -933,20 +1094,20 @@ const DiagnosticModuleContent = ({
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
                 <Package className="w-5 h-5 text-teal-600" />
-                <h3 className="font-bold text-slate-800 text-sm">Pedidos de Laboratorio</h3>
+                <h3 className="font-bold text-slate-800 text-sm">{t('diag_lab_orders_title', 'app')}</h3>
               </div>
               <div className="flex gap-2">
                 <div className="relative">
                   <Search className="w-4 h-4 absolute left-3 top-2 text-slate-400" />
-                  <input type="text" value={labOrderSearch} onChange={e => setLabOrderSearch(e.target.value)} placeholder="Buscar..." className={`${inputCls} pl-8 w-48`} />
+                  <input type="text" value={labOrderSearch} onChange={e => setLabOrderSearch(e.target.value)} placeholder={t('diag_lab_orders_search', 'app')} className={`${inputCls} pl-8 w-48`} />
                 </div>
                 <select value={labStatusFilter} onChange={e => setLabStatusFilter(e.target.value)} className={inputCls + ' w-36'}>
-                  <option value="all">Todos</option>
-                  <option value="solicitado">Solicitado</option>
-                  <option value="em_coleta">En colecta</option>
-                  <option value="em_processamento">En proceso</option>
-                  <option value="parcial">Parcial</option>
-                  <option value="concluido">Completado</option>
+                  <option value="all">{t('diag_lab_orders_all', 'app')}</option>
+                  <option value="solicitado">{t('diag_lab_orders_status_requested', 'app')}</option>
+                  <option value="em_coleta">{t('diag_lab_orders_status_collecting', 'app')}</option>
+                  <option value="em_processamento">{t('diag_lab_orders_status_processing', 'app')}</option>
+                  <option value="parcial">{t('diag_lab_orders_status_partial', 'app')}</option>
+                  <option value="concluido">{t('diag_lab_orders_status_completed', 'app')}</option>
                 </select>
               </div>
             </div>
@@ -1000,7 +1161,7 @@ const DiagnosticModuleContent = ({
           <div className={sectionCls}>
             <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
               <BarChart3 className="w-5 h-5 text-blue-600" />
-              <h3 className="font-bold text-slate-800 text-sm">Resultados y Comparativo Histórico</h3>
+              <h3 className="font-bold text-slate-800 text-sm">{t('diag_lab_results_title', 'app')}</h3>
             </div>
 
             {/* Results table */}
@@ -1008,14 +1169,14 @@ const DiagnosticModuleContent = ({
               <table className="w-full text-[10px]">
                 <thead>
                   <tr className="border-b border-slate-200">
-                    <th className="text-left p-2 font-bold text-slate-600 uppercase">Paciente</th>
-                    <th className="text-left p-2 font-bold text-slate-600 uppercase">Prueba</th>
-                    <th className="text-left p-2 font-bold text-slate-600 uppercase">Valor</th>
-                    <th className="text-left p-2 font-bold text-slate-600 uppercase">Referencia</th>
-                    <th className="text-left p-2 font-bold text-slate-600 uppercase">Bandera</th>
-                    <th className="text-left p-2 font-bold text-slate-600 uppercase">Equipo</th>
-                    <th className="text-left p-2 font-bold text-slate-600 uppercase">Fecha</th>
-                    <th className="text-left p-2 font-bold text-slate-600 uppercase">Acción</th>
+                    <th className="text-left p-2 font-bold text-slate-600 uppercase">{t('diag_lab_results_col_patient', 'app')}</th>
+                    <th className="text-left p-2 font-bold text-slate-600 uppercase">{t('diag_lab_results_col_test', 'app')}</th>
+                    <th className="text-left p-2 font-bold text-slate-600 uppercase">{t('diag_lab_results_col_value', 'app')}</th>
+                    <th className="text-left p-2 font-bold text-slate-600 uppercase">{t('diag_lab_results_col_reference', 'app')}</th>
+                    <th className="text-left p-2 font-bold text-slate-600 uppercase">{t('diag_lab_results_col_flag', 'app')}</th>
+                    <th className="text-left p-2 font-bold text-slate-600 uppercase">{t('diag_lab_results_col_equipment', 'app')}</th>
+                    <th className="text-left p-2 font-bold text-slate-600 uppercase">{t('diag_lab_results_col_date', 'app')}</th>
+                    <th className="text-left p-2 font-bold text-slate-600 uppercase">{t('diag_lab_results_col_action', 'app')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1037,7 +1198,7 @@ const DiagnosticModuleContent = ({
                       <td className="p-2 text-slate-400 text-[9px]">{r.equipment}</td>
                       <td className="p-2 text-slate-400">{r.performedAt.split('T')[0]}</td>
                       <td className="p-2">
-                        <button onClick={() => { setSelectedLabResult(r); setLabResultDetailOpen(true); }} className="text-blue-600 hover:text-blue-800 font-bold text-[9px]">Ver histórico</button>
+                        <button onClick={() => { setSelectedLabResult(r); setLabResultDetailOpen(true); }} className="text-blue-600 hover:text-blue-800 font-bold text-[9px]">{t('diag_lab_results_history', 'app')}</button>
                       </td>
                     </tr>
                   ))}
@@ -1049,12 +1210,12 @@ const DiagnosticModuleContent = ({
             {selectedLabResult && (
               <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
                 <div className="flex items-center justify-between">
-                  <h5 className="text-xs font-bold text-slate-700 flex items-center gap-1"><TrendingUp className="w-3.5 h-3.5 text-blue-500" /> Comparativo histórico: {selectedLabResult.testName}</h5>
+                  <h5 className="text-xs font-bold text-slate-700 flex items-center gap-1"><TrendingUp className="w-3.5 h-3.5 text-blue-500" /> {t('diag_lab_history_title', 'app')}: {selectedLabResult.testName}</h5>
                   <button onClick={() => { setLabResultDetailOpen(false); setSelectedLabResult(null); }} className="text-slate-400 hover:text-slate-700"><XCircle className="w-4 h-4" /></button>
                 </div>
                 {(() => {
                   const history = getLabPatientHistory(selectedLabResult.patientId, selectedLabResult.testCode);
-                  if (history.length === 0) return <p className="text-[10px] text-slate-400">Sin registros previos</p>;
+                  if (history.length === 0)                     return <p className="text-[10px] text-slate-400">{t('diag_lab_no_results', 'app')}</p>;
                   const maxVal = Math.max(...history.map(h => Number(h.value)), selectedLabResult.referenceHigh || 0) * 1.3;
                   const minVal = Math.min(...history.map(h => Number(h.value)), selectedLabResult.referenceLow || 0) * 0.7;
                   const range = maxVal - minVal;
@@ -1078,9 +1239,9 @@ const DiagnosticModuleContent = ({
                         ))}
                       </div>
                       <div className="flex items-center gap-4 text-[9px]">
-                        <span className="flex items-center gap-1"><span className="w-2 h-2 bg-green-400 rounded-full" /> Normal</span>
-                        <span className="flex items-center gap-1"><span className="w-2 h-2 bg-amber-400 rounded-full" /> Alterado</span>
-                        <span className="flex items-center gap-1"><span className="w-2 h-2 bg-red-400 rounded-full" /> Crítico</span>
+                        <span className="flex items-center gap-1"><span className="w-2 h-2 bg-green-400 rounded-full" /> {t('diag_lab_normal', 'app')}</span>
+                        <span className="flex items-center gap-1"><span className="w-2 h-2 bg-amber-400 rounded-full" /> {t('diag_lab_altered', 'app')}</span>
+                        <span className="flex items-center gap-1"><span className="w-2 h-2 bg-red-400 rounded-full" /> {t('diag_lab_critical', 'app')}</span>
                         <span className="text-slate-500">Ref: {selectedLabResult.referenceLow} - {selectedLabResult.referenceHigh} {selectedLabResult.unit}</span>
                       </div>
                     </div>
@@ -1097,11 +1258,11 @@ const DiagnosticModuleContent = ({
 
 export default function DiagnosticModule(props: DiagnosticModuleProps) {
   const { userPermissions = [], ...rest } = props;
-  
+
   return (
     <WithPermissions userPermissions={userPermissions}>
       <PermissionGate view="diagnostic" userPermissions={userPermissions}>
-        <DiagnosticModuleContent {...rest} />
+        <DiagnosticModuleContent {...rest} userPermissions={userPermissions} />
       </PermissionGate>
     </WithPermissions>
   );

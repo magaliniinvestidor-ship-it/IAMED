@@ -36,6 +36,7 @@ import InternacaoCentroCirurgicoModule from '@/components/InternacaoCentroCirurg
 import PatientPortalModule from '@/components/PatientPortalModule';
 import AgendaModule from '@/components/AgendaModule';
 import ErrorBoundary from '@/components/ErrorBoundary';
+import { TwoFactorLoginScreen } from '@/components/TwoFactorLoginScreen';
 
 // Permission Gate
 import { PermissionGate } from '@/components/ui/PermissionGate';
@@ -63,7 +64,7 @@ import {
   Bell, HelpCircle, Info, ShieldCheck,
   Eye, EyeOff, Loader2, LogOut, Globe, ChevronDown,
   Building2, Hash, AlertCircle, Send, Wifi, Banknote,
-  Clock
+  Clock, Fingerprint
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -81,6 +82,20 @@ export default function Home() {
     </I18nProvider>
   );
 }
+
+// Gate RBAC fino por submódulo do painel Administração/Financeiro (Módulos 5, 6 e 14–21)
+const ADMIN_FINANCE_VIEW_BY_SUBMODULE: Partial<Record<number, 'sifen' | 'finance' | 'security' | 'insurance' | 'fee_schedule' | 'copay' | 'batches' | 'eligibility' | 'settlements' | 'foreign_billing'>> = {
+  5: 'sifen',
+  6: 'finance',
+  14: 'security',
+  15: 'insurance',
+  16: 'fee_schedule',
+  17: 'copay',
+  18: 'batches',
+  19: 'eligibility',
+  20: 'settlements',
+  21: 'foreign_billing',
+};
 
 function HomeContent() {
   const { locale, setLocale, t } = useI18n();
@@ -154,6 +169,25 @@ function HomeContent() {
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginAttemptCount, setLoginAttemptCount] = useState(0);
   const [lockedUntil, setLockedUntil] = useState<string | null>(null);
+
+  // 2FA Login State
+  const [pending2FAUserId, setPending2FAUserId] = useState<string | null>(null);
+  const [pending2FAEmail, setPending2FAEmail] = useState('');
+  const [twoFactorLoginCode, setTwoFactorLoginCode] = useState('');
+  const [twoFactorLoginError, setTwoFactorLoginError] = useState('');
+  const [twoFactorLoginLoading, setTwoFactorLoginLoading] = useState(false);
+  const [pending2FABackupMode, setPending2FABackupMode] = useState(false);
+  const [pending2FAMethod, setPending2FAMethod] = useState<'totp' | 'email' | 'sms' | null>(null);
+  const [pending2FAQRCode, setPending2FAQRCode] = useState('');
+  const [pending2FATotpSecret, setPending2FATotpSecret] = useState('');
+  const [pending2FAEmailSent, setPending2FAEmailSent] = useState(false);
+  const [pending2FATotpVerified, setPending2FATotpVerified] = useState(false);
+
+  // Bloqueia o dashboard enquanto o desafio 2FA não termina; guarda credenciais
+  // apenas em memória para reautenticar após a verificação do código
+  const twoFALoginCheckRef = useRef(false);
+  const pending2FACredentialsRef = useRef<{ email: string; password: string } | null>(null);
+  const pending2FAChallengeRef = useRef('');
 
   // Session Timeout / Inactivity
    
@@ -281,35 +315,77 @@ function HomeContent() {
 
       if (sysUser && !sysUserErr) {
         let userName = session.user.email?.split('@')[0] || 'Operador';
+        let linkedProfRole: string | null = null;
         if (sysUser.professional_id) {
           const { data: prof } = await supabase
             .from('professionals')
-            .select('name')
+            .select('name, role')
             .eq('id', sysUser.professional_id)
             .single();
           if (prof?.name) userName = prof.name;
+          linkedProfRole = prof?.role || null;
         }
         data = { id: sysUser.id, name: userName, role: sysUser.system_role, permissions: sysUser.permissions };
       }
 
       if (data) {
-        // If permissions are empty, try loading from professionals table by email
+        // 1) Override individual do usuário (system_users.permissions)
         let finalPermissions = data.permissions || [];
-        if (finalPermissions.length === 0 && sysUser?.professional_id) {
-          try {
-            const { data: profByEmail } = await supabase
+
+        // 2) Permissões individuais configuradas na aba RBAC (professionals)
+        if (finalPermissions.length === 0 && sysUser) {
+          if (sysUser.professional_id) {
+            const { data: profById } = await supabase
               .from('professionals')
               .select('permissions')
-              .eq('email', session.user.email)
-              .single();
-            finalPermissions = profByEmail?.permissions || [];
-          } catch {
-            // professionals query failed, keep empty
+              .eq('id', sysUser.professional_id)
+              .maybeSingle();
+            finalPermissions = profById?.permissions || [];
+          }
+          if (finalPermissions.length === 0 && session.user.email) {
+            try {
+              const { data: profByEmail } = await supabase
+                .from('professionals')
+                .select('permissions')
+                .eq('email', session.user.email)
+                .maybeSingle();
+              finalPermissions = profByEmail?.permissions || [];
+            } catch {
+              // professionals query failed, keep empty
+            }
           }
         }
 
-        // Fallback standard mapping based on user role if no specific permissions exist
-        if (finalPermissions.length === 0) {
+        // 3) Base por Função/Profissão (tabela role_permissions)
+        //    Se o system_role diverge da profissão vinculada, é um override
+        //    deliberado (ex.: Visualizador/Admin) e prevalece como chave.
+        //    Linha EXISTENTE na tabela é autoritativa — mesmo vazia (fail-safe).
+        let roleBaseResolved = false;
+        if (finalPermissions.length === 0 && sysUser) {
+          let baseRoleName: string | null = sysUser.system_role || null;
+          const { data: profRoleRow } = await supabase
+            .from('professionals')
+            .select('role')
+            .eq('id', sysUser.professional_id)
+            .maybeSingle();
+          if (profRoleRow?.role) {
+            baseRoleName = sysUser.system_role === profRoleRow.role ? profRoleRow.role : sysUser.system_role;
+          }
+          if (!baseRoleName) baseRoleName = 'Visualizador';
+          const { data: rolePermRow } = await supabase
+            .from('role_permissions')
+            .select('permissions')
+            .eq('role_name', baseRoleName)
+            .maybeSingle();
+          if (rolePermRow) {
+            finalPermissions = Array.isArray(rolePermRow.permissions) ? rolePermRow.permissions : [];
+            roleBaseResolved = true;
+          }
+        }
+
+        // 4) Fallback standard mapping based on user role — apenas quando NÃO
+        //    existe linha configurada para a função/profissão na tabela.
+        if (!roleBaseResolved && finalPermissions.length === 0) {
           const ROLE_DEFAULT_PERMISSIONS: Record<string, string[]> = {
             SuperAdmin: ['admin:*'],
             Administrador: ['admin:*'],
@@ -340,7 +416,7 @@ function HomeContent() {
             'Biomédico(a)': ['clinical:*'],
             'Técnico(a) em Radiologia': ['clinical:*'],
             'Técnico(a) de Laboratório': ['clinical:*'],
-            Visualizador: ['view_reception', 'view_agenda', 'view_hce', 'view_diagnostic', 'view_finance', 'view_stock', 'view_med_work', 'view_crm', 'view_hospitalization'],
+            Visualizador: ['view_reception', 'view_agenda', 'view_hce', 'view_diagnostic', 'view_sifen', 'view_finance', 'view_stock', 'view_pcmso', 'view_med_work', 'view_crm', 'view_hospitalization', 'view_bi', 'view_patient_portal', 'view_security', 'view_insurance', 'view_fee_schedule', 'view_copay', 'view_batches', 'view_eligibility', 'view_settlements', 'view_foreign_billing'],
           };
           finalPermissions = ROLE_DEFAULT_PERMISSIONS[data.role] || [];
         }
@@ -363,7 +439,7 @@ function HomeContent() {
 
         const defaultFullPermissions = [
           'view_reception', 'view_agenda', 'view_hce', 'view_diagnostic',
-          'view_finance', 'view_stock', 'view_med_work', 'view_crm', 'view_security',
+          'view_sifen', 'view_finance', 'view_stock', 'view_med_work', 'view_pcmso', 'view_crm', 'view_security',
           'view_insurance', 'view_fee_schedule', 'view_copay', 'view_batches',
           'view_eligibility', 'view_settlements', 'view_foreign_billing',
           'view_bi', 'view_patient_portal', 'view_hospitalization',
@@ -505,6 +581,30 @@ function HomeContent() {
           doctorName: a.doctor_name,
         }));
         setAppointments(mapped);
+
+        // Merge patients from appointments that don't exist in the patients table
+        setPatients(prev => {
+          const existingIds = new Set(prev.map(p => p.id));
+          const newFromAppts = mapped
+            .filter((a: any) => a.patient_id && !existingIds.has(a.patient_id))
+            .reduce((acc: Patient[], a: any) => {
+              if (!acc.find(p => p.id === a.patient_id)) {
+                acc.push({
+                  id: a.patient_id,
+                  name: a.patient_name,
+                  email: '',
+                  phone: '',
+                  birthdate: '',
+                  gender: '',
+                  priority: 'normal',
+                  status: 'agendado',
+                  clinicalHistory: [],
+                });
+              }
+              return acc;
+            }, []);
+          return newFromAppts.length > 0 ? [...prev, ...newFromAppts] : prev;
+        });
       } else {
         setAppointments(initialAppointments);
       }
@@ -1022,6 +1122,7 @@ function HomeContent() {
     }
     setLoginLoading(true);
     setLoginError('');
+    twoFALoginCheckRef.current = true;
 
     const { data, error } = await supabase.auth.signInWithPassword({
       email: loginEmail,
@@ -1030,6 +1131,7 @@ function HomeContent() {
 
     setLoginLoading(false);
     if (error) {
+      twoFALoginCheckRef.current = false;
       // Track failed login attempt
       const newCount = loginAttemptCount + 1;
       setLoginAttemptCount(newCount);
@@ -1062,11 +1164,68 @@ function HomeContent() {
       // Successful login - reset counters
       setLoginAttemptCount(0);
       setLockedUntil(null);
-      updateLastActivityTime();
 
-      // Grava o horário do último login na tabela system_users
       const { user } = data;
       if (user) {
+        // Check if user has 2FA enabled
+        const { data: tfaData } = await supabase
+          .from('two_factor_secrets')
+          .select('enabled, secret')
+          .eq('user_id', user.id)
+          .eq('enabled', true)
+          .single();
+
+        if (tfaData) {
+          pending2FACredentialsRef.current = { email: loginEmail, password: loginPassword };
+          setLoginPassword('');
+
+          // Get the 2FA method from system_users
+          const { data: userRow } = await supabase
+            .from('system_users')
+            .select('two_factor_method')
+            .eq('auth_user_id', user.id)
+            .single();
+
+          const method = userRow?.two_factor_method || 'totp';
+          const routedMethod: 'totp' | 'email' | 'sms' =
+            method === 'sms'
+              ? 'sms'
+              : method === 'email' || tfaData.secret === 'email-otp'
+                ? 'email'
+                : 'totp';
+
+          // Registra o desafio 2FA no servidor enquanto a sessão pós-senha
+          // ainda é válida; depois o sign-out invalida o JWT prematuro
+          try {
+            const challengeRes = await fetch('/api/admin/2fa', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.session?.access_token}` },
+              body: JSON.stringify({ action: 'start_challenge', user_id: user.id }),
+            });
+            const challengeData = await challengeRes.json();
+            pending2FAChallengeRef.current = challengeData.challenge || '';
+          } catch {}
+
+          // Invalida o JWT criado pela senha — a sessão real só nasce após o 2FA
+          await supabase.auth.signOut();
+
+          setPending2FAMethod(routedMethod);
+          setPending2FAUserId(user.id);
+          setPending2FAEmail(loginEmail);
+          setPending2FAQRCode('');
+          setPending2FATotpSecret('');
+          setPending2FATotpVerified(false);
+          setTwoFactorLoginCode('');
+          setTwoFactorLoginError('');
+          setPending2FABackupMode(false);
+          setPending2FAEmailSent(false);
+          setLoginLoading(false);
+          return;
+        }
+
+        // No 2FA — proceed normally
+        twoFALoginCheckRef.current = false;
+        updateLastActivityTime();
         await supabase
           .from('system_users')
           .update({ last_login: new Date().toISOString() })
@@ -1104,6 +1263,15 @@ function HomeContent() {
 
   const handleLogout = useCallback(async () => {
     await addAuditLog('Logout do Sistema', activeOperator);
+    setPending2FAUserId(null);
+    setPending2FAEmail('');
+    setTwoFactorLoginCode('');
+    setPending2FABackupMode(false);
+    setPending2FAMethod(null);
+    setPending2FAQRCode('');
+    setPending2FATotpSecret('');
+    setPending2FAEmailSent(false);
+    setPending2FATotpVerified(false);
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
     const isPlaceholder = supabaseUrl.includes('your-supabase-url') || supabaseUrl === '';
     if (!isPlaceholder && supabase) {
@@ -1120,6 +1288,166 @@ function HomeContent() {
     setProfile(null);
     setActiveSubmodule(null);
   }, [addAuditLog, activeOperator]);
+
+  const twoFAAuthHeaders = (): HeadersInit => ({
+    'Content-Type': 'application/json',
+    ...(pending2FAChallengeRef.current ? { 'x-2fa-challenge': pending2FAChallengeRef.current } : {}),
+  });
+
+  const handle2FAVerify = async () => {
+    if (!pending2FAUserId || !pending2FAMethod) return;
+
+    if (pending2FAMethod === 'sms') {
+      setTwoFactorLoginError(t('admin_2fa_login_sms_unavailable', 'app'));
+      return;
+    }
+
+    if (pending2FAMethod === 'email' && !pending2FAEmailSent) {
+      setTwoFactorLoginLoading(true);
+      try {
+        const res = await fetch('/api/admin/2fa', {
+          method: 'POST',
+          headers: twoFAAuthHeaders(),
+          body: JSON.stringify({ action: 'send_email_otp', user_id: pending2FAUserId }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          setPending2FAEmailSent(true);
+          setTwoFactorLoginError('');
+        } else {
+          setTwoFactorLoginError(data.error || t('admin_2fa_login_err_send_email', 'app'));
+        }
+      } catch {
+        setTwoFactorLoginError(t('admin_2fa_login_err_send_email', 'app'));
+      }
+      setTwoFactorLoginLoading(false);
+      return;
+    }
+
+    if (pending2FAMethod === 'totp' && pending2FATotpVerified) {
+      await completeLogin2FA();
+      return;
+    }
+
+    if (twoFactorLoginCode.length !== 6) {
+      setTwoFactorLoginError(t('fin_alert_6_digit_code', 'app') || 'Digite um código de 6 dígitos');
+      return;
+    }
+
+    setTwoFactorLoginLoading(true);
+    setTwoFactorLoginError('');
+    try {
+      let action = 'verify';
+      if (pending2FABackupMode) action = 'verify_backup';
+      else if (pending2FAMethod === 'email') action = 'verify_email_otp';
+
+      const body: Record<string, string> = { action, user_id: pending2FAUserId, token: twoFactorLoginCode };
+      if (pending2FABackupMode || pending2FAMethod === 'email') body.code = twoFactorLoginCode;
+
+      const res = await fetch('/api/admin/2fa', {
+        method: 'POST',
+        headers: twoFAAuthHeaders(),
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+
+      if (data.valid) {
+        if (pending2FAMethod === 'totp' && !pending2FATotpVerified) {
+          setPending2FATotpVerified(true);
+          setTwoFactorLoginCode('');
+          await completeLogin2FA();
+        } else {
+          await completeLogin2FA();
+        }
+      } else {
+        setTwoFactorLoginError(data.error || t('fin_alert_invalid_code', 'app') || 'Código inválido. Tente novamente.');
+      }
+    } catch {
+      setTwoFactorLoginError(t('admin_2fa_login_err_verify', 'app'));
+    }
+    setTwoFactorLoginLoading(false);
+  };
+
+  const handle2FASendEmail = async () => {
+    if (!pending2FAUserId) return;
+    setTwoFactorLoginLoading(true);
+    try {
+      const res = await fetch('/api/admin/2fa', {
+        method: 'POST',
+        headers: twoFAAuthHeaders(),
+        body: JSON.stringify({ action: 'send_email_otp', user_id: pending2FAUserId }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setPending2FAEmailSent(true);
+        setTwoFactorLoginError('');
+      } else {
+        setTwoFactorLoginError(data.error || t('admin_2fa_login_err_send_email', 'app'));
+      }
+    } catch {
+      setTwoFactorLoginError(t('admin_2fa_login_err_send_email', 'app'));
+    }
+    setTwoFactorLoginLoading(false);
+  };
+
+  const completeLogin2FA = async () => {
+    // Reautentica com as credenciais guardadas em memória: o JWT prematuro
+    // foi invalidado via signOut no início do desafio 2FA
+    const creds = pending2FACredentialsRef.current;
+    let freshSession: Session | null = null;
+    if (creds?.email && creds.password) {
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+        email: creds.email,
+        password: creds.password,
+      });
+      if (!signInError && signInData.session) freshSession = signInData.session;
+    }
+    pending2FACredentialsRef.current = null;
+    pending2FAChallengeRef.current = '';
+    twoFALoginCheckRef.current = false;
+
+    updateLastActivityTime();
+    await supabase
+      .from('system_users')
+      .update({ last_login: new Date().toISOString() })
+      .eq('auth_user_id', pending2FAUserId);
+
+    const now = new Date();
+    try {
+      await supabase.from('login_attempts').insert({
+        email: pending2FAEmail,
+        success: true,
+        ip_address: '192.168.1.1',
+        user_agent: typeof navigator !== 'undefined' ? navigator.userAgent || 'Unknown' : 'Unknown',
+      });
+    } catch {}
+
+    try {
+      await supabase.from('user_sessions').insert({
+        user_id: pending2FAUserId,
+        user_name: activeOperator || pending2FAEmail,
+        ip_address: '192.168.1.1',
+        device_info: typeof navigator !== 'undefined' ? navigator.userAgent || 'Unknown' : 'Unknown',
+        login_at: now.toISOString(),
+        last_activity_at: now.toISOString(),
+        expires_at: new Date(now.getTime() + SESSION_TIMEOUT_MS).toISOString(),
+        active: true,
+        revoked: false,
+      });
+    } catch {}
+
+    if (!freshSession) {
+      const { data: { session: restoredSession } } = await supabase.auth.getSession();
+      freshSession = restoredSession;
+    }
+    if (freshSession) setSession(freshSession);
+    setPending2FAUserId(null);
+    setPending2FAMethod(null);
+    setPending2FAQRCode('');
+    setPending2FATotpSecret('');
+    setPending2FAEmailSent(false);
+    setPending2FATotpVerified(false);
+  };
 
   // ──────────────────────────────────────────────
   // 1b. Inactivity / Session Timeout Tracker
@@ -1172,8 +1500,7 @@ function HomeContent() {
   };
 
   const cards = [
-    { id: 1, icon: Users2, color: "border-teal-500 text-teal-600 bg-teal-50/50" },
-    { id: 2, icon: CalendarDays, color: "border-teal-500 text-teal-600 bg-teal-50/50" },
+    { id: 1, icon: Users2, color: "border-teal-500 text-teal-600 bg-teal-50/50" },    { id: 2, icon: CalendarDays, color: "border-teal-500 text-teal-600 bg-teal-50/50" },
     { id: 3, icon: ClipboardList, color: "border-sky-500 text-sky-600 bg-sky-50/50" },
     { id: 4, icon: Microscope, color: "border-sky-500 text-sky-600 bg-sky-50/50" },
     { id: 5, icon: Receipt, color: "border-emerald-500 text-emerald-600 bg-emerald-50/50" },
@@ -1217,7 +1544,7 @@ function HomeContent() {
   // ──────────────────────────────────────────────
   // RENDER: Login Screen
   // ──────────────────────────────────────────────
-  if (!session) {
+  if (!session || pending2FAUserId || twoFALoginCheckRef.current) {
     return (
       <div className="relative min-h-screen w-full flex items-center justify-center overflow-hidden bg-gradient-to-br from-slate-100 via-slate-200 to-teal-50/50 font-sans" suppressHydrationWarning>
         {/* Hospital backdrop hidden */}
@@ -1311,6 +1638,34 @@ function HomeContent() {
             </div>
 
             {/* Form */}
+            {pending2FAUserId && pending2FAMethod ? (
+              <TwoFactorLoginScreen
+                method={pending2FAMethod}
+                emailSent={pending2FAEmailSent}
+                code={twoFactorLoginCode}
+                error={twoFactorLoginError}
+                loading={twoFactorLoginLoading}
+                backupMode={pending2FABackupMode}
+                onCodeChange={setTwoFactorLoginCode}
+                onVerify={handle2FAVerify}
+                onSendEmail={handle2FASendEmail}
+                onToggleBackup={() => setPending2FABackupMode(!pending2FABackupMode)}
+                onBack={() => {
+                  twoFALoginCheckRef.current = false;
+                  pending2FACredentialsRef.current = null;
+                  pending2FAChallengeRef.current = '';
+                  setPending2FAUserId(null);
+                  setPending2FAMethod(null);
+                  setPending2FAQRCode('');
+                  setPending2FATotpSecret('');
+                  setTwoFactorLoginCode('');
+                  setTwoFactorLoginError('');
+                  setPending2FABackupMode(false);
+                  setPending2FAEmailSent(false);
+                  setPending2FATotpVerified(false);
+                }}
+              />
+            ) : (
             <form onSubmit={handleLoginSubmit} className="space-y-4">
               <div className="space-y-1.5 text-left">
                 <Label htmlFor="login-email" className="text-[11px] text-slate-800 font-bold tracking-tight">
@@ -1370,6 +1725,7 @@ function HomeContent() {
                 ) : (lockedUntil && new Date(lockedUntil) > new Date()) ? t('blocked') : t('submit')}
               </Button>
             </form>
+            )}
 
             <div className="text-center pt-1">
               <p className="text-[10px] text-slate-400 font-medium">
@@ -1645,7 +2001,7 @@ function HomeContent() {
                   </PermissionGate>
                 )}
                 {(activeSubmodule === 3 || activeSubmodule === 8) && (
-                  <PermissionGate view="hce" userPermissions={profile?.permissions}>
+                  <PermissionGate view={activeSubmodule === 8 ? 'pcmso' : 'hce'} userPermissions={profile?.permissions}>
                     <ErrorBoundary moduleName={t('mod_name_clinical', 'app')}>
                     <ClinicalModule
                       patients={patients}
@@ -1670,6 +2026,7 @@ function HomeContent() {
                       addAuditLog={addAuditLog}
                       asos={asos}
                       setAsos={setAsos}
+                      userPermissions={profile?.permissions}
                     />
                     </ErrorBoundary>
                   </PermissionGate>
@@ -1706,18 +2063,21 @@ function HomeContent() {
                       setBatchRecalls={setBatchRecalls}
                       activeRole={activeRole}
                       activeOperator={activeOperator}
+                      userPermissions={profile?.permissions}
                     />
                     </ErrorBoundary>
                   </PermissionGate>
                 )}
-                {(activeSubmodule === 5 || activeSubmodule === 6 || activeSubmodule === 14 ||
-                  activeSubmodule === 15 || activeSubmodule === 16 || activeSubmodule === 17 ||
-                  activeSubmodule === 18 || activeSubmodule === 19 || activeSubmodule === 20 || activeSubmodule === 21) && (
-                  <PermissionGate view="security" userPermissions={profile?.permissions}>
+                {(() => {
+                  const adminView = activeSubmodule !== null ? ADMIN_FINANCE_VIEW_BY_SUBMODULE[activeSubmodule] : undefined;
+                  if (!adminView) return null;
+                  return (
+                    <PermissionGate view={adminView} userPermissions={profile?.permissions}>
                     <ErrorBoundary moduleName={t('mod_name_admin', 'app')}>
                     <AdminFinanceModule
                     activeSubmodule={activeSubmodule}
                     addAuditLog={addAuditLog}
+                    userPermissions={profile?.permissions}
                     logs={logs}
                     financePostings={finance}
                     setFinancePostings={setFinance}
@@ -1773,46 +2133,56 @@ function HomeContent() {
                     setLocations={setLocations}
                     clinicalRooms={clinicalRooms}
                     setClinicalRooms={setClinicalRooms}
-                    passwordPolicy={passwordPolicy}
-                    onPasswordPolicyChange={setPasswordPolicy}
+                     passwordPolicy={passwordPolicy}
+                     onPasswordPolicyChange={setPasswordPolicy}
+                     />
+                     </ErrorBoundary>
+                    </PermissionGate>
+                  );
+                })()}
+                {activeSubmodule === 11 && (
+                  <PermissionGate view="hospitalization" userPermissions={profile?.permissions}>
+                    <ErrorBoundary moduleName={t('mod_name_intern', 'app')}>
+                    <InternacaoCentroCirurgicoModule
+                      activeSubmodule={activeSubmodule}
+                      addAuditLog={addAuditLog}
+                      patients={patients}
+                      setPatients={setPatients}
+                      userPermissions={profile?.permissions}
                     />
                     </ErrorBoundary>
                   </PermissionGate>
                 )}
-                {activeSubmodule === 11 && (
-                  <ErrorBoundary moduleName={t('mod_name_intern', 'app')}>
-                  <InternacaoCentroCirurgicoModule
-                    activeSubmodule={activeSubmodule}
-                    addAuditLog={addAuditLog}
-                    patients={patients}
-                    setPatients={setPatients}
-                  />
-                  </ErrorBoundary>
-                )}
                 {(activeSubmodule === 10 || activeSubmodule === 12) && (
-                  <ErrorBoundary moduleName={t('mod_name_crm', 'app')}>
-                  <CrmBiModule
-                    activeSubmodule={activeSubmodule}
-                    addAuditLog={addAuditLog}
-                    beds={beds}
-                    setBeds={setBeds}
-                    patients={patients}
-                    financePostings={finance}
-                  />
-                  </ErrorBoundary>
+                  <PermissionGate view={activeSubmodule === 12 ? 'bi' : 'crm'} userPermissions={profile?.permissions}>
+                    <ErrorBoundary moduleName={t('mod_name_crm', 'app')}>
+                    <CrmBiModule
+                      activeSubmodule={activeSubmodule}
+                      addAuditLog={addAuditLog}
+                      beds={beds}
+                      setBeds={setBeds}
+                      patients={patients}
+                      financePostings={finance}
+                      userPermissions={profile?.permissions}
+                    />
+                    </ErrorBoundary>
+                  </PermissionGate>
                 )}
                 {activeSubmodule === 13 && (
-                  <ErrorBoundary moduleName={t('mod_name_portal', 'app')}>
-                  <PatientPortalModule
-                    patients={patients}
-                    setPatients={setPatients}
-                    appointments={appointments}
-                    setAppointments={setAppointments}
-                    dtes={dtes}
-                    setDtes={setDtes}
-                    addAuditLog={addAuditLog}
-                  />
-                  </ErrorBoundary>
+                  <PermissionGate view="patient_portal" userPermissions={profile?.permissions}>
+                    <ErrorBoundary moduleName={t('mod_name_portal', 'app')}>
+                    <PatientPortalModule
+                      patients={patients}
+                      setPatients={setPatients}
+                      appointments={appointments}
+                      setAppointments={setAppointments}
+                      dtes={dtes}
+                      setDtes={setDtes}
+                      addAuditLog={addAuditLog}
+                      userPermissions={profile?.permissions}
+                    />
+                    </ErrorBoundary>
+                  </PermissionGate>
                 )}
               </div>
             </motion.div>

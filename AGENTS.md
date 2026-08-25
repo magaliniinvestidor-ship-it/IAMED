@@ -347,6 +347,83 @@ Se um módulo ainda não foi migrado para Zod (legado), ele PODE manter validaç
 
 ---
 
+## RBAC — Atualização Obrigatória ao Finalizar Módulo
+
+### Regra Obrigatória
+
+**Ao finalizar a construção de qualquer módulo (4 a 21), o agente DEVE automaticamente perguntar ao usuário se deseja atualizar o RBAC no Módulo 14 (Segurança/Controle de Acesso).**
+
+Isso garante que o novo módulo apareça corretamente no editor de permissões do painel admin, com suas abas e ações controláveis.
+
+### Checklist de Atualização RBAC (ao finalizar um módulo)
+
+Ao construir um módulo novo, o agente deve:
+
+1. **`lib/rbac/catalog.ts`** — Adicionar entrada no `RBAC_MODULE_CATALOG`:
+   ```ts
+   {
+     id: 'nome_do_modulo',         // mesmo id usado em view_* e canAccessTab
+     labelKey: 'submodule_N',      // ex: 'submodule_4'
+     tabs: [
+       { key: 'aba1', labelKey: 'prefix_tab_aba1' },
+       { key: 'aba2', labelKey: 'prefix_tab_aba2' },
+       // ... cada aba que o módulo possui
+     ],
+   },
+   ```
+
+2. **`lib/rbac/performCatalog.ts`** — Adicionar mapeamento em `PERFORM_BY_VIEW`:
+   ```ts
+   view_nome_do_modulo: ['perform_action1', 'perform_action2'],
+   ```
+
+3. **`lib/usePermissions.ts`** — Adicionar:
+   - `view_nome_do_modulo: 'view_nome_do_modulo'` no objeto `PERMISSIONS.view`
+   - `action1: 'perform_action1'`, `action2: 'perform_action2'` no objeto `PERMISSIONS.perform`
+   - Chaves no array do `WILDCARD_MAP` nas categorias relevantes (ex: `admin`, `clinical`, etc.)
+
+4. **`lib/i18n/locales/*.json`** (6 arquivos) — Adicionar chaves:
+   - `submodule_N`: nome do módulo em cada idioma
+   - `prefix_tab_aba1`, `prefix_tab_aba2`: nome de cada aba em cada idioma
+
+5. **Verificar coerência com o componente** — O componente do módulo DEVE usar:
+   - `<PermissionGate view="nome_do_modulo">` no wrapper principal
+   - `canAccessTab(userPermissions, 'nome_do_modulo', 'aba1')` para cada sub-aba
+   - `hasPermission(userPermissions, 'perform_action1')` para botões/actions gated
+
+6. **Validar** com `npx tsc --noEmit` (0 erros) e `npx eslint` (0 erros)
+
+7. **Commit** com mensagem: `rbac: adicionar permissões do módulo [Nome]`
+
+### Padrão de Referência
+
+Os módulos 1 (Recepção), 2 (Agenda) e 3 (HCE) são a referência. Ao adicionar um novo módulo, copiar o padrão de:
+- Nomes de constantes: `view_<modulo>`, `perform_<acao>`
+- Chaves de aba: `tab_<modulo>_<aba>` (geradas por `tabPermissionKey()`)
+- Estrutura do catalog: `{ id, labelKey, tabs: [{ key, labelKey }] }`
+
+### Mapeamento Atual (módulos com RBAC configurado)
+
+| Módulo | id | Abas configuradas |
+|---|---|---|
+| 1 Recepção | `reception` | recepcao, distribuicao, locais, notificacoes |
+| 2 Agenda | `agenda` | register, calendar, whatsapp, waitlist, callcenter |
+| 3 HCE | `hce` | anamnese, exam, soap, diagnoses, prescriptions, exams, procedures, attachments, signatures, timeline, security |
+| 4 Diagnóstico | `diagnostic` | pacs, laudos, worklist, laboratorio |
+| 5 SIFEN | `sifen` | (sem abas) |
+| 6 Financeiro | `finance` | dashboard, ap_ar, cashflow, reconciliation, cost_centers, dre, tax, books, multicurrency, chart_accounts, accounting_entries |
+| 7 Estoque/Farmácia | `stock` | dashboard, items, lots, movements, entries, exits, inventory, alerts, reports, pharmacovigilance |
+| 9 Medicina Trabalho | `med_work` | dashboard, empresas, trabalhadores, exames, cal, riscos, relatorios |
+| 10 CRM | `crm` | dashboard, segmentacao, campanhas, funil, oportunidades, nps, leads, optout |
+| 11 Internação | `hospitalization` | dashboard, leitos, cirurgia, internacao, relatorios |
+| 12 BI | `bi` | ocupacao, cirurgias, financeiro, nps, alertas |
+| 13 Portal Paciente | `patient_portal` | dashboard, appointments, history, prescriptions, exames, dtes, payments, telemedicine, notifications, profile |
+| 15 Convênios | `insurance` | companies, fee, preauth |
+
+> **Nota:** Módulos 8, 16–21 ainda não possuem RBAC configurado — serão adicionados conforme forem construídos.
+
+---
+
 ## WhatsApp (Módulo de Lembretes)
 
 ### Arquitetura Atual

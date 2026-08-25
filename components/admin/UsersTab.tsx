@@ -5,6 +5,7 @@ import React, { useState, useEffect } from 'react';
 import { Users as UsersIcon, Edit2, Trash2, Plus, X, Mail, IdCard, MapPin, Fingerprint, UserCheck, UserX, Search, Copy } from 'lucide-react';
 import { useI18n } from '@/lib/i18n/I18nContext';
 import { supabase } from '@/lib/supabaseClient';
+import { authFetch } from '@/lib/auth/authFetch';
 import { SystemUser } from './AdminContext';
 import type { SystemRole, Professional } from '@/lib/mockData';
 import { useFormValidation, groupErrorsByPath } from '@/lib/validation';
@@ -19,30 +20,6 @@ const ROLES: SystemRole[] = [
   'Biomédico(a)', 'Técnico(a) em Radiologia', 'Técnico(a) em Farmácia',
   'Técnico(a) de Laboratório', 'Nutricionista', 'Psicólogo(a)', 'Técnico(a) de Enfermagem',
 ];
-
-const PROFESSIONAL_ROLE_TO_SYSTEM_ROLE: Record<string, SystemRole> = {
-  'Médico(a)': 'Médico',
-  'Enfermeiro(a)': 'Enfermeiro',
-  'Fisioterapeuta': 'Visualizador',
-  'Psicólogo(a)': 'Psicólogo(a)',
-  'Nutricionista': 'Nutricionista',
-  'Técnico(a) de Enfermagem': 'Técnico(a) de Enfermagem',
-  'Auxiliar de Enfermagem': 'Auxiliar de Enfermagem',
-  'Anestesiologista': 'Anestesiologista',
-  'Cirurgião(ã)': 'Cirurgião(ã)',
-  'Terapeuta Ocupacional': 'Terapeuta Ocupacional',
-  'Educador Físico': 'Educador Físico',
-  'Assistente Social': 'Assistente Social',
-  'Fonoaudiólogo(a)': 'Fonoaudiólogo(a)',
-  'Farmacêutico(a)': 'Farmacêutico',
-  'Dentista': 'Dentista',
-  'Biomédico(a)': 'Biomédico(a)',
-  'Técnico(a) em Radiologia': 'Técnico(a) em Radiologia',
-  'Técnico(a) em Farmácia': 'Técnico(a) em Farmácia',
-  'Técnico(a) de Laboratório': 'Técnico(a) de Laboratório',
-  'Administrador(a)': 'Administrador',
-  'Recepcionista': 'Recepcionista',
-};
 
 function generateDefaultPassword(): string {
   const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -67,7 +44,9 @@ interface UsersTabProps {
   pendingProfessional?: Professional | null;
   onPendingProfessionalConsumed?: () => void;
   professionals?: Professional[];
+  professionalRoles?: string[];
   locations?: Array<{ id: string; name: string; status?: string }>;
+  onUsersChanged?: () => void;
 }
 
 export function UsersTab({
@@ -75,7 +54,9 @@ export function UsersTab({
   pendingProfessional,
   onPendingProfessionalConsumed,
   professionals = [],
+  professionalRoles = [],
   locations = [],
+  onUsersChanged,
 }: UsersTabProps) {
   const { t } = useI18n();
   const { errors, validate, clearErrors } = useFormValidation(systemUserEditSchema);
@@ -92,15 +73,11 @@ export function UsersTab({
   const [userName, setUserName] = useState(pendingProfessional?.name ?? '');
   const [userEmail, setUserEmail] = useState(pendingProfessional?.email ?? '');
   const [userCi, setUserCi] = useState('');
-  const [userRole, setUserRole] = useState<string>(
-    pendingProfessional ? (PROFESSIONAL_ROLE_TO_SYSTEM_ROLE[pendingProfessional.role] || '') : ''
-  );
+  const [userRole, setUserRole] = useState<string>(pendingProfessional?.role ?? '');
   const [userLocation, setUserLocation] = useState(
     () => (pendingProfessional?.locationId ? locations.find((l) => l.id === pendingProfessional.locationId)?.name || '' : '')
   );
   const [userStatus, setUserStatus] = useState<'ativo' | 'inativo' | 'bloqueado' | ''>(pendingProfessional ? 'ativo' : '');
-  const [user2FA, setUser2FA] = useState(false);
-  const [user2FAMethod, setUser2FAMethod] = useState<'totp' | 'sms' | 'email' | 'none' | ''>(pendingProfessional ? 'none' : '');
   const [userPassword, setUserPassword] = useState(initialPendingPassword);
   const [userPasswordConfirm, setUserPasswordConfirm] = useState(initialPendingPassword);
   const [userProfessionalId, setUserProfessionalId] = useState<string | null>(pendingProfessional?.id ?? null);
@@ -108,12 +85,7 @@ export function UsersTab({
 
   const activeErrors = editingId ? errors : createErrors;
 
-  const twoFaMethods = [
-    { value: 'none', label: t('fin_2fa_method_none', 'app') },
-    { value: 'totp', label: t('fin_2fa_method_totp', 'app') },
-    { value: 'sms', label: t('fin_2fa_method_sms', 'app') },
-    { value: 'email', label: t('fin_2fa_method_email', 'app') },
-  ];
+  const roleOptions = Array.from(new Set([...professionalRoles, ...ROLES]));
 
   const loadUsers = async () => {
     if (!supabase) return;
@@ -173,19 +145,17 @@ export function UsersTab({
     setUserProfessionalId(pendingProfessional.id);
     setUserName(pendingProfessional.name);
     setUserEmail(pendingProfessional.email || '');
-    setUserRole(PROFESSIONAL_ROLE_TO_SYSTEM_ROLE[pendingProfessional.role] || '');
+    setUserRole(pendingProfessional.role);
     const loc = locations.find((l) => l.id === pendingProfessional.locationId);
     setUserLocation(loc?.name || '');
     setUserCi('');
     setUserStatus('ativo');
-    setUser2FA(false);
-    setUser2FAMethod('none');
     const generatedPassword = generateDefaultPassword();
     setUserPassword(generatedPassword);
     setUserPasswordConfirm(generatedPassword);
     setSearch('');
     setShowForm(true);
-  }, [pendingProfessional, locations]);
+  }, [pendingProfessional, locations, professionalRoles]);
 
   const resetForm = () => {
     setEditingId(null);
@@ -195,8 +165,6 @@ export function UsersTab({
     setUserRole('');
     setUserLocation('');
     setUserStatus('');
-    setUser2FA(false);
-    setUser2FAMethod('');
     setUserPassword('');
     setUserPasswordConfirm('');
     setUserProfessionalId(null);
@@ -216,8 +184,6 @@ export function UsersTab({
     setUserRole(u.systemRole);
     setUserLocation(u.location || '');
     setUserStatus(u.status);
-    setUser2FA(u.twoFactorEnabled || false);
-    setUser2FAMethod(u.twoFactorMethod || 'none');
     setUserProfessionalId(u.professionalId || null);
     clearAllErrors();
     setShowForm(true);
@@ -226,15 +192,15 @@ export function UsersTab({
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    const systemRole = userRole;
+
     const userData = {
       name: userName,
       email: userEmail,
       ci: userCi,
-      systemRole: userRole,
+      systemRole,
       location: userLocation,
       status: userStatus,
-      twoFactorEnabled: user2FA,
-      twoFactorMethod: user2FAMethod,
       password: userPassword,
       confirmPassword: userPasswordConfirm,
     };
@@ -243,21 +209,19 @@ export function UsersTab({
     if (!result.success) return;
 
     if (editingId) {
-      const response = await fetch('/api/admin/users', {
+      const response = await authFetch('/api/admin/users', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: editingId,
           email: userEmail,
           name: userName,
-          role: userRole,
+          role: systemRole,
           location: userLocation,
           ci: userCi,
           status: userStatus,
           professionalId: userProfessionalId || undefined,
           password: userPassword || undefined,
-          twoFactorEnabled: user2FA,
-          twoFactorMethod: user2FAMethod,
         }),
       });
       if (!response.ok) {
@@ -271,19 +235,17 @@ export function UsersTab({
       }
       addAuditLog('Atualizou Usuário', userName);
     } else {
-      const response = await fetch('/api/admin/users', {
+      const response = await authFetch('/api/admin/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: userEmail,
           password: userPassword,
           name: userName,
-          role: userRole,
+          role: systemRole,
           location: userLocation,
           ci: userCi,
           professionalId: userProfessionalId || undefined,
-          twoFactorEnabled: user2FA,
-          twoFactorMethod: user2FAMethod,
         }),
       });
       if (!response.ok) {
@@ -302,6 +264,7 @@ export function UsersTab({
     setShowForm(false);
     onPendingProfessionalConsumed?.();
     await loadUsers();
+    onUsersChanged?.();
   };
 
   const fieldErrors = groupErrorsByPath(errors);
@@ -315,7 +278,7 @@ export function UsersTab({
       if (!confirm(msg)) return;
     }
     if (supabase) {
-      const response = await fetch('/api/admin/users', {
+      const response = await authFetch('/api/admin/users', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -341,6 +304,7 @@ export function UsersTab({
     }
     addAuditLog('Alterou Status Usuário', `${u.name} → ${nextStatus}`);
     await loadUsers();
+    onUsersChanged?.();
   };
 
   const handleDelete = async (u: SystemUser) => {
@@ -348,7 +312,7 @@ export function UsersTab({
       if (!confirm(t('fin_confirm_delete_user', 'app').replace('{name}', u.name))) return;
     }
     if (supabase) {
-      const response = await fetch('/api/admin/users', {
+      const response = await authFetch('/api/admin/users', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: u.id }),
@@ -365,6 +329,7 @@ export function UsersTab({
     }
     addAuditLog('Excluiu Usuário', u.name);
     await loadUsers();
+    onUsersChanged?.();
   };
 
   const filtered = users.filter((u) =>
@@ -539,7 +504,7 @@ export function UsersTab({
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
                   >
                     <option value="">{t('fin_select_option', 'app')}</option>
-                    {ROLES.map((r) => (
+                    {roleOptions.map((r) => (
                       <option key={r} value={r}>{r}</option>
                     ))}
                   </select>
@@ -558,37 +523,18 @@ export function UsersTab({
                   </select>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">{t('fin_status_label', 'app')} *</label>
-                  <select
-                    value={userStatus}
-                    onChange={(e) => setUserStatus(e.target.value as 'ativo' | 'inativo' | 'bloqueado' | '')}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
-                  >
-                    <option value="">{t('fin_select_option', 'app')}</option>
-                    <option value="ativo">{t('fin_active', 'app')}</option>
-                    <option value="inativo">{t('fin_inactive', 'app')}</option>
-                    <option value="bloqueado">{t('fin_user_status_blocked', 'app')}</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">{t('fin_user_2fa_label', 'app')} *</label>
-                  <select
-                    value={user2FAMethod}
-                    onChange={(e) => {
-                      const method = e.target.value as 'totp' | 'sms' | 'email' | 'none' | '';
-                      setUser2FAMethod(method);
-                      setUser2FA(method !== 'none' && method !== '');
-                    }}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
-                  >
-                    <option value="">{t('fin_select_option', 'app')}</option>
-                    {twoFaMethods.map((m) => (
-                      <option key={m.value} value={m.value}>{m.label}</option>
-                    ))}
-                  </select>
-                </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">{t('fin_status_label', 'app')} *</label>
+                <select
+                  value={userStatus}
+                  onChange={(e) => setUserStatus(e.target.value as 'ativo' | 'inativo' | 'bloqueado' | '')}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
+                >
+                  <option value="">{t('fin_select_option', 'app')}</option>
+                  <option value="ativo">{t('fin_active', 'app')}</option>
+                  <option value="inativo">{t('fin_inactive', 'app')}</option>
+                  <option value="bloqueado">{t('fin_user_status_blocked', 'app')}</option>
+                </select>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>

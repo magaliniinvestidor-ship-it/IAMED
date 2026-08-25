@@ -3,13 +3,12 @@
 import React, { useState } from 'react';
 import { Key, Plus, Edit2, Trash2, X, Shield } from 'lucide-react';
 import { useI18n } from '@/lib/i18n/I18nContext';
-import { useModuleId } from '@/hooks/useModuleId';
 import { supabase } from '@/lib/supabaseClient';
 import { SSOProvider, AdminFinanceModuleProps } from './AdminContext';
 import type { SystemRole } from '@/lib/mockData';
 import { useFormValidation, groupErrorsByPath } from '@/lib/validation';
 import { ssoProviderSchema } from '@/lib/validation/schemas';
-import { FormErrorSummary } from '@/components/forms';
+import { FormField, FormErrorSummary } from '@/components/forms';
 
 interface SsoTabProps {
   providers: SSOProvider[];
@@ -18,9 +17,9 @@ interface SsoTabProps {
 }
 
 const SSO_TYPES = [
-  { value: 'saml', label: 'SAML 2.0' },
-  { value: 'oauth2', label: 'OAuth 2.0' },
-  { value: 'oidc', label: 'OpenID Connect' },
+  { value: 'saml', labelKey: 'sso_type_saml' },
+  { value: 'oauth2', labelKey: 'sso_type_oauth2' },
+  { value: 'oidc', labelKey: 'sso_type_oidc' },
 ];
 
 const DEFAULT_ROLES: SystemRole[] = [
@@ -41,10 +40,33 @@ const EMPTY_PROVIDER: Omit<SSOProvider, 'id'> = {
   active: true,
 };
 
+// Mapeia o objeto em memória (camelCase) para as colunas reais da tabela
+// sso_providers (snake_case). Necessário porque o Supabase não converte.
+function toDbRow(s: Omit<SSOProvider, 'id'> & { id?: string; created_at?: string }) {
+  return {
+    id: s.id,
+    name: s.name,
+    provider_type: s.type,
+    issuer_url: s.issuerUrl,
+    client_id: s.clientId,
+    client_secret: s.clientSecret,
+    metadata_url: s.metadataUrl,
+    certificate_fingerprint: s.certificateFingerprint,
+    default_role: s.defaultRole,
+    enabled: s.enabled,
+    active: s.active,
+    ...(s.created_at ? { created_at: s.created_at } : {}),
+  };
+}
+
+function isUuid(s: string | null): boolean {
+  return !!s && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
+}
+
 export function SsoTab({ providers, setProviders, addAuditLog }: SsoTabProps) {
   const { t } = useI18n();
-  const genModuleId = useModuleId();
   const { errors, validate, clearErrors } = useFormValidation(ssoProviderSchema);
+  const fieldErrors = groupErrorsByPath(errors);
 
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -92,18 +114,34 @@ export function SsoTab({ providers, setProviders, addAuditLog }: SsoTabProps) {
     });
     if (!result.success) return;
 
-    if (editingId) {
+    if (editingId && isUuid(editingId)) {
       const updated: SSOProvider = { id: editingId, ...form };
       setProviders((prev) => prev.map((p) => (p.id === editingId ? updated : p)));
       if (supabase) {
-        await supabase.from('sso_providers').update(updated as unknown as Record<string, unknown>).eq('id', editingId);
+        const { error } = await supabase
+          .from('sso_providers')
+          .update(toDbRow(updated))
+          .eq('id', editingId);
+        if (error) {
+          console.error('SSO update failed', { code: error.code, message: error.message, details: error.details });
+        }
       }
       addAuditLog('Atualizou Provedor SSO', form.name);
     } else {
-      const newProvider: SSOProvider = { id: await genModuleId('sso'), ...form };
+      const newProvider: SSOProvider = { id: '', ...form };
       setProviders((prev) => [...prev, newProvider]);
       if (supabase) {
-        await supabase.from('sso_providers').insert({ ...newProvider, created_at: new Date().toISOString() });
+        const { data, error } = await supabase
+          .from('sso_providers')
+          .insert(toDbRow({ ...form, created_at: new Date().toISOString() }))
+          .select()
+          .single();
+        if (error) {
+          console.error('SSO insert failed', { code: error.code, message: error.message, details: error.details });
+        } else if (data?.id) {
+          newProvider.id = data.id;
+          setProviders((prev) => prev.map((p) => (p === newProvider ? { ...newProvider, id: data.id } : p)));
+        }
       }
       addAuditLog('Cadastrou Provedor SSO', form.name);
     }
@@ -116,17 +154,27 @@ export function SsoTab({ providers, setProviders, addAuditLog }: SsoTabProps) {
     const updated = { ...provider, enabled: !provider.enabled, active: !provider.active };
     setProviders((prev) => prev.map((p) => (p.id === provider.id ? updated : p)));
     if (supabase) {
-      await supabase.from('sso_providers').update({ enabled: updated.enabled, active: updated.active } as Record<string, unknown>).eq('id', provider.id);
+      const { error } = await supabase
+        .from('sso_providers')
+        .update({ enabled: updated.enabled, active: updated.active })
+        .eq('id', provider.id);
+if (error) {
+          console.error('SSO toggle failed', { code: error.code, message: error.message, details: error.details });
+        }
     }
     addAuditLog(updated.enabled ? 'Ativou SSO' : 'Desativou SSO', provider.name);
   };
 
-  const handleDelete = (provider: SSOProvider) => {
+const handleDelete = async (provider: SSOProvider) => {
     if (typeof window === 'undefined') return;
-    if (!confirm(t('fin_confirm_delete_sso', 'app').replace('{name}', provider.name))) return;
+    const msg = t('fin_confirm_delete_sso', 'app').replace('{name}', provider.name);
+    if (!confirm(msg)) return;
     setProviders((prev) => prev.filter((p) => p.id !== provider.id));
-    if (supabase) {
-      supabase.from('sso_providers').delete().eq('id', provider.id);
+    if (supabase && isUuid(provider.id)) {
+      const { error } = await supabase.from('sso_providers').delete().eq('id', provider.id);
+      if (error) {
+        console.error('SSO delete failed', { code: error.code, message: error.message, details: error.details });
+      }
     }
     addAuditLog('Removeu Provedor SSO', provider.name);
   };
@@ -135,13 +183,13 @@ export function SsoTab({ providers, setProviders, addAuditLog }: SsoTabProps) {
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
-          <Key className="w-4 h-4 text-teal-600" /> Provedores SSO ({providers.length})
+          <Key className="w-4 h-4 text-teal-600" /> {t('sso_title', 'app')} ({providers.length})
         </h3>
         <button
           onClick={openNew}
           className="flex items-center gap-2 py-2 px-4 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-lg transition"
         >
-          <Plus className="w-3.5 h-3.5" /> Novo Provedor SSO
+          <Plus className="w-3.5 h-3.5" /> {t('sso_btn_new', 'app')}
         </button>
       </div>
 
@@ -171,15 +219,15 @@ export function SsoTab({ providers, setProviders, addAuditLog }: SsoTabProps) {
                     : 'bg-slate-100 text-slate-500 border-slate-200'
                 }`}
               >
-                {provider.enabled ? 'Ativo' : 'Inativo'}
+                {provider.enabled ? t('sso_status_active', 'app') : t('sso_status_inactive', 'app')}
               </button>
             </div>
             <div className="space-y-1 text-[11px] text-slate-600">
               <p>🌐 <span className="font-mono text-[10px] truncate">{provider.issuerUrl}</span></p>
               <p>🆔 <span className="font-mono text-[10px]">{provider.clientId}</span></p>
-              <p>👥 Função padrão: <b>{provider.defaultRole}</b></p>
+              <p>👥 {t('sso_label_default_role', 'app')} <b>{provider.defaultRole}</b></p>
               {provider.metadataUrl && (
-                <p>📋 Metadata: <span className="font-mono text-[10px] truncate">{provider.metadataUrl}</span></p>
+                <p>📋 {t('sso_label_metadata', 'app')} <span className="font-mono text-[10px] truncate">{provider.metadataUrl}</span></p>
               )}
             </div>
             <div className="flex items-center gap-1 pt-1 border-t border-slate-100">
@@ -203,7 +251,7 @@ export function SsoTab({ providers, setProviders, addAuditLog }: SsoTabProps) {
         ))}
         {providers.length === 0 && (
           <div className="col-span-full text-center py-10 text-slate-400 font-semibold text-xs">
-            Nenhum provedor SSO configurado.
+            {t('sso_empty', 'app')}
           </div>
         )}
       </div>
@@ -214,7 +262,7 @@ export function SsoTab({ providers, setProviders, addAuditLog }: SsoTabProps) {
             <div className="px-5 py-3 border-b border-slate-100 bg-teal-50 flex items-center justify-between">
               <h3 className="font-bold text-teal-800 text-sm flex items-center gap-2">
                 <Shield className="w-4 h-4" />
-                {editingId ? 'Editar Provedor SSO' : 'Novo Provedor SSO'}
+                {editingId ? t('sso_edit_title', 'app') : t('sso_btn_new', 'app')}
               </h3>
               <button onClick={() => { resetForm(); setShowForm(false); }} className="text-slate-500 hover:text-slate-700">
                 <X className="w-4 h-4" />
@@ -222,8 +270,7 @@ export function SsoTab({ providers, setProviders, addAuditLog }: SsoTabProps) {
             </div>
             <div className="p-5 space-y-3 text-xs">
               {errors.length > 0 && <FormErrorSummary errors={errors} />}
-              <div>
-                <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Nome do Provedor *</label>
+              <FormField label={t('sso_field_name', 'app')} required error={fieldErrors.name}>
                 <input
                   type="text"
                   value={form.name}
@@ -231,22 +278,20 @@ export function SsoTab({ providers, setProviders, addAuditLog }: SsoTabProps) {
                   placeholder="Ex: Azure AD (Microsoft)"
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
                 />
-              </div>
+              </FormField>
               <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Tipo</label>
+                <FormField label={t('sso_field_type', 'app')} error={fieldErrors.type}>
                   <select
                     value={form.type}
                     onChange={(e) => setForm((prev) => ({ ...prev, type: e.target.value as 'saml' | 'oauth2' | 'oidc' }))}
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
                   >
-                    {SSO_TYPES.map((t) => (
-                      <option key={t.value} value={t.value}>{t.label}</option>
+                    {SSO_TYPES.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{t(opt.labelKey, 'app')}</option>
                     ))}
                   </select>
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Função Padrão</label>
+                </FormField>
+                <FormField label={t('sso_field_default_role', 'app')} error={fieldErrors.defaultRole}>
                   <select
                     value={form.defaultRole}
                     onChange={(e) => setForm((prev) => ({ ...prev, defaultRole: e.target.value as SystemRole }))}
@@ -256,50 +301,47 @@ export function SsoTab({ providers, setProviders, addAuditLog }: SsoTabProps) {
                       <option key={r} value={r}>{r}</option>
                     ))}
                   </select>
-                </div>
+                </FormField>
               </div>
-              <div>
-                <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Issuer URL *</label>
+              <FormField label={`${t('sso_field_issuer', 'app')} (${t('sso_required', 'app')})`} required error={fieldErrors.issuerUrl}>
                 <input
-                  type="url"
+                  type="text"
+                  inputMode="url"
                   value={form.issuerUrl}
                   onChange={(e) => setForm((prev) => ({ ...prev, issuerUrl: e.target.value }))}
                   placeholder="https://login.microsoftonline.com/tenant-id/v2.0"
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
                 />
-              </div>
+              </FormField>
               <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Client ID *</label>
+                <FormField label={`${t('sso_field_client_id', 'app')} (${t('sso_required', 'app')})`} required error={fieldErrors.clientId}>
                   <input
                     type="text"
                     value={form.clientId}
                     onChange={(e) => setForm((prev) => ({ ...prev, clientId: e.target.value }))}
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
                   />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Client Secret</label>
+                </FormField>
+                <FormField label={t('sso_field_client_secret', 'app')} error={fieldErrors.clientSecret}>
                   <input
-                    type="password"
+                    type="text"
                     value={form.clientSecret}
                     onChange={(e) => setForm((prev) => ({ ...prev, clientSecret: e.target.value }))}
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
                   />
-                </div>
+                </FormField>
               </div>
-              <div>
-                <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Metadata URL</label>
+              <FormField label={t('sso_field_metadata', 'app')} error={fieldErrors.metadataUrl}>
                 <input
-                  type="url"
+                  type="text"
+                  inputMode="url"
                   value={form.metadataUrl}
                   onChange={(e) => setForm((prev) => ({ ...prev, metadataUrl: e.target.value }))}
                   placeholder="https://.../.well-known/openid-configuration"
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
                 />
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Certificado (Fingerprint)</label>
+              </FormField>
+              <FormField label={t('sso_field_cert', 'app')} error={fieldErrors.certificateFingerprint}>
                 <input
                   type="text"
                   value={form.certificateFingerprint}
@@ -307,7 +349,7 @@ export function SsoTab({ providers, setProviders, addAuditLog }: SsoTabProps) {
                   placeholder="A1:B2:C3:D4:..."
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono"
                 />
-              </div>
+              </FormField>
               <div className="flex gap-3 pt-2">
                 <button
                   onClick={handleSave}

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   Empresa, ContratoEmpresa, PlanoExame, PostoTrabalho,
   RiscoOcupacional, MatrizExame, Trabalhador, ExameOcupacional,
@@ -18,6 +18,8 @@ import {
   empresaSchema, trabalhadorSchema, exameOcupacionalSchema,
 } from '@/lib/validation/schemas';
 import { FormErrorSummary } from '@/components/forms';
+import { canAccessTab } from '@/lib/rbac/catalog';
+import { hasPermission } from '@/lib/usePermissions';
 import I18nDatePicker from '@/components/I18nDatePicker';
 import {
   Building2, Users, Stethoscope, FileCheck, AlertTriangle,
@@ -34,6 +36,7 @@ interface MedicinaTrabalhoModuleProps {
   addAuditLog: (action: string, target: string) => void;
   asos: AsoExam[];
   setAsos: React.Dispatch<React.SetStateAction<AsoExam[]>>;
+  userPermissions?: string[];
 }
 
 export default function MedicinaTrabalhoModule({
@@ -41,8 +44,10 @@ export default function MedicinaTrabalhoModule({
   addAuditLog,
   asos,
   setAsos,
+  userPermissions,
 }: MedicinaTrabalhoModuleProps) {
   const { t } = useI18n();
+  const canAso = hasPermission(userPermissions, 'perform_aso');
 
   // ─── SEQUENTIAL ID GENERATION (Postgres RPC) ───
   const genModuleId = useModuleId();
@@ -64,6 +69,15 @@ export default function MedicinaTrabalhoModule({
 
   // ─── UI State ───
   const [tab, setTab] = useState<TabName>('dashboard');
+
+  // Guarda RBAC: aba ativa não pode ficar órfã quando permissões mudam
+  useEffect(() => {
+    if (canAccessTab(userPermissions, 'med_work', tab)) return;
+    const order: TabName[] = ['dashboard', 'empresas', 'trabalhadores', 'exames', 'cal', 'riscos', 'relatorios'];
+    const next = order.find(id => canAccessTab(userPermissions, 'med_work', id));
+    if (next) setTab(next);
+  }, [userPermissions, tab]);
+
   const [search, setSearch] = useState('');
   const [selectedEmpresaId, setSelectedEmpresaId] = useState<string>('');
   const [showForm, setShowForm] = useState<string | null>(null);
@@ -332,6 +346,8 @@ export default function MedicinaTrabalhoModule({
     { key: 'relatorios', label: t('ocp_relatorios_mtess', 'app'), icon: FileBarChart },
   ];
 
+  const visibleTabs = tabs.filter(tb => canAccessTab(userPermissions, 'med_work', tb.key));
+
   const inputCls = 'w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans';
   const labelCls = 'block text-xs font-semibold text-slate-600 mb-1';
   const sectionCls = 'bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs space-y-4';
@@ -361,7 +377,7 @@ export default function MedicinaTrabalhoModule({
 
       {/* Tab Navigation */}
       <div className="flex gap-1 overflow-x-auto bg-white p-1.5 rounded-xl border border-slate-200/80 shadow-xs">
-        {tabs.map(tabItem => {
+        {visibleTabs.map(tabItem => {
           const Icon = tabItem.icon;
           return (
             <button key={tabItem.key} onClick={() => setTab(tabItem.key)}
@@ -785,7 +801,7 @@ export default function MedicinaTrabalhoModule({
                     ))}
                   </div>
                 </div>
-                <button onClick={handleRealizarExame} className={btnCls + ' w-full'}>
+                <button onClick={handleRealizarExame} disabled={!canAso} className={btnCls + ' w-full disabled:opacity-50 disabled:cursor-not-allowed'}>
                   {t('medtrab_btn_perform_exam_emit_cal', 'app')}
                 </button>
               </div>

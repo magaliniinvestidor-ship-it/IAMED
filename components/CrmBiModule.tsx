@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { Patient, Bed, FinancialPosting, initialBeds, Campaign, Lead, CommercialOpportunity, NpsSurvey, OptOutRecord, WebFormLead, initialCampaigns, initialLeads, initialOpportunities, initialNpsSurveys, initialOptOuts, initialWebFormLeads, initialHospitalizations, initialSurgerySchedule, type HospitalizationEpisode, type SurgerySchedule } from '@/lib/mockData';
 import { supabase } from '@/lib/supabaseClient';
 import { useI18n } from '@/lib/i18n/I18nContext';
+import { canAccessTab } from '@/lib/rbac/catalog';
 import { useModuleId } from '@/hooks/useModuleId';
 import { useFormValidation } from '@/lib/validation';
 import { campaignSchema, leadSchema, opportunitySchema } from '@/lib/validation/schemas';
@@ -27,6 +28,7 @@ interface CrmBiModuleProps {
   setBeds: React.Dispatch<React.SetStateAction<Bed[]>>;
   patients?: Patient[];
   financePostings?: FinancialPosting[];
+  userPermissions?: string[];
 }
 
 type CrmTab = 'dashboard' | 'segmentacao' | 'campanhas' | 'funil' | 'oportunidades' | 'nps' | 'leads' | 'optout';
@@ -38,6 +40,7 @@ export default function CrmBiModule({
   setBeds,
   patients = [],
   financePostings = [],
+  userPermissions,
 }: CrmBiModuleProps) {
   const { t } = useI18n();
 
@@ -79,6 +82,15 @@ export default function CrmBiModule({
 
   // ─── UI State ───
   const [crmTab, setCrmTab] = useState<CrmTab>('dashboard');
+
+  // Guarda RBAC: aba CRM não pode ficar órfã quando permissões mudam
+  useEffect(() => {
+    if (canAccessTab(userPermissions, 'crm', crmTab)) return;
+    const order: CrmTab[] = ['dashboard', 'segmentacao', 'campanhas', 'funil', 'oportunidades', 'nps', 'leads', 'optout'];
+    const next = order.find(id => canAccessTab(userPermissions, 'crm', id));
+    if (next) setCrmTab(next);
+  }, [userPermissions, crmTab]);
+
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState<string | null>(null);
 
@@ -397,6 +409,14 @@ export default function CrmBiModule({
   const [biFilterCoverage, setBiFilterCoverage] = useState('todos');
   const [biDetailTab, setBiDetailTab] = useState('ocupacao');
 
+  // Guarda RBAC: sub-aba BI não pode ficar órfã quando permissões mudam
+  useEffect(() => {
+    if (canAccessTab(userPermissions, 'bi', biDetailTab)) return;
+    const order = ['ocupacao', 'cirurgias', 'financeiro', 'nps', 'alertas'] as const;
+    const next = order.find(id => canAccessTab(userPermissions, 'bi', id));
+    if (next) setBiDetailTab(next);
+  }, [userPermissions, biDetailTab]);
+
   // ─── BI Computed Indicators ───
   const biIndicators = useMemo(() => {
     const totalBeds = beds.length;
@@ -579,7 +599,7 @@ export default function CrmBiModule({
               { key: 'nps' as CrmTab, label: t('crm_nps', 'app'), icon: ThumbsUp },
               { key: 'leads' as CrmTab, label: t('crm_captura_web', 'app'), icon: Globe },
               { key: 'optout' as CrmTab, label: t('crm_optout', 'app'), icon: Ban },
-            ]).map(tab => {
+            ]).filter(tb => canAccessTab(userPermissions, 'crm', tb.key)).map(tab => {
               const Icon = tab.icon;
               return (
                 <button key={tab.key} onClick={() => setCrmTab(tab.key)}
@@ -1386,7 +1406,7 @@ export default function CrmBiModule({
                     { key: 'financeiro', label: t('bi_tab_financeiro', 'app'), icon: DollarSign },
                     { key: 'nps', label: t('bi_tab_nps', 'app'), icon: ThumbsUp },
                     { key: 'alertas', label: t('bi_tab_alertas', 'app'), icon: Bell },
-                  ].map(tab => {
+                  ].filter(tb => canAccessTab(userPermissions, 'bi', tb.key)).map(tab => {
                     const Icon = tab.icon;
                     return (
                       <button key={tab.key} onClick={() => setBiDetailTab(tab.key)}

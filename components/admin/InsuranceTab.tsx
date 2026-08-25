@@ -11,6 +11,8 @@ import { useFormValidation, groupErrorsByPath } from '@/lib/validation';
 import { insuranceSchema, feeScheduleSchema } from '@/lib/validation/schemas';
 import { FormField, FormErrorSummary } from '@/components/forms';
 import { GS } from './helpers';
+import { canAccessTab } from '@/lib/rbac/catalog';
+import { hasPermission } from '@/lib/usePermissions';
 
 interface InsuranceFormData {
   name: string;
@@ -72,6 +74,7 @@ export function InsuranceTab({
   professionals = [],
   procedureCatalog = [],
   addAuditLog,
+  userPermissions = [],
 }: Pick<AdminFinanceModuleProps, 'addAuditLog'> & {
   insurances: InsuranceCompany[];
   setInsurances: React.Dispatch<React.SetStateAction<InsuranceCompany[]>>;
@@ -81,13 +84,26 @@ export function InsuranceTab({
   setFeeSchedules: React.Dispatch<React.SetStateAction<FeeSchedule[]>>;
   professionals?: Professional[];
   procedureCatalog?: { code: string; name: string; nomenclature?: string; financing_entity?: string }[];
+  userPermissions?: string[];
 }) {
   const { t } = useI18n();
   const genModuleId = useModuleId();
   const { errors, validate, clearErrors } = useFormValidation(insuranceSchema);
   const fieldErrors = groupErrorsByPath(errors);
 
+  const insSubTabs = ([
+    ['companies', 'fin_tab_companies'],
+    ['fee', 'fin_tab_fee'],
+    ['preauth', 'fin_tab_preauth'],
+  ] as const).filter(([tabKey]) => canAccessTab(userPermissions, 'insurance', tabKey));
+  const canInsurance = hasPermission(userPermissions, 'perform_insurance');
+  const canFeeSchedule = hasPermission(userPermissions, 'perform_fee_schedule');
   const [subTab, setSubTab] = useState<'companies' | 'fee' | 'preauth'>('companies');
+  React.useEffect(() => {
+    if (insSubTabs.length > 0 && !insSubTabs.some(([k]) => k === subTab)) {
+      setSubTab(insSubTabs[0][0]);
+    }
+  }, [subTab, insSubTabs]);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<InsuranceFormData>(EMPTY_INSURANCE_FORM);
@@ -395,11 +411,7 @@ export function InsuranceTab({
     <div className="space-y-5">
       {/* Sub-tabs */}
       <div className="flex gap-1 bg-slate-100 p-1 rounded-xl w-fit">
-        {([
-          ['companies', 'fin_tab_companies'],
-          ['fee', 'fin_tab_fee'],
-          ['preauth', 'fin_tab_preauth'],
-        ] as const).map(([tabKey, labelKey]) => (
+        {insSubTabs.map(([tabKey, labelKey]) => (
           <button
             key={tabKey}
             onClick={() => setSubTab(tabKey)}
@@ -814,8 +826,9 @@ export function InsuranceTab({
               )}
               <div className="flex gap-3 pt-2">
                 <button
+                  disabled={!canInsurance}
                   onClick={handleSave}
-                  className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg cursor-pointer transition"
+                  className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg cursor-pointer transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {editingId ? t('app_save_changes', 'app') : t('app_register_insurance', 'app')}
                 </button>
@@ -1011,8 +1024,9 @@ export function InsuranceTab({
               </div>
               <div className="flex gap-3 pt-2">
                 <button
+                  disabled={!canFeeSchedule}
                   onClick={handleFeeSave}
-                  className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg cursor-pointer transition"
+                  className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg cursor-pointer transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {editingFeeId ? t('app_save_changes', 'app') : t('fin_fee_new_btn', 'app')}
                 </button>

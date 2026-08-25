@@ -8,9 +8,11 @@ export const PERMISSIONS = {
     agenda: 'view_agenda',
     hce: 'view_hce',
     diagnostic: 'view_diagnostic',
+    sifen: 'view_sifen',
     finance: 'view_finance',
     stock: 'view_stock',
     med_work: 'view_med_work',
+    pcmso: 'view_pcmso',
     crm: 'view_crm',
     security: 'view_security',
     insurance: 'view_insurance',
@@ -27,6 +29,9 @@ export const PERMISSIONS = {
   },
   perform: {
     admit: 'perform_admit',
+    checkin: 'perform_checkin',
+    triage: 'perform_triage',
+    agenda_create: 'perform_agenda_create',
     prescribe: 'perform_prescribe',
     sifen: 'perform_sifen',
     post_finance: 'perform_post_finance',
@@ -42,6 +47,8 @@ export const PERMISSIONS = {
     foreign_billing: 'perform_foreign_billing',
     surgery: 'perform_surgery',
     aso: 'perform_aso',
+    diagnostic_report: 'perform_diagnostic_report',
+    diagnostic_sign: 'perform_diagnostic_sign',
   }
 } as const;
 
@@ -52,19 +59,21 @@ const WILDCARD_MAP: Record<string, string[]> = {
     'view_stock', 'view_med_work', 'view_crm', 'view_security', 'view_insurance',
     'view_fee_schedule', 'view_copay', 'view_batches', 'view_eligibility',
     'view_settlements', 'view_foreign_billing', 'view_bi', 'view_patient_portal',
-    'view_hospitalization', 'view_sensitive',
-    'perform_admit', 'perform_prescribe', 'perform_sifen', 'perform_post_finance',
+    'view_hospitalization', 'view_sensitive', 'view_pcmso', 'view_sifen',
+    'perform_admit', 'perform_checkin', 'perform_triage', 'perform_agenda_create',
+    'perform_prescribe', 'perform_sifen', 'perform_post_finance',
     'perform_stock', 'perform_beds', 'perform_rbac', 'perform_insurance',
     'perform_fee_schedule', 'perform_copay', 'perform_batches', 'perform_eligibility',
     'perform_settlements', 'perform_foreign_billing', 'perform_surgery', 'perform_aso',
   ],
   clinical: [
     'view_hce', 'view_diagnostic', 'view_med_work', 'view_reception', 'view_agenda',
-    'perform_prescribe', 'perform_admit', 'perform_surgery', 'perform_aso',
+    'view_pcmso',     'perform_prescribe', 'perform_admit', 'perform_checkin', 'perform_triage',
+    'perform_surgery', 'perform_aso', 'perform_diagnostic_report', 'perform_diagnostic_sign', 'perform_diagnostic_report', 'perform_diagnostic_sign',
   ],
   billing: [
     'view_finance', 'view_insurance', 'view_fee_schedule', 'view_copay', 'view_batches',
-    'view_eligibility', 'view_settlements', 'view_foreign_billing',
+    'view_eligibility', 'view_settlements', 'view_foreign_billing', 'view_sifen',
     'perform_sifen', 'perform_post_finance', 'perform_insurance', 'perform_fee_schedule',
     'perform_copay', 'perform_batches', 'perform_eligibility', 'perform_settlements',
     'perform_foreign_billing',
@@ -73,7 +82,7 @@ const WILDCARD_MAP: Record<string, string[]> = {
     'view_stock', 'perform_stock',
   ],
   hr: [
-    'view_med_work', 'perform_aso',
+    'view_med_work', 'view_pcmso', 'perform_aso',
   ],
   reports: [
     'view_bi', 'view_crm', 'view_finance', 'view_security',

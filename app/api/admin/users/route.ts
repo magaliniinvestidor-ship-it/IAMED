@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
+import { getAuthenticatedUser, hasAdminRole } from '@/lib/auth/apiAuth';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
@@ -31,6 +32,10 @@ function extractError(err: unknown): string {
 
 export async function GET(req: NextRequest) {
   try {
+    const caller = await getAuthenticatedUser(req);
+    if (!caller) return NextResponse.json({ error: 'Autenticação necessária' }, { status: 401 });
+    if (!(await hasAdminRole(caller.id))) return NextResponse.json({ error: 'Acesso restrito a administradores' }, { status: 403 });
+
     const professionalId = req.nextUrl.searchParams.get('professional_id');
 
     if (!supabaseUrl || !supabaseServiceKey) {
@@ -70,6 +75,10 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const caller = await getAuthenticatedUser(req);
+    if (!caller) return NextResponse.json({ error: 'Autenticação necessária' }, { status: 401 });
+    if (!(await hasAdminRole(caller.id))) return NextResponse.json({ error: 'Acesso restrito a administradores' }, { status: 403 });
+
     const { email, password, name, role, location, ci, professionalId, twoFactorEnabled, twoFactorMethod } = await req.json();
 
     if (!email || !password || !name) {
@@ -236,6 +245,10 @@ export async function POST(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   try {
+    const caller = await getAuthenticatedUser(req);
+    if (!caller) return NextResponse.json({ error: 'Autenticação necessária' }, { status: 401 });
+    if (!(await hasAdminRole(caller.id))) return NextResponse.json({ error: 'Acesso restrito a administradores' }, { status: 403 });
+
     const { id, email, name, role, location, ci, professionalId, status, password, twoFactorEnabled, twoFactorMethod } = await req.json();
 
     if (!id) {
@@ -311,6 +324,10 @@ export async function PUT(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
+    const caller = await getAuthenticatedUser(req);
+    if (!caller) return NextResponse.json({ error: 'Autenticação necessária' }, { status: 401 });
+    if (!(await hasAdminRole(caller.id))) return NextResponse.json({ error: 'Acesso restrito a administradores' }, { status: 403 });
+
     const { id } = await req.json();
 
     if (!id) {

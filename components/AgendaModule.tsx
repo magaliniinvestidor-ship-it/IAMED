@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PermissionGate, WithPermissions, useUserPermissions } from '@/components/ui/PermissionGate';
+import { canAccessTab } from '@/lib/rbac/catalog';
 import { Button } from '@/components/ui/button';
 import PhoneInput from '@/components/PhoneInput';
 import I18nDatePicker from '@/components/I18nDatePicker';
@@ -377,10 +378,11 @@ const AgendaModuleContent = ({
       quotaVirtual: 0,
     })),
   ];
-  const canEdit = userPermissions?.includes('agenda_edit') || 
-                  userPermissions?.includes('admin:*') || 
+  const canEdit = userPermissions?.includes('agenda_edit') ||
+                  userPermissions?.includes('admin:*') ||
+                  userPermissions?.includes('perform_agenda_create') ||
                   userPermissions?.includes('perform_admit') ||
-                  activeRole === 'Administrador(a)' || 
+                  activeRole === 'Administrador(a)' ||
                   activeRole === 'Recepcionista' ||
                   activeRole === 'Gestor' ||
                   activeRole === 'Médico' ||
@@ -421,6 +423,14 @@ const AgendaModuleContent = ({
 
   // Tabs
   const [activeTab, setActiveTab] = useState<'register' | 'calendar' | 'whatsapp' | 'waitlist' | 'callcenter'>('register');
+
+  // Guarda RBAC: aba ativa não pode ficar órfã quando permissões mudam
+  useEffect(() => {
+    if (canAccessTab(userPermissions, 'agenda', activeTab)) return;
+    const order = ['register', 'calendar', 'whatsapp', 'waitlist', 'callcenter'] as const;
+    const next = order.find(id => canAccessTab(userPermissions, 'agenda', id));
+    if (next) setActiveTab(next);
+  }, [userPermissions, activeTab]);
 
   // Calendar states
   const [calendarView, setCalendarView] = useState<'day' | 'week' | 'month'>('day');
@@ -2532,7 +2542,7 @@ const AgendaModuleContent = ({
           { id: 'whatsapp', label: 'WhatsApp', icon: Send, badge: reminders.filter(r => r.status !== 'confirmed' && r.status !== 'cancelled').length },
           { id: 'waitlist', label: t('agenda_tab_waitlist', 'app'), icon: ClipboardList, badge: waitlist.filter(w => w.status === 'aguardando').length },
           { id: 'callcenter', label: t('agenda_tab_callcenter', 'app'), icon: PhoneCall, badge: callLogs.length },
-        ]).map(tab => (
+        ]).filter(t2 => canAccessTab(userPermissions, 'agenda', t2.id)).map(tab => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id as typeof activeTab)}

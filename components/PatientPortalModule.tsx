@@ -10,6 +10,7 @@ import {
 } from '@/lib/mockData';
 import { supabase } from '@/lib/supabaseClient';
 import { useI18n } from '@/lib/i18n/I18nContext';
+import { canAccessTab } from '@/lib/rbac/catalog';
 import { useModuleId } from '@/hooks/useModuleId';
 import { useFormValidation } from '@/lib/validation';
 import {
@@ -37,6 +38,7 @@ interface PatientPortalModuleProps {
   dtes: Dte[];
   setDtes: React.Dispatch<React.SetStateAction<Dte[]>>;
   addAuditLog: (action: string, target: string) => void;
+  userPermissions?: string[];
 }
 
 type PortalTab =
@@ -97,6 +99,7 @@ export default function PatientPortalModule({
   dtes,
   setDtes,
   addAuditLog,
+  userPermissions,
 }: PatientPortalModuleProps) {
   const { t } = useI18n();
   const genModuleId = useModuleId();
@@ -134,6 +137,14 @@ export default function PatientPortalModule({
 
   // Tabs
   const [tab, setTab] = useState<PortalTab>('dashboard');
+
+  // Guarda RBAC: aba ativa não pode ficar órfã quando permissões mudam
+  useEffect(() => {
+    if (canAccessTab(userPermissions, 'patient_portal', tab)) return;
+    const order: PortalTab[] = ['dashboard', 'appointments', 'history', 'prescriptions', 'exams', 'dtes', 'payments', 'telemedicine', 'notifications', 'profile'];
+    const next = order.find(id => canAccessTab(userPermissions, 'patient_portal', id));
+    if (next) setTab(next);
+  }, [userPermissions, tab]);
 
   // Appointments
   const [showBookingModal, setShowBookingModal] = useState(false);
@@ -604,6 +615,8 @@ export default function PatientPortalModule({
     { id: 'notifications', label: t('portal_tab_notifications', 'app'), icon: Bell },
     { id: 'profile', label: t('portal_tab_profile', 'app'), icon: User },
   ];
+
+  const visibleNavTabs = navTabs.filter(tb => canAccessTab(userPermissions, 'patient_portal', tb.id));
 
   const renderTabContent = () => {
     switch (tab) {
@@ -1557,7 +1570,7 @@ export default function PatientPortalModule({
               </div>
             </div>
             <nav className="space-y-0.5">
-              {navTabs.map(nav => {
+              {visibleNavTabs.map(nav => {
                 const NavIcon = nav.icon;
                 const isActive = tab === nav.id;
                 const hasUnread = nav.id === 'notifications' && unreadNotifications.length > 0;
@@ -1587,7 +1600,7 @@ export default function PatientPortalModule({
         {/* Mobile Bottom Nav */}
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-40 md:hidden">
           <div className="flex overflow-x-auto">
-            {navTabs.slice(0, 5).map(nav => {
+            {visibleNavTabs.slice(0, 5).map(nav => {
               const NavIcon = nav.icon;
               const isActive = tab === nav.id;
               const hasUnread = nav.id === 'notifications' && unreadNotifications.length > 0;
@@ -1602,11 +1615,13 @@ export default function PatientPortalModule({
                 </button>
               );
             })}
-            <button onClick={() => setTab('profile')}
-              className={`flex flex-col items-center gap-0.5 flex-1 py-2 text-[8px] font-medium cursor-pointer ${tab === 'profile' ? 'text-indigo-600' : 'text-slate-400'}`}>
-              <User className="w-4 h-4" />
-              <span>Perfil</span>
-            </button>
+            {canAccessTab(userPermissions, 'patient_portal', 'profile') && (
+              <button onClick={() => setTab('profile')}
+                className={`flex flex-col items-center gap-0.5 flex-1 py-2 text-[8px] font-medium cursor-pointer ${tab === 'profile' ? 'text-indigo-600' : 'text-slate-400'}`}>
+                <User className="w-4 h-4" />
+                <span>Perfil</span>
+              </button>
+            )}
           </div>
         </div>
 

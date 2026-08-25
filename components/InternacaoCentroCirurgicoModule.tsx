@@ -17,6 +17,8 @@ import {
   Patient, initialPatients,
 } from '@/lib/mockData';
 import { useI18n } from '@/lib/i18n/I18nContext';
+import { canAccessTab } from '@/lib/rbac/catalog';
+import { hasPermission } from '@/lib/usePermissions';
 import { useModuleId } from '@/hooks/useModuleId';
 import { useFormValidation } from '@/lib/validation';
 import {
@@ -52,6 +54,7 @@ interface InternacaoCentroCirurgicoModuleProps {
   addAuditLog: (action: string, target: string) => void;
   patients: Patient[];
   setPatients: React.Dispatch<React.SetStateAction<Patient[]>>;
+  userPermissions?: string[];
 }
 
 type TabType = 'dashboard' | 'leitos' | 'cirurgia' | 'internacao' | 'relatorios';
@@ -134,10 +137,22 @@ export default function InternacaoCentroCirurgicoModule({
   addAuditLog,
   patients,
   setPatients,
+  userPermissions,
 }: InternacaoCentroCirurgicoModuleProps) {
   const { t, locale } = useI18n();
   const genModuleId = useModuleId();
+  const canBeds = hasPermission(userPermissions, 'perform_beds');
+  const canSurgery = hasPermission(userPermissions, 'perform_surgery');
   const [tab, setTab] = useState<TabType>('dashboard');
+
+  // Guarda RBAC: aba ativa não pode ficar órfã quando permissões mudam
+  useEffect(() => {
+    if (canAccessTab(userPermissions, 'hospitalization', tab)) return;
+    const order: TabType[] = ['dashboard', 'leitos', 'cirurgia', 'internacao', 'relatorios'];
+    const next = order.find(id => canAccessTab(userPermissions, 'hospitalization', id));
+    if (next) setTab(next);
+  }, [userPermissions, tab]);
+
   const [search, setSearch] = useState('');
   const [sectorFilter, setSectorFilter] = useState<string>('todos');
   const [statusFilter, setStatusFilter] = useState<BedStatus | 'todos'>('todos');
@@ -617,7 +632,7 @@ export default function InternacaoCentroCirurgicoModule({
           { key: 'cirurgia' as TabType, label: 'Agenda Cirúrgica', icon: CalendarClock },
           { key: 'internacao' as TabType, label: 'Pacientes Internados', icon: Users },
           { key: 'relatorios' as TabType, label: 'Relatórios', icon: FileBarChart },
-        ]).map(t => {
+        ]).filter(tb => canAccessTab(userPermissions, 'hospitalization', tb.key)).map(t => {
           const Icon = t.icon;
           return (
             <button key={t.key} onClick={() => { setTab(t.key); addAuditLog('Aba Internação', t.label); }}
@@ -1172,7 +1187,7 @@ export default function InternacaoCentroCirurgicoModule({
               </div>
               <div className="flex justify-end gap-2 pt-2">
                 <Button variant="outline" size="sm" onClick={() => setShowModal(false)} className="text-xs">{t('intern_btn_cancel', 'app')}</Button>
-                <Button size="sm" onClick={addSurgery} className="bg-violet-600 hover:bg-violet-700 text-xs font-bold">Agendar Cirurgia</Button>
+                <Button size="sm" disabled={!canSurgery} onClick={addSurgery} className="bg-violet-600 hover:bg-violet-700 text-xs font-bold">Agendar Cirurgia</Button>
               </div>
             </div>
           )}
@@ -1228,7 +1243,7 @@ export default function InternacaoCentroCirurgicoModule({
               </div>
               <div className="flex justify-end gap-2 pt-2">
                 <Button variant="outline" size="sm" onClick={() => setShowModal(false)} className="text-xs">{t('intern_btn_cancel', 'app')}</Button>
-                <Button size="sm" onClick={admitPatient} className="bg-blue-600 hover:bg-blue-700 text-xs font-bold">Admitir Paciente</Button>
+                <Button size="sm" disabled={!canBeds} onClick={admitPatient} className="bg-blue-600 hover:bg-blue-700 text-xs font-bold">Admitir Paciente</Button>
               </div>
             </div>
           )}
@@ -1266,7 +1281,7 @@ export default function InternacaoCentroCirurgicoModule({
                     notes: transferForm.notes,
                   });
                   transferBed();
-                }} className="bg-amber-600 hover:bg-amber-700 text-xs font-bold">Transferir</Button>
+                }} disabled={!canBeds} className="bg-amber-600 hover:bg-amber-700 text-xs font-bold">Transferir</Button>
               </div>
             </div>
           )}
@@ -1477,7 +1492,7 @@ export default function InternacaoCentroCirurgicoModule({
               )}
               {selectedItem.status === 'limpeza' && (
                 <div className="flex gap-2 pt-2">
-                  <Button size="sm" variant="outline" className="text-xs border-green-200 text-green-700 hover:bg-green-50"
+                  <Button size="sm" variant="outline" disabled={!canBeds} className="text-xs border-green-200 text-green-700 hover:bg-green-50"
                     onClick={() => {
                       setBeds(prev => prev.map(b => b.id === selectedItem.id ? { ...b, status: 'livre' as BedStatus } : b));
                       addAuditLog('Concluiu Limpeza', selectedItem.name);

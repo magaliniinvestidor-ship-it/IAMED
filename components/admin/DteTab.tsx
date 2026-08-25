@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { Stamp, Shield, Plus, X, FileCheck, Printer } from 'lucide-react';
 import { useI18n } from '@/lib/i18n/I18nContext';
+import { hasPermission } from '@/lib/usePermissions';
 import { useModuleId } from '@/hooks/useModuleId';
 import { supabase } from '@/lib/supabaseClient';
 import { Dte, DteItem, Patient, AdminFinanceModuleProps, PROCEDURES } from './AdminContext';
@@ -26,10 +27,12 @@ interface DteTabProps {
   patients: Patient[];
   addAuditLog: (action: string, target: string) => void;
   onShowKude: (dte: Dte) => void;
+  userPermissions?: string[];
 }
 
-export function DteTab({ dtes, setDtes, patients, addAuditLog, onShowKude }: DteTabProps) {
+export function DteTab({ dtes, setDtes, patients, addAuditLog, onShowKude, userPermissions = [] }: DteTabProps) {
   const { t } = useI18n();
+  const canSifen = hasPermission(userPermissions, 'perform_sifen');
   const genModuleId = useModuleId();
   const { errors, validate } = useFormValidation(dteSchema);
 
@@ -347,6 +350,7 @@ export function DteTab({ dtes, setDtes, patients, addAuditLog, onShowKude }: Dte
           </div>
 
           <button
+            disabled={!canSifen}
             onClick={handleEmitirDte}
             className="w-full py-3 bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white font-black rounded-xl shadow-md text-sm transition"
           >

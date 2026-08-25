@@ -493,26 +493,15 @@ const systemUserBaseSchema = z.object({
   systemRole: nonEmptyString('Função', 60),
   location: nonEmptyString('Sede', 100),
   status: nonEmptyString('Status', 20),
-  twoFactorEnabled: z.boolean().optional(),
-  twoFactorMethod: nonEmptyString('2FA', 10),
 });
 
-const twoFaRefine = (data: { twoFactorEnabled?: boolean; twoFactorMethod?: string }): boolean =>
-  !(data.twoFactorEnabled && data.twoFactorMethod === 'none');
-
-export const systemUserSchema = systemUserBaseSchema.refine(twoFaRefine, {
-  message: 'Selecione um método de 2FA quando ativado',
-  path: ['twoFactorMethod'],
-});
+// 2FA é configurado exclusivamente na aba 2FA (QR/e-mail), nunca no
+// formulário de usuário — TOTP exige que a própria pessoa escaneie a chave.
 
 export const systemUserCreateSchema = systemUserBaseSchema
   .extend({
     password: nonEmptyString('Senha', 100).min(6, 'Mínimo 6 caracteres'),
     confirmPassword: nonEmptyString('Confirmação', 100),
-  })
-  .refine(twoFaRefine, {
-    message: 'Selecione um método de 2FA quando ativado',
-    path: ['twoFactorMethod'],
   })
   .refine(
     (data) => data.password === data.confirmPassword,
@@ -523,10 +512,6 @@ export const systemUserEditSchema = systemUserBaseSchema
   .extend({
     password: z.string().optional(),
     confirmPassword: z.string().optional(),
-  })
-  .refine(twoFaRefine, {
-    message: 'Selecione um método de 2FA quando ativado',
-    path: ['twoFactorMethod'],
   })
   .superRefine((data, ctx) => {
     const pw = data.password ?? '';
@@ -546,7 +531,7 @@ export const systemUserEditSchema = systemUserBaseSchema
     }
   });
 
-export type SystemUserFormData = z.infer<typeof systemUserSchema>;
+export type SystemUserFormData = z.infer<typeof systemUserCreateSchema>;
 
 export const createPatientIdentificationSchema = (m: ValidationMessages) =>
   z.object({
@@ -1014,3 +999,13 @@ export const diagnosisSchema = z.object({
 });
 
 export type DiagnosisFormData = z.infer<typeof diagnosisSchema>;
+
+export const imagingReportSchema = z.object({
+  bodyPart: optionalString(100),
+  technique: z.string().max(2000, 'Técnica: máximo 2000 caracteres').optional().or(z.literal('')),
+  findings: nonEmptyString('Hallazgos', 5000),
+  impression: optionalString(2000),
+  recommendations: optionalString(2000),
+});
+
+export type ImagingReportFormData = z.infer<typeof imagingReportSchema>;

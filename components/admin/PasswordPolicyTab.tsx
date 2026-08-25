@@ -12,10 +12,10 @@ interface PasswordPolicyTabProps {
 }
 
 const COMPLEXITY_OPTIONS = [
-  { key: 'requireUppercase' as const, label: 'Exigir letra maiúscula (A-Z)' },
-  { key: 'requireLowercase' as const, label: 'Exigir letra minúscula (a-z)' },
-  { key: 'requireNumbers' as const, label: 'Exigir número (0-9)' },
-  { key: 'requireSpecialChars' as const, label: 'Exigir caractere especial (!@#$%)' },
+  { key: 'requireUppercase' as const, labelKey: 'admin_pwd_require_uppercase' },
+  { key: 'requireLowercase' as const, labelKey: 'admin_pwd_require_lowercase' },
+  { key: 'requireNumbers' as const, labelKey: 'admin_pwd_require_numbers' },
+  { key: 'requireSpecialChars' as const, labelKey: 'admin_pwd_require_special' },
 ];
 
 export function PasswordPolicyTab({
@@ -45,11 +45,11 @@ export function PasswordPolicyTab({
       <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs space-y-4">
         <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
           <Lock className="w-5 h-5 text-teal-600" />
-          <h3 className="font-semibold text-slate-800 text-base">Política de Senhas</h3>
+          <h3 className="font-semibold text-slate-800 text-base">{t('admin_pwd_title', 'app')}</h3>
         </div>
         <div className="space-y-4 text-xs">
           <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200">
-            <span className="font-semibold text-slate-700">Política Ativa</span>
+            <span className="font-semibold text-slate-700">{t('admin_pwd_active', 'app')}</span>
             <button
               onClick={() => updatePolicy({ enabled: !passwordPolicy.enabled })}
               className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer ${
@@ -64,7 +64,7 @@ export function PasswordPolicyTab({
 
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-              Tamanho Mínimo: {passwordPolicy.minLength} caracteres
+              {t('admin_pwd_min_length', 'app').replace('{min}', String(passwordPolicy.minLength))}
             </label>
             <input
               type="range"
@@ -81,7 +81,7 @@ export function PasswordPolicyTab({
           </div>
 
           <div className="space-y-2">
-            <p className="text-xs font-semibold text-slate-600">Requisitos de Complexidade</p>
+            <p className="text-xs font-semibold text-slate-600">{t('admin_pwd_complexity', 'app')}</p>
             {COMPLEXITY_OPTIONS.map((item) => (
               <label key={item.key} className="flex items-center gap-2 p-2 bg-slate-50 rounded-lg border border-slate-200 cursor-pointer">
                 <input
@@ -90,14 +90,14 @@ export function PasswordPolicyTab({
                   onChange={(e) => updatePolicy({ [item.key]: e.target.checked } as Partial<PasswordPolicy>)}
                   className="rounded border-slate-300 text-teal-600 focus:ring-teal-500"
                 />
-                <span className="text-xs font-medium text-slate-700">{item.label}</span>
+                <span className="text-xs font-medium text-slate-700">{t(item.labelKey, 'app')}</span>
               </label>
             ))}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Expiração (dias)</label>
+              <label className="block text-xs font-semibold text-slate-600 mb-1">{t('admin_pwd_expiration', 'app')}</label>
               <input
                 type="number"
                 min={0}
@@ -107,11 +107,11 @@ export function PasswordPolicyTab({
                 className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs"
               />
               {passwordPolicy.expirationDays === 0 && (
-                <p className="text-[9px] text-amber-600 font-medium mt-0.5">0 = sem expiração</p>
+                <p className="text-[9px] text-amber-600 font-medium mt-0.5">{t('admin_pwd_no_expiration', 'app')}</p>
               )}
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Histórico (senhas anteriores)</label>
+              <label className="block text-xs font-semibold text-slate-600 mb-1">{t('admin_pwd_history', 'app')}</label>
               <input
                 type="number"
                 min={0}
@@ -142,12 +142,12 @@ export function PasswordPolicyTab({
       <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs space-y-4">
         <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
           <Shield className="w-5 h-5 text-teal-600" />
-          <h3 className="font-semibold text-slate-800 text-base">Bloqueio Automático</h3>
+          <h3 className="font-semibold text-slate-800 text-base">{t('admin_pwd_lockout_title', 'app')}</h3>
         </div>
         <div className="space-y-4 text-xs">
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-              Tentativas Máximas Antes do Bloqueio: {passwordPolicy.maxLoginAttempts}
+              {t('admin_pwd_max_attempts', 'app').replace('{max}', String(passwordPolicy.maxLoginAttempts))}
             </label>
             <input
               type="range"
@@ -165,7 +165,7 @@ export function PasswordPolicyTab({
 
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-              Duração do Bloqueio: {passwordPolicy.lockoutDurationMinutes} minutos
+              {t('admin_pwd_lockout_duration', 'app').replace('{min}', String(passwordPolicy.lockoutDurationMinutes))}
             </label>
             <input
               type="range"
@@ -183,7 +183,7 @@ export function PasswordPolicyTab({
 
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-              Timeout de Sessão por Inatividade: {passwordPolicy.sessionTimeoutMinutes} minutos
+              {t('admin_pwd_session_timeout', 'app').replace('{min}', String(passwordPolicy.sessionTimeoutMinutes))}
             </label>
             <input
               type="range"
@@ -202,7 +202,7 @@ export function PasswordPolicyTab({
           <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
             <p className="text-[10px] text-amber-800 font-medium flex items-center gap-1.5">
               <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-              As alterações entram em vigor imediatamente para novos logins.
+              {t('admin_pwd_lockout_notice', 'app')}
             </p>
           </div>
         </div>

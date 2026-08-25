@@ -4,6 +4,8 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import Image from 'next/image';
 import { Patient, Appointment, Professional, InsuranceCompany } from '@/lib/mockData';
 import { supabase } from '@/lib/supabaseClient';
+import { canAccessTab } from '@/lib/rbac/catalog';
+import { hasPermission } from '@/lib/usePermissions';
 import { resizeImageToJpeg } from '@/lib/imageUtils';
 import { useI18n } from '@/lib/i18n/I18nContext';
 import { getVitalsBands, classifyBmiForAge } from '@/lib/vitals/vitalsLimits';
@@ -55,6 +57,8 @@ export default function ReceptionModule({
   insurances = [],
 }: ReceptionModuleProps) {
   const { t, locale } = useI18n();
+  const canCheckIn = hasPermission(userPermissions, 'perform_checkin') || hasPermission(userPermissions, 'perform_admit');
+  const canTriage = hasPermission(userPermissions, 'perform_triage') || hasPermission(userPermissions, 'perform_admit');
   const insuranceLabel = (type?: string) => {
     if (!type) return '';
     const map: Record<string, string> = {
@@ -342,6 +346,14 @@ export default function ReceptionModule({
     createdAt: string;
   };
   const [activeReceptionTab, setActiveReceptionTab] = useState<'recepcao' | 'distribuicao' | 'locais' | 'notificacoes'>('recepcao');
+
+  // Guarda RBAC: aba ativa não pode ficar órfã quando permissões mudam
+  useEffect(() => {
+    if (canAccessTab(userPermissions, 'reception', activeReceptionTab)) return;
+    const order = ['recepcao', 'distribuicao', 'locais', 'notificacoes'] as const;
+    const next = order.find(id => canAccessTab(userPermissions, 'reception', id));
+    if (next) setActiveReceptionTab(next);
+  }, [userPermissions, activeReceptionTab]);
   const [hospitalLocations, setHospitalLocations] = useState<HospitalLocation[]>([
     { id: 'loc_1', name: 'Consultório 1', type: 'consultorio', capacity: 1, currentPatients: [], status: 'livre' },
     { id: 'loc_2', name: 'Consultório 2', type: 'consultorio', capacity: 1, currentPatients: [], status: 'livre' },
@@ -2088,24 +2100,27 @@ if (hasAnyField) {
         <div>
           {/* Main Tabs for Module 1 */}
           <div className="flex bg-slate-100 p-1 rounded-lg text-xs font-semibold mb-6 gap-1 overflow-x-auto">
+            {canAccessTab(userPermissions, 'reception', 'recepcao') && (
             <button
               type="button"
               onClick={() => setActiveReceptionTab('recepcao')}
               className={`flex-1 min-w-[80px] py-2 px-3 rounded-md transition text-center cursor-pointer ${
-                activeReceptionTab === 'recepcao' 
-                  ? 'bg-teal-600 text-white shadow-sm' 
+                activeReceptionTab === 'recepcao'
+                  ? 'bg-teal-600 text-white shadow-sm'
                   : 'text-slate-600 hover:text-slate-800 hover:bg-slate-200'
               }`}
             >
               <Contact className="w-4 h-4 inline mr-1" />
               {t('rcpt_tab_reception', 'app')}
             </button>
+            )}
+            {canAccessTab(userPermissions, 'reception', 'distribuicao') && (
             <button
               type="button"
               onClick={() => setActiveReceptionTab('distribuicao')}
               className={`relative flex-1 min-w-[80px] py-2 px-3 rounded-md transition text-center cursor-pointer ${
-                activeReceptionTab === 'distribuicao' 
-                  ? 'bg-teal-600 text-white shadow-sm' 
+                activeReceptionTab === 'distribuicao'
+                  ? 'bg-teal-600 text-white shadow-sm'
                   : 'text-slate-600 hover:text-slate-800 hover:bg-slate-200'
               }`}
             >
@@ -2117,24 +2132,28 @@ if (hasAnyField) {
                 </span>
               )}
             </button>
+            )}
+            {canAccessTab(userPermissions, 'reception', 'locais') && (
             <button
               type="button"
               onClick={() => setActiveReceptionTab('locais')}
               className={`flex-1 min-w-[80px] py-2 px-3 rounded-md transition text-center cursor-pointer ${
-                activeReceptionTab === 'locais' 
-                  ? 'bg-teal-600 text-white shadow-sm' 
+                activeReceptionTab === 'locais'
+                  ? 'bg-teal-600 text-white shadow-sm'
                   : 'text-slate-600 hover:text-slate-800 hover:bg-slate-200'
               }`}
             >
               <Sliders className="w-4 h-4 inline mr-1" />
               {t('rcpt_tab_locations', 'app')}
             </button>
+            )}
+            {canAccessTab(userPermissions, 'reception', 'notificacoes') && (
             <button
               type="button"
               onClick={() => setActiveReceptionTab('notificacoes')}
               className={`flex-1 min-w-[80px] py-2 px-3 rounded-md transition text-center cursor-pointer relative ${
-                activeReceptionTab === 'notificacoes' 
-                  ? 'bg-teal-600 text-white shadow-sm' 
+                activeReceptionTab === 'notificacoes'
+                  ? 'bg-teal-600 text-white shadow-sm'
                   : 'text-slate-600 hover:text-slate-800 hover:bg-slate-200'
               }`}
             >
@@ -2146,6 +2165,7 @@ if (hasAnyField) {
                 </span>
               )}
             </button>
+            )}
           </div>
 
           {/* Tab Content */}
@@ -2901,7 +2921,7 @@ if (hasAnyField) {
                           ? 'bg-slate-400 cursor-not-allowed opacity-60'
                           : 'bg-teal-600 hover:bg-teal-700'
                       }`}
-                      disabled={isMinor && (!guardianName.trim() || !guardianDocumentType.trim() || !guardianDocument.trim() || !guardianRelationship.trim() || !guardianPhone.trim())}
+                      disabled={!canCheckIn || (isMinor && (!guardianName.trim() || !guardianDocumentType.trim() || !guardianDocument.trim() || !guardianRelationship.trim() || !guardianPhone.trim()))}
                     >
                       {selectedPatientId ? (
                         <><Check className="w-4 h-4" /> {t('rcpt_label_save_edit', 'app')}</>
@@ -3050,7 +3070,8 @@ if (hasAnyField) {
                                 setShowTriageModal(true);
                               }}
                               data-testid="attend"
-                              className="bg-teal-600 hover:bg-teal-700 text-white text-[11px] px-3 py-1.5 rounded-lg font-bold shadow-sm transition cursor-pointer flex items-center gap-1"
+                              disabled={!canTriage}
+                              className="bg-teal-600 hover:bg-teal-700 text-white text-[11px] px-3 py-1.5 rounded-lg font-bold shadow-sm transition cursor-pointer flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                               <HeartPulse className="w-3.5 h-3.5 text-white animate-pulse" />
                               {t('rcpt_list_perform_triage', 'app')}
@@ -3107,7 +3128,8 @@ if (hasAnyField) {
                             <button
                               onClick={() => handleUpdatePatientStatus(p.id, 'aguardando')}
                               data-testid="check-in"
-                              className="bg-teal-600 hover:bg-teal-700 text-white text-[11px] px-3 py-1.5 rounded-lg font-semibold shadow-xs transition cursor-pointer"
+                              disabled={!canCheckIn}
+                              className="bg-teal-600 hover:bg-teal-700 text-white text-[11px] px-3 py-1.5 rounded-lg font-semibold shadow-xs transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                               {t('rcpt_list_check_in', 'app')}
                             </button>
@@ -4405,7 +4427,7 @@ if (hasAnyField) {
                     setShowTriageModal(false);
                     setTriagePatient(null);
                   }}
-                  disabled={!triageReason.trim()}
+                  disabled={!canTriage || !triageReason.trim()}
                   className={`py-2.5 px-5 text-white font-bold text-xs rounded-lg shadow-sm flex items-center gap-1.5 cursor-pointer transition ${
                     triageReason.trim() ? 'bg-teal-600 hover:bg-teal-700' : 'bg-slate-400 cursor-not-allowed'
                   }`}

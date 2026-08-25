@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { PharmacyItem, LotControl, StockMovement, InventoryCount, AdverseEvent, QualityDeviation, BatchRecall, StockMovementType, DrugCategory, AdverseEventSeverity, AdverseEventOutcome } from '@/lib/mockData';
 import { supabase } from '@/lib/supabaseClient';
 import { useI18n } from '@/lib/i18n/I18nContext';
@@ -10,6 +10,8 @@ import {
   stockEntrySchema, stockExitSchema, adverseEventSchema, qualityDeviationSchema, pharmacyItemSchema,
 } from '@/lib/validation/schemas';
 import { FormErrorSummary } from '@/components/forms';
+import { canAccessTab } from '@/lib/rbac/catalog';
+import { hasPermission } from '@/lib/usePermissions';
 import I18nDatePicker from '@/components/I18nDatePicker';
 import {
   Pill, Plus, AlertTriangle, X, Check, Search, Package,
@@ -38,8 +40,9 @@ interface EstoqueFarmaciaModuleProps {
   setQualityDeviations: React.Dispatch<React.SetStateAction<QualityDeviation[]>>;
   batchRecalls: BatchRecall[];
   setBatchRecalls: React.Dispatch<React.SetStateAction<BatchRecall[]>>;
-  activeRole: string;
-  activeOperator: string;
+  activeRole?: string;
+  activeOperator?: string;
+  userPermissions?: string[];
 }
 
 const GS = (v: number) => `Gs. ${v.toLocaleString('es-PY')}`;
@@ -89,12 +92,22 @@ export default function EstoqueFarmaciaModule({
   setBatchRecalls,
   activeRole,
   activeOperator,
+  userPermissions,
 }: EstoqueFarmaciaModuleProps) {
   const { t } = useI18n();
+  const canStock = hasPermission(userPermissions, 'perform_stock');
 
   // ─── SEQUENTIAL ID GENERATION (Postgres RPC) ───
   const genModuleId = useModuleId();
   const [tab, setTab] = useState<'dashboard' | 'items' | 'entries' | 'exits' | 'movements' | 'lots' | 'inventory' | 'reports' | 'alerts' | 'pharmacovigilance'>('dashboard');
+
+  // Guarda RBAC: aba ativa não pode ficar órfã quando permissões mudam
+  useEffect(() => {
+    if (canAccessTab(userPermissions, 'stock', tab)) return;
+    const order = ['dashboard', 'items', 'lots', 'movements', 'entries', 'exits', 'inventory', 'alerts', 'reports', 'pharmacovigilance'] as const;
+    const next = order.find(id => canAccessTab(userPermissions, 'stock', id));
+    if (next) setTab(next);
+  }, [userPermissions, tab]);
 
   const entryValidation = useFormValidation(stockEntrySchema);
   const exitValidation = useFormValidation(stockExitSchema);
@@ -876,7 +889,7 @@ export default function EstoqueFarmaciaModule({
                     <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">{t('pharm_inventory_counted', 'app')}</label>
                     <div className="flex gap-2">
                       <input type="text" inputMode="numeric" value={invCounted} onChange={e => setInvCounted(Number(e.target.value))} className="flex-1 p-2 bg-white border border-slate-200 rounded-lg text-xs" placeholder="0" />
-                      <button onClick={handleInventorySubmit} disabled={!invItemId || !invLotId} className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-40 text-white font-bold rounded-lg text-xs flex items-center gap-2"><QrCode className="w-4 h-4" /> {t('pharm_inventory_register', 'app')}</button>
+                      <button onClick={handleInventorySubmit} disabled={!canStock || !invItemId || !invLotId} className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-40 text-white font-bold rounded-lg text-xs flex items-center gap-2"><QrCode className="w-4 h-4" /> {t('pharm_inventory_register', 'app')}</button>
                     </div>
                   </div>
                 </>
@@ -1316,6 +1329,8 @@ export default function EstoqueFarmaciaModule({
     { id: 'pharmacovigilance' as const, label: `${t('pharm_tab_pv', 'app')}${totalPvAlerts > 0 ? ` (${totalPvAlerts})` : ''}`, icon: Activity },
   ];
 
+  const visibleTabs = tabs.filter(tb => canAccessTab(userPermissions, 'stock', tb.id));
+
   return (
     <div className="space-y-5">
       {/* Header */}
@@ -1337,7 +1352,7 @@ export default function EstoqueFarmaciaModule({
 
         {/* Tabs */}
         <div className="flex flex-wrap gap-1.5">
-          {tabs.map(tabItem => {
+          {visibleTabs.map(tabItem => {
             const Icon = tabItem.icon;
             const isActive = tab === tabItem.id;
             const isAlertsTab = tabItem.id === 'alerts';
@@ -1510,7 +1525,7 @@ export default function EstoqueFarmaciaModule({
                 </div>
               </div>
               <div className="flex gap-2 pt-2">
-                <button type="submit" data-testid="new-item-submit" aria-label={t('pharm_modal_register', 'app')} disabled={!newItemName.trim() || !newItemDinavisa.trim()} className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-bold rounded-lg text-xs transition">{t('pharm_modal_register', 'app')}</button>
+                <button type="submit" data-testid="new-item-submit" aria-label={t('pharm_modal_register', 'app')} disabled={!canStock || !newItemName.trim() || !newItemDinavisa.trim()} className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-bold rounded-lg text-xs transition">{t('pharm_modal_register', 'app')}</button>
                 <button type="button" data-testid="new-item-cancel" aria-label={t('pharm_modal_cancel', 'app')} onClick={() => setShowNewItemForm(false)} className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs transition">{t('pharm_modal_cancel', 'app')}</button>
               </div>
             </form>
@@ -1568,7 +1583,7 @@ export default function EstoqueFarmaciaModule({
                 </div>
               </div>
               <div className="flex gap-2 pt-2">
-                <button type="submit" data-testid="entry-register-submit" aria-label={t('pharm_entry_register', 'app')} className="flex-1 py-3 bg-teal-600 hover:bg-teal-700 disabled:opacity-40 text-white font-bold rounded-lg text-xs transition">{t('pharm_entry_register', 'app')}</button>
+                <button type="submit" data-testid="entry-register-submit" disabled={!canStock} aria-label={t('pharm_entry_register', 'app')} className="flex-1 py-3 bg-teal-600 hover:bg-teal-700 disabled:opacity-40 text-white font-bold rounded-lg text-xs transition">{t('pharm_entry_register', 'app')}</button>
                 <button type="button" data-testid="entry-register-cancel" aria-label={t('pharm_modal_cancel', 'app')} onClick={() => setShowEntryForm(false)} className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs transition">{t('pharm_modal_cancel', 'app')}</button>
               </div>
             </form>
@@ -1632,7 +1647,7 @@ export default function EstoqueFarmaciaModule({
                 <textarea data-testid="exit-notes" value={exitNotes} onChange={e => setExitNotes(e.target.value)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" rows={2} />
               </div>
               <div className="flex gap-2 pt-2">
-                <button type="submit" data-testid="exit-register-submit" aria-label={t('pharm_exit_register', 'app')} className="flex-1 py-3 bg-amber-600 hover:bg-amber-700 disabled:opacity-40 text-white font-bold rounded-lg text-xs transition">{t('pharm_exit_register', 'app')}</button>
+                <button type="submit" data-testid="exit-register-submit" disabled={!canStock} aria-label={t('pharm_exit_register', 'app')} className="flex-1 py-3 bg-amber-600 hover:bg-amber-700 disabled:opacity-40 text-white font-bold rounded-lg text-xs transition">{t('pharm_exit_register', 'app')}</button>
                 <button type="button" data-testid="exit-register-cancel" aria-label={t('pharm_modal_cancel', 'app')} onClick={() => setShowExitForm(false)} className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs transition">{t('pharm_modal_cancel', 'app')}</button>
               </div>
             </form>

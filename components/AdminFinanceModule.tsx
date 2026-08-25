@@ -13,6 +13,7 @@ import {
   AuditTab,
   SsoTab,
   PasswordPolicyTab,
+  TwoFactorTab,
   KudeModal,
   XmlModal,
   GatewayModal,
@@ -24,6 +25,10 @@ import { FinancialPosting, StockItem, AuditLog, Dte, DteItem, Patient, Professio
   Location, ClinicalRoom, initialLocations, initialClinicalRooms,
 } from '@/lib/mockData';
 import { supabase } from '@/lib/supabaseClient';
+import { authFetch } from '@/lib/auth/authFetch';
+import { RBAC_MODULE_CATALOG, moduleTabPrefix, tabPermissionKey, canAccessTab } from '@/lib/rbac/catalog';
+import { visiblePerformKeys } from '@/lib/rbac/performCatalog';
+import { hasPermission } from '@/lib/usePermissions';
 import { useI18n } from '@/lib/i18n/I18nContext';
 import { useModuleId } from '@/hooks/useModuleId';
 import { useFormValidation } from '@/lib/validation';
@@ -105,6 +110,7 @@ interface AdminFinanceModuleProps {
   setClinicalRooms?: React.Dispatch<React.SetStateAction<ClinicalRoom[]>>;
   passwordPolicy?: PasswordPolicy;
   onPasswordPolicyChange?: (policy: PasswordPolicy) => void;
+  userPermissions?: string[];
 }
 
 const GS = (v: number) => `Gs. ${v.toLocaleString('es-PY')}`;
@@ -279,18 +285,49 @@ export default function AdminFinanceModule({
   setClinicalRooms: setClinicalRoomsProp,
   passwordPolicy: passwordPolicyProp,
   onPasswordPolicyChange,
+  userPermissions = [],
 }: AdminFinanceModuleProps) {
   const { t } = useI18n();
+  const canPostFinance = hasPermission(userPermissions, 'perform_post_finance');
+  const canSifen = hasPermission(userPermissions, 'perform_sifen');
+  const canStockFin = hasPermission(userPermissions, 'perform_stock');
+  const canInsurance = hasPermission(userPermissions, 'perform_insurance');
+  const canFeeSchedule = hasPermission(userPermissions, 'perform_fee_schedule');
+  const canCopay = hasPermission(userPermissions, 'perform_copay');
+  const canBatches = hasPermission(userPermissions, 'perform_batches');
+  const canEligibility = hasPermission(userPermissions, 'perform_eligibility');
+  const canSettlements = hasPermission(userPermissions, 'perform_settlements');
+  const canFrn = hasPermission(userPermissions, 'perform_foreign_billing');
+  const canRbac = hasPermission(userPermissions, 'perform_rbac');
 
   // ─── SEQUENTIAL ID GENERATION (Postgres RPC) ───
   const genModuleId = useModuleId();
 
   const postingValidation = useFormValidation(financialPostingSchema);
   const stockItemValidation = useFormValidation(financeStockItemSchema);
-  const ssoValidation = useFormValidation(ssoProviderSchema);
 
   // Financial tabs
-  const [finTab, setFinTab] = useState<'dashboard' | 'ap_ar' | 'cashflow' | 'reconciliation' | 'cost_centers' | 'dre' | 'tax' | 'books' | 'multicurrency' | 'chart_accounts' | 'accounting_entries'>('dashboard');
+  type FinTab = 'dashboard' | 'ap_ar' | 'cashflow' | 'reconciliation' | 'cost_centers' | 'dre' | 'tax' | 'books' | 'multicurrency' | 'chart_accounts' | 'accounting_entries';
+  const finTabsDef: { key: FinTab; icon: typeof TrendingUp; labelKey: string }[] = [
+    { key: 'dashboard', icon: TrendingUp, labelKey: 'fin_tab_dashboard' },
+    { key: 'ap_ar', icon: Receipt, labelKey: 'fin_tab_ap_ar' },
+    { key: 'cashflow', icon: TrendingUp, labelKey: 'fin_tab_cashflow' },
+    { key: 'reconciliation', icon: RefreshCw, labelKey: 'fin_tab_reconciliation' },
+    { key: 'cost_centers', icon: Building2, labelKey: 'fin_tab_cost_centers' },
+    { key: 'dre', icon: FileText, labelKey: 'fin_tab_dre' },
+    { key: 'tax', icon: AlertCircle, labelKey: 'fin_tab_tax' },
+    { key: 'books', icon: FileCheck, labelKey: 'fin_tab_books' },
+    { key: 'multicurrency', icon: Globe, labelKey: 'fin_tab_multicurrency' },
+    { key: 'chart_accounts', icon: Hash, labelKey: 'fin_tab_chart_accounts' },
+    { key: 'accounting_entries', icon: Edit2, labelKey: 'fin_tab_accounting_entries' },
+  ];
+  const visibleFinTabs = finTabsDef.filter(tb => canAccessTab(userPermissions, 'finance', tb.key));
+  const [finTab, setFinTab] = useState<FinTab>('dashboard');
+  React.useEffect(() => {
+    if (visibleFinTabs.length > 0 && !visibleFinTabs.some(tb => tb.key === finTab)) {
+      setFinTab(visibleFinTabs[0].key);
+    }
+  }, [finTab, visibleFinTabs]);
 
   // Local state fallbacks for new data
   const [insurances, setInsurances] = useState<InsuranceCompany[]>(insurancesProp || initialInsurances);
@@ -375,7 +412,26 @@ export default function AdminFinanceModule({
 
   // ── Admin tab (submodule 14) ────────────────────────────────────────────────────────
   type AdminTab = 'users' | 'security' | 'password-policy' | 'two-factor' | 'sso' | 'sessions' | 'professionals' | 'locations' | 'rooms' | 'roles' | 'snomed';
+  const adminTabsDef: { key: AdminTab; icon: typeof Users; labelKey: string }[] = [
+    { key: 'users', icon: Users, labelKey: 'admin_tab_users' },
+    { key: 'security', icon: Shield, labelKey: 'admin_tab_rbac' },
+    { key: 'password-policy', icon: Lock, labelKey: 'admin_tab_password_policy' },
+    { key: 'two-factor', icon: Fingerprint, labelKey: 'admin_tab_twofa' },
+    { key: 'sso', icon: Globe, labelKey: 'admin_tab_sso' },
+    { key: 'sessions', icon: DoorOpen, labelKey: 'admin_tab_sessions' },
+    { key: 'professionals', icon: Stethoscope, labelKey: 'admin_tab_professionals' },
+    { key: 'locations', icon: Building2, labelKey: 'admin_tab_locations' },
+    { key: 'rooms', icon: DoorOpen, labelKey: 'admin_tab_rooms' },
+    { key: 'roles', icon: Briefcase, labelKey: 'admin_tab_roles' },
+    { key: 'snomed', icon: Brain, labelKey: 'admin_tab_snomed' },
+  ];
+  const visibleAdminTabs = adminTabsDef.filter(tb => canAccessTab(userPermissions, 'security', tb.key));
   const [adminTab, setAdminTab] = useState<AdminTab>('users');
+  React.useEffect(() => {
+    if (visibleAdminTabs.length > 0 && !visibleAdminTabs.some(tb => tb.key === adminTab)) {
+      setAdminTab(visibleAdminTabs[0].key);
+    }
+  }, [adminTab, visibleAdminTabs]);
   const [pendingUserProfessional, setPendingUserProfessional] = useState<Professional | null>(null);
 
   const handleCreateUserForProfessional = (prof: Professional) => {
@@ -438,10 +494,29 @@ export default function AdminFinanceModule({
     }
   };
 
+  const [rbacMode, setRbacMode] = useState<'role' | 'person'>('role');
+  const [rbacSelectedRole, setRbacSelectedRole] = useState<string>('');
+  const [rolePermissionsMap, setRolePermissionsMap] = useState<Record<string, string[]>>({});
+
+  const loadRolePermissionsFromSupabase = async () => {
+    const { data } = await supabase
+      .from('role_permissions')
+      .select('role_name, permissions');
+    if (data) {
+      const map: Record<string, string[]> = {};
+      for (const row of data as Record<string, unknown>[]) {
+        map[String(row.role_name)] = Array.isArray(row.permissions) ? (row.permissions as string[]) : [];
+      }
+      setRolePermissionsMap(map);
+    }
+  };
+
   React.useEffect(() => {
-     
+
     loadSystemUsersFromSupabase();
+    loadRolePermissionsFromSupabase();
   }, []);
+
 
   // ── Professional Form States ────────────────────────────────────────────────────────
   const [profFormOpen, setProfFormOpen] = useState(false);
@@ -637,7 +712,7 @@ const resetProfForm = () => {
 
     try {
       if (editingUserId) {
-        const response = await fetch('/api/admin/users', {
+        const response = await authFetch('/api/admin/users', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -658,7 +733,7 @@ const resetProfForm = () => {
         addAuditLog('Atualizou Usuário', userName);
         alert(t('fin_alert_user_updated', 'app'));
       } else {
-        const response = await fetch('/api/admin/users', {
+        const response = await authFetch('/api/admin/users', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -810,6 +885,12 @@ const resetProfForm = () => {
   // ── 14. Admin State ─────────────────────────────────────────────────────────
   const [activeOperatorProfile, setActiveOperatorProfile] = useState<'recepcao' | 'medico' | 'gestor'>('recepcao');
   const [rbacSelectedProfId, setRbacSelectedProfId] = useState<string>('');
+
+  const rbacRoleOptions = Array.from(new Set<string>([
+    ...professionalRoles.map(r => r.name),
+    'SuperAdmin', 'Administrador', 'Gestor', 'Diretor Clínico',
+    'Recepcionista', 'Financeiro', 'Visualizador',
+  ]));
   const [passwordPolicy, setPasswordPolicy] = useState<PasswordPolicy>(passwordPolicyProp || initialPasswordPolicy);
   const [userSessions, setUserSessions] = useState<UserSession[]>(initialUserSessions);
   const [loginAttempts, setLoginAttempts] = useState<LoginAttempt[]>(initialLoginAttempts);
@@ -957,19 +1038,6 @@ const resetProfForm = () => {
   const [passwordResetNewPass, setPasswordResetNewPass] = useState('');
   const [passwordResetConfirm, setPasswordResetConfirm] = useState('');
 
-  // SSO form state
-  const [ssoFormOpen, setSsoFormOpen] = useState(false);
-  const [editingSsoId, setEditingSsoId] = useState<string | null>(null);
-  const [ssoName, setSsoName] = useState('');
-  const [ssoType, setSsoType] = useState<'saml' | 'oauth2' | 'oidc'>('oidc');
-  const [ssoIssuer, setSsoIssuer] = useState('');
-  const [ssoClientId, setSsoClientId] = useState('');
-  const [ssoClientSecret, setSsoClientSecret] = useState('');
-  const [ssoMetadataUrl, setSsoMetadataUrl] = useState('');
-  const [ssoCertFingerprint, setSsoCertFingerprint] = useState('');
-  const [ssoDefaultRole, setSsoDefaultRole] = useState<SystemRole>('Visualizador');
-  const [ssoEnabled, setSsoEnabled] = useState(false);
-
   // Session filter/view
   const [sessionFilter, setSessionFilter] = useState<'all' | 'active' | 'revoked'>('active');
 
@@ -992,6 +1060,7 @@ const resetProfForm = () => {
           professionals={professionals}
           procedureCatalog={procedureCatalogProp}
           addAuditLog={addAuditLog}
+          userPermissions={userPermissions}
         />
       )}
 
@@ -1101,7 +1170,7 @@ const resetProfForm = () => {
               <div><h3 className="font-black text-slate-800 text-sm">Lotes Masivos de Facturación</h3><p className="text-[10px] text-slate-500">Generación y envío de lotes consolidados por aseguradora y período</p></div>
             </div>
             <div className="flex gap-2 mb-4">
-              <button onClick={async () => {
+<button disabled={!canBatches} onClick={async () => {
                 const newId = await genModuleId('batch');
                 const newBatch: BatchInvoice = { id: newId, insurance_id: 'ins_1', insurance_name: 'IPS - Instituto de Previsión Social', period_start: '2026-07-01', period_end: '2026-07-31', total_amount: dtes.filter(d => d.status === 'Aprovado').reduce((s, d) => s + d.amount, 0), dte_count: dtes.filter(d => d.status === 'Aprovado').length, status: 'gerado', dte_ids: dtes.filter(d => d.status === 'Aprovado').map(d => d.id), created_at: new Date().toISOString().split('T')[0] };
                 setBatchInvoices(prev => [newBatch, ...prev]);
@@ -1191,7 +1260,7 @@ const resetProfForm = () => {
                     setEligProp?.(prev => [newElig, ...prev]);
                     alert(`❌ Cobertura Negada\nPaciente: ${pName}\nConvênio: ${ins.name}\nRespuesta: Contribuyente no activo.\nContacte al convenio para más detalles.`);
                   }
-                }} className="w-full py-2 bg-cyan-600 hover:bg-cyan-700 text-white font-bold rounded-lg text-xs flex items-center justify-center gap-2 transition"><Wifi className="w-3.5 h-3.5" /> Consultar Web Service</button>
+                }} disabled={!canEligibility} className="w-full py-2 bg-cyan-600 hover:bg-cyan-700 text-white font-bold rounded-lg text-xs flex items-center justify-center gap-2 transition"><Wifi className="w-3.5 h-3.5" /> Consultar Web Service</button>
               </div>
               <div className="border border-slate-200 rounded-xl p-4 space-y-3">
                 <h4 className="font-bold text-slate-700 text-xs">Convenios con Web Service</h4>
@@ -1291,8 +1360,8 @@ const resetProfForm = () => {
                 </div>
                 <div>
                   <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">% Repasse</label>
-                  <select className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold" id="settle-pct-select">
-                    <option value="50">50%</option><option value="55">55%</option><option value="60" selected>60%</option><option value="65">65%</option><option value="70">70%</option>
+                    <select className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold" id="settle-pct-select" defaultValue="60">
+                      <option value="50">50%</option><option value="55">55%</option><option value="60">60%</option><option value="65">65%</option><option value="70">70%</option>
                   </select>
                 </div>
               </div>
@@ -1313,7 +1382,7 @@ const resetProfForm = () => {
                 setSettlements(prev => [newSett, ...prev]);
                 setSettlementsProp?.(prev => [newSett, ...prev]);
                 alert(`✅ Cálculo de Honorarios\nProfesional: ${prof.name}\nValor Facturado: Gs. ${gross.toLocaleString('es-PY')}\nRepasse (${pct}%): Gs. ${honorario.toLocaleString('es-PY')}\nIRP (3%): -Gs. ${irp.toLocaleString('es-PY')}\nIVA (12%): -Gs. ${iva.toLocaleString('es-PY')}\n\nNeto a Pagar: Gs. ${neto.toLocaleString('es-PY')}`);
-              }} className="w-full py-2 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-lg text-xs transition">Calcular y Generar Liquidación</button>
+              }} disabled={!canSettlements} className="w-full py-2 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-lg text-xs transition">Calcular y Generar Liquidación</button>
               <div className="bg-white p-3 rounded-lg border border-slate-200 text-[10px] text-slate-500 space-y-1">
                 <p className="font-bold text-slate-700">Fórmula de Cálculo:</p>
                 <p>Honorario = Valor Facturado × Repasse% / 100</p>
@@ -1347,8 +1416,8 @@ const resetProfForm = () => {
                     </div>
                     <div>
                       <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">País</label>
-                      <select className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold" id="frn-country-select">
-                        <option value="AR">Argentina</option><option value="BR" selected>Brasil</option><option value="UY">Uruguay</option><option value="CL">Chile</option><option value="US">Estados Unidos</option>
+                      <select className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold" id="frn-country-select" defaultValue="BR">
+                        <option value="AR">Argentina</option><option value="BR">Brasil</option><option value="UY">Uruguay</option><option value="CL">Chile</option><option value="US">Estados Unidos</option>
                       </select>
                     </div>
                   </div>
@@ -1361,7 +1430,7 @@ const resetProfForm = () => {
                     </div>
                     <div>
                       <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">Tasa de Cambio</label>
-                      <input type="text" inputMode="numeric" className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs" placeholder="7500" id="frn-rate-input" value="7500" />
+                      <input type="text" inputMode="numeric" className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs" placeholder="7500" id="frn-rate-input" defaultValue="7500" />
                     </div>
                   </div>
                   <div>
@@ -1385,7 +1454,7 @@ const resetProfForm = () => {
                   setForeignBillings(prev => [newFrn, ...prev]);
                   setForeignBillingsProp?.(prev => [newFrn, ...prev]);
                   alert(`✅ Comprobante Internacional Generado\nPaciente: ${pName}\nPaís: ${countryNames[country] || country}\nMoneda: ${currency}\nMonto Local: Gs. ${amountLocal.toLocaleString('es-PY')}\nTasa: ${rate}\nMonto Extranjero: ${currency} ${amountForeign.toFixed(2)}\n\nDocumentos generados:\n${docs.map(d => `  📄 ${d}`).join('\n')}`);
-                }} className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-xs flex items-center justify-center gap-2 transition"><Globe className="w-3.5 h-3.5" /> Generar Comprobante Internacional</button>
+                }} disabled={!canFrn} className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-xs flex items-center justify-center gap-2 transition"><Globe className="w-3.5 h-3.5" /> Generar Comprobante Internacional</button>
               </div>
               <div className="border border-slate-200 rounded-xl p-4 space-y-3">
                 <h4 className="font-bold text-slate-700 text-xs">Resumen de Cambios</h4>
@@ -1441,6 +1510,7 @@ const resetProfForm = () => {
           patients={patients}
           addAuditLog={addAuditLog}
           onShowKude={(dte) => setKudeTarget(dte)}
+          userPermissions={userPermissions}
         />
       )}
 
@@ -1449,21 +1519,9 @@ const resetProfForm = () => {
         <div className="space-y-5">
           {/* Tab Navigator */}
           <div className="bg-white rounded-xl border border-slate-200/80 shadow-xs p-1 flex flex-wrap gap-1">
-            {([
-              ['dashboard', 'Dashboard', TrendingUp],
-              ['ap_ar', 'AP/AR', Receipt],
-              ['cashflow', 'Fluxo Caixa', TrendingUp],
-              ['reconciliation', 'Conciliação', RefreshCw],
-              ['cost_centers', 'Centros Custo', Building2],
-              ['dre', 'DRE', FileText],
-              ['tax', 'Impostos', AlertCircle],
-              ['books', 'Livros DNIT', FileCheck],
-              ['multicurrency', 'Multimoeda', Globe],
-              ['chart_accounts', 'Plano Contas', Hash],
-              ['accounting_entries', 'Lançamentos', Edit2],
-            ] as const).map(([key, label, Icon]) => (
-              <button key={key} onClick={() => setFinTab(key)} className={`px-3 py-2 rounded-lg text-[10px] font-bold flex items-center gap-1.5 transition ${finTab === key ? 'bg-teal-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100'}`}>
-                <Icon className="w-3 h-3" /> {label}
+            {visibleFinTabs.map(tb => (
+              <button key={tb.key} onClick={() => setFinTab(tb.key)} className={`px-3 py-2 rounded-lg text-[10px] font-bold flex items-center gap-1.5 transition ${finTab === tb.key ? 'bg-teal-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100'}`}>
+                <tb.icon className="w-3 h-3" /> {t(tb.labelKey, 'app')}
               </button>
             ))}
           </div>
@@ -1507,7 +1565,7 @@ const resetProfForm = () => {
                       <option value="Faturamento DTE / SIFEN">SIFEN</option>
                     </select>
                   </div>
-                  <button type="submit" className="w-full py-3 bg-slate-800 hover:bg-slate-900 text-white font-semibold rounded-lg shadow-sm text-xs">
+                  <button type="submit" disabled={!canPostFinance} className="w-full py-3 bg-slate-800 hover:bg-slate-900 text-white font-semibold rounded-lg shadow-sm text-xs disabled:opacity-50 disabled:cursor-not-allowed">
                     Registrar Lançamento
                   </button>
                 </form>
@@ -2021,7 +2079,7 @@ const resetProfForm = () => {
                 />
               </div>
 
-              <button type="submit" className="w-full py-3 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-lg text-xs cursor-pointer shadow-xs transition">
+              <button type="submit" disabled={!canStockFin} className="w-full py-3 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-lg text-xs cursor-pointer shadow-xs transition disabled:opacity-50 disabled:cursor-not-allowed">
                 Registrar Medicamento / Insumo
               </button>
             </form>
@@ -2065,39 +2123,11 @@ const resetProfForm = () => {
         <div className="space-y-6">
           {/* Tab Selector */}
           <div className="flex gap-1 border-b border-slate-200/80 pb-px overflow-x-auto">
-            <button onClick={() => setAdminTab('users')} className={`pb-2.5 px-3 text-sm font-semibold transition-all border-b-2 flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${adminTab === 'users' ? 'border-teal-600 text-teal-600 font-bold' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
-              <Users className="w-3.5 h-3.5" /> Usuários
-            </button>
-            <button onClick={() => setAdminTab('security')} className={`pb-2.5 px-3 text-sm font-semibold transition-all border-b-2 flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${adminTab === 'security' ? 'border-teal-600 text-teal-600 font-bold' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
-              <Shield className="w-3.5 h-3.5" /> RBAC
-            </button>
-            <button onClick={() => setAdminTab('password-policy')} className={`pb-2.5 px-3 text-sm font-semibold transition-all border-b-2 flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${adminTab === 'password-policy' ? 'border-teal-600 text-teal-600 font-bold' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
-              <Lock className="w-3.5 h-3.5" /> Política de Senhas
-            </button>
-            <button onClick={() => setAdminTab('two-factor')} className={`pb-2.5 px-3 text-sm font-semibold transition-all border-b-2 flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${adminTab === 'two-factor' ? 'border-teal-600 text-teal-600 font-bold' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
-              <Fingerprint className="w-3.5 h-3.5" /> 2FA / MFA
-            </button>
-            <button onClick={() => setAdminTab('sso')} className={`pb-2.5 px-3 text-sm font-semibold transition-all border-b-2 flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${adminTab === 'sso' ? 'border-teal-600 text-teal-600 font-bold' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
-              <Globe className="w-3.5 h-3.5" /> SSO
-            </button>
-            <button onClick={() => setAdminTab('sessions')} className={`pb-2.5 px-3 text-sm font-semibold transition-all border-b-2 flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${adminTab === 'sessions' ? 'border-teal-600 text-teal-600 font-bold' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
-              <DoorOpen className="w-3.5 h-3.5" /> Sessões
-            </button>
-            <button onClick={() => setAdminTab('professionals')} className={`pb-2.5 px-3 text-sm font-semibold transition-all border-b-2 flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${adminTab === 'professionals' ? 'border-teal-600 text-teal-600 font-bold' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
-              <Stethoscope className="w-3.5 h-3.5" /> Profissionais
-            </button>
-            <button onClick={() => setAdminTab('locations')} className={`pb-2.5 px-3 text-sm font-semibold transition-all border-b-2 flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${adminTab === 'locations' ? 'border-teal-600 text-teal-600 font-bold' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
-              <Building2 className="w-3.5 h-3.5" /> Sede
-            </button>
-            <button onClick={() => setAdminTab('rooms')} className={`pb-2.5 px-3 text-sm font-semibold transition-all border-b-2 flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${adminTab === 'rooms' ? 'border-teal-600 text-teal-600 font-bold' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
-              <DoorOpen className="w-3.5 h-3.5" /> Salas
-            </button>
-            <button onClick={() => setAdminTab('roles')} className={`pb-2.5 px-3 text-sm font-semibold transition-all border-b-2 flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${adminTab === 'roles' ? 'border-teal-600 text-teal-600 font-bold' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
-              <Briefcase className="w-3.5 h-3.5" /> Profissões
-            </button>
-            <button onClick={() => setAdminTab('snomed')} className={`pb-2.5 px-3 text-sm font-semibold transition-all border-b-2 flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${adminTab === 'snomed' ? 'border-teal-600 text-teal-600 font-bold' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
-              <Brain className="w-3.5 h-3.5" /> SNOMED-CT
-            </button>
+            {visibleAdminTabs.map(tb => (
+              <button key={tb.key} onClick={() => setAdminTab(tb.key)} className={`pb-2.5 px-3 text-sm font-semibold transition-all border-b-2 flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${adminTab === tb.key ? 'border-teal-600 text-teal-600 font-bold' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+                <tb.icon className="w-3.5 h-3.5" /> {t(tb.labelKey, 'app')}
+              </button>
+            ))}
           </div>
 
           {adminTab === 'users' && (
@@ -2106,7 +2136,9 @@ const resetProfForm = () => {
               pendingProfessional={pendingUserProfessional}
               onPendingProfessionalConsumed={() => setPendingUserProfessional(null)}
               professionals={professionals}
+              professionalRoles={professionalRoles.map(r => r.name)}
               locations={locations}
+              onUsersChanged={loadSystemUsersFromSupabase}
             />
           )}
 
@@ -2115,29 +2147,29 @@ const resetProfForm = () => {
               <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs space-y-4">
                 <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
                   <Lock className="w-5 h-5 text-teal-600" />
-                  <h3 className="font-semibold text-slate-800 text-base">Política de Senhas</h3>
+                  <h3 className="font-semibold text-slate-800 text-base">{t('admin_pwd_title', 'app')}</h3>
                 </div>
                 <div className="space-y-4 text-xs font-sans">
                   <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200">
-                    <span className="font-semibold text-slate-700">Política Ativa</span>
+                    <span className="font-semibold text-slate-700">{t('admin_pwd_active', 'app')}</span>
                     <button onClick={() => { setPasswordPolicy(prev => ({ ...prev, enabled: !prev.enabled })); setPasswordPolicySaved(false); }} className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer ${passwordPolicy.enabled ? 'bg-teal-600' : 'bg-slate-300'}`}>
                       <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform ${passwordPolicy.enabled ? 'translate-x-5' : ''}`} />
                     </button>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">Tamanho Mínimo: {passwordPolicy.minLength} caracteres</label>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('admin_pwd_min_length', 'app').replace('{min}', String(passwordPolicy.minLength))}</label>
                     <input type="range" min={4} max={32} value={passwordPolicy.minLength} onChange={e => setPasswordPolicy(prev => ({ ...prev, minLength: Number(e.target.value) }))} className="w-full accent-teal-600" />
                     <div className="flex justify-between text-[9px] text-slate-400"><span>4</span><span>32</span></div>
                   </div>
 
                   <div className="space-y-2">
-                    <p className="text-xs font-semibold text-slate-600">Requisitos de Complexidade</p>
+                    <p className="text-xs font-semibold text-slate-600">{t('admin_pwd_complexity', 'app')}</p>
                     {[
-                      { key: 'requireUppercase' as const, label: 'Exigir letra maiúscula (A-Z)' },
-                      { key: 'requireLowercase' as const, label: 'Exigir letra minúscula (a-z)' },
-                      { key: 'requireNumbers' as const, label: 'Exigir número (0-9)' },
-                      { key: 'requireSpecialChars' as const, label: 'Exigir caractere especial (!@#$%)' },
+                      { key: 'requireUppercase' as const, label: t('admin_pwd_require_uppercase', 'app') },
+                      { key: 'requireLowercase' as const, label: t('admin_pwd_require_lowercase', 'app') },
+                      { key: 'requireNumbers' as const, label: t('admin_pwd_require_numbers', 'app') },
+                      { key: 'requireSpecialChars' as const, label: t('admin_pwd_require_special', 'app') },
                     ].map(item => (
                       <label key={item.key} className="flex items-center gap-2 p-2 bg-slate-50 rounded-lg border border-slate-200 cursor-pointer">
                         <input type="checkbox" checked={passwordPolicy[item.key]} onChange={e => setPasswordPolicy(prev => ({ ...prev, [item.key]: e.target.checked }))} className="rounded border-slate-300 text-teal-600 focus:ring-teal-500" />
@@ -2148,12 +2180,12 @@ const resetProfForm = () => {
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">Expiração (dias)</label>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">{t('admin_pwd_expiration', 'app')}</label>
                       <input type="text" inputMode="numeric" value={passwordPolicy.expirationDays} onChange={e => setPasswordPolicy(prev => ({ ...prev, expirationDays: Number(e.target.value) }))} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
-                      {passwordPolicy.expirationDays === 0 && <p className="text-[9px] text-amber-600 font-medium mt-0.5">0 = sem expiração</p>}
+                      {passwordPolicy.expirationDays === 0 && <p className="text-[9px] text-amber-600 font-medium mt-0.5">{t('admin_pwd_no_expiration', 'app')}</p>}
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">Histórico (senhas anteriores)</label>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">{t('admin_pwd_history', 'app')}</label>
                       <input type="text" inputMode="numeric" value={passwordPolicy.historyCount} onChange={e => setPasswordPolicy(prev => ({ ...prev, historyCount: Number(e.target.value) }))} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
                     </div>
                   </div>
@@ -2167,23 +2199,23 @@ const resetProfForm = () => {
               <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs space-y-4">
                 <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
                   <Shield className="w-5 h-5 text-teal-600" />
-                  <h3 className="font-semibold text-slate-800 text-base">Bloqueio Automático</h3>
+                  <h3 className="font-semibold text-slate-800 text-base">{t('admin_pwd_lockout_title', 'app')}</h3>
                 </div>
                 <div className="space-y-4 text-xs font-sans">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">Tentativas Máximas Antes do Bloqueio: {passwordPolicy.maxLoginAttempts}</label>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('admin_pwd_max_attempts', 'app').replace('{max}', String(passwordPolicy.maxLoginAttempts))}</label>
                     <input type="range" min={1} max={20} value={passwordPolicy.maxLoginAttempts} onChange={e => setPasswordPolicy(prev => ({ ...prev, maxLoginAttempts: Number(e.target.value) }))} className="w-full accent-teal-600" />
                     <div className="flex justify-between text-[9px] text-slate-400"><span>1</span><span>20</span></div>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">Duração do Bloqueio: {passwordPolicy.lockoutDurationMinutes} minutos</label>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('admin_pwd_lockout_duration', 'app').replace('{min}', String(passwordPolicy.lockoutDurationMinutes))}</label>
                     <input type="range" min={1} max={1440} value={passwordPolicy.lockoutDurationMinutes} onChange={e => setPasswordPolicy(prev => ({ ...prev, lockoutDurationMinutes: Number(e.target.value) }))} className="w-full accent-teal-600" />
                     <div className="flex justify-between text-[9px] text-slate-400"><span>1 min</span><span>24 h</span></div>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">Timeout de Sessão por Inatividade: {passwordPolicy.sessionTimeoutMinutes} minutos</label>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('admin_pwd_session_timeout', 'app').replace('{min}', String(passwordPolicy.sessionTimeoutMinutes))}</label>
                     <input type="range" min={5} max={480} value={passwordPolicy.sessionTimeoutMinutes} onChange={e => { const updated = { ...passwordPolicy, sessionTimeoutMinutes: Number(e.target.value) }; setPasswordPolicy(updated); onPasswordPolicyChange?.(updated); }} className="w-full accent-teal-600" />
                     <div className="flex justify-between text-[9px] text-slate-400"><span>5 min</span><span>8 h</span></div>
                   </div>
@@ -2191,7 +2223,7 @@ const resetProfForm = () => {
                   <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
                     <p className="text-[10px] text-amber-800 font-medium flex items-center gap-1.5">
                       <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                      Usuários bloqueados serão notificados por e-mail com instruções de desbloqueio. O administrador pode desbloquear manualmente na aba &quot;Usuários&quot;.
+                      {t('admin_pwd_lockout_notice', 'app')}
                     </p>
                   </div>
                 </div>
@@ -2200,259 +2232,21 @@ const resetProfForm = () => {
           )}
 
           {adminTab === 'two-factor' && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs lg:col-span-2 space-y-4">
-                <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-                  <Fingerprint className="w-5 h-5 text-teal-600" />
-                  <h3 className="font-semibold text-slate-800 text-base">Autenticação de Dois Fatores (2FA / MFA)</h3>
-                </div>
-
-                <div className="space-y-4 text-xs font-sans">
-                  <div className="p-4 bg-teal-50 border border-teal-200 rounded-xl">
-                    <p className="text-xs text-teal-800 font-semibold flex items-center gap-2">
-                      <ShieldCheck className="w-4 h-4 text-teal-600" />
-                      {systemUsers.filter(u => u.twoFactorEnabled).length} de {systemUsers.length} usuários com 2FA ativo
-                    </p>
-                    <div className="mt-2 w-full bg-teal-200 rounded-full h-2">
-                      <div className="bg-teal-600 h-2 rounded-full transition-all" style={{ width: `${(systemUsers.filter(u => u.twoFactorEnabled).length / systemUsers.length) * 100}%` }} />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-center">
-                      <SmartphoneIcon className="w-6 h-6 text-teal-600 mx-auto mb-1" />
-                      <p className="font-bold text-slate-700 text-xs">TOTP</p>
-                      <p className="text-[9px] text-slate-400">Google Authenticator, Authy</p>
-                    </div>
-                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-center">
-                      <SmartphoneIcon className="w-6 h-6 text-indigo-600 mx-auto mb-1" />
-                      <p className="font-bold text-slate-700 text-xs">SMS</p>
-                      <p className="text-[9px] text-slate-400">Código via SMS</p>
-                    </div>
-                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-center">
-                      <Mail className="w-6 h-6 text-amber-600 mx-auto mb-1" />
-                      <p className="font-bold text-slate-700 text-xs">E-mail</p>
-                      <p className="text-[9px] text-slate-400">Código via e-mail</p>
-                    </div>
-                  </div>
-
-                  {/* Simulador de Configuração 2FA */}
-                  <div className="border border-slate-200 rounded-xl p-4 space-y-3">
-                    <h4 className="font-bold text-slate-700 text-xs flex items-center gap-1.5">
-                      <ScanLine className="w-4 h-4 text-teal-600" /> Simular Configuração 2FA (TOTP)
-                    </h4>
-                    <div className="flex items-center gap-3">
-                      <div className="w-24 h-24 bg-white border-2 border-slate-200 rounded-xl flex items-center justify-center overflow-hidden">
-                        <div className="w-20 h-20 grid grid-cols-6 gap-0.5">
-                          {Array.from({ length: 36 }).map((_, i) => (
-                            <div key={i} className="rounded-sm" style={{ background: ((i * 13 + i % 7) % 3 === 0) ? '#0f172a' : 'white' }} />
-                          ))}
-                        </div>
-                      </div>
-                      <div className="flex-1 space-y-1.5">
-                        <p className="text-[10px] text-slate-500 font-medium">Escaneie o QR code com seu aplicativo autenticador:</p>
-                        <p className="font-mono text-[9px] text-slate-700 bg-slate-100 p-2 rounded break-all">otpauth://totp/IAMED:admin@iamed.med.br?secret=JBSWY3DPEHPK3PXP&issuer=IAMED</p>
-                        <button onClick={() => { setShowTwoFactorQR(!showTwoFactorQR); }} className="text-[10px] text-teal-600 font-bold hover:text-teal-800 cursor-pointer">
-                          {showTwoFactorQR ? 'Ocultar' : 'Mostrar'} chave secreta
-                        </button>
-                        {showTwoFactorQR && (
-                          <p className="font-mono text-[10px] text-amber-700 bg-amber-50 p-2 rounded border border-amber-200 break-all">
-                            Chave: JBSWY3DPEHPK3PXP
-                          </p>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="flex gap-2 items-end">
-                      <div className="flex-1">
-                        <label className="block text-[10px] font-semibold text-slate-600 mb-1">Código de Verificação (6 dígitos)</label>
-                        <input type="text" maxLength={6} value={twoFactorCode} onChange={e => setTwoFactorCode(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="000000" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono text-center tracking-widest" />
-                      </div>
-                       <button onClick={() => { if (twoFactorCode.length === 6) { setTwoFactorVerified(true); addAuditLog('Verificou 2FA TOTP', 'Código validado com sucesso'); supabase.auth.getUser().then(({ data }) => { if (data.user) supabase.from('two_factor_logs').insert({ user_id: data.user.id, method: 'totp', success: true, ip_address: '192.168.1.1' }); }); } else { alert(t('fin_alert_6_digit_code', 'app')); } }} className="px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-lg text-xs cursor-pointer transition">
-                        Verificar
-                      </button>
-                    </div>
-                    {twoFactorVerified && (
-                      <p className="text-emerald-600 font-bold text-[11px] flex items-center gap-1.5">
-                        <CheckCircle2 className="w-4 h-4" /> 2FA verificado com sucesso! Código válido.
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Códigos de Backup */}
-                  <div className="border border-slate-200 rounded-xl p-4 space-y-2">
-                    <h4 className="font-bold text-slate-700 text-xs flex items-center gap-1.5">
-                      <Copy className="w-4 h-4 text-amber-600" /> {t('fin_backup_codes', 'app')}
-                    </h4>
-                    <p className="text-[10px] text-slate-500">Guarde estes códigos em local seguro. Cada código só pode ser usado uma vez.</p>
-                    <div className="grid grid-cols-2 gap-1.5">
-                      {backupCodes.map((code, i) => (
-                        <div key={i} className="font-mono text-xs bg-slate-100 p-2 rounded border border-slate-200 text-center text-slate-700 font-bold tracking-wider">
-                          {code}
-                        </div>
-                      ))}
-                    </div>
-                       <button onClick={() => { addAuditLog('Gerou novos códigos de backup 2FA', 'Backup codes regenerated'); setBackupCodes(Array.from({ length: 5 }, () => { const c = () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random() * 32)]; return `${c()}${c()}${c()}${c()}-${c()}${c()}${c()}${c()}`; })); alert(t('fin_alert_new_backup_codes', 'app')); }} className="text-[10px] text-amber-600 font-bold hover:text-amber-800 cursor-pointer">
-                      {t('fin_regenerate_backup_codes', 'app')}
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Status 2FA por Usuário */}
-              <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs space-y-4">
-                <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-                  <Users className="w-5 h-5 text-teal-600" />
-                  <h3 className="font-semibold text-slate-800 text-base">Status 2FA por Usuário</h3>
-                </div>
-                <div className="space-y-2 max-h-[500px] overflow-y-auto">
-                  {systemUsers.map(u => (
-                    <div key={u.id} className="flex items-center justify-between p-2.5 bg-slate-50 rounded-lg border border-slate-200">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white font-bold text-[9px] ${u.twoFactorEnabled ? 'bg-teal-500' : 'bg-slate-300'}`}>
-                          {u.name.charAt(0)}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="font-bold text-slate-700 text-[10px] truncate">{u.name}</p>
-                          <p className="text-[9px] text-slate-400 truncate">{u.systemRole}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        {u.twoFactorEnabled ? (
-                          <>
-                            <span className="w-1.5 h-1.5 rounded-full bg-teal-500" />
-                            <span className="text-[9px] text-teal-700 font-bold">{u.twoFactorMethod === 'totp' ? 'TOTP' : u.twoFactorMethod === 'sms' ? 'SMS' : 'E-mail'}</span>
-                          </>
-                        ) : (
-                          <>
-                            <span className="w-1.5 h-1.5 rounded-full bg-slate-300" />
-                            <span className="text-[9px] text-slate-400">Inativo</span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
+            <TwoFactorTab
+              systemUsers={systemUsers}
+              addAuditLog={addAuditLog}
+              onUpdateSystemUser={(userId, patch) => setSystemUsers(prev => prev.map(u =>
+                u.authUserId === userId || u.id === userId ? { ...u, ...patch } : u
+              ))}
+            />
           )}
 
           {adminTab === 'sso' && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Form SSO */}
-              <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs lg:col-span-1 space-y-4">
-                <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-                  <Globe className="w-5 h-5 text-teal-600" />
-                  <h3 className="font-semibold text-slate-800 text-base">{editingSsoId ? t('fin_edit_sso_provider', 'app') : t('fin_new_sso_provider', 'app')}</h3>
-                </div>
-                <form onSubmit={async (e) => { e.preventDefault(); const ssoRes = ssoValidation.validate({ name: ssoName, type: ssoType, issuerUrl: ssoIssuer, clientId: ssoClientId, clientSecret: ssoClientSecret, metadataUrl: ssoMetadataUrl, certificateFingerprint: ssoCertFingerprint, defaultRole: ssoDefaultRole, enabled: ssoEnabled }); if (!ssoRes.success) return; if (editingSsoId) { setSSOProviders(prev => prev.map(p => p.id === editingSsoId ? { ...p, name: ssoName, type: ssoType, issuerUrl: ssoIssuer, clientId: ssoClientId, clientSecret: ssoClientSecret, metadataUrl: ssoMetadataUrl, certificateFingerprint: ssoCertFingerprint, defaultRole: ssoDefaultRole, enabled: ssoEnabled } : p)); addAuditLog('Editou Provedor SSO', ssoName); } else { const ssoId = await genModuleId('sso'); setSSOProviders(prev => [...prev, { id: ssoId, name: ssoName, type: ssoType, enabled: ssoEnabled, issuerUrl: ssoIssuer, clientId: ssoClientId, clientSecret: ssoClientSecret, metadataUrl: ssoMetadataUrl, certificateFingerprint: ssoCertFingerprint, defaultRole: ssoDefaultRole, active: ssoEnabled }]); addAuditLog('Cadastrou Provedor SSO', ssoName); } setSsoFormOpen(false); setEditingSsoId(null); setSsoName(''); }} noValidate className="space-y-3 text-xs font-sans">
-                  {ssoValidation.errors.length > 0 && <FormErrorSummary errors={ssoValidation.errors} />}
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">{t('fin_sso_provider_name', 'app')}</label>
-                    <input type="text" value={ssoName} onChange={e => setSsoName(e.target.value)} placeholder="Azure AD" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">{t('fin_sso_type', 'app')}</label>
-                    <select value={ssoType} onChange={e => setSsoType(e.target.value as any)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs">
-                      <option value="oidc">OpenID Connect (OIDC)</option>
-                      <option value="oauth2">OAuth 2.0</option>
-                      <option value="saml">SAML 2.0</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">Issuer URL *</label>
-                    <input type="text" value={ssoIssuer} onChange={e => setSsoIssuer(e.target.value)} placeholder="https://login.microsoftonline.com/tenant/v2.0" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">Client ID *</label>
-                      <input type="text" value={ssoClientId} onChange={e => setSsoClientId(e.target.value)} placeholder="app_client_id" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">Client Secret</label>
-                      <input type="password" value={ssoClientSecret} onChange={e => setSsoClientSecret(e.target.value)} placeholder="********" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">Metadata URL</label>
-                    <input type="text" value={ssoMetadataUrl} onChange={e => setSsoMetadataUrl(e.target.value)} placeholder="https://.../.well-known/openid-configuration" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
-                  </div>
-                  {ssoType === 'saml' && (
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">Certificado / Impressão Digital</label>
-                      <input type="text" value={ssoCertFingerprint} onChange={e => setSsoCertFingerprint(e.target.value)} placeholder="A1:B2:C3:D4:..." className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono" />
-                    </div>
-                  )}
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">Perfil Padrão</label>
-                    <select value={ssoDefaultRole} onChange={e => setSsoDefaultRole(e.target.value as SystemRole)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs">
-                      <option value="SuperAdmin">SuperAdmin</option>
-                      <option value="Administrador">Administrador</option>
-                      <option value="Gestor">Gestor</option>
-                      <option value="Diretor Clínico">Diretor Clínico</option>
-                      <option value="Médico">Médico</option>
-                      <option value="Enfermeiro">Enfermeiro</option>
-                      <option value="Recepcionista">Recepcionista</option>
-                      <option value="Financeiro">Financeiro</option>
-                      <option value="Farmacêutico">Farmacêutico</option>
-                      <option value="Visualizador">Visualizador</option>
-                    </select>
-                  </div>
-                  <div className="flex items-center justify-between p-2.5 bg-slate-50 rounded-lg border border-slate-200">
-                    <span className="text-xs font-semibold text-slate-700">Ativo</span>
-                    <button type="button" onClick={() => setSsoEnabled(!ssoEnabled)} className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer ${ssoEnabled ? 'bg-teal-600' : 'bg-slate-300'}`}>
-                      <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform ${ssoEnabled ? 'translate-x-5' : ''}`} />
-                    </button>
-                  </div>
-                  <button type="submit" className="w-full py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-lg text-xs cursor-pointer transition">
-                    {editingSsoId ? t('fin_update_provider', 'app') : t('fin_add_provider', 'app')}
-                  </button>
-                  {editingSsoId && (
-                    <button type="button" onClick={() => { setEditingSsoId(null); setSsoName(''); setSsoType('oidc'); setSsoIssuer(''); setSsoClientId(''); setSsoClientSecret(''); setSsoMetadataUrl(''); setSsoCertFingerprint(''); setSsoDefaultRole('Visualizador'); setSsoEnabled(false); }} className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs cursor-pointer transition">
-                      {t('fin_btn_cancel', 'app')}
-                    </button>
-                  )}
-                </form>
-              </div>
-
-              {/* Lista de Provedores SSO */}
-              <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs lg:col-span-2 space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                  <div className="flex items-center gap-2">
-                    <Globe className="w-5 h-5 text-teal-600" />
-                    <h3 className="font-semibold text-slate-800 text-base">Provedores SSO Configurados</h3>
-                  </div>
-                  <span className="text-xs font-bold px-2 py-1 bg-teal-50 text-teal-700 border border-teal-200 rounded-full">{ssoProviders.length}</span>
-                </div>
-                <div className="space-y-3">
-                  {ssoProviders.map(p => (
-                    <div key={p.id} className={`p-4 bg-slate-50 border border-slate-200/80 rounded-xl space-y-2 text-xs transition ${!p.active ? 'opacity-60' : ''}`}>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-sm ${p.type === 'oidc' ? 'bg-blue-600' : p.type === 'oauth2' ? 'bg-green-600' : 'bg-purple-600'}`}>
-                            {p.type === 'oidc' ? 'O' : p.type === 'oauth2' ? 'A' : 'S'}
-                          </div>
-                          <div>
-                            <p className="font-bold text-slate-800 text-sm">{p.name}</p>
-                            <span className="text-[10px] px-1.5 py-0.5 bg-slate-200 text-slate-600 rounded font-mono uppercase">{p.type}</span>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className={`px-2 py-0.5 text-[9px] font-bold rounded border ${p.enabled ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>{p.enabled ? 'Ativo' : 'Inativo'}</span>
-                          <button onClick={() => { setEditingSsoId(p.id); setSsoName(p.name); setSsoType(p.type); setSsoIssuer(p.issuerUrl); setSsoClientId(p.clientId); setSsoClientSecret(p.clientSecret); setSsoMetadataUrl(p.metadataUrl); setSsoCertFingerprint(p.certificateFingerprint); setSsoDefaultRole(p.defaultRole); setSsoEnabled(p.enabled); }} className="p-1.5 rounded-lg hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition cursor-pointer"><Edit2 className="w-3.5 h-3.5" /></button>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2 text-slate-500">
-                        <p><span className="font-semibold text-slate-600">Issuer:</span> <span className="font-mono text-[10px]">{p.issuerUrl}</span></p>
-                        <p><span className="font-semibold text-slate-600">Client ID:</span> <span className="font-mono text-[10px]">{p.clientId}</span></p>
-                        {p.metadataUrl && <p className="col-span-2"><span className="font-semibold text-slate-600">Metadata:</span> <span className="font-mono text-[10px]">{p.metadataUrl}</span></p>}
-                        <p><span className="font-semibold text-slate-600">Perfil Padrão:</span> {p.defaultRole}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
+            <SsoTab
+              providers={ssoProviders}
+              setProviders={setSSOProviders}
+              addAuditLog={addAuditLog}
+            />
           )}
 
           {adminTab === 'sessions' && (
@@ -2461,7 +2255,7 @@ const resetProfForm = () => {
               <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs lg:col-span-1 space-y-4">
                 <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
                   <DoorOpen className="w-5 h-5 text-teal-600" />
-                  <h3 className="font-semibold text-slate-800 text-base">Sessões Ativas</h3>
+                  <h3 className="font-semibold text-slate-800 text-base">{t('admin_sessions_title', 'app')}</h3>
                 </div>
                 <div className="space-y-2 max-h-[300px] overflow-y-auto">
                   {(sessionFilter === 'all' ? userSessions : userSessions.filter(s => sessionFilter === 'active' ? s.active : !s.active)).map(s => (
@@ -2472,19 +2266,19 @@ const resetProfForm = () => {
                       </div>
                       <p className="text-slate-400 font-mono text-[9px]">{s.ipAddress} | {s.deviceInfo}</p>
                       <div className="flex justify-between text-[9px] text-slate-400">
-                        <span>Login: {s.loginAt}</span>
-                        <span>Expira: {s.expiresAt}</span>
+                        <span>{t('admin_sessions_login', 'app')} {s.loginAt}</span>
+                        <span>{t('admin_sessions_expires', 'app')} {s.expiresAt}</span>
                       </div>
                       {s.active && (
                         <button onClick={() => { setUserSessions(prev => prev.map(x => x.id === s.id ? { ...x, active: false, revoked: true } : x)); supabase.from('user_sessions').update({ active: false, revoked: true }).eq('id', s.id); addAuditLog('Revogou Sessão', s.userName); }} className="text-[9px] text-rose-600 font-bold hover:text-rose-800 cursor-pointer">
-                          Revogar Sessão
+                          {t('admin_sessions_revoke', 'app')}
                         </button>
                       )}
                     </div>
                   ))}
                   <div className="flex gap-1 pt-2">
-                    <button onClick={() => setSessionFilter('active')} className={`px-2 py-1 text-[9px] font-bold rounded cursor-pointer ${sessionFilter === 'active' ? 'bg-teal-100 text-teal-700' : 'bg-slate-100 text-slate-500'}`}>Ativas ({userSessions.filter(s => s.active).length})</button>
-                    <button onClick={() => setSessionFilter('all')} className={`px-2 py-1 text-[9px] font-bold rounded cursor-pointer ${sessionFilter === 'all' ? 'bg-teal-100 text-teal-700' : 'bg-slate-100 text-slate-500'}`}>Todas ({userSessions.length})</button>
+                    <button onClick={() => setSessionFilter('active')} className={`px-2 py-1 text-[9px] font-bold rounded cursor-pointer ${sessionFilter === 'active' ? 'bg-teal-100 text-teal-700' : 'bg-slate-100 text-slate-500'}`}>{t('admin_sessions_active_count', 'app')} ({userSessions.filter(s => s.active).length})</button>
+                    <button onClick={() => setSessionFilter('all')} className={`px-2 py-1 text-[9px] font-bold rounded cursor-pointer ${sessionFilter === 'all' ? 'bg-teal-100 text-teal-700' : 'bg-slate-100 text-slate-500'}`}>{t('admin_sessions_all_count', 'app')} ({userSessions.length})</button>
                   </div>
                 </div>
               </div>
@@ -2494,9 +2288,9 @@ const resetProfForm = () => {
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                   <div className="flex items-center gap-2">
                     <Shield className="w-5 h-5 text-teal-600" />
-                    <h3 className="font-semibold text-slate-800 text-base">Tentativas de Login</h3>
+                    <h3 className="font-semibold text-slate-800 text-base">{t('admin_sessions_attempts_title', 'app')}</h3>
                   </div>
-                  <span className="text-xs font-bold px-2 py-1 bg-rose-50 text-rose-700 border border-rose-200 rounded-full">{loginAttempts.filter(a => !a.success).length} falhas</span>
+                  <span className="text-xs font-bold px-2 py-1 bg-rose-50 text-rose-700 border border-rose-200 rounded-full">{loginAttempts.filter(a => !a.success).length} {t('admin_sessions_failures', 'app')}</span>
                 </div>
                 <div className="space-y-1.5 max-h-[400px] overflow-y-auto">
                   {loginAttempts.map(a => (
@@ -2517,10 +2311,10 @@ const resetProfForm = () => {
                 </div>
                 <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between">
                   <span className="text-[10px] text-slate-600 font-medium">
-                    Últimas {loginAttempts.length} tentativas registradas. As tentativas são armazenadas por 90 dias conforme política de retenção.
+                    {t('admin_sessions_retention_notice', 'app').replace('{count}', String(loginAttempts.length))}
                   </span>
                   <button onClick={() => { addAuditLog('Limpou Tentativas de Login', `${loginAttempts.length} registros removidos`); supabase.from('login_attempts').delete().neq('id', '00000000-0000-0000-0000-000000000000'); setLoginAttempts([]); }} className="text-[10px] text-rose-600 font-bold hover:text-rose-800 cursor-pointer shrink-0">
-                    Limpar Log
+                    {t('admin_sessions_clear_log', 'app')}
                   </button>
                 </div>
               </div>
@@ -2534,33 +2328,83 @@ const resetProfForm = () => {
                 <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs lg:col-span-1 space-y-4">
                   <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
                     <Shield className="w-5 h-5 text-teal-600" />
-                    <h3 className="font-semibold text-slate-800 text-base">Controle de Acesso &amp; RBAC</h3>
+                    <h3 className="font-semibold text-slate-800 text-base">{t('admin_rbac_title', 'app')}</h3>
                   </div>
 
                   <div className="space-y-4 text-xs font-sans">
-                    {/* Selecionar profissional */}
+                    {/* Modo do RBAC */}
                     <div>
                       <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">
-                        {t('fin_select_professional_permissions', 'app')}
+                        {t('admin_rbac_mode_label', 'app')}
                       </label>
-                      <select
-                        value={rbacSelectedProfId || (professionals.length > 0 ? professionals[0].id : '')}
-                        onChange={e => setRbacSelectedProfId(e.target.value)}
-                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 font-bold"
-                      >
-                        {professionals.length === 0 && <option value="">Sem profissionais cadastrados</option>}
-                        {professionals.map(p => (
-                          <option key={p.id} value={p.id}>
-                            {p.name} ({p.role})
-                          </option>
-                        ))}
-                      </select>
+                      <div className="grid grid-cols-2 gap-1 p-1 bg-slate-100 rounded-lg">
+                        <button
+                          type="button"
+                          onClick={() => setRbacMode('role')}
+                          className={`px-2 py-1.5 rounded-md font-bold transition cursor-pointer ${
+                            rbacMode === 'role' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                          }`}
+                        >
+                          {t('admin_rbac_mode_role', 'app')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setRbacMode('person')}
+                          className={`px-2 py-1.5 rounded-md font-bold transition cursor-pointer ${
+                            rbacMode === 'person' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                          }`}
+                        >
+                          {t('admin_rbac_mode_person', 'app')}
+                        </button>
+                      </div>
                     </div>
 
+                    {rbacMode === 'role' ? (
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">
+                          {t('admin_rbac_select_role', 'app')}
+                        </label>
+                        <select
+                          value={rbacSelectedRole || (rbacRoleOptions.length > 0 ? rbacRoleOptions[0] : '')}
+                          onChange={e => setRbacSelectedRole(e.target.value)}
+                          className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 font-bold"
+                        >
+                          {rbacRoleOptions.length === 0 && <option value="">{t('admin_rbac_no_roles', 'app')}</option>}
+                          {rbacRoleOptions.map(r => (
+                            <option key={r} value={r}>{r}</option>
+                          ))}
+                        </select>
+                        <p className="text-[10px] text-slate-400 mt-1.5 leading-snug font-medium">
+                          {t('admin_rbac_role_hint', 'app')}
+                        </p>
+                      </div>
+                    ) : (
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">
+                          {t('fin_select_professional_permissions', 'app')}
+                        </label>
+                        <select
+                          value={rbacSelectedProfId || (professionals.length > 0 ? professionals[0].id : '')}
+                          onChange={e => setRbacSelectedProfId(e.target.value)}
+                          className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 font-bold"
+                        >
+                          {professionals.length === 0 && <option value="">{t('admin_rbac_no_professionals', 'app')}</option>}
+                          {professionals.map(p => (
+                            <option key={p.id} value={p.id}>
+                              {p.name} ({p.role})
+                            </option>
+                          ))}
+                        </select>
+                        <p className="text-[10px] text-slate-400 mt-1.5 leading-snug font-medium">
+                          {t('admin_rbac_person_hint', 'app')}
+                        </p>
+                      </div>
+                    )}
+
                     <div className="p-4 bg-teal-50/50 border border-teal-200 rounded-xl space-y-2 text-teal-900 leading-relaxed">
-                      <span className="flex items-center gap-1.5 font-bold"><ShieldCheck className="w-4 h-4 text-teal-700" /> Encriptação de Logs Ativada</span>
+                      <span className="flex items-center gap-1.5 font-bold"><ShieldCheck className="w-4 h-4 text-teal-700" /> {t('admin_rbac_encryption_active', 'app')}</span>
                       <p className="text-[11px] text-teal-800 font-medium">
-                        Todo acesso à base de dados clínica, alterações em prontuários eletrônicos (HCE) ou emissão de faturamentos são auditados com IP e operador de acordo com as leis LGPD vigentes.
+                        {t('admin_rbac_encryption_desc', 'app')}
                       </p>
                     </div>
                   </div>
@@ -2569,101 +2413,150 @@ const resetProfForm = () => {
                 {/* Coluna 2: Configuração de Permissões */}
                 <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs lg:col-span-2 space-y-4">
                   {(() => {
-                    const activeRbacProfId = rbacSelectedProfId || (professionals.length > 0 ? professionals[0].id : '');
-                    const rbacProf = professionals.find(p => p.id === activeRbacProfId);
-                    
-                    if (!rbacProf) {
-                      return (
-                        <div className="text-center py-10 text-slate-400 font-semibold text-xs">
-                          {t('fin_select_or_register_professional', 'app')}
-                        </div>
-                      );
+                    const viewKeys = ['view_reception', 'view_agenda', 'view_hce', 'view_diagnostic', 'view_sifen', 'view_finance', 'view_stock', 'view_pcmso', 'view_med_work', 'view_crm', 'view_hospitalization', 'view_bi', 'view_patient_portal', 'view_security', 'view_insurance', 'view_fee_schedule', 'view_copay', 'view_batches', 'view_eligibility', 'view_settlements', 'view_foreign_billing'];
+                    const performKeys = ['perform_checkin', 'perform_triage', 'perform_agenda_create', 'perform_prescribe', 'perform_aso', 'perform_beds', 'perform_surgery', 'perform_stock', 'perform_sifen', 'perform_post_finance', 'perform_insurance', 'perform_fee_schedule', 'perform_copay', 'perform_batches', 'perform_eligibility', 'perform_settlements', 'perform_foreign_billing', 'perform_admit', 'perform_rbac'];
+
+                    let logTarget = '';
+                    let headerDot = 'bg-slate-400';
+                    let headerName = '';
+                    let headerSubtitle = '';
+                    let currentPerms: string[] = [];
+                    let persistPerms: (next: string[]) => Promise<void> = async () => {};
+
+                    if (rbacMode === 'role') {
+                      const activeRoleName = rbacSelectedRole || (rbacRoleOptions.length > 0 ? rbacRoleOptions[0] : '');
+                      if (!activeRoleName) {
+                        return (
+                          <div className="text-center py-10 text-slate-400 font-semibold text-xs">
+                            {t('admin_rbac_no_roles', 'app')}
+                          </div>
+                        );
+                      }
+                      logTarget = activeRoleName;
+                      headerDot = 'bg-teal-600';
+                      headerName = activeRoleName;
+                      headerSubtitle = t('admin_rbac_role_hint', 'app');
+                      currentPerms = rolePermissionsMap[activeRoleName] ?? [];
+                      persistPerms = async (next: string[]) => {
+                        setRolePermissionsMap(prev => ({ ...prev, [activeRoleName]: next }));
+                        try {
+                          const { error } = await supabase
+                            .from('role_permissions')
+                            .upsert({ role_name: activeRoleName, permissions: next, updated_at: new Date().toISOString() });
+                          if (error) throw error;
+                        } catch (e) {
+                          const detail = e instanceof Error ? e.message : JSON.stringify(e);
+                          console.warn('Database role_permissions update failed:', detail);
+                          alert(`${t('admin_rbac_save_error', 'app')} ${detail}`);
+                        }
+                      };
+                    } else {
+                      const activeRbacProfId = rbacSelectedProfId || (professionals.length > 0 ? professionals[0].id : '');
+                      const rbacProf = professionals.find(p => p.id === activeRbacProfId);
+
+                      if (!rbacProf) {
+                        return (
+                          <div className="text-center py-10 text-slate-400 font-semibold text-xs">
+                            {t('fin_select_or_register_professional', 'app')}
+                          </div>
+                        );
+                      }
+
+                      logTarget = rbacProf.name;
+                      headerDot = rbacProf.color || 'bg-slate-400';
+                      headerName = rbacProf.name;
+                      headerSubtitle = `${t('admin_rbac_role_label', 'app')} ${rbacProf.role} | ${t('admin_rbac_specialty_label', 'app')} ${rbacProf.specialty}`;
+                      currentPerms = rbacProf.permissions || [];
+                      persistPerms = async (next: string[]) => {
+                        if (!setProfessionals) return;
+                        setProfessionals(prev => prev.map(p => p.id === rbacProf.id ? { ...p, permissions: next } : p));
+                        try {
+                          const { error } = await supabase
+                            .from('professionals')
+                            .update({ permissions: next })
+                            .eq('id', rbacProf.id);
+                          if (error) throw error;
+                        } catch (e) {
+                          const detail = e instanceof Error ? e.message : JSON.stringify(e);
+                          console.warn('Database permissions update failed:', detail);
+                          alert(`${t('admin_rbac_save_error', 'app')} ${detail}`);
+                        }
+                      };
                     }
 
-                    const currentPerms = rbacProf.permissions || [];
-
                     const handleTogglePermission = async (permKey: string) => {
-                      if (!setProfessionals) return;
                       const updatedPerms = currentPerms.includes(permKey)
                         ? currentPerms.filter(k => k !== permKey)
                         : [...currentPerms, permKey];
 
-                      setProfessionals(prev => prev.map(p => p.id === rbacProf.id ? { ...p, permissions: updatedPerms } : p));
-                      addAuditLog('Alterou Permissões RBAC', `${rbacProf.name}: ${permKey} → ${!currentPerms.includes(permKey) ? 'ATIVADO' : 'DESATIVADO'}`);
-
-                      try {
-                        await supabase
-                          .from('professionals')
-                          .update({ permissions: updatedPerms })
-                          .eq('id', rbacProf.id);
-                      } catch (e) {
-                        console.warn('Database permissions update failed, operating in memory-only mode:', e);
-                      }
+                      addAuditLog('Alterou Permissões RBAC', `${logTarget}: ${permKey} → ${updatedPerms.includes(permKey) ? 'ATIVADO' : 'DESATIVADO'}`);
+                      await persistPerms(updatedPerms);
                     };
 
                     const handleSelectAll = async (type: 'view' | 'perform' | 'all') => {
-                      if (!setProfessionals) return;
-                      
-                      const viewKeys = ['view_reception', 'view_agenda', 'view_hce', 'view_diagnostic', 'view_finance', 'view_stock', 'view_med_work', 'view_crm', 'view_security'];
-                      const performKeys = ['perform_admit', 'perform_prescribe', 'perform_sifen', 'perform_post_finance', 'perform_stock', 'perform_beds', 'perform_rbac'];
-                      
                       let targetKeys: string[] = [];
                       if (type === 'view') targetKeys = viewKeys;
                       else if (type === 'perform') targetKeys = performKeys;
                       else targetKeys = [...viewKeys, ...performKeys];
 
                       const updatedPerms = Array.from(new Set([...currentPerms, ...targetKeys]));
-
-                      setProfessionals(prev => prev.map(p => p.id === rbacProf.id ? { ...p, permissions: updatedPerms } : p));
-                      addAuditLog('Alterou Permissões RBAC (Lote)', `${rbacProf.name}: Ativou todas as permissões de ${type}`);
-
-                      try {
-                        await supabase
-                          .from('professionals')
-                          .update({ permissions: updatedPerms })
-                          .eq('id', rbacProf.id);
-                      } catch (e) {
-                        console.warn('Database permissions update failed:', e);
-                      }
+                      addAuditLog('Alterou Permissões RBAC (Lote)', `${logTarget}: Ativou todas as permissões de ${type}`);
+                      await persistPerms(updatedPerms);
                     };
 
                     const handleClearAll = async () => {
-                      if (!setProfessionals) return;
-                      
-                      setProfessionals(prev => prev.map(p => p.id === rbacProf.id ? { ...p, permissions: [] } : p));
-                      addAuditLog('Alterou Permissões RBAC (Lote)', `${rbacProf.name}: Limpou todas as permissões`);
-
-                      try {
-                        await supabase
-                          .from('professionals')
-                          .update({ permissions: [] })
-                          .eq('id', rbacProf.id);
-                      } catch (e) {
-                        console.warn('Database permissions update failed:', e);
-                      }
+                      addAuditLog('Alterou Permissões RBAC (Lote)', `${logTarget}: Limpou todas as permissões`);
+                      await persistPerms([]);
                     };
+
+                    const selectedViews = viewKeys.filter(v => currentPerms.includes(v));
+                    const visiblePerformSet = new Set(visiblePerformKeys(selectedViews));
 
                     const permsList = {
                       visualize: [
-                        { key: 'view_reception', label: 'Recepção e Triagem', desc: 'Visualizar fila de pacientes, prioridades e leitos' },
-                        { key: 'view_agenda', label: 'Agenda e Consultas', desc: 'Visualizar horários de consultas e agendas médicas' },
-                        { key: 'view_hce', label: 'Histórico Clínico (HCE)', desc: 'Acessar fichas de evolução, anamneses e prontuários' },
-                        { key: 'view_diagnostic', label: 'Diagnósticos e PACS', desc: 'Visualizar exames de imagens radiológicas e laudos' },
-                        { key: 'view_finance', label: 'Financeiro e Contas', desc: 'Visualizar lançamentos de caixa, receitas e despesas' },
-                        { key: 'view_stock', label: 'Medicamentos e Insumos', desc: 'Acompanhar nível de estoque e alertas de reposição' },
-                        { key: 'view_med_work', label: 'Saúde Ocupacional', desc: 'Acessar exames ASO e dados de medicina do trabalho' },
-                        { key: 'view_crm', label: 'Marketing e CRM', desc: 'Visualizar dashboards de inteligência, NPS e campanhas' },
-                        { key: 'view_security', label: 'Auditoria de Logs', desc: 'Visualizar logs de segurança e acessos de operador' }
+                        { key: 'view_reception', label: t('submodule_1', 'app'), desc: t('admin_rbac_perm_view_reception_desc', 'app') },
+                        { key: 'view_agenda', label: t('submodule_2', 'app'), desc: t('admin_rbac_perm_view_agenda_desc', 'app') },
+                        { key: 'view_hce', label: t('submodule_3', 'app'), desc: t('admin_rbac_perm_view_hce_desc', 'app') },
+                        { key: 'view_diagnostic', label: t('submodule_4', 'app'), desc: t('admin_rbac_perm_view_diagnostic_desc', 'app') },
+                        { key: 'view_sifen', label: t('submodule_5', 'app'), desc: t('admin_rbac_perm_view_sifen_desc', 'app') },
+                        { key: 'view_finance', label: t('submodule_6', 'app'), desc: t('admin_rbac_perm_view_finance_desc', 'app') },
+                        { key: 'view_stock', label: t('submodule_7', 'app'), desc: t('admin_rbac_perm_view_stock_desc', 'app') },
+                        { key: 'view_pcmso', label: t('submodule_8', 'app'), desc: t('admin_rbac_perm_view_pcmso_desc', 'app') },
+                        { key: 'view_med_work', label: t('submodule_9', 'app'), desc: t('admin_rbac_perm_view_med_work_desc', 'app') },
+                        { key: 'view_crm', label: t('submodule_10', 'app'), desc: t('admin_rbac_perm_view_crm_desc', 'app') },
+                        { key: 'view_hospitalization', label: t('submodule_11', 'app'), desc: t('admin_rbac_perm_view_hospitalization_desc', 'app') },
+                        { key: 'view_bi', label: t('submodule_12', 'app'), desc: t('admin_rbac_perm_view_bi_desc', 'app') },
+                        { key: 'view_patient_portal', label: t('submodule_13', 'app'), desc: t('admin_rbac_perm_view_patient_portal_desc', 'app') },
+                        { key: 'view_security', label: t('submodule_14', 'app'), desc: t('admin_rbac_perm_view_security_desc', 'app') },
+                        { key: 'view_insurance', label: t('submodule_15', 'app'), desc: t('admin_rbac_perm_view_insurance_desc', 'app') },
+                        { key: 'view_fee_schedule', label: t('submodule_16', 'app'), desc: t('admin_rbac_perm_view_fee_schedule_desc', 'app') },
+                        { key: 'view_copay', label: t('submodule_17', 'app'), desc: t('admin_rbac_perm_view_copay_desc', 'app') },
+                        { key: 'view_batches', label: t('submodule_18', 'app'), desc: t('admin_rbac_perm_view_batches_desc', 'app') },
+                        { key: 'view_eligibility', label: t('submodule_19', 'app'), desc: t('admin_rbac_perm_view_eligibility_desc', 'app') },
+                        { key: 'view_settlements', label: t('submodule_20', 'app'), desc: t('admin_rbac_perm_view_settlements_desc', 'app') },
+                        { key: 'view_foreign_billing', label: t('submodule_21', 'app'), desc: t('admin_rbac_perm_view_foreign_billing_desc', 'app') }
                       ],
-                      perform: [
-                        { key: 'perform_admit', label: 'Internar / Admitir Paciente', desc: 'Registrar e priorizar pacientes na fila de triagem' },
-                        { key: 'perform_prescribe', label: 'Prescrever / Evoluir HCE', desc: 'Evoluir anamneses clínicas e receitar remédios' },
-                        { key: 'perform_sifen', label: 'Faturar e Emitir SIFEN', desc: 'Emitir XMLs de faturamento eletrônico integrado à DNIT' },
+                      perform: ([
+                        { key: 'perform_checkin', label: t('admin_rbac_perm_perform_checkin', 'app'), desc: t('admin_rbac_perm_perform_checkin_desc', 'app') },
+                        { key: 'perform_triage', label: t('admin_rbac_perm_perform_triage', 'app'), desc: t('admin_rbac_perm_perform_triage_desc', 'app') },
+                        { key: 'perform_agenda_create', label: t('admin_rbac_perm_perform_agenda_create', 'app'), desc: t('admin_rbac_perm_perform_agenda_create_desc', 'app') },
+                        { key: 'perform_prescribe', label: t('admin_rbac_perm_perform_prescribe', 'app'), desc: t('admin_rbac_perm_perform_prescribe_desc', 'app') },
+                        { key: 'perform_aso', label: t('admin_rbac_perm_perform_aso', 'app'), desc: t('admin_rbac_perm_perform_aso_desc', 'app') },
+                        { key: 'perform_beds', label: t('admin_rbac_perm_perform_beds', 'app'), desc: t('admin_rbac_perm_perform_beds_desc', 'app') },
+                        { key: 'perform_surgery', label: t('admin_rbac_perm_perform_surgery', 'app'), desc: t('admin_rbac_perm_perform_surgery_desc', 'app') },
+                        { key: 'perform_stock', label: t('admin_rbac_perm_perform_stock', 'app'), desc: t('admin_rbac_perm_perform_stock_desc', 'app') },
+                        { key: 'perform_sifen', label: t('admin_rbac_perm_perform_sifen', 'app'), desc: t('admin_rbac_perm_perform_sifen_desc', 'app') },
                         { key: 'perform_post_finance', label: t('fin_post_revenue_expenses', 'app'), desc: t('fin_add_financial_transactions', 'app') },
-                        { key: 'perform_stock', label: 'Dispensar Insumos / Droga', desc: 'Dispensar produtos e gerenciar baixa de estoque' },
-                        { key: 'perform_beds', label: 'Gerenciar Leitos / UTI', desc: 'Internar pacientes e alterar status dos leitos' },
-                        { key: 'perform_rbac', label: 'Configurar Regras RBAC', desc: 'Gerenciar níveis de acesso de outros profissionais' }
-                      ]
+                        { key: 'perform_insurance', label: t('admin_rbac_perm_perform_insurance', 'app'), desc: t('admin_rbac_perm_perform_insurance_desc', 'app') },
+                        { key: 'perform_fee_schedule', label: t('admin_rbac_perm_perform_fee_schedule', 'app'), desc: t('admin_rbac_perm_perform_fee_schedule_desc', 'app') },
+                        { key: 'perform_copay', label: t('admin_rbac_perm_perform_copay', 'app'), desc: t('admin_rbac_perm_perform_copay_desc', 'app') },
+                        { key: 'perform_batches', label: t('admin_rbac_perm_perform_batches', 'app'), desc: t('admin_rbac_perm_perform_batches_desc', 'app') },
+                        { key: 'perform_eligibility', label: t('admin_rbac_perm_perform_eligibility', 'app'), desc: t('admin_rbac_perm_perform_eligibility_desc', 'app') },
+                        { key: 'perform_settlements', label: t('admin_rbac_perm_perform_settlements', 'app'), desc: t('admin_rbac_perm_perform_settlements_desc', 'app') },
+                        { key: 'perform_foreign_billing', label: t('admin_rbac_perm_perform_foreign_billing', 'app'), desc: t('admin_rbac_perm_perform_foreign_billing_desc', 'app') },
+                        { key: 'perform_admit', label: t('admin_rbac_perm_perform_admit', 'app'), desc: t('admin_rbac_perm_perform_admit_desc', 'app') },
+                        { key: 'perform_rbac', label: t('admin_rbac_perm_perform_rbac', 'app'), desc: t('admin_rbac_perm_perform_rbac_desc', 'app') }
+                      ]).filter(item => visiblePerformSet.has(item.key))
                     };
 
                     return (
@@ -2671,10 +2564,10 @@ const resetProfForm = () => {
                         <div className="flex justify-between items-center border-b border-slate-100 pb-3 flex-wrap gap-2">
                           <div>
                             <h4 className="font-bold text-slate-800 text-sm flex items-center gap-1.5">
-                              <span className={`w-3 h-3 rounded-full ${rbacProf.color || 'bg-slate-400'}`} />
-                              Configurar Permissões: <span className="text-teal-700">{rbacProf.name}</span>
+                              <span className={`w-3 h-3 rounded-full ${headerDot}`} />
+                              {t('admin_rbac_config_permissions', 'app')} <span className="text-teal-700">{headerName}</span>
                             </h4>
-                            <p className="text-[10px] text-slate-500 font-medium mt-0.5">Cargo: {rbacProf.role} | Especialidade: {rbacProf.specialty}</p>
+                            <p className="text-[10px] text-slate-500 font-medium mt-0.5">{headerSubtitle}</p>
                           </div>
                           
                           <div className="flex gap-1.5">
@@ -2688,7 +2581,7 @@ const resetProfForm = () => {
                               onClick={handleClearAll}
                               className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded text-[10px] transition cursor-pointer"
                             >
-                              Limpar Tudo
+                              {t('admin_rbac_clear_all', 'app')}
                             </button>
                           </div>
                         </div>
@@ -2697,12 +2590,12 @@ const resetProfForm = () => {
                           {/* Bloco de Visualização */}
                           <div className="space-y-3 bg-slate-50 p-4 rounded-xl border border-slate-200/60">
                             <div className="flex justify-between items-center border-b border-slate-200 pb-1.5">
-                              <span className="font-extrabold text-slate-700 text-xs uppercase tracking-wider">Pode Visualizar / Acessar</span>
+                              <span className="font-extrabold text-slate-700 text-xs uppercase tracking-wider">{t('admin_rbac_view_access', 'app')}</span>
                               <button
                                 onClick={() => handleSelectAll('view')}
                                 className="text-[9px] font-bold text-teal-600 hover:text-teal-800"
                               >
-                                Todos
+                                {t('admin_rbac_all', 'app')}
                               </button>
                             </div>
                             <div className="space-y-2.5 max-h-[340px] overflow-y-auto pr-1">
@@ -2735,16 +2628,29 @@ const resetProfForm = () => {
 
                           {/* Bloco de Realização */}
                           <div className="space-y-3 bg-slate-50 p-4 rounded-xl border border-slate-200/60">
-                            <div className="flex justify-between items-center border-b border-slate-200 pb-1.5">
-                              <span className="font-extrabold text-slate-700 text-xs uppercase tracking-wider">Pode Realizar / Alterar</span>
+                            <div className="flex justify-between items-center border-b border-slate-200 pb-1.5 flex-wrap gap-2">
+                              <div>
+                                <span className="font-extrabold text-slate-700 text-xs uppercase tracking-wider">{t('admin_rbac_perform_alter', 'app')}</span>
+                                <span className="ml-2 text-[9.5px] font-bold text-slate-500">({permsList.perform.length} ações{selectedViews.length > 0 ? ` · ${selectedViews.length} módulo${selectedViews.length > 1 ? 's' : ''}` : ''})</span>
+                                {selectedViews.length > 0 && (
+                                  <p className="text-[9.5px] text-slate-500 font-medium mt-0.5 leading-tight">
+                                    {selectedViews.map(v => t(`submodule_${viewKeys.indexOf(v) + 1}`, 'app')).filter(Boolean).join(' · ')}
+                                  </p>
+                                )}
+                              </div>
                               <button
                                 onClick={() => handleSelectAll('perform')}
                                 className="text-[9px] font-bold text-teal-600 hover:text-teal-800"
                               >
-                                Todos
+                                {t('admin_rbac_all', 'app')}
                               </button>
                             </div>
-                            <div className="space-y-2.5 max-h-[340px] overflow-y-auto pr-1">
+                            {permsList.perform.length === 0 ? (
+                              <div className="text-center py-6 px-4 text-[10.5px] text-slate-500 italic bg-white rounded-lg border border-dashed border-slate-300">
+                                {t('admin_rbac_perform_empty', 'app')}
+                              </div>
+                            ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-[400px] overflow-y-auto pr-1">
                               {permsList.perform.map(item => {
                                 const isChecked = currentPerms.includes(item.key);
                                 return (
@@ -2770,6 +2676,73 @@ const resetProfForm = () => {
                                 );
                               })}
                             </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Pode Acessar: abas por módulo */}
+                        <div className="md:col-span-2 bg-slate-50 p-4 rounded-xl border border-slate-200/60">
+                          <div className="border-b border-slate-200 pb-1.5 mb-3">
+                            <span className="font-extrabold text-slate-700 text-xs uppercase tracking-wider">{t('admin_rbac_access_title', 'app')}</span>
+                            <p className="text-[9.5px] text-slate-400 font-medium mt-0.5">{t('admin_rbac_access_hint', 'app')}</p>
+                          </div>
+                          <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
+                            {RBAC_MODULE_CATALOG.map(mod => {
+                              const prefix = moduleTabPrefix(mod.id);
+                              const selectedCount = currentPerms.filter(p => p.startsWith(prefix)).length;
+                              const configured = selectedCount > 0;
+                              return (
+                                <div key={mod.id} className="p-3 bg-white rounded-lg border border-slate-200">
+                                  <div className="flex items-center justify-between gap-2 flex-wrap mb-2">
+                                    <span className={`font-bold text-xs ${configured ? 'text-teal-700' : 'text-slate-600'}`}>
+                                      {t(mod.labelKey, 'app')}
+                                      {mod.tabs.length > 0 && (
+                                        <span className="ml-1.5 text-[9px] font-semibold text-slate-400">
+                                          ({configured ? `${selectedCount}/${mod.tabs.length}` : t('admin_rbac_tabs_unrestricted', 'app')})
+                                        </span>
+                                      )}
+                                    </span>
+                                    {mod.tabs.length > 0 && (
+                                      <span className="flex gap-1.5">
+                                        <button
+                                          type="button"
+                                          onClick={() => persistPerms(Array.from(new Set([...currentPerms, ...mod.tabs.map(tb => tabPermissionKey(mod.id, tb.key))])))}
+                                          className="text-[9px] font-bold text-teal-600 hover:text-teal-800 cursor-pointer"
+                                        >
+                                          {t('admin_rbac_all', 'app')}
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => persistPerms(currentPerms.filter(p => !p.startsWith(prefix)))}
+                                          className="text-[9px] font-bold text-rose-500 hover:text-rose-700 cursor-pointer"
+                                        >
+                                          {t('admin_rbac_clear_all', 'app')}
+                                        </button>
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {mod.tabs.length === 0 ? (
+                                      <span className="text-[9.5px] italic text-slate-400">{t('admin_rbac_access_no_tabs', 'app')}</span>
+                                    ) : mod.tabs.map(tb => {
+                                      const tk = tabPermissionKey(mod.id, tb.key);
+                                      const on = currentPerms.includes(tk);
+                                      return (
+                                        <label
+                                          key={tk}
+                                          className={`flex items-center gap-1 px-2 py-1 rounded-md border text-[10px] font-bold transition cursor-pointer select-none ${
+                                            on ? 'border-teal-500 bg-teal-50/60 text-teal-800' : 'border-slate-200 text-slate-500 hover:border-slate-300'
+                                          }`}
+                                        >
+                                          <input type="checkbox" checked={on} onChange={() => handleTogglePermission(tk)} className="rounded border-slate-300 text-teal-600 focus:ring-teal-500" />
+                                          {tb.labelKey ? t(tb.labelKey, 'app') : tb.literalLabel}
+                                        </label>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
                       </div>
@@ -2782,13 +2755,13 @@ const resetProfForm = () => {
               <div className="bg-slate-950 border border-slate-900 rounded-xl p-5 text-slate-100 flex flex-col font-mono text-xs shadow-md">
                 <div className="flex items-center gap-2 font-bold text-teal-400 border-b border-slate-800 pb-3 mb-3 shrink-0">
                   <span className="w-2.5 h-2.5 bg-green-500 rounded-full animate-ping" />
-                  TERMINAL DE AUDITORIA DE SEGURANÇA GERAL (LGPD)
+                  {t('admin_rbac_terminal_title', 'app')}
                 </div>
 
                 <div className="space-y-2 max-h-[220px] overflow-y-auto flex-1 pr-1">
                   {logs.map((log, idx) => (
                     <div key={idx} className="p-2 bg-slate-900 border border-slate-800/80 rounded text-[11px] text-slate-300 leading-relaxed">
-                      <span className="text-teal-400 font-black">[{log.timestamp}]</span> Op: <span className="font-black text-white">{log.operator}</span> (<i>{log.role}</i>) | <b className="text-yellow-400 font-bold uppercase">{log.action}:</b> <span className="text-slate-400 font-medium">{log.target}</span> | <span className="text-slate-500">IP: {log.ip}</span>
+                      <span className="text-teal-400 font-black">[{log.timestamp}]</span> {t('admin_rbac_terminal_op', 'app')} <span className="font-black text-white">{log.operator}</span> (<i>{log.role}</i>) | <b className="text-yellow-400 font-bold uppercase">{log.action}:</b> <span className="text-slate-400 font-medium">{log.target}</span> | <span className="text-slate-500">{t('admin_rbac_terminal_ip', 'app')} {log.ip}</span>
                     </div>
                   ))}
                 </div>
@@ -2804,6 +2777,7 @@ const resetProfForm = () => {
               locations={locations}
               addAuditLog={addAuditLog}
               onCreateUser={handleCreateUserForProfessional}
+              onUsersChanged={loadSystemUsersFromSupabase}
             />
           )}
 

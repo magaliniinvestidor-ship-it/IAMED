@@ -10,3 +10,4 @@ export { FinancialTab } from './FinancialTab';
 export { AuditTab } from './AuditTab';
 export { SsoTab } from './SsoTab';
 export { PasswordPolicyTab } from './PasswordPolicyTab';
+export { TwoFactorTab } from './TwoFactorTab';

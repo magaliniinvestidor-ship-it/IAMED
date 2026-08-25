@@ -52,6 +52,7 @@ import {
 import { PermissionGate, WithPermissions, useUserPermissions } from '@/components/ui/PermissionGate';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { hasPermission } from '@/lib/usePermissions';
+import { canAccessTab } from '@/lib/rbac/catalog';
 import I18nDatePicker from '@/components/I18nDatePicker';
 import ConfirmDialog from '@/components/ui/confirm-dialog';
 
@@ -149,6 +150,8 @@ const ClinicalModuleContent = ({
   const { t, locale } = useI18n();
   const userPermissions = useUserPermissions();
   const hasSensitiveAccess = hasPermission(userPermissions, 'view_sensitive');
+  const canPrescribe = hasPermission(userPermissions, 'perform_prescribe');
+  const canAso = hasPermission(userPermissions, 'perform_aso');
   const activeProfessional = useMemo(() => {
     const norm = (s: string) => s?.toLowerCase().trim();
     if (activeOperatorEmail) {
@@ -168,6 +171,14 @@ const ClinicalModuleContent = ({
 
   // HCE Tabs
   const [hceTab, setHceTab] = useState<HCETab>('anamnese');
+
+  // Guarda RBAC: aba ativa não pode ficar órfã quando permissões mudam
+  useEffect(() => {
+    if (canAccessTab(userPermissions, 'hce', hceTab)) return;
+    const order: HCETab[] = ['anamnese', 'exam', 'soap', 'diagnoses', 'prescriptions', 'exams', 'procedures', 'attachments', 'signatures', 'timeline', 'security'];
+    const next = order.find(id => canAccessTab(userPermissions, 'hce', id));
+    if (next) setHceTab(next);
+  }, [userPermissions, hceTab]);
 
   // ─── ANAMNESE STATE ───
   const [anamneseList, setAnamneseList] = useState<Anamnese[]>([]);
@@ -2837,6 +2848,8 @@ const ClinicalModuleContent = ({
     { key: 'security', label: t('hce_tab_security', 'app'), icon: Shield },
   ];
 
+  const visibleHceTabs = hceTabs.filter(tb => canAccessTab(userPermissions, 'hce', tb.key));
+
   const inputCls = 'w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans';
   const textareaCls = 'w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-teal-500 font-sans leading-relaxed resize-none';
   const labelCls = 'block text-xs font-semibold text-slate-600 mb-1 whitespace-nowrap overflow-hidden text-ellipsis';
@@ -3240,7 +3253,7 @@ const ClinicalModuleContent = ({
               {/* Tab Navigation - 2 rows */}
               <div className="space-y-1 border-b border-slate-100 pb-1">
                 <div className="flex gap-1">
-                  {hceTabs.slice(0, 6).map(tab => {
+                  {visibleHceTabs.slice(0, 6).map(tab => {
                     const Icon = tab.icon;
                     return (
                       <button key={tab.key} onClick={() => switchHceTab(tab.key)}
@@ -3252,7 +3265,7 @@ const ClinicalModuleContent = ({
                   })}
                 </div>
                 <div className="flex gap-1">
-                  {hceTabs.slice(6).map(tab => {
+                  {visibleHceTabs.slice(6).map(tab => {
                     const Icon = tab.icon;
                     return (
                       <button key={tab.key} onClick={() => switchHceTab(tab.key)}
@@ -3594,7 +3607,7 @@ const ClinicalModuleContent = ({
                         {t('hce_delete', 'app')}
                       </button>
                     )}
-                    <button onClick={handleSaveAnamnese} className="py-2.5 px-6 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-lg text-xs transition">
+                    <button onClick={handleSaveAnamnese} disabled={!canPrescribe} className="py-2.5 px-6 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-lg text-xs transition">
                       {t('hce_save_anamnese', 'app')}
                     </button>
                   </div>
@@ -3881,7 +3894,7 @@ const ClinicalModuleContent = ({
                         {t('hce_delete', 'app')}
                       </button>
                     )}
-                    <button onClick={handleSaveSoap} className="py-2.5 px-6 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-lg text-xs transition">
+                    <button onClick={handleSaveSoap} disabled={!canPrescribe} className="py-2.5 px-6 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-lg text-xs transition">
                       {t('hce_save_soap', 'app')}
                     </button>
                   </div>
@@ -4318,7 +4331,7 @@ const ClinicalModuleContent = ({
                     {selectedPrescriptionId && selectedHeader && (
                       <div className="no-print px-4 pb-4 flex flex-wrap items-center gap-2">
                         {selectedHeader.status === 'rascunho' && (
-                          <button onClick={() => handleSignPrescription(selectedPrescriptionId)} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-xs font-bold rounded-lg flex items-center gap-1">
+                          <button disabled={!canPrescribe} onClick={() => handleSignPrescription(selectedPrescriptionId)} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-xs font-bold rounded-lg flex items-center gap-1">
                             <FileSignature className="w-3.5 h-3.5" /> {t('presc_sign_receipt', 'app')}
                           </button>
                         )}
@@ -4649,7 +4662,7 @@ const ClinicalModuleContent = ({
                           <Activity className="w-3.5 h-3.5" /> {t('presc_pediatric_dose_btn', 'app')}
                         </button>
                       </div>
-                      <button onClick={handleSavePrescriptionItem} disabled={!prescriptionForm.drugName.trim()} className="w-full py-2.5 bg-teal-600 hover:bg-teal-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-semibold rounded-lg text-xs transition flex items-center justify-center gap-2">
+                      <button onClick={handleSavePrescriptionItem} disabled={!canPrescribe || !prescriptionForm.drugName.trim()} className="w-full py-2.5 bg-teal-600 hover:bg-teal-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-semibold rounded-lg text-xs transition flex items-center justify-center gap-2">
                         <Plus className="w-3.5 h-3.5" /> {t('presc_add_button', 'app')}
                       </button>
 </>
@@ -6223,7 +6236,7 @@ const ClinicalModuleContent = ({
                 <label className={labelCls}>{t('hce_occupational_risks', 'app')}</label>
                 <input type="text" value={asoRisks} onChange={e => setAsoRisks(e.target.value)} placeholder={t('hce_separate_comma', 'app')} className={inputCls} />
               </div>
-              <button type="submit" className="w-full py-3 px-4 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-lg text-xs">
+              <button type="submit" disabled={!canAso} className="w-full py-3 px-4 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-lg text-xs disabled:opacity-50 disabled:cursor-not-allowed">
                 {t('hce_generate_aso', 'app')}
               </button>
             </form>
