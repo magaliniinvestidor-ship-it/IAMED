@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import Image from 'next/image';
 import { Patient, Appointment, Professional, InsuranceCompany } from '@/lib/mockData';
 import { supabase } from '@/lib/supabaseClient';
@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import AgendaModule from '@/components/AgendaModule';
+import { type ClinicPatient } from '@/components/AgendaModule';
 import { PermissionGate, WithPermissions } from '@/components/ui/PermissionGate';
 
 interface ReceptionModuleProps {
@@ -97,6 +98,25 @@ export default function ReceptionModule({
 // Admission form search (lookup existing patient)
   const [admissionSearch, setAdmissionSearch] = useState('');
   const [admissionSearchFocused, setAdmissionSearchFocused] = useState(false);
+
+  // Clinic patients (cross-table search)
+  const [clinicPatients, setClinicPatients] = useState<ClinicPatient[]>([]);
+  const [importingClinicPatient, setImportingClinicPatient] = useState(false);
+
+  // Load clinic_patients from Supabase
+  useEffect(() => {
+    const loadClinicPatients = async () => {
+      if (!supabase) return;
+      try {
+        const { data, error } = await supabase.from('clinic_patients').select('*').eq('status', 'ativo').order('name');
+        if (data) setClinicPatients(data);
+        if (error) console.warn('[SUPABASE] load clinic_patients error:', error.message);
+      } catch (e) {
+        console.warn('clinic_patients load error:', e);
+      }
+    };
+    loadClinicPatients();
+  }, []);
 
   // Zod validation for patient form (per-tab validators and main submit)
   const validationMessages: ValidationMessages = getValidationMessages(
@@ -257,18 +277,64 @@ export default function ReceptionModule({
     ) || null;
   }, [documentNumber, newBirthdate, patients, selectedPatientId]);
 
+  // MERGED PATIENT LIST (clinic_patients + patients from hospital)
+  const mergedPatientList = useMemo(() => {
+    const hospitalDocs = new Set(patients.map(p => p.document_number).filter(Boolean));
+    const clinicOnly = clinicPatients
+      .filter(cp => !cp.document_number || !hospitalDocs.has(cp.document_number))
+      .map(cp => ({
+        id: cp.id,
+        name: cp.name,
+        email: cp.email || '',
+        phone: cp.phone || '',
+        birthdate: cp.birth_date || '',
+        gender: cp.gender === 'Masculino' ? 'M' : cp.gender === 'Feminino' ? 'F' : cp.gender || '',
+        priority: 'normal' as const,
+        status: 'aguardando' as const,
+        document_type: (cp.document_type || 'CI') as Patient['document_type'],
+        document_number: cp.document_number || '',
+        place_of_birth: '',
+        nationality: cp.nationality || '',
+        civil_status: (cp.civil_status || '') as Patient['civil_status'],
+        address_department: cp.address_department || '',
+        address_district: cp.address_district || '',
+        address_city: cp.address_city || '',
+        address_neighborhood: cp.address_neighborhood || '',
+        address_street: cp.address_street || '',
+        address_number: cp.address_number || '',
+        photo_url: cp.photo_url || null,
+        health_insurance_type: (cp.insurance_type || '') as Patient['health_insurance_type'],
+        health_insurance_number: cp.insurance_number || '',
+        preferred_language: (cp.preferred_language || '') as Patient['preferred_language'],
+        allergies: cp.allergies || '',
+        guardian_name: cp.responsible_name || '',
+        guardian_document_type: (cp.responsible_document_type || '') as Patient['guardian_document_type'],
+        guardian_document: cp.responsible_document_number || '',
+        guardian_phone: cp.responsible_phone || '',
+        guardian_relationship: cp.responsible_relationship || '',
+        whatsapp_verified: cp.whatsapp_verified || false,
+        clinicalHistory: [],
+        _source: 'clinic',
+      })) as (Patient & { _source: string })[];
+    const hospital = patients.map(p => ({ ...p, _source: 'hospital' })) as (Patient & { _source: string })[];
+    return [...clinicOnly, ...hospital];
+  }, [clinicPatients, patients]);
+
+  // Import a clinic patient: fill the admission form (save only on handleSavePatient)
+  // NOTE: Defined after handleEditPatient below to avoid temporal dead zone
+
   // Admission search: find existing patients by document or name
   const admissionSearchResults = useMemo(() => {
     const q = admissionSearch.trim().toLowerCase();
     if (q.length < 2) return [];
-    return patients.filter(p => {
+    return mergedPatientList.filter(p => {
       const doc = (p.document_number || '').toLowerCase();
       const name = (p.name || '').toLowerCase();
       return doc.includes(q) || name.includes(q);
     }).slice(0, 8);
-  }, [admissionSearch, patients]);
+  }, [admissionSearch, mergedPatientList]);
 
-  const handleAdmissionSearchSelect = (patient: Patient) => {
+  const handleAdmissionSearchSelect = async (patient: any) => {
     handleEditPatient(patient);
     setAdmissionSearch('');
     setAdmissionSearchFocused(false);
@@ -1634,7 +1700,7 @@ export default function ReceptionModule({
     addAuditLog(t('rcpt_audit_deleted_patient', 'app'), `${patientName} (+ ${linkedAppointments.length} agendamento(s) e lembretes do WhatsApp)`);
   };
 
-  const handleEditPatient = (patient: Patient) => {
+  const handleEditPatient = useCallback((patient: Patient) => {
     setNewName(patient.name);
     setNewBirthdate(patient.birthdate || '');
     setNewPhone(patient.phone || '');
@@ -1669,7 +1735,43 @@ export default function ReceptionModule({
     setPreferredLanguage((patient.preferred_language as any) || 'es');
     setSelectedPatientId(patient.id);
     setActiveFormTab('identification');
-  };
+  }, []);
+  const handleImportClinicPatient = useCallback((clinicPat: typeof mergedPatientList[0]) => {
+    const asPatient: Patient = {
+      id: clinicPat.id,
+      name: clinicPat.name,
+      email: clinicPat.email,
+      phone: clinicPat.phone,
+      birthdate: clinicPat.birthdate,
+      gender: clinicPat.gender,
+      priority: 'normal',
+      status: 'aguardando',
+      document_type: clinicPat.document_type,
+      document_number: clinicPat.document_number,
+      nationality: clinicPat.nationality,
+      civil_status: clinicPat.civil_status,
+      address_department: clinicPat.address_department,
+      address_district: clinicPat.address_district,
+      address_city: clinicPat.address_city,
+      address_neighborhood: clinicPat.address_neighborhood,
+      address_street: clinicPat.address_street,
+      address_number: clinicPat.address_number,
+      photo_url: clinicPat.photo_url,
+      health_insurance_type: clinicPat.health_insurance_type,
+      health_insurance_number: clinicPat.health_insurance_number,
+      preferred_language: clinicPat.preferred_language,
+      allergies: clinicPat.allergies,
+      guardian_name: clinicPat.guardian_name,
+      guardian_document_type: clinicPat.guardian_document_type,
+      guardian_document: clinicPat.guardian_document,
+      guardian_phone: clinicPat.guardian_phone,
+      guardian_relationship: clinicPat.guardian_relationship,
+      whatsapp_verified: clinicPat.whatsapp_verified,
+      clinicalHistory: [],
+    };
+    handleEditPatient(asPatient);
+    addAuditLog('import_patient_from_clinic', `Loaded clinic patient ${clinicPat.name} for admission`);
+  }, [handleEditPatient, addAuditLog]);
 
   const handleUpdatePatientStatus = async (id: string, status: Patient['status']) => {
     setPatients(prev => prev.map(p => {
@@ -2072,7 +2174,7 @@ if (hasAnyField) {
 
   const unreadNotifications = internalNotifications.filter(n => !n.read);
 
-  const filteredPatients = patients.filter(p => {
+  const filteredPatients: (Patient & { _source: string })[] = patients.map(p => ({ ...p, _source: 'hospital' })).filter(p => {
     const searchVal = patientSearch.toLowerCase();
     const docNum = p.document_number || '';
     const matchesSearch = p.name.toLowerCase().includes(searchVal) || 
@@ -2245,6 +2347,9 @@ if (hasAnyField) {
                                 {p.document_type} {p.document_number} · {new Date(p.birthdate).toLocaleDateString(locale)}
                               </p>
                             </div>
+                            {p._source === 'clinic' && (
+                              <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-purple-100 text-purple-700 shrink-0">{t('rcpt_source_clinic', 'app')}</span>
+                            )}
                             <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
                           </div>
                         </button>
@@ -2739,6 +2844,13 @@ if (hasAnyField) {
                           >
                             <option value="">{t('rcpt_select', 'app')}</option>
                             <option value="Particular">{t('rcpt_insurance_particular', 'app')}</option>
+                            <option value="IPS">IPS</option>
+                            <option value="Sanidade Militar">{t('agenda_ins_type_military', 'app')}</option>
+                            <option value="Sanidade Policial">{t('agenda_ins_type_police', 'app')}</option>
+                            <option value="EMP">EMP</option>
+                            <option value="Seguro Privado">{t('agenda_ins_type_private', 'app')}</option>
+                            <option value="Corporativo">{t('agenda_ins_type_corporative', 'app')}</option>
+                            <option value="Mercosul">Mercosul</option>
                             {insurances.filter(i => i.active).map(ins => (
                               <option key={ins.id} value={ins.name}>{ins.name}</option>
                             ))}
@@ -3020,6 +3132,11 @@ if (hasAnyField) {
                             {t('rcpt_list_minor_badge', 'app')}
                           </span>
                         )}
+                        {'_source' in p && (p as any)._source === 'clinic' && (
+                          <span className="self-start px-3 py-1 bg-purple-50 text-purple-700 text-[11px] font-bold uppercase rounded-lg border border-purple-200">
+                            {t('rcpt_source_clinic', 'app')}
+                          </span>
+                        )}
                         
                         <div className="text-[12px] text-slate-700 space-y-0.5 leading-relaxed">
                           <p><span className="text-slate-500 font-medium">{t('rcpt_list_full_name', 'app')}</span> <span className="font-bold text-slate-800">{p.name}</span></p>
@@ -3043,7 +3160,20 @@ if (hasAnyField) {
                           )}
                         </div>
 
-                        {p.status === 'aguardando' && (
+                        {'_source' in p && (p as any)._source === 'clinic' ? (
+                          <div className="flex items-center gap-2 mt-1 pt-1">
+                            <span className="text-[11px] font-bold px-2.5 py-1 bg-purple-50 text-purple-600 border border-purple-200 rounded-full flex items-center gap-1">
+                              <ArrowRight className="w-3" /> {t('rcpt_import_from_clinic', 'app')}
+                            </span>
+                            <button
+                              onClick={() => handleImportClinicPatient(p as any)}
+                              disabled={importingClinicPatient}
+                              className="bg-purple-600 hover:bg-purple-700 text-white text-[11px] px-3 py-1.5 rounded-lg font-bold shadow-sm transition cursor-pointer flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {importingClinicPatient ? t('rcpt_importing', 'app') : t('rcpt_import_patient', 'app')}
+                            </button>
+                          </div>
+                        ) : p.status === 'aguardando' && (
                           <div className="flex items-center gap-2 mt-1 pt-1">
                             <span className="text-[11px] font-bold px-2.5 py-1 bg-amber-50 text-amber-600 border border-amber-200 rounded-full flex items-center gap-1">
                               <Clock className="w-3" /> {t('rcpt_list_waiting_triage', 'app')}

@@ -369,15 +369,15 @@ const AgendaModuleContent = ({
   const { locale, t } = useI18n();
   const userPermissions = useUserPermissions();
 
-  const insuranceTypeOptions = [
-    ...INSURANCE_TYPES.filter(t => t.value === 'Particular'),
+  const insuranceTypeOptions = useMemo(() => [
+    ...INSURANCE_TYPES,
     ...insurances.filter(i => i.active).map(i => ({
       value: i.name,
       labelKey: '',
       quotaPresencial: 0,
       quotaVirtual: 0,
     })),
-  ];
+  ], [insurances]);
   const canEdit = userPermissions?.includes('agenda_edit') ||
                   userPermissions?.includes('admin:*') ||
                   userPermissions?.includes('perform_agenda_create') ||
@@ -420,6 +420,7 @@ const AgendaModuleContent = ({
   // Patient search in appointment form
   const [patientSearchQuery, setPatientSearchQuery] = useState('');
   const [showPatientDropdown, setShowPatientDropdown] = useState(false);
+  const [importingHospitalPatient, setImportingHospitalPatient] = useState(false);
 
   // Tabs
   const [activeTab, setActiveTab] = useState<'register' | 'calendar' | 'whatsapp' | 'waitlist' | 'callcenter'>('register');
@@ -660,6 +661,145 @@ const AgendaModuleContent = ({
     };
     loadLocationData();
   }, []);
+
+  // ============================================================
+  // MERGED PATIENT LIST (clinic_patients + patients from hospital)
+  // ============================================================
+  const mergedPatientList = useMemo(() => {
+    const clinicDocs = new Set(clinicPatients.map(cp => cp.document_number).filter(Boolean));
+    const hospitalOnly = patients
+      .filter(p => {
+        if (!p.document_number) return true;
+        return !clinicDocs.has(p.document_number);
+      })
+      .map(p => ({
+        id: p.id,
+        name: p.name,
+        document_type: p.document_type || 'CI',
+        document_number: p.document_number || '',
+        birth_date: p.birthdate || '',
+        gender: p.gender || '',
+        nationality: p.nationality || '',
+        civil_status: p.civil_status || '',
+        photo_url: p.photo_url || null,
+        phone: p.phone || '',
+        email: p.email || '',
+        address_department: p.address_department || '',
+        address_district: p.address_district || '',
+        address_city: p.address_city || '',
+        address_neighborhood: p.address_neighborhood || '',
+        address_street: p.address_street || '',
+        address_number: p.address_number || '',
+        country: 'Paraguai',
+        insurance_type: p.health_insurance_type || '',
+        insurance_number: p.health_insurance_number || '',
+        preferred_language: p.preferred_language || 'es',
+        allergies: p.allergies || '',
+        responsible_name: p.guardian_name || '',
+        responsible_document_type: p.guardian_document_type || '',
+        responsible_document_number: p.guardian_document || '',
+        responsible_phone: p.guardian_phone || '',
+        responsible_relationship: p.guardian_relationship || '',
+        whatsapp_verified: p.whatsapp_verified || false,
+        notes: '',
+        status: 'ativo',
+        created_at: '',
+        updated_at: '',
+        _source: 'hospital' as const,
+      }));
+    const clinic = clinicPatients.map(cp => ({ ...cp, _source: 'clinic' as const }));
+    return [...clinic, ...hospitalOnly];
+  }, [clinicPatients, patients]);
+
+  const handleImportHospitalPatient = useCallback(async (hospitalPatient: typeof mergedPatientList[0]) => {
+    setImportingHospitalPatient(true);
+    try {
+      let patientId = '';
+      if (supabase) {
+        const { data } = await supabase.rpc('next_clinic_patient_id');
+        if (data) patientId = data as string;
+      }
+      if (!patientId) patientId = `CLI${String(Date.now()).slice(-6)}`;
+
+      const newCp: ClinicPatient = {
+        id: patientId,
+        name: hospitalPatient.name,
+        document_type: hospitalPatient.document_type,
+        document_number: hospitalPatient.document_number,
+        birth_date: hospitalPatient.birth_date,
+        gender: hospitalPatient.gender,
+        nationality: hospitalPatient.nationality,
+        civil_status: hospitalPatient.civil_status,
+        photo_url: hospitalPatient.photo_url,
+        phone: hospitalPatient.phone,
+        email: hospitalPatient.email,
+        address_department: hospitalPatient.address_department,
+        address_district: hospitalPatient.address_district,
+        address_city: hospitalPatient.address_city,
+        address_neighborhood: hospitalPatient.address_neighborhood,
+        address_street: hospitalPatient.address_street,
+        address_number: hospitalPatient.address_number,
+        country: hospitalPatient.country,
+        insurance_type: hospitalPatient.insurance_type,
+        insurance_number: hospitalPatient.insurance_number,
+        preferred_language: hospitalPatient.preferred_language,
+        allergies: hospitalPatient.allergies,
+        responsible_name: hospitalPatient.responsible_name,
+        responsible_document_type: hospitalPatient.responsible_document_type,
+        responsible_document_number: hospitalPatient.responsible_document_number,
+        responsible_phone: hospitalPatient.responsible_phone,
+        responsible_relationship: hospitalPatient.responsible_relationship,
+        whatsapp_verified: hospitalPatient.whatsapp_verified,
+        notes: hospitalPatient.notes,
+        status: 'ativo',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      setClinicPatients(prev => [...prev, newCp]);
+
+      if (supabase) {
+        const { data, error } = await supabase.from('clinic_patients').insert({
+          id: patientId,
+          name: newCp.name, document_type: newCp.document_type, document_number: newCp.document_number,
+          birth_date: newCp.birth_date, gender: newCp.gender, nationality: newCp.nationality,
+          civil_status: newCp.civil_status, photo_url: newCp.photo_url,
+          phone: newCp.phone, email: newCp.email,
+          address_department: newCp.address_department, address_district: newCp.address_district,
+          address_city: newCp.address_city, address_neighborhood: newCp.address_neighborhood,
+          address_street: newCp.address_street, address_number: newCp.address_number,
+          country: newCp.country,
+          insurance_type: newCp.insurance_type, insurance_number: newCp.insurance_number,
+          preferred_language: newCp.preferred_language, allergies: newCp.allergies,
+          responsible_name: newCp.responsible_name, responsible_document_type: newCp.responsible_document_type,
+          responsible_document_number: newCp.responsible_document_number, responsible_phone: newCp.responsible_phone,
+          responsible_relationship: newCp.responsible_relationship, whatsapp_verified: newCp.whatsapp_verified,
+          notes: newCp.notes, status: 'ativo',
+        }).select('id').single();
+        if (data) {
+          setClinicPatients(prev => prev.map(p => p.id === patientId ? { ...p, id: data.id } : p));
+        }
+      }
+
+      addAuditLog('Importou Paciente Hospitalar', `${hospitalPatient.name} → Clínica`);
+
+      const ins = newCp.insurance_type ? insuranceTypeOptions.find(i => i.value === newCp.insurance_type) : undefined;
+      setNewApptForm({
+        ...newApptForm,
+        patient_id: patientId,
+        patient_name: newCp.name,
+        insurance_type: newCp.insurance_type || '',
+        insurance: ins ? t(ins.labelKey, 'app') : '',
+        insurance_number: newCp.insurance_number || '',
+      });
+      setShowPatientDropdown(false);
+      setPatientSearchQuery('');
+    } catch (e) {
+      console.error('[IMPORT] Error importing hospital patient:', e);
+    } finally {
+      setImportingHospitalPatient(false);
+    }
+  }, [insuranceTypeOptions, newApptForm, addAuditLog, t]);
 
   // ============================================================
   // COMPUTED DATA
@@ -3971,45 +4111,51 @@ const AgendaModuleContent = ({
               </div>
               {showPatientDropdown && !newApptForm.patient_id && (
                 <div className="absolute z-50 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                  {clinicPatients.filter(cp => {
+                  {mergedPatientList.filter(item => {
                     if (!patientSearchQuery) return true;
                     const q = patientSearchQuery.toLowerCase();
-                    return cp.name.toLowerCase().includes(q) ||
-                      (cp.document_number && cp.document_number.includes(q)) ||
-                      (cp.phone && cp.phone.includes(q));
-                  }).slice(0, 20).map(cp => (
-                    <button key={cp.id} type="button"
+                    return item.name.toLowerCase().includes(q) ||
+                      (item.document_number && item.document_number.includes(q)) ||
+                      (item.phone && item.phone.includes(q));
+                  }).slice(0, 20).map(item => (
+                    <button key={`${item._source}-${item.id}`} type="button"
                       onClick={() => {
-                        const ins = cp.insurance_type ? insuranceTypeOptions.find(i => i.value === cp.insurance_type) : undefined;
+                        const ins = item.insurance_type ? insuranceTypeOptions.find(i => i.value === item.insurance_type) : undefined;
                         setNewApptForm({
                           ...newApptForm,
-                          patient_id: cp.id,
-                          patient_name: cp.name,
-                          insurance_type: cp.insurance_type || '',
+                          patient_id: item.id,
+                          patient_name: item.name,
+                          insurance_type: item.insurance_type || '',
                           insurance: ins ? t(ins.labelKey, 'app') : '',
-                          insurance_number: cp.insurance_number || '',
+                          insurance_number: item.insurance_number || '',
                         });
                         setShowPatientDropdown(false);
                         setPatientSearchQuery('');
                       }}
-                      className="w-full px-4 py-3 text-left hover:bg-teal-50 flex items-center gap-3 border-b border-slate-100 last:border-0 transition">
-                      <div className="rounded-full bg-teal-100 flex items-center justify-center text-teal-700 font-bold shrink-0"
+                      disabled={importingHospitalPatient}
+                      className="w-full px-4 py-3 text-left hover:bg-teal-50 flex items-center gap-3 border-b border-slate-100 last:border-0 transition disabled:opacity-50">
+                      <div className={`rounded-full flex items-center justify-center font-bold shrink-0 ${item._source === 'hospital' ? 'bg-amber-100 text-amber-700' : 'bg-teal-100 text-teal-700'}`}
                         style={{ width: 32, height: 32, fontSize: 10 }} aria-hidden>
-                        {cp.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
+                        {item._source === 'hospital' ? 'H' : item.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-sm text-slate-800 truncate">{cp.name}</p>
-                        <p className="text-xs text-slate-500">{cp.document_type}: {cp.document_number || '-'} {cp.phone ? `| ${cp.phone}` : ''}</p>
+                        <p className="font-semibold text-sm text-slate-800 truncate">{item.name}</p>
+                        <p className="text-xs text-slate-500">{item.document_type}: {item.document_number || '-'} {item.phone ? `| ${item.phone}` : ''}</p>
                       </div>
-                      {cp.insurance_type && (
-                        <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-blue-100 text-blue-700">{cp.insurance_type}</span>
-                      )}
+                      <div className="flex items-center gap-1 shrink-0">
+                        {item._source === 'hospital' && (
+                          <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-amber-100 text-amber-700">{t('agenda_source_hospital', 'app')}</span>
+                        )}
+                        {item.insurance_type && (
+                          <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-blue-100 text-blue-700">{item.insurance_type}</span>
+                        )}
+                      </div>
                     </button>
                   ))}
-                  {clinicPatients.filter(cp => {
+                  {mergedPatientList.filter(item => {
                     if (!patientSearchQuery) return true;
                     const q = patientSearchQuery.toLowerCase();
-                    return cp.name.toLowerCase().includes(q) || (cp.document_number && cp.document_number.includes(q)) || (cp.phone && cp.phone.includes(q));
+                    return item.name.toLowerCase().includes(q) || (item.document_number && item.document_number.includes(q)) || (item.phone && item.phone.includes(q));
                   }).length === 0 && (
                     <div className="px-4 py-6 text-center">
                       <p className="text-sm text-slate-500">{t('agenda_no_patient_found', 'app')}</p>
@@ -4023,6 +4169,39 @@ const AgendaModuleContent = ({
                 <div className="fixed inset-0 z-40" onClick={() => setShowPatientDropdown(false)} />
               )}
             </FormField>
+
+            {/* Selected Patient Info Summary */}
+            {newApptForm.patient_id && (() => {
+              const selectedPatient = mergedPatientList.find(p => p.id === newApptForm.patient_id);
+              if (!selectedPatient) return null;
+              return (
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg mb-4 text-xs space-y-1">
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                    {selectedPatient.birth_date && (
+                      <p><span className="text-slate-500 font-medium">{t('agenda_birth_date', 'app')}: </span><span className="font-semibold">{new Date(selectedPatient.birth_date).toLocaleDateString(locale)}</span></p>
+                    )}
+                    {selectedPatient.gender && (
+                      <p><span className="text-slate-500 font-medium">{t('rcpt_gender', 'app')}: </span><span className="font-semibold">{selectedPatient.gender}</span></p>
+                    )}
+                    {selectedPatient.insurance_type && (
+                      <p><span className="text-slate-500 font-medium">{t('agenda_insurance_type', 'app')}: </span><span className="font-semibold">{selectedPatient.insurance_type}</span></p>
+                    )}
+                    {selectedPatient.insurance_number && (
+                      <p><span className="text-slate-500 font-medium">{t('agenda_insurance_number', 'app')}: </span><span className="font-semibold">{selectedPatient.insurance_number}</span></p>
+                    )}
+                    {selectedPatient.phone && (
+                      <p><span className="text-slate-500 font-medium">{t('agenda_phone', 'app')}: </span><span className="font-semibold">{selectedPatient.phone}</span></p>
+                    )}
+                    {selectedPatient._source === 'hospital' && (
+                      <p><span className="inline-block px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-amber-100 text-amber-700">{t('agenda_source_hospital', 'app')}</span></p>
+                    )}
+                    {selectedPatient._source === 'clinic' && (
+                      <p><span className="inline-block px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-teal-100 text-teal-700">{t('rcpt_source_clinic', 'app')}</span></p>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Modalidade + Sede + Sala */}
             <div className="grid grid-cols-3 gap-4">
