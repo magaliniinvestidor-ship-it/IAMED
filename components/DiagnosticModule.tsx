@@ -25,6 +25,7 @@ import {
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'motion/react';
 import { PermissionGate, WithPermissions } from '@/components/ui/PermissionGate';
+import { AttachmentImageViewer } from './diagnostic/AttachmentImageViewer';
 
 interface DiagnosticModuleProps {
   patients: Patient[];
@@ -160,6 +161,7 @@ const DiagnosticModuleContent = ({
   const [patientAttachments, setPatientAttachments] = useState<ClinicalAttachment[]>([]);
   const [attachmentUrls, setAttachmentUrls] = useState<Record<string, string>>({});
   const [selectedAttachment, setSelectedAttachment] = useState<ClinicalAttachment | null>(null);
+  const [attachmentViewer, setAttachmentViewer] = useState<ClinicalAttachment | null>(null);
 
   const generateAttachmentUrls = useCallback(async (attachments: ClinicalAttachment[]) => {
     const urls: Record<string, string> = {};
@@ -192,6 +194,7 @@ const DiagnosticModuleContent = ({
         setPatientAttachments([]);
         setAttachmentUrls({});
         setSelectedAttachment(null);
+        setAttachmentViewer(null);
         return;
       }
       try {
@@ -214,7 +217,24 @@ const DiagnosticModuleContent = ({
         setLabOrders((labOrdersRes.data as LabOrder[]) || []);
         setLabResults((labResultsRes.data as LabResult[]) || []);
         setLabAlerts((labAlertsRes.data as LabAlert[]) || []);
-        const atts = (attachmentsRes.data as ClinicalAttachment[]) || [];
+        const atts = ((attachmentsRes.data as Array<Record<string, unknown>>) || []).map(a => ({
+          id: String(a.id),
+          patientId: String(a.patient_id || ''),
+          examRequestId: a.exam_request_id as string | undefined,
+          createdBy: String(a.created_by || ''),
+          createdAt: String(a.created_at || ''),
+          updatedBy: (a.updated_by as string) || undefined,
+          fileName: String(a.file_name || ''),
+          filePath: String(a.file_path || ''),
+          fileSizeBytes: Number(a.file_size_bytes || 0),
+          mimeType: String(a.mime_type || 'application/octet-stream'),
+          category: (a.category as ClinicalAttachment['category']) || 'outro',
+          description: String(a.description || ''),
+          isSensitive: Boolean(a.is_sensitive),
+          signedBy: a.signed_by as string | undefined,
+          signedAt: a.signed_at as string | undefined,
+          signatureId: a.signature_id as string | undefined,
+        }));
         setPatientAttachments(atts);
         setSelectedAttachment(null);
         generateAttachmentUrls(atts);
@@ -868,7 +888,13 @@ const DiagnosticModuleContent = ({
             {patientAttachments.map(att => (
               <div
                 key={att.id}
-                onClick={() => setSelectedAttachment(att)}
+                onClick={() => {
+                  if ((att.mimeType || '').startsWith('image/')) {
+                    setAttachmentViewer(att);
+                  } else {
+                    setSelectedAttachment(att);
+                  }
+                }}
                 className="border border-slate-200 rounded-lg p-2 hover:border-indigo-400 cursor-pointer transition bg-white"
                 title={att.description}
               >
@@ -936,6 +962,23 @@ const DiagnosticModuleContent = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Attachment image viewer (W/L, zoom, rotation, measurements) — additive, não substitui o viewer DICOM nem o modal de anexo */}
+      {attachmentViewer && attachmentUrls[attachmentViewer.id] && (
+        <AttachmentImageViewer
+          imageUrl={attachmentUrls[attachmentViewer.id]}
+          metadata={{
+            fileName: attachmentViewer.fileName,
+            category: attachmentViewer.category,
+            description: attachmentViewer.description,
+            mimeType: attachmentViewer.mimeType,
+            patientName: selectedPatient?.name,
+            patientId: selectedPatient?.id,
+          }}
+          onClose={() => setAttachmentViewer(null)}
+          addAuditLog={addAuditLog}
+        />
       )}
 
       {/* ═══════════════════════════════════════ */}
