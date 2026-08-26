@@ -336,6 +336,9 @@ export default function ReceptionModule({
 
   const handleAdmissionSearchSelect = async (patient: any) => {
     handleEditPatient(patient);
+    if (patient._source === 'clinic') {
+      setSelectedPatientId('');
+    }
     setAdmissionSearch('');
     setAdmissionSearchFocused(false);
   };
@@ -1770,6 +1773,7 @@ export default function ReceptionModule({
       clinicalHistory: [],
     };
     handleEditPatient(asPatient);
+    setSelectedPatientId('');
     addAuditLog('import_patient_from_clinic', `Loaded clinic patient ${clinicPat.name} for admission`);
   }, [handleEditPatient, addAuditLog]);
 

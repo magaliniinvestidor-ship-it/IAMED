@@ -5,14 +5,13 @@ import { canAccessTab } from '@/lib/rbac/catalog';
 import {
   Patient, DicomStudy, DicomModality, ImagingReport, WorklistEntry, Hl7Message,
   LabOrder, LabResult, LabAlert, LabTest, ReportTemplate, modalityList,
-  initialDicomStudies, initialWorklist, initialHl7Messages, initialLabTests,
-  initialLabOrders, initialLabResults, initialLabAlerts, initialReportTemplates,
-  initialImagingReports,
+  ClinicalAttachment,
 } from '@/lib/mockData';
 import { useI18n } from '@/lib/i18n/I18nContext';
 import { supabase } from '@/lib/supabaseClient';
 import { useModuleId } from '@/hooks/useModuleId';
 import { hasPermission } from '@/lib/usePermissions';
+import { resolveStudyImageUrl } from '@/lib/pacs/wado';
 import {
   Microscope, Eye, FileText, Layers, Settings2, Search, Filter, Sliders,
   Plus, Trash2, Check, AlertTriangle, AlertCircle, Send, Clock, User,
@@ -105,11 +104,11 @@ const DiagnosticModuleContent = ({
     if (next) setDiagTab(next);
   }, [userPermissions, diagTab]);
 
-  const [selectedPatId, setSelectedPatId] = useState(patients[0]?.id || '');
+  const [selectedPatId, setSelectedPatId] = useState('');
 
   // ── PACS STATE ──
-  const [dicomStudies, setDicomStudies] = useState<DicomStudy[]>(initialDicomStudies);
-  const [selectedStudy, setSelectedStudy] = useState<DicomStudy | null>(initialDicomStudies[0]);
+  const [dicomStudies, setDicomStudies] = useState<DicomStudy[]>([]);
+  const [selectedStudy, setSelectedStudy] = useState<DicomStudy | null>(null);
   const [pacsModalityFilter, setPacsModalityFilter] = useState<string>('all');
   const [pacsSearchQuery, setPacsSearchQuery] = useState('');
   const [imageContrast, setImageContrast] = useState(100);
@@ -123,13 +122,13 @@ const DiagnosticModuleContent = ({
   const [selectedKeyImages, setSelectedKeyImages] = useState<string[]>([]);
 
   // ── LAUDOS STATE ──
-  const [reports, setReports] = useState<ImagingReport[]>(initialImagingReports);
-  const [templates, setTemplates] = useState<ReportTemplate[]>(initialReportTemplates);
-  const [selectedReport, setSelectedReport] = useState<ImagingReport | null>(initialImagingReports[0]);
+  const [reports, setReports] = useState<ImagingReport[]>([]);
+  const [templates, setTemplates] = useState<ReportTemplate[]>([]);
+  const [selectedReport, setSelectedReport] = useState<ImagingReport | null>(null);
   const [reportEditor, setReportEditor] = useState({
     technique: '', findings: '', impression: '', recommendations: '', bodyPart: '',
   });
-  const [selectedTemplate, setSelectedTemplate] = useState<ReportTemplate | null>(initialReportTemplates[0]);
+  const [selectedTemplate, setSelectedTemplate] = useState<ReportTemplate | null>(null);
   const [voiceActive, setVoiceActive] = useState(false);
   const [voiceLog, setVoiceLog] = useState<string[]>([]);
   const [reportSearchQuery, setReportSearchQuery] = useState('');
@@ -137,8 +136,8 @@ const DiagnosticModuleContent = ({
   const [showDistributeDialog, setShowDistributeDialog] = useState(false);
 
   // ── WORKLIST STATE ──
-  const [worklist, setWorklist] = useState<WorklistEntry[]>(initialWorklist);
-  const [hl7Messages, setHl7Messages] = useState<Hl7Message[]>(initialHl7Messages);
+  const [worklist, setWorklist] = useState<WorklistEntry[]>([]);
+  const [hl7Messages, setHl7Messages] = useState<Hl7Message[]>([]);
   const [worklistSearchQuery, setWorklistSearchQuery] = useState('');
   const [worklistStatusFilter, setWorklistStatusFilter] = useState<string>('all');
   const [hl7DetailOpen, setHl7DetailOpen] = useState<string | null>(null);
@@ -146,10 +145,10 @@ const DiagnosticModuleContent = ({
   const [fhirEndpoint, setFhirEndpoint] = useState('https://iamed.py/fhir/R4');
 
   // ── LABORATÓRIO STATE ──
-  const [labTests, setLabTests] = useState<LabTest[]>(initialLabTests);
-  const [labOrders, setLabOrders] = useState<LabOrder[]>(initialLabOrders);
-  const [labResults, setLabResults] = useState<LabResult[]>(initialLabResults);
-  const [labAlerts, setLabAlerts] = useState<LabAlert[]>(initialLabAlerts);
+  const [labTests, setLabTests] = useState<LabTest[]>([]);
+  const [labOrders, setLabOrders] = useState<LabOrder[]>([]);
+  const [labResults, setLabResults] = useState<LabResult[]>([]);
+  const [labAlerts, setLabAlerts] = useState<LabAlert[]>([]);
   const [labOrderSearch, setLabOrderSearch] = useState('');
   const [labStatusFilter, setLabStatusFilter] = useState<string>('all');
   const [selectedLabResult, setSelectedLabResult] = useState<LabResult | null>(null);
@@ -158,6 +157,101 @@ const DiagnosticModuleContent = ({
   const [showCriticalAlert, setShowCriticalAlert] = useState(true);
   const [patientSearch, setPatientSearch] = useState('');
   const [patientDropdownOpen, setPatientDropdownOpen] = useState(false);
+  const [patientAttachments, setPatientAttachments] = useState<ClinicalAttachment[]>([]);
+  const [attachmentUrls, setAttachmentUrls] = useState<Record<string, string>>({});
+  const [selectedAttachment, setSelectedAttachment] = useState<ClinicalAttachment | null>(null);
+
+  const generateAttachmentUrls = useCallback(async (attachments: ClinicalAttachment[]) => {
+    const urls: Record<string, string> = {};
+    await Promise.all(
+      attachments.map(async (att) => {
+        try {
+          const { data } = await supabase.storage
+            .from('clinical-attachments')
+            .createSignedUrl(att.filePath, 3600);
+          if (data?.signedUrl) urls[att.id] = data.signedUrl;
+        } catch { /* ignore */ }
+      })
+    );
+    setAttachmentUrls(urls);
+  }, []);
+
+  // ── FETCH DATA FROM SUPABASE ──
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!selectedPatId) {
+        setDicomStudies([]);
+        setSelectedStudy(null);
+        setReports([]);
+        setSelectedReport(null);
+        setWorklist([]);
+        setHl7Messages([]);
+        setLabOrders([]);
+        setLabResults([]);
+        setLabAlerts([]);
+        setPatientAttachments([]);
+        setAttachmentUrls({});
+        setSelectedAttachment(null);
+        return;
+      }
+      try {
+        const [studiesRes, reportsRes, worklistRes, hl7Res, labOrdersRes, labResultsRes, labAlertsRes, attachmentsRes] = await Promise.all([
+          supabase.from('dicom_studies').select('*').eq('patient_id', selectedPatId).order('created_at', { ascending: false }),
+          supabase.from('imaging_reports').select('*').eq('patient_id', selectedPatId).order('created_at', { ascending: false }),
+          supabase.from('dicom_worklist').select('*').eq('patient_id', selectedPatId).order('scheduled_at', { ascending: false }),
+          supabase.from('hl7_messages').select('*').eq('patient_id', selectedPatId).order('received_at', { ascending: false }),
+          supabase.from('lab_orders').select('*').eq('patient_id', selectedPatId).order('created_at', { ascending: false }),
+          supabase.from('lab_results').select('*').eq('patient_id', selectedPatId).order('performed_at', { ascending: false }),
+          supabase.from('lab_alerts').select('*').eq('patient_id', selectedPatId).order('created_at', { ascending: false }),
+          supabase.from('clinical_attachments').select('*').eq('patient_id', selectedPatId).order('created_at', { ascending: false }),
+        ]);
+        setDicomStudies((studiesRes.data as DicomStudy[]) || []);
+        setSelectedStudy(null);
+        setReports((reportsRes.data as ImagingReport[]) || []);
+        setSelectedReport(null);
+        setWorklist((worklistRes.data as WorklistEntry[]) || []);
+        setHl7Messages((hl7Res.data as Hl7Message[]) || []);
+        setLabOrders((labOrdersRes.data as LabOrder[]) || []);
+        setLabResults((labResultsRes.data as LabResult[]) || []);
+        setLabAlerts((labAlertsRes.data as LabAlert[]) || []);
+        const atts = (attachmentsRes.data as ClinicalAttachment[]) || [];
+        setPatientAttachments(atts);
+        setSelectedAttachment(null);
+        generateAttachmentUrls(atts);
+      } catch {
+        setDicomStudies([]);
+        setSelectedStudy(null);
+        setReports([]);
+        setSelectedReport(null);
+        setWorklist([]);
+        setHl7Messages([]);
+        setLabOrders([]);
+        setLabResults([]);
+        setLabAlerts([]);
+        setPatientAttachments([]);
+        setAttachmentUrls({});
+        setSelectedAttachment(null);
+      }
+    };
+    fetchData();
+  }, [selectedPatId, generateAttachmentUrls]);
+
+  useEffect(() => {
+    const fetchCatalogs = async () => {
+      try {
+        const [templatesRes, labTestsRes] = await Promise.all([
+          supabase.from('report_templates').select('*').order('name'),
+          supabase.from('lab_tests').select('*').order('name'),
+        ]);
+        setTemplates((templatesRes.data as ReportTemplate[]) || []);
+        setLabTests((labTestsRes.data as LabTest[]) || []);
+      } catch {
+        setTemplates([]);
+        setLabTests([]);
+      }
+    };
+    fetchCatalogs();
+  }, []);
 
   // ── Derived lists ──
   const filteredPatients = useMemo(() => {
@@ -165,9 +259,7 @@ const DiagnosticModuleContent = ({
     const q = patientSearch.toLowerCase();
     return patients.filter(p =>
       p.name.toLowerCase().includes(q) ||
-      (p.document_number && p.document_number.toLowerCase().includes(q)) ||
-      (p.email && p.email.toLowerCase().includes(q)) ||
-      (p.phone && p.phone.includes(q))
+      (p.document_number && p.document_number.toLowerCase().includes(q))
     );
   }, [patients, patientSearch]);
 
@@ -177,7 +269,9 @@ const DiagnosticModuleContent = ({
   }, [patients, selectedPatId]);
 
   const filteredStudies = useMemo(() => {
+    if (!selectedPatId) return [];
     return dicomStudies.filter(s => {
+      if (s.patientId !== selectedPatId) return false;
       if (pacsModalityFilter !== 'all' && s.modality !== pacsModalityFilter) return false;
       if (pacsSearchQuery) {
         const q = pacsSearchQuery.toLowerCase();
@@ -185,10 +279,12 @@ const DiagnosticModuleContent = ({
       }
       return true;
     });
-  }, [dicomStudies, pacsModalityFilter, pacsSearchQuery]);
+  }, [dicomStudies, selectedPatId, pacsModalityFilter, pacsSearchQuery]);
 
   const filteredReports = useMemo(() => {
+    if (!selectedPatId) return [];
     return reports.filter(r => {
+      if (r.patientId !== selectedPatId) return false;
       if (reportStatusFilter !== 'all' && r.status !== reportStatusFilter) return false;
       if (reportSearchQuery) {
         const q = reportSearchQuery.toLowerCase();
@@ -196,10 +292,12 @@ const DiagnosticModuleContent = ({
       }
       return true;
     });
-  }, [reports, reportStatusFilter, reportSearchQuery]);
+  }, [reports, selectedPatId, reportStatusFilter, reportSearchQuery]);
 
   const filteredWorklist = useMemo(() => {
+    if (!selectedPatId) return [];
     return worklist.filter(w => {
+      if (w.patientId !== selectedPatId) return false;
       if (worklistStatusFilter !== 'all' && w.status !== worklistStatusFilter) return false;
       if (worklistSearchQuery) {
         const q = worklistSearchQuery.toLowerCase();
@@ -207,20 +305,24 @@ const DiagnosticModuleContent = ({
       }
       return true;
     });
-  }, [worklist, worklistStatusFilter, worklistSearchQuery]);
+  }, [worklist, selectedPatId, worklistStatusFilter, worklistSearchQuery]);
 
   const filteredHl7 = useMemo(() => {
+    if (!selectedPatId) return [];
     return hl7Messages.filter(m => {
+      if (m.patientId !== selectedPatId) return false;
       if (hl7SearchQuery) {
         const q = hl7SearchQuery.toLowerCase();
         return m.patientName.toLowerCase().includes(q) || m.controlId.toLowerCase().includes(q) || m.messageType.toLowerCase().includes(q);
       }
       return true;
     });
-  }, [hl7Messages, hl7SearchQuery]);
+  }, [hl7Messages, selectedPatId, hl7SearchQuery]);
 
   const filteredLabOrders = useMemo(() => {
+    if (!selectedPatId) return [];
     return labOrders.filter(o => {
+      if (o.patientId !== selectedPatId) return false;
       if (labStatusFilter !== 'all' && o.status !== labStatusFilter) return false;
       if (labOrderSearch) {
         const q = labOrderSearch.toLowerCase();
@@ -228,14 +330,48 @@ const DiagnosticModuleContent = ({
       }
       return true;
     });
-  }, [labOrders, labStatusFilter, labOrderSearch]);
+  }, [labOrders, selectedPatId, labStatusFilter, labOrderSearch]);
 
   const filteredLabAlerts = useMemo(() => {
+    if (!selectedPatId) return [];
     return labAlerts.filter(a => {
+      if (a.patientId !== selectedPatId) return false;
       if (alertFilter !== 'all' && a.severity !== alertFilter) return false;
       return true;
     });
-  }, [labAlerts, alertFilter]);
+  }, [labAlerts, selectedPatId, alertFilter]);
+
+  // ── TRANSLATED STATUS LABELS ──
+  const statusLabels = useMemo(() => ({
+    worklist: {
+      pendente: t('diag_worklist_status_pending', 'app'),
+      em_execucao: t('diag_worklist_status_in_progress', 'app'),
+      concluido: t('diag_worklist_status_completed', 'app'),
+      cancelado: t('diag_worklist_status_cancelled', 'app'),
+      nao_compareceu: t('diag_worklist_status_no_show', 'app'),
+    } as Record<string, string>,
+    labOrder: {
+      solicitado: t('diag_lab_orders_status_requested', 'app'),
+      em_coleta: t('diag_lab_orders_status_collecting', 'app'),
+      em_processamento: t('diag_lab_orders_status_processing', 'app'),
+      parcial: t('diag_lab_orders_status_partial', 'app'),
+      concluido: t('diag_lab_orders_status_completed', 'app'),
+      cancelado: t('diag_worklist_status_cancelled', 'app'),
+    } as Record<string, string>,
+    labPriority: {
+      urgente: t('diag_lab_priority_urgent', 'app'),
+      emergencia: t('diag_lab_priority_emergency', 'app'),
+      rotina: t('diag_lab_priority_routine', 'app'),
+    } as Record<string, string>,
+    labFlag: {
+      normal: t('diag_lab_flag_normal', 'app'),
+      alto: t('diag_lab_flag_high', 'app'),
+      baixo: t('diag_lab_flag_low', 'app'),
+      critico_alto: t('diag_lab_flag_critical_high', 'app'),
+      critico_baixo: t('diag_lab_flag_critical_low', 'app'),
+      indeterminado: t('diag_lab_flag_nd', 'app'),
+    } as Record<string, string>,
+  }), [t]);
 
   // ── PACS HANDLERS ──
   const handleAnnotateStudy = useCallback(async () => {
@@ -278,13 +414,13 @@ const DiagnosticModuleContent = ({
       addAuditLog('Dictado por voz finalizado', selectedReport?.id || '');
     } else {
       setVoiceActive(true);
-      setVoiceLog(prev => [...prev, `[${new Date().toLocaleTimeString('es')}] Dictado activado — vocabulario médico`]);
+      setVoiceLog(prev => [...prev, `[${new Date().toLocaleTimeString('es')}] ${t('diag_voice_activated', 'app')}`]);
       addAuditLog('Dictado por voz iniciado', selectedReport?.id || '');
       // Simulated voice transcription
       const phrases = [
-        'Se observan campos pulmonares limpios en ambas proyecciones...',
-        'Silueta cardíaca de dimensiones normales...',
-        'Ángulos costofrénicos nítidos...',
+        t('diag_voice_phrase_1', 'app'),
+        t('diag_voice_phrase_2', 'app'),
+        t('diag_voice_phrase_3', 'app'),
       ];
       let i = 0;
       const interval = setInterval(() => {
@@ -295,11 +431,11 @@ const DiagnosticModuleContent = ({
         } else {
           clearInterval(interval);
           setVoiceActive(false);
-          setVoiceLog(prev => [...prev, `[${new Date().toLocaleTimeString('es')}] Dictado completado`]);
+          setVoiceLog(prev => [...prev, `[${new Date().toLocaleTimeString('es')}] ${t('diag_voice_completed', 'app')}`]);
         }
       }, 2000);
     }
-  }, [voiceActive, selectedReport, addAuditLog]);
+  }, [voiceActive, selectedReport, addAuditLog, t]);
 
   const handleSaveReport = useCallback(async () => {
     if (!reportEditor.findings.trim()) return;
@@ -479,11 +615,11 @@ const DiagnosticModuleContent = ({
                     className={`p-3 rounded-xl border text-xs cursor-pointer transition ${selectedStudy?.id === s.id ? 'bg-teal-50 border-teal-300 shadow-sm' : 'bg-slate-50 border-slate-200 hover:bg-slate-100'}`}>
                     <div className="flex items-center justify-between mb-1">
                       <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold border ${modalityColors[s.modality]}`}>{s.modality}</span>
-                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${s.status === 'laudado' ? 'bg-green-100 text-green-700' : s.status === 'laudo_pendente' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>{s.status === 'laudado' ? 'LAUDADO' : s.status === 'laudo_pendente' ? 'PEND. LAUDO' : s.status.toUpperCase()}</span>
+                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${s.status === 'laudado' ? 'bg-green-100 text-green-700' : s.status === 'laudo_pendente' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>{s.status === 'laudado' ? t('diag_reports_status_signed', 'app') : s.status === 'laudo_pendente' ? t('diag_pacs_status_pend_laud', 'app') : s.status.toUpperCase()}</span>
                     </div>
                     <p className="font-bold text-slate-800">{s.patientName}</p>
                     <p className="text-slate-500 text-[10px]">{s.studyDescription}</p>
-                    <p className="text-slate-400 text-[9px] mt-1">ACC: {s.accessionNumber} | {s.seriesCount} series</p>
+                    <p className="text-slate-400 text-[9px] mt-1">{t('diag_dicom_label_acc', 'app')} {s.accessionNumber} | {s.seriesCount} series</p>
                   </div>
                 ))}
               </div>
@@ -505,9 +641,9 @@ const DiagnosticModuleContent = ({
                       <p className="text-xs text-slate-500">{selectedStudy.patientName} — {selectedStudy.accessionNumber}</p>
                     </div>
                     <div className="flex gap-2 items-center">
-                      <span className="text-[10px] font-bold bg-slate-100 py-1 px-2.5 rounded text-slate-600">ID: PACS-IAMED</span>
+                      <span className="text-[10px] font-bold bg-slate-100 py-1 px-2.5 rounded text-slate-600">{t('diag_pacs_id_badge', 'app')}</span>
                       <span className="text-[10px] font-bold bg-teal-50 text-teal-700 py-1 px-2.5 rounded border border-teal-100 flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 bg-teal-500 rounded-full animate-pulse" /> ONLINE
+                        <span className="w-1.5 h-1.5 bg-teal-500 rounded-full animate-pulse" /> {t('diag_pacs_online', 'app')}
                       </span>
                       <span className="text-[10px] bg-slate-100 text-slate-500 py-1 px-2 rounded">{selectedStudy.vendor || 'Siemens'}</span>
                     </div>
@@ -516,7 +652,7 @@ const DiagnosticModuleContent = ({
                   {/* DICOM Viewer */}
                     <div className="relative bg-black rounded-lg flex items-center justify-center overflow-hidden border border-slate-800 h-[380px] select-none">
                       <Image
-                        src={selectedStudy.thumbnailUrl || 'https://picsum.photos/seed/xray/600/400'}
+                        src={resolveStudyImageUrl(selectedStudy.studyInstanceUID, selectedStudy.thumbnailUrl)}
                         alt="DICOM Study"
                         referrerPolicy="no-referrer"
                         fill
@@ -530,18 +666,18 @@ const DiagnosticModuleContent = ({
 
                     {/* Patient info overlay */}
                     <div className="absolute top-3 left-3 bg-black/80 p-2 rounded-md font-mono text-[9px] text-teal-400 space-y-0.5 pointer-events-none">
-                      <p>NOMBRE: {selectedStudy.patientName.toUpperCase()}</p>
-                      <p>ESTUDIO: {selectedStudy.studyDescription}</p>
-                      <p>ACC: {selectedStudy.accessionNumber}</p>
-                      <p>MODALIDAD: {selectedStudy.modalityName || selectedStudy.modality}</p>
-                      <p>ESTACIÓN: {selectedStudy.stationName}</p>
-                      <p>SERIES: {selectedStudy.seriesCount} | INSTANCIAS: {selectedStudy.instanceCount}</p>
+                      <p>{t('diag_dicom_label_name', 'app')} {selectedStudy.patientName.toUpperCase()}</p>
+                      <p>{t('diag_dicom_label_study', 'app')} {selectedStudy.studyDescription}</p>
+                      <p>{t('diag_dicom_label_acc', 'app')} {selectedStudy.accessionNumber}</p>
+                      <p>{t('diag_dicom_label_modality', 'app')} {selectedStudy.modalityName || selectedStudy.modality}</p>
+                      <p>{t('diag_dicom_label_station', 'app')} {selectedStudy.stationName}</p>
+                      <p>{t('diag_dicom_label_series', 'app')} {selectedStudy.seriesCount} | {t('diag_dicom_label_instances', 'app')} {selectedStudy.instanceCount}</p>
                     </div>
 
                     {/* Window/Level overlay */}
                     <div className="absolute top-3 right-3 bg-black/80 p-2 rounded-md font-mono text-[9px] text-amber-400 pointer-events-none">
-                      <p>W: {windowLevel.width} L: {windowLevel.center}</p>
-                      <p>ZOOM: {imageZoom}% | ROT: {imageRotation}°</p>
+                      <p>{t('diag_dicom_window', 'app')} {windowLevel.width} {t('diag_dicom_level', 'app')} {windowLevel.center}</p>
+                      <p>{t('diag_dicom_zoom', 'app')} {imageZoom}% | {t('diag_dicom_rotation', 'app')} {imageRotation}°</p>
                     </div>
 
                     {/* Measurements overlay */}
@@ -634,7 +770,7 @@ const DiagnosticModuleContent = ({
                       </h5>
                       <div className="flex gap-2">
                         <button onClick={() => {
-                          const url = selectedStudy.thumbnailUrl || `https://picsum.photos/seed/${selectedStudy.id}/600/400`;
+                          const url = resolveStudyImageUrl(selectedStudy.studyInstanceUID, selectedStudy.thumbnailUrl);
                           setSelectedKeyImages(prev => prev.includes(url) ? prev : [...prev, url]);
                         }} className="flex-1 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded text-[10px] font-bold border border-indigo-200 transition">
                           {t('diag_pacs_add_key_image', 'app')}
@@ -679,7 +815,7 @@ const DiagnosticModuleContent = ({
                           <p className="text-[9px] font-bold text-slate-500 uppercase text-center">{plane.label}</p>
                           <div className="relative bg-black rounded-lg overflow-hidden border border-slate-700 h-[160px] flex items-center justify-center">
                             <Image
-                              src={selectedStudy.thumbnailUrl || 'https://picsum.photos/seed/xray/600/400'}
+                              src={resolveStudyImageUrl(selectedStudy.studyInstanceUID, selectedStudy.thumbnailUrl)}
                               alt={plane.label}
                               fill
                               className="object-cover"
@@ -706,7 +842,7 @@ const DiagnosticModuleContent = ({
                     <div><span className="font-bold text-slate-500">{t('diag_pacs_referring', 'app')}</span> <span className="text-slate-700">{selectedStudy.referringPhysician}</span></div>
                     <div><span className="font-bold text-slate-500">{t('diag_pacs_equipment', 'app')}</span> <span className="text-slate-700">{selectedStudy.stationName} ({selectedStudy.vendor})</span></div>
                     <div><span className="font-bold text-slate-500">{t('diag_pacs_scheduled', 'app')}</span> <span className="text-slate-700">{selectedStudy.scheduledAt ? new Date(selectedStudy.scheduledAt).toLocaleString('es') : 'N/A'}</span></div>
-                    <div><span className="font-bold text-slate-500">UID:</span> <span className="text-[9px] font-mono text-slate-500 break-all">{selectedStudy.studyInstanceUID}</span></div>
+                    <div><span className="font-bold text-slate-500">{t('diag_dicom_uid', 'app')}</span> <span className="text-[9px] font-mono text-slate-500 break-all">{selectedStudy.studyInstanceUID}</span></div>
                   </div>
                 </div>
               </>
@@ -716,6 +852,88 @@ const DiagnosticModuleContent = ({
                 <p className="text-sm font-bold">{t('diag_pacs_select', 'app')}</p>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {patientAttachments.length > 0 && (
+        <div className={sectionCls}>
+          <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+            <FileText className="w-5 h-5 text-indigo-600" />
+            <h3 className="font-bold text-slate-800 text-sm">{t('diag_attachments_title', 'app')}</h3>
+            <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-indigo-100 text-indigo-700">{patientAttachments.length}</span>
+          </div>
+          <p className="text-[10px] text-slate-500">{t('diag_attachments_subtitle', 'app')}</p>
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+            {patientAttachments.map(att => (
+              <div
+                key={att.id}
+                onClick={() => setSelectedAttachment(att)}
+                className="border border-slate-200 rounded-lg p-2 hover:border-indigo-400 cursor-pointer transition bg-white"
+                title={att.description}
+              >
+                <div className="aspect-square bg-slate-50 rounded mb-1 overflow-hidden flex items-center justify-center relative">
+                  {attachmentUrls[att.id] && att.mimeType.startsWith('image/') ? (
+                    <Image
+                      src={attachmentUrls[att.id]}
+                      alt={att.fileName}
+                      fill
+                      className="object-cover"
+                      unoptimized
+                    />
+                  ) : (
+                    <FileText className="w-8 h-8 text-slate-400" />
+                  )}
+                </div>
+                <p className="text-[10px] font-bold text-slate-700 truncate">{att.fileName}</p>
+                <p className="text-[9px] text-slate-500 truncate">{att.category}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Attachment preview modal */}
+      {selectedAttachment && attachmentUrls[selectedAttachment.id] && (
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={() => setSelectedAttachment(null)}>
+          <div className="bg-white rounded-xl max-w-4xl max-h-[90vh] w-full overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center p-3 border-b border-slate-200">
+              <h4 className="font-bold text-slate-800 text-sm">{selectedAttachment.fileName}</h4>
+              <button onClick={() => setSelectedAttachment(null)} className="text-slate-400 hover:text-slate-700">
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-auto p-3 bg-slate-50">
+              {selectedAttachment.mimeType.startsWith('image/') ? (
+                <div className="relative w-full h-[70vh]">
+                  <Image
+                    src={attachmentUrls[selectedAttachment.id]}
+                    alt={selectedAttachment.fileName}
+                    fill
+                    className="object-contain"
+                    unoptimized
+                  />
+                </div>
+              ) : selectedAttachment.mimeType === 'application/pdf' ? (
+                <iframe
+                  src={attachmentUrls[selectedAttachment.id]}
+                  className="w-full h-[70vh] border-0"
+                  title={selectedAttachment.fileName}
+                />
+              ) : (
+                <div className="text-center py-8">
+                  <FileText className="w-12 h-12 mx-auto text-slate-400 mb-3" />
+                  <p className="text-sm font-bold text-slate-700">{selectedAttachment.fileName}</p>
+                  <a
+                    href={attachmentUrls[selectedAttachment.id]}
+                    download={selectedAttachment.fileName}
+                    className="inline-block mt-3 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg"
+                  >
+                    {t('diag_attachments_download', 'app')}
+                  </a>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -940,7 +1158,7 @@ const DiagnosticModuleContent = ({
                       <td className="p-2 text-slate-600">{w.requestedProcedureDescription}</td>
                       <td className="p-2 text-slate-600">{w.referringPhysician}</td>
                       <td className="p-2 text-slate-500 max-w-[150px] truncate">{w.clinicalIndication}</td>
-                      <td className="p-2"><span className={`px-2 py-0.5 rounded text-[9px] font-bold ${worklistStatusColors[w.status]}`}>{w.status === 'em_execucao' ? 'EN PROCESO' : w.status === 'concluido' ? 'COMPLETADO' : w.status.toUpperCase()}</span></td>
+                      <td className="p-2"><span className={`px-2 py-0.5 rounded text-[9px] font-bold ${worklistStatusColors[w.status]}`}>{statusLabels.worklist[w.status] || w.status.toUpperCase()}</span></td>
                       <td className="p-2">
                         <div className="flex gap-1">
                           {w.status === 'pendente' && <button onClick={() => handleUpdateWorklist(w.id, 'em_execucao')} className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-[9px] font-bold">{t('diag_worklist_start', 'app')}</button>}
@@ -991,7 +1209,7 @@ const DiagnosticModuleContent = ({
                       </button>
                     </div>
                   </div>
-                  <p className="text-[9px] text-slate-400 mt-1">ID: {m.controlId} | {m.direction} | Recibido: {new Date(m.receivedAt).toLocaleString('es')}</p>
+                  <p className="text-[9px] text-slate-400 mt-1">{t('diag_hl7_metadata_id', 'app')} {m.controlId} | {m.direction} | {t('diag_hl7_metadata_received', 'app')} {new Date(m.receivedAt).toLocaleString('es')}</p>
                   {hl7DetailOpen === m.id && (
                     <div className="mt-2 p-2 bg-slate-900 text-green-400 rounded-lg font-mono text-[8px] max-h-[120px] overflow-y-auto whitespace-pre-wrap leading-relaxed">{m.rawMessage}</div>
                   )}
@@ -1077,7 +1295,7 @@ const DiagnosticModuleContent = ({
                   </div>
                   <p className="mt-1 text-[10px]">{a.message}</p>
                   <div className="flex items-center justify-between mt-1">
-                    <p className="text-[9px]">Paciente: {a.patientName} | Notificado a: {a.notifiedTo.join(', ')}</p>
+                    <p className="text-[9px]">{t('diag_lab_field_patient', 'app')} {a.patientName} | {t('diag_lab_notified_to', 'app')} {a.notifiedTo.join(', ')}</p>
                     {!a.acknowledgedAt && (
                       <button onClick={() => handleAckAlert(a.id)} className="bg-white/50 hover:bg-white px-2 py-0.5 rounded text-[9px] font-bold transition">
                         <Check className="w-3 h-3 inline mr-0.5" /> {t('diag_lab_alerts_confirm', 'app')}
@@ -1117,26 +1335,26 @@ const DiagnosticModuleContent = ({
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-slate-800">{order.orderNumber}</span>
-                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${labStatusColors[order.status]}`}>{order.status.toUpperCase()}</span>
-                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${order.priority === 'urgente' ? 'bg-red-100 text-red-700 border border-red-200' : order.priority === 'emergencia' ? 'bg-red-200 text-red-800 border border-red-300 animate-pulse' : 'bg-slate-100 text-slate-600'}`}>{order.priority.toUpperCase()}</span>
+                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${labStatusColors[order.status]}`}>{statusLabels.labOrder[order.status] || order.status.toUpperCase()}</span>
+                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${order.priority === 'urgente' ? 'bg-red-100 text-red-700 border border-red-200' : order.priority === 'emergencia' ? 'bg-red-200 text-red-800 border border-red-300 animate-pulse' : 'bg-slate-100 text-slate-600'}`}>{statusLabels.labPriority[order.priority] || order.priority.toUpperCase()}</span>
                     </div>
                     <span className="text-[9px] text-slate-400">{new Date(order.createdAt).toLocaleString('es')}</span>
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-[10px]">
-                    <p className="text-slate-600"><span className="font-bold">Paciente:</span> {order.patientName}</p>
-                    <p className="text-slate-600"><span className="font-bold">Solicitante:</span> {order.requestingPhysician}</p>
-                    <p className="text-slate-600"><span className="font-bold">Seguro:</span> {order.insuranceType}</p>
-                    <p className="text-slate-600"><span className="font-bold">Colecta:</span> {order.collectedAt ? new Date(order.collectedAt).toLocaleString('es') : 'Pendiente'}</p>
+                    <p className="text-slate-600"><span className="font-bold">{t('diag_lab_field_patient', 'app')}</span> {order.patientName}</p>
+                    <p className="text-slate-600"><span className="font-bold">{t('diag_lab_field_requester', 'app')}</span> {order.requestingPhysician}</p>
+                    <p className="text-slate-600"><span className="font-bold">{t('diag_lab_field_insurance', 'app')}</span> {order.insuranceType}</p>
+                    <p className="text-slate-600"><span className="font-bold">{t('diag_lab_field_collection', 'app')}</span> {order.collectedAt ? new Date(order.collectedAt).toLocaleString('es') : t('diag_lab_pending', 'app')}</p>
                   </div>
                   {/* Order items */}
                   <div className="border border-slate-100 rounded-lg overflow-hidden">
                     <table className="w-full text-[9px]">
                       <thead>
                         <tr className="bg-slate-100 border-b border-slate-200">
-                          <th className="text-left p-1.5 font-bold text-slate-600">Código</th>
-                          <th className="text-left p-1.5 font-bold text-slate-600">Examen</th>
-                          <th className="text-left p-1.5 font-bold text-slate-600">Muestra</th>
-                          <th className="text-left p-1.5 font-bold text-slate-600">Estado</th>
+                          <th className="text-left p-1.5 font-bold text-slate-600">{t('diag_lab_header_code', 'app')}</th>
+                          <th className="text-left p-1.5 font-bold text-slate-600">{t('diag_lab_header_exam', 'app')}</th>
+                          <th className="text-left p-1.5 font-bold text-slate-600">{t('diag_lab_header_sample', 'app')}</th>
+                          <th className="text-left p-1.5 font-bold text-slate-600">{t('diag_lab_header_status', 'app')}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1151,7 +1369,7 @@ const DiagnosticModuleContent = ({
                       </tbody>
                     </table>
                   </div>
-                  {order.observations && <p className="text-[10px] text-slate-500 italic">Obs: {order.observations}</p>}
+                  {order.observations && <p className="text-[10px] text-slate-500 italic">{t('diag_lab_obs', 'app')} {order.observations}</p>}
                 </div>
               ))}
             </div>
@@ -1192,7 +1410,7 @@ const DiagnosticModuleContent = ({
                       <td className="p-2 text-slate-500">{r.referenceLow} - {r.referenceHigh} {r.unit}</td>
                       <td className="p-2">
                         <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold border ${flagColors[r.flag]}`}>
-                          {r.flag === 'normal' ? 'NORMAL' : r.flag === 'alto' ? '▲ ALTO' : r.flag === 'baixo' ? '▼ BAJO' : r.flag === 'critico_alto' ? '▲▲ CRÍTICO ↑' : r.flag === 'critico_baixo' ? '▼▼ CRÍTICO ↓' : 'N/D'}
+                          {statusLabels.labFlag[r.flag] || t('diag_lab_flag_nd', 'app')}
                         </span>
                       </td>
                       <td className="p-2 text-slate-400 text-[9px]">{r.equipment}</td>
@@ -1242,7 +1460,7 @@ const DiagnosticModuleContent = ({
                         <span className="flex items-center gap-1"><span className="w-2 h-2 bg-green-400 rounded-full" /> {t('diag_lab_normal', 'app')}</span>
                         <span className="flex items-center gap-1"><span className="w-2 h-2 bg-amber-400 rounded-full" /> {t('diag_lab_altered', 'app')}</span>
                         <span className="flex items-center gap-1"><span className="w-2 h-2 bg-red-400 rounded-full" /> {t('diag_lab_critical', 'app')}</span>
-                        <span className="text-slate-500">Ref: {selectedLabResult.referenceLow} - {selectedLabResult.referenceHigh} {selectedLabResult.unit}</span>
+                        <span className="text-slate-500">{t('diag_lab_reference', 'app')} {selectedLabResult.referenceLow} - {selectedLabResult.referenceHigh} {selectedLabResult.unit}</span>
                       </div>
                     </div>
                   );

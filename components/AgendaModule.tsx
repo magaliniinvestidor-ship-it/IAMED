@@ -422,6 +422,18 @@ const AgendaModuleContent = ({
   const [showPatientDropdown, setShowPatientDropdown] = useState(false);
   const [importingHospitalPatient, setImportingHospitalPatient] = useState(false);
 
+  // Patient search in WhatsApp reminder modal
+  const [reminderPatientSearchQuery, setReminderPatientSearchQuery] = useState('');
+  const [showReminderPatientDropdown, setShowReminderPatientDropdown] = useState(false);
+
+  // Patient search in Waitlist modal
+  const [wlPatientSearchQuery, setWlPatientSearchQuery] = useState('');
+  const [showWlPatientDropdown, setShowWlPatientDropdown] = useState(false);
+
+  // Patient search in Call Center modal
+  const [callPatientSearchQuery, setCallPatientSearchQuery] = useState('');
+  const [showCallPatientDropdown, setShowCallPatientDropdown] = useState(false);
+
   // Tabs
   const [activeTab, setActiveTab] = useState<'register' | 'calendar' | 'whatsapp' | 'waitlist' | 'callcenter'>('register');
 
@@ -666,6 +678,11 @@ const AgendaModuleContent = ({
   // MERGED PATIENT LIST (clinic_patients + patients from hospital)
   // ============================================================
   const mergedPatientList = useMemo(() => {
+    const normalizeGender = (g: string) => {
+      if (g === 'M') return t('rcpt_gender_male', 'app');
+      if (g === 'F') return t('rcpt_gender_female', 'app');
+      return g || '';
+    };
     const clinicDocs = new Set(clinicPatients.map(cp => cp.document_number).filter(Boolean));
     const hospitalOnly = patients
       .filter(p => {
@@ -678,7 +695,7 @@ const AgendaModuleContent = ({
         document_type: p.document_type || 'CI',
         document_number: p.document_number || '',
         birth_date: p.birthdate || '',
-        gender: p.gender || '',
+        gender: normalizeGender(p.gender || ''),
         nationality: p.nationality || '',
         civil_status: p.civil_status || '',
         photo_url: p.photo_url || null,
@@ -709,7 +726,7 @@ const AgendaModuleContent = ({
       }));
     const clinic = clinicPatients.map(cp => ({ ...cp, _source: 'clinic' as const }));
     return [...clinic, ...hospitalOnly];
-  }, [clinicPatients, patients]);
+  }, [clinicPatients, patients, t]);
 
   const handleImportHospitalPatient = useCallback(async (hospitalPatient: typeof mergedPatientList[0]) => {
     setImportingHospitalPatient(true);
@@ -4331,15 +4348,14 @@ const AgendaModuleContent = ({
             {newApptForm.insurance_type && (
               <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
                 <p className="text-sm font-bold text-blue-700 mb-1">{t('agenda_quota_modality_title', 'app').replace('{insurance}', newApptForm.insurance_type)}</p>
-                  <p className="text-xs text-blue-500 mb-1">{newApptForm.date ? t('agenda_quota_scope_day', 'app').replace('{date}', newApptForm.date) : t('agenda_quota_scope_all', 'app')}</p>
+                  <p className="text-xs text-blue-500 mb-1">{newApptForm.date ? t('agenda_quota_scope_day', 'app').replace('{date}', new Date(newApptForm.date + 'T12:00:00').toLocaleDateString(locale, { day: 'numeric', month: 'long', year: 'numeric' })) : t('agenda_quota_scope_all', 'app')}</p>
                 <div className="flex gap-4">
                   {(() => {
                     const ins = insuranceTypeOptions.find(i => i.value === newApptForm.insurance_type);
                     if (!ins) return null;
                     const activeStatuses = ['agendado', 'confirmado', 'pendente', 'em sala de espera', 'em atendimento', 'atendido', 'finalizado'];
-                    const quotaInScope = (a: { insurance_type?: string | null; modality?: string | null; date?: string | null; patient_id?: string | null; status?: string | null }) =>
+                    const quotaInScope = (a: { insurance_type?: string | null; modality?: string | null; date?: string | null; status?: string | null }) =>
                       a.insurance_type === newApptForm.insurance_type &&
-                      a.patient_id === newApptForm.patient_id &&
                       (!newApptForm.date || a.date === newApptForm.date) &&
                       !!a.status && activeStatuses.includes(a.status);
                     const presencialCount = appointments.filter(a => quotaInScope(a) && a.modality === 'Presencial').length;
@@ -4574,23 +4590,78 @@ const AgendaModuleContent = ({
       </InlineModal>
 
       {/* WhatsApp Reminder Modal */}
-      <InlineModal open={showReminderModal} onClose={() => { setShowReminderModal(false); setReminderForm({ patient_id: '', patient_name: '', patient_phone: '', appointment_id: '', language: '', template_id: '' }); }} className="max-w-md">
+      <InlineModal open={showReminderModal} onClose={() => { setShowReminderModal(false); setReminderForm({ patient_id: '', patient_name: '', patient_phone: '', appointment_id: '', language: '', template_id: '' }); setReminderPatientSearchQuery(''); setShowReminderPatientDropdown(false); }} className="max-w-md">
         <div className="p-6">
           <form onSubmit={handleReminderSubmit} className="space-y-4" noValidate>
             <h3 className="font-bold text-lg">{t('agenda_schedule_reminder_title', 'app')}</h3>
-            <div>
+            <div className="relative">
               <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_patient', 'app')}</label>
-              <select value={reminderForm.patient_id} onChange={e => {
-                const p = clinicPatients.find(p => p.id === e.target.value);
-                const preferredLang = p?.preferred_language || '';
-                const reminderLang = ['pt-BR', 'pt-PT', 'es-AR', 'es-PY', 'es', 'en', 'gn'].includes(preferredLang)
-                  ? preferredLang as typeof reminderForm.language
-                  : detectLanguage(p?.nationality);
-                setReminderForm({ ...reminderForm, patient_id: e.target.value, patient_name: p?.name || '', patient_phone: p?.phone || '', appointment_id: '', language: reminderLang });
-              }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg" required>
-                <option value="">{t('agenda_select_patient', 'app')}</option>
-                {clinicPatients.map(p => <option key={p.id} value={p.id}>{p.name} ({p.phone})</option>)}
-              </select>
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 mt-5" />
+              <input
+                type="text"
+                value={reminderForm.patient_name || reminderPatientSearchQuery}
+                onChange={e => {
+                  setReminderPatientSearchQuery(e.target.value);
+                  setShowReminderPatientDropdown(true);
+                  if (reminderForm.patient_id) {
+                    setReminderForm({ ...reminderForm, patient_id: '', patient_name: '', patient_phone: '', appointment_id: '', language: '' });
+                  }
+                }}
+                onFocus={() => { setShowReminderPatientDropdown(true); setReminderPatientSearchQuery(''); }}
+                placeholder={t('agenda_search_patient', 'app')}
+                className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg"
+              />
+              {reminderForm.patient_id && (
+                <button type="button" onClick={() => { setReminderForm({ ...reminderForm, patient_id: '', patient_name: '', patient_phone: '', appointment_id: '', language: '' }); setReminderPatientSearchQuery(''); }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 mt-5">
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+              {showReminderPatientDropdown && !reminderForm.patient_id && (
+                <div className="absolute z-50 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                  {mergedPatientList.filter(item => {
+                    if (!reminderPatientSearchQuery) return true;
+                    const q = reminderPatientSearchQuery.toLowerCase();
+                    return item.name.toLowerCase().includes(q) || (item.document_number && item.document_number.includes(q)) || (item.phone && item.phone.includes(q));
+                  }).slice(0, 20).map(item => (
+                    <button key={`${item._source}-${item.id}`} type="button"
+                      onClick={() => {
+                        const preferredLang = item.preferred_language || '';
+                        const reminderLang = ['pt-BR', 'pt-PT', 'es-AR', 'es-PY', 'es', 'en', 'gn'].includes(preferredLang)
+                          ? preferredLang as typeof reminderForm.language
+                          : detectLanguage(item.nationality);
+                        setReminderForm({ ...reminderForm, patient_id: item.id, patient_name: item.name, patient_phone: item.phone || '', appointment_id: '', language: reminderLang });
+                        setShowReminderPatientDropdown(false);
+                        setReminderPatientSearchQuery('');
+                      }}
+                      className="w-full px-4 py-3 text-left hover:bg-teal-50 flex items-center gap-3 border-b border-slate-100 last:border-0 transition">
+                      <div className={`rounded-full flex items-center justify-center font-bold shrink-0 ${item._source === 'hospital' ? 'bg-amber-100 text-amber-700' : 'bg-teal-100 text-teal-700'}`}
+                        style={{ width: 32, height: 32, fontSize: 10 }}>
+                        {item._source === 'hospital' ? 'H' : item.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-sm text-slate-800 truncate">{item.name}</p>
+                        <p className="text-xs text-slate-500">{item.document_type}: {item.document_number || '-'} {item.phone ? `| ${item.phone}` : ''}</p>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {item._source === 'hospital' && <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-amber-100 text-amber-700">{t('agenda_source_hospital', 'app')}</span>}
+                      </div>
+                    </button>
+                  ))}
+                  {mergedPatientList.filter(item => {
+                    if (!reminderPatientSearchQuery) return true;
+                    const q = reminderPatientSearchQuery.toLowerCase();
+                    return item.name.toLowerCase().includes(q) || (item.document_number && item.document_number.includes(q)) || (item.phone && item.phone.includes(q));
+                  }).length === 0 && (
+                    <div className="px-4 py-6 text-center">
+                      <p className="text-sm text-slate-500">{t('agenda_no_patient_found', 'app')}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+              {showReminderPatientDropdown && (
+                <div className="fixed inset-0 z-40" onClick={() => setShowReminderPatientDropdown(false)} />
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-600 mb-1">{t('agenda_linked_appointment', 'app')}</label>
@@ -4653,19 +4724,76 @@ const AgendaModuleContent = ({
       </InlineModal>
 
       {/* Waitlist Modal */}
-      <InlineModal open={showWaitlistModal} onClose={() => { setShowWaitlistModal(false); clearWlErrors(); setWaitlistForm({ patient_id: '', patient_name: '', phone: '', branch: '', specialty: '', doctor_name: '', priority_criteria: 'arrival', preferred_days: [], preferred_hours: [] }); }} className="max-w-md">
+      <InlineModal open={showWaitlistModal} onClose={() => { setShowWaitlistModal(false); clearWlErrors(); setWaitlistForm({ patient_id: '', patient_name: '', phone: '', branch: '', specialty: '', doctor_name: '', priority_criteria: 'arrival', preferred_days: [], preferred_hours: [] }); setWlPatientSearchQuery(''); setShowWlPatientDropdown(false); }} className="max-w-md">
         <div className="p-6">
           <form onSubmit={handleWaitlistSubmit} className="space-y-4" noValidate>
             <h3 className="font-bold text-lg">{t('agenda_add_to_waitlist_title', 'app')}</h3>
             {wlErrors.length > 0 && <FormErrorSummary errors={wlErrors} />}
             <FormField label={t('agenda_patient', 'app')} required error={wlFieldErrors.patient_id}>
-              <select value={waitlistForm.patient_id} onChange={e => {
-                const p = clinicPatients.find(p => p.id === e.target.value);
-                setWaitlistForm({ ...waitlistForm, patient_id: e.target.value, patient_name: p?.name || '', phone: p?.phone || '' });
-              }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
-                <option value="">{t('agenda_select_patient', 'app')}</option>
-                {clinicPatients.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  type="text"
+                  value={waitlistForm.patient_name || wlPatientSearchQuery}
+                  onChange={e => {
+                    setWlPatientSearchQuery(e.target.value);
+                    setShowWlPatientDropdown(true);
+                    if (waitlistForm.patient_id) {
+                      setWaitlistForm({ ...waitlistForm, patient_id: '', patient_name: '', phone: '' });
+                    }
+                  }}
+                  onFocus={() => { setShowWlPatientDropdown(true); setWlPatientSearchQuery(''); }}
+                  placeholder={t('agenda_search_patient', 'app')}
+                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg"
+                />
+                {waitlistForm.patient_id && (
+                  <button type="button" onClick={() => { setWaitlistForm({ ...waitlistForm, patient_id: '', patient_name: '', phone: '' }); setWlPatientSearchQuery(''); }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+                {showWlPatientDropdown && !waitlistForm.patient_id && (
+                  <div className="absolute z-50 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                    {mergedPatientList.filter(item => {
+                      if (!wlPatientSearchQuery) return true;
+                      const q = wlPatientSearchQuery.toLowerCase();
+                      return item.name.toLowerCase().includes(q) || (item.document_number && item.document_number.includes(q)) || (item.phone && item.phone.includes(q));
+                    }).slice(0, 20).map(item => (
+                      <button key={`${item._source}-${item.id}`} type="button"
+                        onClick={() => {
+                          setWaitlistForm({ ...waitlistForm, patient_id: item.id, patient_name: item.name, phone: item.phone || '' });
+                          setShowWlPatientDropdown(false);
+                          setWlPatientSearchQuery('');
+                        }}
+                        className="w-full px-4 py-3 text-left hover:bg-teal-50 flex items-center gap-3 border-b border-slate-100 last:border-0 transition">
+                        <div className={`rounded-full flex items-center justify-center font-bold shrink-0 ${item._source === 'hospital' ? 'bg-amber-100 text-amber-700' : 'bg-teal-100 text-teal-700'}`}
+                          style={{ width: 32, height: 32, fontSize: 10 }}>
+                          {item._source === 'hospital' ? 'H' : item.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-sm text-slate-800 truncate">{item.name}</p>
+                          <p className="text-xs text-slate-500">{item.document_type}: {item.document_number || '-'} {item.phone ? `| ${item.phone}` : ''}</p>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          {item._source === 'hospital' && <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-amber-100 text-amber-700">{t('agenda_source_hospital', 'app')}</span>}
+                        </div>
+                      </button>
+                    ))}
+                    {mergedPatientList.filter(item => {
+                      if (!wlPatientSearchQuery) return true;
+                      const q = wlPatientSearchQuery.toLowerCase();
+                      return item.name.toLowerCase().includes(q) || (item.document_number && item.document_number.includes(q)) || (item.phone && item.phone.includes(q));
+                    }).length === 0 && (
+                      <div className="px-4 py-6 text-center">
+                        <p className="text-sm text-slate-500">{t('agenda_no_patient_found', 'app')}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {showWlPatientDropdown && (
+                  <div className="fixed inset-0 z-40" onClick={() => setShowWlPatientDropdown(false)} />
+                )}
+              </div>
             </FormField>
             <FormField label={t('agenda_branch', 'app')} required error={wlFieldErrors.branch}>
               <select value={waitlistForm.branch} onChange={e => {
@@ -5006,7 +5134,7 @@ const AgendaModuleContent = ({
       </InlineModal>
 
       {/* Call Center Modal */}
-      <InlineModal open={showCallModal} onClose={() => { setShowCallModal(false); clearCallLogErrors(); setCallForm({ operator_name: activeOperator, patient_id: '', patient_name: '', patient_phone: '', type: '', reason: '', notes: '', duration_seconds: 0, forwarded_to: '' }); }} className="max-w-md">
+      <InlineModal open={showCallModal} onClose={() => { setShowCallModal(false); clearCallLogErrors(); setCallForm({ operator_name: activeOperator, patient_id: '', patient_name: '', patient_phone: '', type: '', reason: '', notes: '', duration_seconds: 0, forwarded_to: '' }); setCallPatientSearchQuery(''); setShowCallPatientDropdown(false); }} className="max-w-md">
         <div className="p-6">
           <form onSubmit={handleCallSubmit} className="space-y-4" noValidate>
             <h3 className="font-bold text-lg">{t('agenda_register_call_title', 'app')}</h3>
@@ -5018,13 +5146,70 @@ const AgendaModuleContent = ({
             )}
             {callLogFormErrors.length > 0 && <FormErrorSummary errors={callLogFormErrors} />}
             <FormField label={t('agenda_patient', 'app')} required error={callLogFieldErrors.patient_id}>
-              <select value={callForm.patient_id} onChange={e => {
-                const p = clinicPatients.find(p => p.id === e.target.value);
-                setCallForm({ ...callForm, patient_id: e.target.value, patient_name: p?.name || '', patient_phone: p?.phone || '' });
-              }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
-                <option value="">{t('agenda_select_patient', 'app')}</option>
-                {clinicPatients.map(p => <option key={p.id} value={p.id}>{p.name} ({p.phone})</option>)}
-              </select>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  type="text"
+                  value={callForm.patient_name || callPatientSearchQuery}
+                  onChange={e => {
+                    setCallPatientSearchQuery(e.target.value);
+                    setShowCallPatientDropdown(true);
+                    if (callForm.patient_id) {
+                      setCallForm({ ...callForm, patient_id: '', patient_name: '', patient_phone: '' });
+                    }
+                  }}
+                  onFocus={() => { setShowCallPatientDropdown(true); setCallPatientSearchQuery(''); }}
+                  placeholder={t('agenda_search_patient', 'app')}
+                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg"
+                />
+                {callForm.patient_id && (
+                  <button type="button" onClick={() => { setCallForm({ ...callForm, patient_id: '', patient_name: '', patient_phone: '' }); setCallPatientSearchQuery(''); }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+                {showCallPatientDropdown && !callForm.patient_id && (
+                  <div className="absolute z-50 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                    {mergedPatientList.filter(item => {
+                      if (!callPatientSearchQuery) return true;
+                      const q = callPatientSearchQuery.toLowerCase();
+                      return item.name.toLowerCase().includes(q) || (item.document_number && item.document_number.includes(q)) || (item.phone && item.phone.includes(q));
+                    }).slice(0, 20).map(item => (
+                      <button key={`${item._source}-${item.id}`} type="button"
+                        onClick={() => {
+                          setCallForm({ ...callForm, patient_id: item.id, patient_name: item.name, patient_phone: item.phone || '' });
+                          setShowCallPatientDropdown(false);
+                          setCallPatientSearchQuery('');
+                        }}
+                        className="w-full px-4 py-3 text-left hover:bg-teal-50 flex items-center gap-3 border-b border-slate-100 last:border-0 transition">
+                        <div className={`rounded-full flex items-center justify-center font-bold shrink-0 ${item._source === 'hospital' ? 'bg-amber-100 text-amber-700' : 'bg-teal-100 text-teal-700'}`}
+                          style={{ width: 32, height: 32, fontSize: 10 }}>
+                          {item._source === 'hospital' ? 'H' : item.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-sm text-slate-800 truncate">{item.name}</p>
+                          <p className="text-xs text-slate-500">{item.document_type}: {item.document_number || '-'} {item.phone ? `| ${item.phone}` : ''}</p>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          {item._source === 'hospital' && <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-amber-100 text-amber-700">{t('agenda_source_hospital', 'app')}</span>}
+                        </div>
+                      </button>
+                    ))}
+                    {mergedPatientList.filter(item => {
+                      if (!callPatientSearchQuery) return true;
+                      const q = callPatientSearchQuery.toLowerCase();
+                      return item.name.toLowerCase().includes(q) || (item.document_number && item.document_number.includes(q)) || (item.phone && item.phone.includes(q));
+                    }).length === 0 && (
+                      <div className="px-4 py-6 text-center">
+                        <p className="text-sm text-slate-500">{t('agenda_no_patient_found', 'app')}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {showCallPatientDropdown && (
+                  <div className="fixed inset-0 z-40" onClick={() => setShowCallPatientDropdown(false)} />
+                )}
+              </div>
             </FormField>
             <div className="grid grid-cols-2 gap-4">
               <FormField label={t('agenda_type', 'app')} required error={callLogFieldErrors.type}>
