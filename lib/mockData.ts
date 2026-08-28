@@ -2057,6 +2057,9 @@ export const initialDicomStudies: DicomStudy[] = [
   },
 ];
 
+// Estudos DICOM de demonstração (para visualização/apresentação da aba PACS).
+// Servem de fallback quando não há estudos reais registrados no banco para o
+// paciente selecionado (ou quando nenhum paciente é selecionado).
 export const initialWorklist: WorklistEntry[] = [
   {
     id: 'wl_1', stepId: 'STEP-001', patientId: 'pat_1', patientName: 'Carlos Eduardo Almeida',

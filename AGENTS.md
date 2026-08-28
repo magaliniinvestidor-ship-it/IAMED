@@ -130,7 +130,7 @@ id = `surg_${Date.now()}`;
 | **Estoque & Farmácia** | `pharm` (Produtos), `lot` (Lotes), `mov` (Movimentações), `ae` (Eventos Adversos), `qd` (Desvios Qualidade) |
 | **Medicina do Trabalho** | `emp` (Empresas), `trab` (Trabalhadores), `ex` (Exames Ocupacionais), `cal` (Calibrações), `rel` (Relatórios MTESS) |
 | **Portal do Paciente** | `pat_portal` (Pacientes Portal), `tel` (Teleconsultas), `app_portal` (Consultas App), `pay` (Pagamentos) |
-| **Diagnóstico (PACS/SADT)** | `rep` (Laudos), `hl7` (Mensagens HL7), `m` (Medições Laboratório) |
+| **Diagnóstico (PACS/SADT)** | `rep` (Laudos), `study` (Estudos DICOM/gateway `dicom_studies`), `hl7` (Mensagens HL7), `m` (Medições Laboratório) |
 | **CRM & BI Analyst** | `camp` (Campanhas), `lead` (Leads), `opp` (Oportunidades), `opt` (Opt-Outs), `nps` (Pesquisas NPS) |
 | **Financeiro, Faturamento & LGPD** | `dte` (Documentos Eletrônicos), `fin` (Lançamentos Financeiros), `stk` (Itens Estoque/Patrimônio), `ins` (Convênios), `sso` (Provedores SSO), `elig` (Consultas Elegibilidade), `sett` (Repasses/Liquidacões), `frn` (Faturamento Estrangeiro), `batch` (Lotes Faturamento) |
 | **Agenda (Módulo 2)** | `blk` (Bloqueios de horário), `wl` (Lista de Espera), `whats` (Lembretes WhatsApp), `call` (Call Center) |

@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { canAccessTab } from '@/lib/rbac/catalog';
 import {
-  Patient, DicomStudy, DicomModality, ImagingReport, WorklistEntry, Hl7Message,
+  Patient, DicomStudy, DicomModality, DicomStudyStatus, ImagingReport, WorklistEntry, Hl7Message,
   LabOrder, LabResult, LabAlert, LabTest, ReportTemplate, modalityList,
   ClinicalAttachment,
 } from '@/lib/mockData';
@@ -12,6 +12,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { useModuleId } from '@/hooks/useModuleId';
 import { hasPermission } from '@/lib/usePermissions';
 import { resolveStudyImageUrl } from '@/lib/pacs/wado';
+import { parseDicomFile, renderDicomThumbnail, dicomDateTimeToIso, canDecodePixels, mapDicomModality, type ParsedDicomStudy } from '@/lib/pacs/dicomImport';
 import {
   Microscope, Eye, FileText, Layers, Settings2, Search, Filter, Sliders,
   Plus, Trash2, Check, AlertTriangle, AlertCircle, Send, Clock, User,
@@ -121,6 +122,8 @@ const DiagnosticModuleContent = ({
   const [pacsMeasurements, setPacsMeasurements] = useState<{ id: string; label: string; value: string; unit: string }[]>([]);
   const [mprActive, setMprActive] = useState(false);
   const [selectedKeyImages, setSelectedKeyImages] = useState<string[]>([]);
+  const [dicomImporting, setDicomImporting] = useState(false);
+  const dicomFileInputRef = useRef<HTMLInputElement | null>(null);
 
   // ── LAUDOS STATE ──
   const [reports, setReports] = useState<ImagingReport[]>([]);
@@ -255,6 +258,41 @@ const DiagnosticModuleContent = ({
     };
     fetchData();
   }, [selectedPatId, generateAttachmentUrls]);
+
+  // Ao trocar o filtro de modalidade (RX/TC/RM/PET/...), zera a seleção
+  // do estudo se ele não pertence mais ao filtro ativo (viewer não fica "preso").
+  useEffect(() => {
+    setSelectedStudy(prev => {
+      if (!prev) return prev;
+      if (pacsModalityFilter === 'all' || prev.modality === pacsModalityFilter) return prev;
+      return null;
+    });
+    setPacsAnnotation('');
+    setPacsMeasurements([]);
+    setMprActive(false);
+    setImageContrast(100);
+    setImageBrightness(100);
+    setImageZoom(100);
+    setImageRotation(0);
+    setWindowLevel({ center: 40, width: 400 });
+  }, [pacsModalityFilter]);
+
+  // Ao trocar de sub-aba do Módulo 4 (PACS / Laudos / Worklist / Laboratório),
+  // zera o estado do visualizador para não manter dados da aba anterior.
+  useEffect(() => {
+    setSelectedStudy(null);
+    setPacsAnnotation('');
+    setPacsMeasurements([]);
+    setMprActive(false);
+    setSelectedKeyImages([]);
+    setImageContrast(100);
+    setImageBrightness(100);
+    setImageZoom(100);
+    setImageRotation(0);
+    setWindowLevel({ center: 40, width: 400 });
+    setPacsSearchQuery('');
+    setPacsModalityFilter('all');
+  }, [diagTab]);
 
   useEffect(() => {
     const fetchCatalogs = async () => {
@@ -413,6 +451,148 @@ const DiagnosticModuleContent = ({
     setImageRotation(0);
     setWindowLevel({ center: 40, width: 400 });
   }, []);
+
+  // ── DICOM IMPORT HANDLERS (Fase 1: upload real de .dcm) ──
+  const modalityNames = useMemo(() => {
+    const m: Record<string, string> = {};
+    modalityList.forEach(x => { m[x.code] = x.name; });
+    return m;
+  }, []);
+
+  const sanitizeFileName = useCallback((name: string) => name.replace(/[^a-zA-Z0-9._-]/g, '_'), []);
+
+  const resolveImportPatientId = useCallback(async (parsed: ParsedDicomStudy): Promise<string> => {
+    if (selectedPatId) return selectedPatId;
+    const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+    const fileId = norm(parsed.patientId || '');
+    const byDoc = patients.find(p => fileId && (norm(p.id) === fileId || norm(p.document_number || '') === fileId));
+    if (byDoc) return byDoc.id;
+    const target = norm(parsed.patientName);
+    const byName = target ? patients.filter(p => norm(p.name) === target) : [];
+    if (byName.length === 1) return byName[0].id;
+    throw new Error(t('diag_import_need_patient', 'app'));
+  }, [patients, selectedPatId, t]);
+
+  const handleImportDicomFiles = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';
+    if (files.length === 0) return;
+    setDicomImporting(true);
+    try {
+      const results: { file: File; parsed: ParsedDicomStudy }[] = [];
+      for (const file of files) {
+        const buffer = await file.arrayBuffer();
+        results.push({ file, parsed: parseDicomFile(buffer) });
+      }
+
+      const groups = new Map<string, typeof results>();
+      for (const r of results) {
+        const key = r.parsed.studyInstanceUid || `local_${r.parsed.accessionNumber || r.file.name}`;
+        groups.set(key, [...(groups.get(key) || []), r]);
+      }
+
+      let imported = 0;
+      for (const [studyUid, items] of groups) {
+        const first = items[0].parsed;
+        const patientId = await resolveImportPatientId(first);
+        const studyId = await genModuleId('study');
+        const modality = mapDicomModality(first.modality);
+
+        const seriesSet = new Set(items.map(i => i.parsed.seriesInstanceUid).filter(Boolean));
+        const totalFrames = items.reduce((acc, i) => acc + (i.parsed.numberOfFrames ?? 1), 0);
+        const seriesCount = (first.seriesCount ?? seriesSet.size) || 1;
+        const instanceCount = (first.instanceCount ?? totalFrames) || items.length;
+
+        let thumbnailUrl = '';
+        const decodable = items.find(i => canDecodePixels(i.parsed));
+        if (decodable) {
+          const blob = await renderDicomThumbnail(decodable.parsed);
+          if (blob) {
+            const thumbPath = `${patientId}/${studyId}/thumb.jpg`;
+            const up = await supabase.storage.from('dicom-thumbnails').upload(thumbPath, blob, { contentType: 'image/jpeg', upsert: true });
+            if (!up.error) {
+              const pub = supabase.storage.from('dicom-thumbnails').getPublicUrl(thumbPath);
+              thumbnailUrl = pub.data.publicUrl;
+            }
+          }
+        }
+        if (!thumbnailUrl) thumbnailUrl = `https://picsum.photos/seed/dicom-${studyId}/800/600`;
+
+        const refs: string[] = [];
+        for (const r of items) {
+          const path = `attachments/${patientId}/${studyId}/${sanitizeFileName(r.file.name)}`;
+          const up = await supabase.storage.from('clinical-attachments').upload(path, r.file, { contentType: 'application/dicom', upsert: false });
+          if (up.error) throw new Error(`${path}: ${up.error.message}`);
+          refs.push(path);
+        }
+
+        const performedAt = dicomDateTimeToIso(first.studyDate, first.studyTime);
+        const row = {
+          id: studyId,
+          study_instance_uid: first.studyInstanceUid || studyUid,
+          accession_number: first.accessionNumber || `IMP-${studyId.toUpperCase()}`,
+          patient_id: patientId,
+          patient_name: first.patientName || selectedPatient?.name || 'Paciente',
+          modality,
+          modality_name: modalityNames[modality] || '',
+          body_part: first.bodyPartExamined || '',
+          study_description: first.studyDescription || `${modality} importado`,
+          clinical_history: '',
+          referring_physician: first.referringPhysician || '',
+          performing_physician: '',
+          institution_name: first.institutionName || 'IAMED Centro Médico',
+          station_name: first.stationName || '',
+          scheduled_at: performedAt,
+          performed_at: performedAt,
+          status: 'laudo_pendente',
+          series_count: seriesCount,
+          instance_count: instanceCount,
+          thumbnail_url: thumbnailUrl,
+          dicom_file_ref: refs.length ? `dicom://${refs[0]}` : `dicom://import/${studyId}`,
+          pacs_server_id: 'IMPORT',
+          vendor: first.manufacturer || '',
+        };
+        const { error } = await supabase.from('dicom_studies').insert(row);
+        if (error) throw new Error(error.message);
+
+        setDicomStudies(prev => [{
+          id: row.id,
+          studyInstanceUID: row.study_instance_uid,
+          accessionNumber: row.accession_number,
+          patientId: row.patient_id,
+          patientName: row.patient_name,
+          modality: row.modality,
+          modalityName: row.modality_name,
+          bodyPart: row.body_part,
+          studyDescription: row.study_description,
+          clinicalHistory: row.clinical_history,
+          referringPhysician: row.referring_physician,
+          performingPhysician: undefined,
+          institutionName: row.institution_name,
+          stationName: row.station_name,
+          scheduledAt: row.scheduled_at,
+          performedAt: row.performed_at,
+          status: row.status as DicomStudyStatus,
+          seriesCount: row.series_count,
+          instanceCount: row.instance_count,
+          thumbnailUrl: row.thumbnail_url,
+          dicomFileRef: row.dicom_file_ref,
+          pacsServerId: row.pacs_server_id,
+          vendor: row.vendor,
+          createdAt: new Date().toISOString(),
+        }, ...prev]);
+        if (!selectedPatId) setSelectedPatId(patientId);
+        imported += 1;
+        addAuditLog('Estudo DICOM Importado', `${modality} — ${row.patient_name} — ${row.accession_number}`);
+      }
+      setDicomImporting(false);
+      alert(t('diag_import_success', 'app').replace('{n}', String(imported)));
+    } catch (err) {
+      console.error('[DICOM import]', err);
+      setDicomImporting(false);
+      alert(err instanceof Error ? err.message : t('diag_import_fail', 'app'));
+    }
+  }, [resolveImportPatientId, genModuleId, modalityNames, sanitizeFileName, selectedPatient, selectedPatId, addAuditLog, t]);
 
   // ── LAUDO HANDLERS ──
   const handleLoadTemplate = useCallback(() => {
@@ -609,9 +789,18 @@ const DiagnosticModuleContent = ({
           {/* Sidebar: Study List */}
           <div className="lg:col-span-1 space-y-4">
             <div className={sectionCls}>
-              <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-                <MonitorPlay className="w-5 h-5 text-teal-600" />
-                <h3 className="font-bold text-slate-800 text-sm">{t('diag_pacs_title', 'app')}</h3>
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <MonitorPlay className="w-5 h-5 text-teal-600" />
+                  <h3 className="font-bold text-slate-800 text-sm">{t('diag_pacs_title', 'app')}</h3>
+                </div>
+                <button onClick={() => dicomFileInputRef.current?.click()} disabled={dicomImporting}
+                  className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-lg bg-teal-600 hover:bg-teal-700 text-white transition disabled:opacity-50 cursor-pointer"
+                  title={t('diag_import_button', 'app')}>
+                  {dicomImporting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
+                  {t('diag_import_button', 'app')}
+                </button>
+                <input ref={dicomFileInputRef} type="file" multiple accept=".dcm,application/dicom" className="hidden" onChange={handleImportDicomFiles} />
               </div>
               {/* Filters */}
               <div className="space-y-2">
@@ -634,7 +823,9 @@ const DiagnosticModuleContent = ({
                   <div key={s.id} onClick={() => { setSelectedStudy(s); setImageContrast(100); setImageBrightness(100); setImageZoom(100); setImageRotation(0); setPacsMeasurements([]); }}
                     className={`p-3 rounded-xl border text-xs cursor-pointer transition ${selectedStudy?.id === s.id ? 'bg-teal-50 border-teal-300 shadow-sm' : 'bg-slate-50 border-slate-200 hover:bg-slate-100'}`}>
                     <div className="flex items-center justify-between mb-1">
-                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold border ${modalityColors[s.modality]}`}>{s.modality}</span>
+                      <div className="flex items-center gap-1">
+                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold border ${modalityColors[s.modality]}`}>{s.modality}</span>
+                      </div>
                       <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${s.status === 'laudado' ? 'bg-green-100 text-green-700' : s.status === 'laudo_pendente' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>{s.status === 'laudado' ? t('diag_reports_status_signed', 'app') : s.status === 'laudo_pendente' ? t('diag_pacs_status_pend_laud', 'app') : s.status.toUpperCase()}</span>
                     </div>
                     <p className="font-bold text-slate-800">{s.patientName}</p>

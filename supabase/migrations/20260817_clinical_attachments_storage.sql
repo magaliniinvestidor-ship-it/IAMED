@@ -1,5 +1,7 @@
 -- Storage bucket para anexos clínicos do HCE (PDF, DICOM, JPEG, PNG, MP4, WAV)
 -- Limite: 50 MB por arquivo (validado também em Zod)
+-- Nota: 'application/octet-stream' é incluído porque o gateway do Storage detecta
+-- DICOM (.dcm) por magic-bytes como octet-stream, ignorando o Content-Type enviado.
 
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES (
@@ -10,6 +12,7 @@ VALUES (
   ARRAY[
     'application/pdf',
     'application/dicom',
+    'application/octet-stream',
     'image/jpeg',
     'image/png',
     'video/mp4',
